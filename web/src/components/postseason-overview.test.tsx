@@ -144,3 +144,41 @@ test("已過開賽時間仍無賽果：該列標賽果待更新與截至；有�
   assert.match(t, /G1 10\/09（五） 17:05 賽果待更新 .*已過預定開賽時間・本站尚無賽果紀錄（本站賽果紀錄至 10\/04）/);
   assert.match(t, /G2 10\/10（六） 17:05 下一場/);
 });
+
+// 登錄名單（需求方 2026-10-09 自 #238 轉入）：挑戰賽與台灣大賽各自一版；官方未核實前只放標「二手報導」的外部連結，
+// 不轉成名單資料。判準落在讀者看得到的那一行與連結屬性。
+const UDN = "https://udn.com/news/story/7001/9803100";
+const rosterLine = (html: string) => {
+  const m = html.match(/<p data-roster-lead[^>]*>([\s\S]*?)<\/p>/);
+  assert.ok(m, "賽程卡下方有登錄名單一行");
+  return { html: m[0], text: text(<div dangerouslySetInnerHTML={{ __html: m[1] }} />) };
+};
+
+test("登錄名單來源版本：挑戰賽一筆 UDN 二手報導（10/08）、台灣大賽沒有；不帶球員欄位", () => {
+  assert.deepEqual(POSTSEASON_2026.series.E.rosterLeads, [
+    { url: UDN, label: "UDN", publishedOn: "2026-10-08", kind: "二手報導" },
+  ]);
+  assert.deepEqual(POSTSEASON_2026.series.C.rosterLeads, []);
+});
+
+test("挑戰賽分頁：登錄名單一行＝二手報導・UDN・日期，新分頁且 noopener noreferrer、點擊區 44px；說明不是打線或可出賽", () => {
+  const j = build([], "2026-10-09T12:00:00+08:00");
+  const html = renderToStaticMarkup(view(j, "E"));
+  const line = rosterLine(html);
+  assert.equal(line.text, "登錄名單 ： 二手報導・UDN 10/08 （另開新分頁） 。 登錄名單不是先發打線，也不代表球員可出賽。");
+  assert.equal(count(html, `href="${UDN}"`), 1, "整個總覽只有這一個名單連結");
+  assert.match(line.html, new RegExp(`<a href="${UDN}" target="_blank" rel="noopener noreferrer" class="[^"]*min-h-11`));
+  assert.doesNotMatch(line.text, /官方|\d+\s*人|投手|捕手|內野|外野/, "不宣稱官方、不呈現人數或守位");
+  // 名單行在賽程卡之後、清單說明之前（同一套資訊只出現一處）。
+  assert.ok(html.indexOf("data-roster-lead") > html.indexOf("季後挑戰賽賽程"));
+  assert.ok(html.indexOf("data-roster-lead") < html.indexOf("＝系列尚未分出勝負才進行"));
+});
+
+test("台灣大賽分頁：登錄名單寫本站尚未取得，不沿用挑戰賽的 UDN 連結；挑戰賽分出勝負後仍同", () => {
+  for (const j of [build([], "2026-10-09T12:00:00+08:00"), build([BRO, BRO], "2026-10-10T23:00:00+08:00")]) {
+    const html = renderToStaticMarkup(view(j, "C"));
+    assert.equal(rosterLine(html).text, "登錄名單 ：本站尚未取得台灣大賽登錄名單。");
+    assert.doesNotMatch(html, /udn\.com/);
+    assert.doesNotMatch(html, /二手報導|官方未公布/);
+  }
+});

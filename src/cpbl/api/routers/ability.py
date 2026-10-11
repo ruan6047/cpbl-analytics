@@ -81,7 +81,7 @@ _COMPOSITE = {
 _ABILITY_MIN = {"batting": {"career": 300, "season": 50}, "pitching": {"career": 100, "season": 20}}
 
 
-def _bat_ability_sql(scope: str) -> str:
+def _bat_ability_sql(scope: str, *, multiple: bool = False) -> str:
     """打者能力 SQL：career=逐年年代校正後彙總(AB≥300)，season=本季(AB≥50)。
 
     守備用『守位內守備範圍 (PO+A)/G』並於同守位內取百分位（取主守位＝場次最多者），
@@ -229,14 +229,14 @@ def _bat_ability_sql(scope: str) -> str:
                 3*ops_pr + 0.6*COALESCE(wsb_pr, speed_pr) + 0.4*speed_pr
                 + COALESCE(defense_pr, 0.5)) ov_pr
             FROM pr
-        ) SELECT contact, power, eye, speed, defense, wsb, fld_g, bat_g,
+        ) SELECT {"player_id," if multiple else ""} contact, power, eye, speed, defense, wsb, fld_g, bat_g,
                  contact_pr, power_pr, eye_pr, speed_pr, defense_pr, wsb_pr{cra9_pass},
                  is_catcher, ov_pr
-          FROM ov WHERE player_id = %(pid)s
+          FROM ov WHERE {"player_id = ANY(%(pids)s)" if multiple else "player_id = %(pid)s"}
     """
 
 
-def _pit_ability_sql(scope: str) -> str:
+def _pit_ability_sql(scope: str, *, multiple: bool = False) -> str:
     """投手能力 SQL：career=逐年年代校正後彙總(IP≥100)，season=本季(IP≥20)。越低越好者 DESC 反轉。
 
     FIP＝(13*HR+3*(BB+HBP)-2*SO)/IP＋常數，常數逐年校準到該年聯盟 ERA（HBP 缺值容 0
@@ -327,28 +327,20 @@ def _pit_ability_sql(scope: str) -> str:
                 3*(0.5*command_pr + 0.5*fip_pr) + k_pr + control_pr
                 + hr_suppress_pr + stamina_pr) ov_pr
             FROM pr
-        ) SELECT k AS weapon, control, hr_suppress, command, stamina, fip,
+        ) SELECT {"player_id," if multiple else ""} k AS weapon, control, hr_suppress, command, stamina, fip,
                  k_pr AS weapon_pr, control_pr, hr_suppress_pr, command_pr, stamina_pr, fip_pr,
                  is_starter, ov_pr, weapon_type
-          FROM ov WHERE player_id = %(pid)s
+          FROM ov WHERE {"player_id = ANY(%(pids)s)" if multiple else "player_id = %(pid)s"}
     """
 
 
 def _ability_card(cur, player_id: str, role: str, scope: str, year: int) -> dict:
-    axes_def = _ABILITY_AXES[role]
     sql = _bat_ability_sql(scope) if role == "batting" else _pit_ability_sql(scope)
     cur.execute(sql, {"pid": player_id, "yr": year, "min": _ABILITY_MIN[role][scope]})
     row = cur.fetchone()
     if not row:
         return {"available": False, "role": role, "scope": scope}
     r = dict(zip([d.name for d in cur.description], row, strict=True))
-    flag = r.get("is_catcher") if role == "batting" else r.get("is_starter")
-    ov_pr = r.get("ov_pr")                 # 整體表現的全聯盟重排百分位
-    weapon_type = r.get("weapon_type")     # 投手風格（三振/滾地/飛球，signature 徽章）
-    # 傳統各指標 PR（percent_rank 0~1 → 0~100）；None=無資料（如 DH 無守備、無 wSB 機會）。
-    trad = {k: (None if v is None else round(float(v) * 100))
-            for k, v in r.items() if k.endswith("_pr")}
-
     # 進階官方 PR（僅本季、足量打席才採；已定向高=好）。覆蓋稀疏故多數球員為空。
     adv: dict[str, int] = {}
     if scope == "season":
@@ -364,6 +356,19 @@ def _ability_card(cur, player_id: str, role: str, scope: str, year: int) -> dict
                                "kp_pr", "bbp_pr", "whiffp_pr", "chasep_pr"], ar[1:], strict=True):
                 if v is not None:
                     adv[col] = int(v)
+
+    return _shape_ability(r, adv, role, scope)
+
+
+def _shape_ability(r: dict, adv: dict[str, int], role: str, scope: str) -> dict:
+    """單人與整批共用原能力組成／權重；不改百分位、母體或評分。"""
+    axes_def = _ABILITY_AXES[role]
+    flag = r.get("is_catcher") if role == "batting" else r.get("is_starter")
+    ov_pr = r.get("ov_pr")                 # 整體表現的全聯盟重排百分位
+    weapon_type = r.get("weapon_type")     # 投手風格（三振/滾地/飛球，signature 徽章）
+    # 傳統各指標 PR（percent_rank 0~1 → 0~100）；None=無資料（如 DH 無守備、無 wSB 機會）。
+    trad = {k: (None if v is None else round(float(v) * 100))
+            for k, v in r.items() if k.endswith("_pr")}
 
     axes = []
     for key, label, _fmt, _src in axes_def:
@@ -435,6 +440,26 @@ def _ability_card(cur, player_id: str, role: str, scope: str, year: int) -> dict
     return {"available": True, "role": role, "scope": scope, "axes": axes,
             "has_advanced": bool(adv), "signature": signature,
             "overall": {"pr": overall, "grade": _grade(overall)}}
+
+
+def ability_cards(cur, player_ids: list[str], role: str, year: int) -> dict[str, dict]:
+    """報告一個角色只算一次聯盟母體，避免每名球員重算所有排名。"""
+    sql = _bat_ability_sql("season", multiple=True) if role == "batting" else _pit_ability_sql("season", multiple=True)
+    cur.execute(sql, {"pids": player_ids, "yr": year, "min": _ABILITY_MIN[role]["season"]})
+    cols = [d.name for d in cur.description]
+    rows = [dict(zip(cols, row, strict=True)) for row in cur.fetchall()]
+    cur.execute(
+        f"SELECT a.* FROM cpbl.advanced_stats a WHERE a.acnt=ANY(%s) AND a.year=%s "
+        f"AND a.role=%s AND a.kind_code='A' AND {_ADV_GATE}", (player_ids, year, role))
+    cols = [d.name for d in cur.description]
+    advanced = {r['acnt']: r for r in (dict(zip(cols, row, strict=True)) for row in cur.fetchall())}
+    out = {pid: {"available": False, "role": role, "scope": "season"} for pid in player_ids}
+    pr_columns = ("woba_pr", "iso_pr", "ev_pr", "hardhitp_pr", "brlp_pr", "kp_pr", "bbp_pr", "whiffp_pr", "chasep_pr")
+    for row in rows:
+        a = advanced.get(row['player_id'], {})
+        adv = {col: int(a[col]) for col in pr_columns if a.get(col) is not None} if (a.get('pa') or 0) >= 30 else {}
+        out[row['player_id']] = _shape_ability(row, adv, role, "season")
+    return out
 
 
 @router.get("/api/v1/players/{player_id}/ability-card")

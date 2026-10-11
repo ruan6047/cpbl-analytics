@@ -130,6 +130,11 @@ def test_postgame_tracking_only_uses_published_canonical_pa_mapping() -> None:
     assert "pa.start_event_no AS main_event_no" in source
     assert "JOIN cpbl.game_pa_pitch_mappings mapping" in source
     assert "mapping.mapping_state='mapped'" in source
-    assert "JOIN cpbl.game_recap_builds build" in source
-    assert "build.state='published'" in source
+    # #237：published build 改由 CTE 以完整 game key 先限定；mapping 與 PA 必須同屬該 build
+    assert "WITH pub AS MATERIALIZED (" in source
+    assert "SELECT build_id FROM cpbl.game_recap_builds" in source
+    assert "WHERE year=%s AND kind_code=%s AND game_sno=%s AND state='published'" in source
+    assert "mapping.build_id=pub.build_id" in source
+    assert "pa.build_id=pub.build_id" in source
+    assert "pa.state='ready'" in source
     assert "ORDER BY pa.pa_index, mapping.pitch_position" in source

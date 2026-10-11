@@ -15,6 +15,7 @@
 // 兩層皆不成立時**停在賽中態**，嚴禁以時間推斷硬切完賽。
 
 import Link from "next/link";
+import { recapReportLink } from "@/lib/between-games";
 import { useParams, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { detail } from "@/lib/client";
@@ -43,6 +44,7 @@ import {
   applyLiveSnapshot,
   canShowPostgameConclusions,
   nextPollDelay,
+  officialCompletionOf,
   phaseLabel,
   resolveStatusSnapshot,
   shouldFetchLivePayload,
@@ -83,6 +85,9 @@ export default function GameLivePage() {
   const [err, setErr] = useState(false);
   const [refreshIssue, setRefreshIssue] = useState<"network" | "source" | null>(null);
   const snapshotRef = useRef<LiveSnapshot | null>(null);
+  // 最近一次**成功**完整 payload 的 game.completed 是否嚴格為 true（#237；見 resolveStatusSnapshot）。
+  // 只用來區分「完賽場本無即時快照」的正常缺失，不作任何完賽推斷。
+  const completedRef = useRef(false);
   const [idx, setIdx] = useState(0);
   // 頁面預設「比賽總覽」；逐打席為進階操作視圖
   const [view, setView] = useState<PageTab>("overview");
@@ -95,6 +100,7 @@ export default function GameLivePage() {
     let disposed = false;
     let timer: ReturnType<typeof setTimeout> | null = null;
     let hasData = false;
+    completedRef.current = false;  // 換場時不得沿用上一場的完賽狀態
 
     const clearTimer = () => {
       if (timer) clearTimeout(timer);
@@ -108,6 +114,7 @@ export default function GameLivePage() {
       const dd = next as unknown as Live;
       const nextSnapshot = next.live_snapshot;
       snapshotRef.current = nextSnapshot;
+      completedRef.current = next.game?.completed === true;
       setRefreshIssue(nextSnapshot?.source_status === "error" ? "source" : null);
       setData((previous) => {
         const previousLength = previous?.livelog.length ?? 0;
@@ -158,7 +165,9 @@ export default function GameLivePage() {
           const status = await detail.gameStatus(Number(sno), kind, year);
           if (disposed) return;
           const previous = snapshotRef.current;
-          const resolved = resolveStatusSnapshot(previous, status.live_snapshot);
+          const resolved = resolveStatusSnapshot(
+            previous, status.live_snapshot, { completed: completedRef.current },
+          );
           setRefreshIssue(resolved.interrupted ? "source" : null);
           if (!resolved.accepted) return;
           snapshotRef.current = resolved.snapshot;
@@ -226,7 +235,11 @@ export default function GameLivePage() {
   const hs = num(g.home_score);
   const aw = num(g.away_score);
   // 頁面層完賽觸發（既有語意，形式化進 spec）；資料層由後端 facts 的 render_state 表達。
-  const completed = canShowPostgameConclusions(liveSnapshot, hs + aw);
+  // 2026 起的季後 E／C 沒有 snapshot 時只認後端 `completed`（官方 final／證據，#237）。
+  const officialCompleted = officialCompletionOf(g);
+  const completed = canShowPostgameConclusions(liveSnapshot, hs + aw, officialCompleted);
+  // 官方未定案卻已有比分＝已開打、但本站沒有可證實的賽況階段：不說「尚未開賽」也不說終場。
+  const unconfirmedStarted = !liveSnapshot && officialCompleted === false && hs + aw > 0;
   // 賽後主區塊只在事實流可用時置換；否則沿用既有總覽（不留白、不硬切）
   const showRecap = completed && isRecapReady(facts);
   // 導航模型（2026-08-06 需求方人工審定案）：
@@ -298,6 +311,7 @@ export default function GameLivePage() {
   return (
     <div>
       <GameHead g={g} sno={sno} kind={String(g.kind_code ?? kind)} />
+      {recapReportLink(completed, sno, kind, g.year) && <div className="mb-4 flex justify-end"><Link href={recapReportLink(completed, sno, kind, g.year)!} className="min-h-11 py-3 text-sm font-semibold text-accent underline">場間報告：下一場兩隊背景</Link></div>}
       {liveInterrupted && (
         <Notice className="mb-3" label="更新中斷">
           即時更新暫時中斷；畫面保留最後一次成功賽況，恢復連線後會自動續接。
@@ -370,10 +384,12 @@ export default function GameLivePage() {
           <p className="flex items-center gap-2 text-sm text-muted">
             {liveSnapshot
               ? <StatusBadge tone={phaseTone(liveSnapshot.phase)}>{phaseLabel(liveSnapshot.phase)}</StatusBadge>
-              : <span>尚未開賽</span>}
+              : unconfirmedStarted
+                ? <StatusBadge tone={phaseTone("unknown")}>{phaseLabel("unknown")}</StatusBadge>
+                : <span>尚未開賽</span>}
           </p>
           {liveSnapshot && <LiveGameLineups snapshot={liveSnapshot} />}
-          {pregame && <PregameCard model={pregame} homeName={String(g.home_team_name)} />}
+          {pregame && !unconfirmedStarted && <PregameCard model={pregame} homeName={String(g.home_team_name)} />}
         </div>
       )}
 

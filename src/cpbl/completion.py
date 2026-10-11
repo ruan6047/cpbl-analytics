@@ -89,6 +89,25 @@ _OFFICIAL_SCHEDULE_ORDER_BY = (
 # 每日鏈改用「官方 final／核准證據」選場的起始球季（#213）。更早球季沿用舊判準、不批量改動。
 DAILY_CHAIN_FINAL_FROM_YEAR = 2026
 
+# 讀端（API／前端）也只認官方 final／完賽證據的賽別（#237）：2026 起的季後 E／C。
+# 實例：2026/E/1 官方 17:52 回 (PresentStatus=1, GameResult='')、HomeScore=3——比賽中途的
+# 部分比分，舊判準「比分 > 0」把它當成終場。A／D 與 2025 以前的 E／C 判準一字不動。
+# ⛔ 年份界線與每日鏈同一個常數，不另立；前端 `web/src/lib/live-game.ts` 抄同一組值。
+POSTSEASON_OFFICIAL_KINDS = ("E", "C")
+
+
+def requires_official_completion(kind_code: str | None, year: int | None) -> bool:
+    """這一場的完賽是否**只**能由官方 final／完賽證據成立（比分不能自證）。"""
+    return (kind_code in POSTSEASON_OFFICIAL_KINDS and year is not None
+            and int(year) >= DAILY_CHAIN_FINAL_FROM_YEAR)
+
+
+def official_completion_scope_sql(alias: str = "games") -> str:
+    """:func:`requires_official_completion` 的 SQL 等價條件（自帶括號）。"""
+    p = f"{_require_alias(alias)}."
+    kinds = ", ".join(f"'{k}'" for k in POSTSEASON_OFFICIAL_KINDS)
+    return f"({p}kind_code IN ({kinds}) AND {p}year >= {DAILY_CHAIN_FINAL_FROM_YEAR})"
+
 
 def is_completed(
     home_score: int | None,
@@ -130,6 +149,7 @@ def is_completed_game(
     as_of: date,
     has_evidence: bool = False,
     official_final: bool = False,
+    official_required: bool = False,
 ) -> bool:
     """**新判準**：日期界線 **AND**（比分 > 0 **OR** 有外部完賽證據 **OR** 0:0 且官方 final）。
 
@@ -137,9 +157,14 @@ def is_completed_game(
     ``official_final`` 為官方排程現行列標示 final（:func:`official_final_sql`，#213）。
     0:0 且兩者皆無者一律回 ``False``——既不納入完成場，也不代表「這場沒打」，
     而是**隔離為待判讀**（全庫 288 場 0:0 中僅 5 場經證實為和局）。
+
+    ``official_required=True``（呼叫端以 :func:`requires_official_completion` 決定）時
+    比分不作依據：日期界線 **AND**（證據 **OR** 官方 final）。查無官方排程列＝不成立。
     """
     if game_date > as_of:
         return False
+    if official_required:
+        return has_evidence or official_final
     # 0:0 分支要求兩邊比分都**不是 None**：SQL 端 ``NULL + NULL = 0`` 為 NULL、不成立。
     return ((home_score or 0) + (away_score or 0) > 0 or has_evidence
             or (official_final and home_score == 0 and away_score == 0))
@@ -165,12 +190,19 @@ def completed_games_sql_with_evidence(
 
     ⭐ 0:0 另有「官方 final」分支（#213）：2026/D/234 官方標示五局 0:0 完賽卻無證據列；
     只收 0:0 的那一支，帶比分場的判定不變。
+
+    ⭐ 2026 起的季後 E／C（:func:`official_completion_scope_sql`，#237）走 ``CASE`` 的
+    第一支：日期界線 **AND**（官方 final **OR** 完賽證據），比分不作依據——即
+    ``is_completed_game(..., official_required=True)``。``ELSE`` 是原式逐字不動。
     """
     p = f"{_require_alias(alias)}."
     return (
-        f"({p}game_date <= {as_of_sql} AND ("
+        f"(CASE WHEN {official_completion_scope_sql(alias)} "
+        f"THEN {p}game_date <= {as_of_sql} AND ("
+        f"{official_final_sql(alias)} OR {_evidence_exists_sql(alias)}) "
+        f"ELSE ({p}game_date <= {as_of_sql} AND ("
         f"{p}home_score + {p}away_score > 0 OR {_evidence_exists_sql(alias)} OR ("
-        f"{p}home_score + {p}away_score = 0 AND {official_final_sql(alias)})))"
+        f"{p}home_score + {p}away_score = 0 AND {official_final_sql(alias)}))) END)"
     )
 
 

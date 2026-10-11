@@ -17,7 +17,7 @@ import { indexWpCurve, joinPaSwing } from "@/lib/pa-wp-join";
 import { displayWpPctInt } from "@/lib/win-prob-display";
 import { PaScoreLine } from "@/components/pa-score-line";
 import {
-  canShowPostgameConclusions, inningLabel, liveScorebarScores, phaseLabel, plateAppearancePitchCountLabel, trackingEmptyMessage,
+  canShowPostgameConclusions, inningLabel, liveScorebarScores, officialCompletionOf, phaseLabel, plateAppearancePitchCountLabel, trackingEmptyMessage,
   type LiveCaptureCoverage, type LiveSnapshot,
 } from "@/lib/live-game";
 
@@ -302,7 +302,8 @@ function ScoreLine({ sb, game, snapshot, halves, curKey, onSelect, highlightSele
   // 主隊末局 Ｘ：主隊獲勝時，末局若未打（領先免打）標「Ｘ」，若打了（再見得分）標「{分}Ｘ」。僅主列(half 2)末局。
   // 「有無打末局」以 livelog 半局為準——scoreboard 對未打局仍有 phantom 0 列，不可信；無 livelog(歷史場)則不套用。
   const maxInn = innings.length ? innings[innings.length - 1] : 0;
-  const homeWon = canShowPostgameConclusions(snapshot, num(game.home_score) + num(game.away_score))
+  const homeWon = canShowPostgameConclusions(snapshot, num(game.home_score) + num(game.away_score),
+    officialCompletionOf(game))
     && num(game.home_score) > num(game.away_score);
   const homeBattedFinal = halfBy.has(`${maxInn}|2`);
   const cellNode = (rows: StatRow[], inn: number, half: string) => {
@@ -702,7 +703,8 @@ export default function GameBoard({ data, idx, setIdx, view = "pbp", onNavigate,
   //    在此處提早出現該字面會讓那條守衛誤判。
   const plainScorebar = view === "overview"
     && canShowPostgameConclusions(data.live_snapshot ?? null,
-                                  num(game.away_score) + num(game.home_score));
+                                  num(game.away_score) + num(game.home_score),
+                                  officialCompletionOf(game));
 
   // 目前選定的半局（由所選事件決定）+ 該半局事件索引
   const curKey = e ? `${num(e.inning_seq)}|${String(e.visiting_home_type)}` : "";

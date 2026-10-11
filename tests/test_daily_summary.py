@@ -1190,3 +1190,65 @@ def test_live_next_slate_is_not_in_the_past():
                                              "no_features", "error"}
         # serving 狀態語彙屬模型層級，不得外洩到逐場欄位。
         assert not game["pregame"]["status"].startswith("serving_")
+
+
+# --- #237：2026 起的季後 E／C 只認官方 final／證據 --------------------------------
+#
+# E1 的比分與狀態抄自官方 2026-10-09 17:52 台北擷取：HomeScore=3、VisitingScore=0、
+# (PresentStatus=1, GameResult='')——比賽中途的部分比分。日期改用本檔固定基準日 `_TODAY`
+# （假 cursor 只認注入的日界）。
+
+def _e1(*, official_final: bool = False, day: date = _TODAY, kind: str = "E",
+        season: int = 2026) -> tuple:
+    row = _game(1, day, home=3, away=0, kind=kind, official_final=official_final)
+    return (season, *row[1:])
+
+
+def _today_only(monkeypatch, row: tuple):
+    return _run(monkeypatch, _script(latest=None, next_day=_TODAY, scoped=1, games=[row]))
+
+
+def test_postseason_2026_partial_score_is_not_a_result(monkeypatch):
+    body, _ = _today_only(monkeypatch, _e1())
+
+    game = body["today"]["games"][0]
+    assert game["kind_code"] == "E" and game["completed"] is False
+    assert game["home_score"] is None and game["away_score"] is None, \
+        "賽中部分比分不得以終場比分送出"
+    assert body["today"]["started"] is False
+    assert game["pregame"]["status"] == "unsupported"
+
+
+def test_postseason_2026_official_final_is_a_result(monkeypatch):
+    body, _ = _today_only(monkeypatch, _e1(official_final=True))
+
+    game = body["today"]["games"][0]
+    assert game["completed"] is True
+    assert (game["home_score"], game["away_score"]) == (3, 0)
+    assert body["today"]["started"] is True
+
+
+@pytest.mark.parametrize(("kind", "season"), [("A", 2026), ("D", 2026), ("E", 2025), ("C", 2025)])
+def test_same_partial_score_keeps_the_prior_rule_outside_2026_postseason(monkeypatch, kind, season):
+    body, _ = _today_only(monkeypatch, _e1(kind=kind, season=season))
+
+    game = body["today"]["games"][0]
+    assert game["completed"] is True and game["home_score"] == 3
+
+
+def test_postseason_2026_partial_score_past_date_is_listed_as_unresolved(monkeypatch):
+    stale_day = _TODAY - timedelta(days=1)
+    body, cursor = _run(monkeypatch, _script(
+        latest=None, next_day=_TODAY, scoped=2,
+        games=[_game(2, _TODAY, kind="E")],
+        unresolved=[_e1(day=stale_day)],
+        revisions=[_revision(1, 1, "", stale_day, kind="E")],
+    ))
+
+    unresolved = body["freshness"]["unresolved_games"]
+    assert [(g["kind_code"], g["game_sno"]) for g in unresolved] == [("E", 1)]
+    assert unresolved[0]["completed"] is False and unresolved[0]["home_score"] is None
+    # 官方 (1,'') 照官方字面回 scheduled——不推論成 live，也不推論成 final。
+    assert unresolved[0]["status"] == "scheduled"
+    from cpbl.completion import official_completion_scope_sql
+    assert official_completion_scope_sql("g") in cursor.queries[2]

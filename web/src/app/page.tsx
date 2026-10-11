@@ -5,7 +5,7 @@ import DailyHub from "@/components/daily-hub";
 import MiniStandings from "@/components/mini-standings";
 import { PostseasonNextCard, postseasonPointer } from "@/components/postseason-next";
 import { announcementFor } from "@/lib/postseason-announcement";
-import { postseasonJourneyFor } from "@/lib/postseason-journey";
+import { liveEntryProbes, liveEntryResults, postseasonJourneyFor, withLiveEntries } from "@/lib/postseason-journey";
 
 export const metadata = {
   title: { absolute: "Ruan's 中職數據實驗室｜中華職棒數據視覺化" },
@@ -52,9 +52,14 @@ export default async function Home({
   const post = postR.status === "fulfilled" ? postR.value : null;
   // 季後旅程：與季後總覽、日曆同一個模型。年度取 calendar 的 season（失敗時取 summary 的）。
   const season = calR.status === "fulfilled" ? calR.value.season : post?.season ?? null;
-  const journey = season != null
+  const baseJourney = season != null
     ? postseasonJourneyFor(season, post && post.season === season ? post.series : null, calendar, Date.now())
     : null;
+  // 單場賽況入口（#237）：資料庫還沒有 E 列時，依公告官方場號查既有單場狀態（最多 4 支、no-store、
+  // 有逾時），身分全部相符才給連結；任何失敗都等於沒有入口。只補連結，不改進度與截至。
+  const probes = baseJourney && live.live ? liveEntryProbes(baseJourney) : [];
+  const probeR = await Promise.allSettled(probes.map((p) => api.liveEntryStatus(p.sno, p.kind, baseJourney!.year)));
+  const journey = baseJourney && withLiveEntries(baseJourney, liveEntryResults(probes, probeR));
   // #218 首頁：頂部品牌大區併入「今日賽事」標題（品牌已在頂欄字標；全站搜尋在頂欄／行動選單），
   // 主位直接給 7:3 賽事；戰績摘要在下方左欄（7）。
   return (

@@ -4,7 +4,10 @@ import { test } from "node:test";
 import {
   applyLiveSnapshot,
   canShowPostgameConclusions,
+  hasFinalResult,
   hasStartedPlay,
+  officialCompletionOf,
+  requiresOfficialCompletion,
   inningLabel,
   isTopHalf,
   liveCaptureCoverage,
@@ -156,6 +159,61 @@ test("status 200 但 snapshot null 時保留 last-known-good 並標示來源中�
     interrupted: false,
     snapshot: next,
   });
+});
+
+test("#237 完賽且從無即時快照：status 回 null 屬正常缺失，不顯示更新中斷", () => {
+  // 純函式反例（非 production 取證）：完整 payload 成功且 game.completed === true、
+  // live_snapshot 與 previous 皆 null；60 秒後 status 仍回 null。
+  const completedRun = { completed: true };
+  const first = resolveStatusSnapshot(null, null, completedRun);
+  assert.deepEqual(first, { accepted: false, interrupted: false, snapshot: null });
+  // 連續多輪 null 仍是正常缺失（不合成 snapshot、不累積成中斷）。
+  assert.deepEqual(resolveStatusSnapshot(first.snapshot, null, completedRun),
+    { accepted: false, interrupted: false, snapshot: null });
+});
+
+test("#237 completed 非嚴格 true（false／undefined／非布林）或只有比分，不得解除中斷警示", () => {
+  // 先綁變數：帶比分欄的列直接寫物件字面量會被 tsc 超額屬性檢查擋下。
+  const scoredNotCompleted = { completed: undefined, away_score: 3, home_score: 0 };
+  const contexts = [{ completed: false }, {}, { completed: "true" }, { completed: 1 }, scoredNotCompleted];
+  for (const context of contexts) {
+    assert.deepEqual(resolveStatusSnapshot(null, null, context),
+      { accepted: false, interrupted: true, snapshot: null }, JSON.stringify(context));
+  }
+  // 未傳 context＝原語意（中斷）。
+  assert.deepEqual(resolveStatusSnapshot(null, null), { accepted: false, interrupted: true, snapshot: null });
+});
+
+test("#237 previous 有效時 incoming null 即使 completed=true 仍保留 last-good 並警示；error／stale 警示、有效快照恢復", () => {
+  const completedRun = { completed: true };
+  const previous = snapshot();
+  assert.deepEqual(resolveStatusSnapshot(previous, null, completedRun),
+    { accepted: false, interrupted: true, snapshot: previous });
+  const errored = snapshot({ source_status: "error" });
+  assert.deepEqual(resolveStatusSnapshot(previous, errored, completedRun),
+    { accepted: true, interrupted: true, snapshot: errored });
+  // 從無快照的完賽場，之後真的收到 error snapshot 仍須警示。
+  assert.equal(resolveStatusSnapshot(null, errored, completedRun).interrupted, true);
+  const stale = snapshot({ freshness: "stale" });
+  assert.deepEqual(resolveStatusSnapshot(previous, stale, completedRun),
+    { accepted: true, interrupted: true, snapshot: stale });
+  const recovered = snapshot({ event_count: 3 });
+  assert.deepEqual(resolveStatusSnapshot(stale, recovered, completedRun),
+    { accepted: true, interrupted: false, snapshot: recovered });
+});
+
+test("#237 賽況頁以最近成功完整 payload 的 completed 傳入 status 判定，網路錯誤分支不變", () => {
+  const page = readFileSync(new URL("../app/games/[sno]/game-live-page.tsx", import.meta.url), "utf8");
+  // completed 只在 loadFull 成功後更新，且只認嚴格布林 true。
+  const load = page.indexOf("const loadFull = async");
+  const setCompleted = page.indexOf("completedRef.current = next.game?.completed === true;");
+  assert.ok(load >= 0 && setCompleted > load, "completed 必須取自成功的完整 payload");
+  // 容許多行排版與尾逗號；參數順序與 completed 來源仍逐字釘住。
+  assert.match(page,
+    /resolveStatusSnapshot\(\s*previous,\s*status\.live_snapshot,\s*\{\s*completed:\s*completedRef\.current\s*\},?\s*\)/);
+  assert.match(page, /setRefreshIssue\(resolved\.interrupted \? "source" : null\)/);
+  // 真正的網路錯誤仍標示 network／首次載入失敗仍顯示錯誤頁。
+  assert.match(page, /if \(hasData\) setRefreshIssue\("network"\);\s*else setErr\(true\);/);
 });
 
 test("canonical snapshot 覆蓋每日 DB 的比分與事件，並正規化 raw 欄位", () => {
@@ -569,4 +627,90 @@ test("四態④：完賽＋無可用來源 → 維持既有空狀態，不補造
   // 快照有逐球但不是沿用來的（官方 final 自帶）→ 不在本卡射程，維持只用 DB。
   const officialFinal = { ...carriedFinal(), tracking_carryover: undefined };
   assert.deepEqual(applyLiveSnapshot(response(officialFinal)).tracking, []);
+});
+
+// ───────── #237：2026 起季後 E／C 的完賽只認官方 final／證據 ─────────
+// E1 列抄自官方 2026-10-09 17:52 台北擷取：PresentStatus=1、GameResult=''、HomeScore=3、VisitingScore=0。
+const E1 = { kind_code: "E", year: 2026, game_sno: 1, home_score: 3, away_score: 0 };
+
+test("#237 管轄範圍：只有 2026 起的 E／C", () => {
+  assert.equal(requiresOfficialCompletion("E", 2026), true);
+  assert.equal(requiresOfficialCompletion("C", "2027"), true);
+  for (const [k, y] of [["E", 2025], ["C", 2025], ["A", 2026], ["D", 2026], ["F", 2026], ["E", undefined], [undefined, 2026]]) {
+    assert.equal(requiresOfficialCompletion(k, y), false, `${k}/${y}`);
+  }
+});
+
+test("#237 snapshot=null 時 E／C 賽中部分比分 3:0 不得顯示賽後；官方 completed 才可", () => {
+  // 反例本身：舊判準（未傳第三參數）會把 3:0 判成可顯示賽後。
+  assert.equal(canShowPostgameConclusions(null, 3), true);
+  assert.equal(canShowPostgameConclusions(null, 3, officialCompletionOf({ ...E1, completed: false })), false);
+  assert.equal(canShowPostgameConclusions(null, 3, officialCompletionOf(E1)), false, "舊 API 沒有 completed＝未完賽");
+  assert.equal(canShowPostgameConclusions(null, 3, officialCompletionOf({ ...E1, completed: true })), true);
+  // 0:0 的官方 final 也算完賽（比分不作依據，雙向皆然）。先綁變數：API 列本來就帶比分欄，
+  // 直接寫物件字面量會被 tsc 的超額屬性檢查擋下（npm test 只剝型別，抓不到）。
+  const e1ScorelessFinal = { ...E1, home_score: 0, completed: true };
+  assert.equal(canShowPostgameConclusions(null, 0, officialCompletionOf(e1ScorelessFinal)), true);
+  // 有 snapshot 時仍以 snapshot phase 為準（既有語意）。
+  assert.equal(canShowPostgameConclusions(snapshot({ phase: "live" }), 3, true), false);
+  assert.equal(canShowPostgameConclusions(snapshot({ phase: "final" }), 3, false), true);
+});
+
+test("#237 A／D／歷史 E 不受影響：officialCompletionOf 回 undefined，沿用比分判斷", () => {
+  for (const g of [{ ...E1, kind_code: "A" }, { ...E1, kind_code: "D" }, { ...E1, year: 2025 }, { ...E1, kind_code: "C", year: 2025 }]) {
+    assert.equal(officialCompletionOf({ ...g, completed: false }), undefined);
+    assert.equal(canShowPostgameConclusions(null, 3, officialCompletionOf({ ...g, completed: false })), true);
+    assert.equal(hasFinalResult({ ...g, completed: false }), true, `${g.kind_code}/${g.year} 比分照舊顯示`);
+  }
+  assert.equal(hasFinalResult({ kind_code: "A", year: 2026, home_score: 0, away_score: 0, completed: true }), false);
+});
+
+test("#237 hasFinalResult：E／C 2026 只讀 completed", () => {
+  assert.equal(hasFinalResult({ ...E1, completed: false }), false);
+  assert.equal(hasFinalResult(E1), false);
+  assert.equal(hasFinalResult({ ...E1, completed: true }), true);
+});
+
+// E1 snapshot 的 starts_at／venue 取自官方 2026-10-09 18:20:52 stats E schedule／game 擷取
+// （PreExeDate "2026-10-09T17:05:00"、Field.Abbe 洲際）；比分 0:3、上五局為同次觀測值。
+const e1LiveSnapshot = (overrides: Partial<LiveSnapshot> = {}) => snapshot({
+  game_id: "2026-E-1", game_sno: 1, kind_code: "E", phase: "live", raw_status: "START",
+  inning: 5, half: 1, starts_at: "2026-10-09T17:05:00", venue: "洲際", ...overrides,
+});
+
+test("#237 game:null＋E snapshot：日期與球場取 snapshot 官方值，不補 completed", () => {
+  const out = applyLiveSnapshot({ ...response(e1LiveSnapshot()), game: null });
+  assert.equal(out.game?.game_date, "2026-10-09");
+  assert.equal(out.game?.venue, "洲際");
+  assert.equal(out.game?.kind_code, "E");
+  assert.equal(out.game?.year, 2026);
+  assert.equal("completed" in (out.game ?? {}), false, "⛔ 不得從 snapshot 合成 completed");
+  // 頁面完賽判定：無 completed＝未完賽；snapshot live 時也不可顯示賽後。
+  assert.equal(officialCompletionOf(out.game ?? {}), false);
+  assert.equal(canShowPostgameConclusions(out.live_snapshot, 3, officialCompletionOf(out.game ?? {})), false);
+});
+
+test("#237 DB 有日期／球場時一律優先；DB 欄空才退回 snapshot", () => {
+  const withDb = { ...response(e1LiveSnapshot()), game: { game_date: "2026-10-10", venue: "亞太主" } };
+  const out = applyLiveSnapshot(withDb);
+  assert.equal(out.game?.game_date, "2026-10-10");
+  assert.equal(out.game?.venue, "亞太主");
+  const blankDb = { ...response(e1LiveSnapshot()), game: { game_date: null, venue: "" } };
+  const filled = applyLiveSnapshot(blankDb);
+  assert.equal(filled.game?.game_date, "2026-10-09");
+  assert.equal(filled.game?.venue, "洲際");
+});
+
+test("#237 snapshot 沒有 starts_at／venue（舊 snapshot）或格式不符時維持 null，不猜", () => {
+  // 帶時區的值不是官方現行形狀，前 10 字未必是台北日期 → 不猜。
+  for (const starts of [undefined, null, "", "10/09 17:05", "2026-10-09T23:05:00Z", "2026-10-10T01:05:00+08:00"]) {
+    const out = applyLiveSnapshot({ ...response(e1LiveSnapshot({ starts_at: starts, venue: undefined })), game: null });
+    assert.equal(out.game?.game_date, null, String(starts));
+    assert.equal(out.game?.venue, null);
+  }
+});
+
+test("#237 snapshot=null 時 applyLiveSnapshot 原樣回傳，不寫入日期／球場", () => {
+  const original = response(null);
+  assert.equal(applyLiveSnapshot(original), original);
 });

@@ -14,9 +14,11 @@
 // - calendar 路徑沿用 /games 頁的判定（比分 > 0；日期已由「嚴格早於切點」限定，
 //   改期到未來日期的保留賽自然排除）。calendar 沒有完賽證據欄，**0:0 真和局在這條路徑
 //   會被當成無賽果**——全史僅 5 場，且只在「今天已有完成場」時才走這條路；已知限制，不另造判準。
+//   例外（#237）：2026 起的 E／C 只讀 calendar 的 `completed`（`hasFinalResult`），比分不自證。
 
 import type { CalendarGame } from "./api.ts";
 import type { DailyGame, DailySummary } from "./daily-summary.ts";
+import { hasFinalResult } from "./live-game.ts";
 
 export type ResultGame = DailyGame & {
   /** 單場 MVP（calendar 的 `mvp`）；沒有就不顯示。 */
@@ -37,7 +39,7 @@ export function resultsCutDate(summary: Pick<DailySummary, "today" | "scope">): 
 }
 
 function fromCalendar(g: CalendarGame): ResultGame {
-  const scored = (g.away_score ?? 0) + (g.home_score ?? 0) > 0;
+  const scored = hasFinalResult(g);
   return {
     season: g.year,
     kind_code: g.kind_code,
@@ -79,7 +81,7 @@ export function previousGameDay(
     let best: string | null = null;
     for (const g of calendar) {
       if (g.game_date >= cut) continue;
-      if ((g.away_score ?? 0) + (g.home_score ?? 0) <= 0) continue;
+      if (!hasFinalResult(g)) continue;
       if (best === null || g.game_date > best) best = g.game_date;
     }
     if (best !== null) {

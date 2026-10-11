@@ -29,3 +29,15 @@ test("首頁、季後總覽、日曆取季後摘要與 calendar 時都依當季�
     assert.match(src, /postseasonSummary\([^)]*,\s*live\)/, `${f} 的季後摘要要傳 live`);
   }
 });
+
+// 單場賽況入口（#237）：首頁與日曆的入口只經由共用模型的 liveEntryProbes／withLiveEntries，
+// 查詢以 allSettled 降級；頁面不得自行比對快照或拼單場網址。
+test("首頁、日曆的單場賽況入口只經由共用模型，查詢以 allSettled 降級", () => {
+  for (const f of ["app/page.tsx", "app/games/page.tsx"]) {
+    const src = readFileSync(path.join(SRC, f), "utf8");
+    assert.match(src, /liveEntryProbes\(/, `${f} 要用共用的查詢清單`);
+    assert.match(src, /withLiveEntries\(/, `${f} 要用共用的身分比對`);
+    assert.match(src, /Promise\.allSettled\(probes\.map/, `${f} 的單場狀態查詢要各自降級`);
+    assert.doesNotMatch(src, /live_snapshot|officialSno|\/status\?/, `${f} 不得自行比對快照或拼狀態網址`);
+  }
+});

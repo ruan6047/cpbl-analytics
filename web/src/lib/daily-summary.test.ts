@@ -129,6 +129,29 @@ test("**紅線**：刷新時刻釘死台北時區，不吃執行環境時區", (
   assert.equal(taipeiParts("garbage"), null);
 });
 
+test("**紅線**：裸官方時刻（無 offset）明確視為台北，與執行環境 TZ 無關（#237 G2）", () => {
+  // 官方 2026/E/2 live.starts_at 原樣：SSR(UTC) 曾顯示 01:05、瀏覽器顯示 17:05（hydration #418）。
+  const g2 = "2026-10-10T17:05:00";
+  assert.deepEqual(taipeiParts(g2), { date: "2026-10-10", time: "17:05" });
+  assert.equal(taipeiTime(g2), "17:05");
+  // 分鐘精度與小數秒同樣接受。
+  assert.deepEqual(taipeiParts("2026-10-10T17:05"), { date: "2026-10-10", time: "17:05" });
+  assert.deepEqual(taipeiParts("2026-10-10T17:05:00.123"), { date: "2026-10-10", time: "17:05" });
+  // 等價的明確 offset／Z：同一瞬間 → 同一台北時刻。
+  assert.deepEqual(taipeiParts("2026-10-10T17:05:00+08:00"), { date: "2026-10-10", time: "17:05" });
+  assert.deepEqual(taipeiParts("2026-10-10T09:05:00Z"), { date: "2026-10-10", time: "17:05" });
+  // 語意反例（非實際賽程）：台北午夜後的裸時刻，日期不得漂到前一天。
+  assert.deepEqual(taipeiParts("2026-10-10T00:05:00"), { date: "2026-10-10", time: "00:05" });
+  // 明確 Z 的前一天深夜＝台北翌日。
+  assert.deepEqual(taipeiParts("2026-10-09T16:05:00Z"), { date: "2026-10-10", time: "00:05" });
+  // 負 offset 仍依瞬間換算（原語意）。
+  assert.equal(taipeiTime("2026-10-10T05:05:00-04:00"), "17:05");
+  // 形似裸時刻但無效：沿既有 null，不造時刻。
+  assert.equal(taipeiParts("2026-10-10T25:61:00"), null);
+  assert.equal(taipeiParts(""), null);
+  assert.equal(taipeiTime(null), null);
+});
+
 // —— 一般 helper ——
 
 test("shortDate 取 MM/DD；null/非法原樣或破折號", () => {

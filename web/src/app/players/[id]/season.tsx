@@ -1,5 +1,7 @@
 "use client";
 
+import { TraitsContent } from "@/components/traits-content";
+
 // 本季成績卡 + 官方進階 PR（dataTab=season）；生涯成績 + 最佳單季 + 里程碑（dataTab=career）。
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
@@ -136,38 +138,7 @@ export function TraitsChips({ id, role }: { id: string; role: Role }) {
   useEffect(() => {
     detail.traits(id, role).then(setT).catch(() => setT(null));
   }, [id, role]);
-  const tr = t?.traits;
-  const pa = Number(tr?.[role === "batting" ? "pa" : "bf"] ?? 0);
-  if (!tr || pa < 50) return null;
-  const lg = t!.league;
-  const chip = (label: string, val: string, cmp?: string) => (
-    <span key={label} className="inline-flex items-baseline gap-1.5 rounded-md bg-surface-2 px-3 py-1.5 text-[13px]">
-      <span>{label}</span>
-      <span className="font-mono font-bold tabular-nums text-ink">{val}</span>
-      {cmp && <span className="text-xs text-muted">聯盟 {cmp}</span>}
-    </span>
-  );
-  const items: React.ReactNode[] = [];
-  if (tr.p_pa != null) items.push(chip("打席耗球 P/PA", String(tr.p_pa), lg.p_pa != null ? String(lg.p_pa) : undefined));
-  if (tr.go != null && Number(tr.fo) > 0) {
-    items.push(chip("滾飛比 GO/FO", (Number(tr.go) / Number(tr.fo)).toFixed(2), lg.go_fo != null ? String(lg.go_fo) : undefined));
-  }
-  if (tr.two_strike_k_pct != null) {
-    items.push(chip(role === "batting" ? "兩好球後被三振" : "兩好球後解決率",
-      `${tr.two_strike_k_pct}%`, lg.two_strike_k_pct != null ? `${lg.two_strike_k_pct}%` : undefined));
-  }
-  if (role === "batting") {
-    const l = Number(tr.dir_left ?? 0), c = Number(tr.dir_center ?? 0), r = Number(tr.dir_right ?? 0);
-    const tot = l + c + r;
-    if (tot >= 30) items.push(chip("擊球方向 左/中/右", `${Math.round(100 * l / tot)}/${Math.round(100 * c / tot)}/${Math.round(100 * r / tot)}%`));
-  }
-  if (!items.length) return null;
-  return (
-    <div className="mt-4">
-      <div className="mb-2 flex flex-wrap items-baseline gap-x-3"><h2 className="text-base font-bold tracking-[0.04em] text-ink">選手特性</h2><span className="text-[12.5px] text-muted">逐打席推算・本季一軍</span></div>
-      <div className="flex flex-wrap gap-1.5">{items}</div>
-    </div>
-  );
+  return <TraitsContent data={t} role={role} />;
 }
 
 // 生涯成績 + 最佳單季 + 里程碑 + 史上排名（依 role 分支；無生涯資料回 null）

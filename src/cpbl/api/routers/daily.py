@@ -36,7 +36,13 @@ from cpbl.api.helpers import (
 )
 from cpbl.api.live_cache import get_public_live_snapshot
 from cpbl.api.pregame_serving import serving_state
-from cpbl.completion import completed_games_sql_with_evidence, is_completed_game, official_final_sql
+from cpbl.completion import (
+    completed_games_sql_with_evidence,
+    is_completed_game,
+    official_completion_scope_sql,
+    official_final_sql,
+    requires_official_completion,
+)
 from cpbl.config import settings
 from cpbl.db import conn
 from cpbl.models.outcome_simple import ORIENT, load_outcome_rows
@@ -123,10 +129,14 @@ def _completed(row: dict, as_of: date) -> bool:
     逐字寫著 0:0 無證據者隔離為待判讀、有證據者為完成場。全庫實測差異恰 5 場
     （2018/A/124、2021/A/256、2023/A/119、2023/A/175、2025/A/233），與該模組 docstring
     記載的數字一致。等價性由 `tests/test_daily_summary.py` 的全庫對帳測試釘住。
+
+    2026 起的季後 E／C 只認官方 final／證據（#237），與 SQL 版 CASE 分支同一個範圍判定。
     """
     return is_completed_game(row["home_score"], row["away_score"],
                              row["game_date"], as_of, bool(row["has_evidence"]),
-                             official_final=bool(row["official_final"]))
+                             official_final=bool(row["official_final"]),
+                             official_required=requires_official_completion(
+                                 row["kind_code"], row["season"]))
 
 
 def _serialize(row: dict, as_of: date) -> dict:
@@ -545,7 +555,7 @@ def daily_summary(
             WHERE g.kind_code = ANY(%s)
               AND (%s::int IS NULL OR g.year = %s)
               AND g.game_date < %s AND g.game_date >= %s
-              AND g.home_score + g.away_score = 0
+              AND (g.home_score + g.away_score = 0 OR {official_completion_scope_sql("g")})
             ORDER BY g.game_date DESC, g.game_sno
             """,
             (kinds, season, season, as_of, as_of.fromordinal(as_of.toordinal() - UNRESOLVED_WINDOW_DAYS)),
@@ -555,7 +565,8 @@ def daily_summary(
         # `unresolved_games`（＝仍無賽果）與 `completed: true`（＝有賽果）——自相矛盾的一列。
         # 本機今日實測命中 0 筆（那 5 場真和局最近一場是 2025-08-01，落在 30 天窗外），
         # 所以這一行現在防的是未來，不是現況。
-        unresolved = [row for row in _dicts(cur) if not _completed(row, as_of)]
+        # 2026 起的季後 E／C 帶比分也可能未定案（賽中部分比分，#237），故不受「比分為 0」限制。
+        unresolved =[row for row in _dicts(cur) if not _completed(row, as_of)]
         unresolved_status = _unresolved_statuses(cur, unresolved)
         last_refresh = _last_refresh(cur)
 

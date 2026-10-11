@@ -131,10 +131,38 @@ export const phaseLabel = (phase: CanonicalPhase) => PHASE_LABEL[phase];
 
 export const isTopHalf = (half: LiveSnapshot["half"]): boolean => half === "top" || String(half) === "1";
 
+// 2026 起的季後 E／C 比分不能自證完賽（#237）：2026/E/1 官方 17:52 回 (PresentStatus=1,
+// GameResult='')、HomeScore=3，是比賽中途的部分比分。⛔ 與後端 `cpbl.completion` 的
+// `POSTSEASON_OFFICIAL_KINDS`／`DAILY_CHAIN_FINAL_FROM_YEAR` 同一組值，勿單邊改。
+const OFFICIAL_COMPLETION_KINDS = new Set(["E", "C"]);
+const OFFICIAL_COMPLETION_FROM_YEAR = 2026;
+
+export const requiresOfficialCompletion = (kind: unknown, year: unknown): boolean =>
+  OFFICIAL_COMPLETION_KINDS.has(String(kind ?? "")) && Number(year) >= OFFICIAL_COMPLETION_FROM_YEAR;
+
+/** 受官方判準管轄的場次回後端 `completed`（官方 final／完賽證據）；舊 API 沒有該欄＝
+ *  未完賽（寧可少顯示一場賽果，也不把賽中比分畫成終場）。不受管轄者回 `undefined`＝
+ *  呼叫端沿用比分判斷（A／D／歷史年份一字不動）。 */
+export const officialCompletionOf = (
+  g: { kind_code?: unknown; year?: unknown; completed?: unknown },
+): boolean | undefined =>
+  requiresOfficialCompletion(g.kind_code, g.year) ? g.completed === true : undefined;
+
+/** 列表類（月曆／首頁右欄／季後資訊截至）的「有賽果」判定：受管轄者只讀後端 `completed`，
+ *  其餘沿用原本的比分 > 0。 */
+export const hasFinalResult = (
+  g: { kind_code?: unknown; year?: unknown; completed?: unknown; away_score?: unknown; home_score?: unknown },
+): boolean => officialCompletionOf(g) ?? (Number(g.away_score) || 0) + (Number(g.home_score) || 0) > 0;
+
+/** 完賽結論可否顯示。`officialCompleted` 只在受官方判準管轄時傳（見 `officialCompletionOf`）：
+ *  沒有 snapshot 時以它為準、比分不作依據；未傳＝原本的比分判斷。 */
 export const canShowPostgameConclusions = (
   snapshot: LiveSnapshot | null,
   scoreTotal: number,
-): boolean => scoreTotal > 0 && (snapshot === null || snapshot.phase === "final");
+  officialCompleted?: boolean,
+): boolean => snapshot === null && officialCompleted !== undefined
+  ? officialCompleted
+  : scoreTotal > 0 && (snapshot === null || snapshot.phase === "final");
 
 /** 局數是否為真值。worker 對未開打場次仍回 `inning=1／half=1` 佔位（生產實測
  *  SCHEDULED 場 inning=1、event_count=0；FINISHED 場 inning=9、half=2 為真值），
@@ -155,8 +183,19 @@ export const inningLabel = (
     : `${top ? "上" : "下"}${snapshot.inning}局`;
 };
 
-export function resolveStatusSnapshot(previous: LiveSnapshot | null, incoming: LiveSnapshot | null) {
-  if (!incoming) return { accepted: false, interrupted: true, snapshot: previous };
+/** status 輪詢的 snapshot 決策。`incoming` 為 null 時一般視為來源中斷並保留 last-known-good；
+ *  唯一例外（#237）是最近成功的完整 payload 明確 `completed === true` 且本頁從未取得 snapshot
+ *  （`previous === null`）——完賽場本就沒有即時快照，屬正常缺失而非中斷。
+ *  ⛔ 只認嚴格布林 true，不以比分／時間推斷完賽，也不合成 snapshot。 */
+export function resolveStatusSnapshot(
+  previous: LiveSnapshot | null,
+  incoming: LiveSnapshot | null,
+  context: { completed?: unknown } = {},
+) {
+  if (!incoming) {
+    const expectedAbsence = previous === null && context.completed === true;
+    return { accepted: false, interrupted: !expectedAbsence, snapshot: previous };
+  }
   return {
     accepted: true,
     interrupted: incoming.source_status === "error" || incoming.freshness === "stale",
@@ -357,6 +396,15 @@ function scoreRows(side: "1" | "2", rows: Record<string, unknown>[]): StatRow[] 
   });
 }
 
+const present = (value: unknown) => value !== null && value !== undefined && value !== "";
+
+/** 官方 PreExeDate 是台北當地無時區字串（實測 "2026-10-09T17:05:00"），取日期段即賽事日期。
+ *  只收這種無時區形狀：帶 Z／offset 時前 10 字可能是別的時區的日期，回 null 不猜、也不換算。 */
+function snapshotGameDate(snapshot: LiveSnapshot): string | null {
+  const match = /^(\d{4}-\d{2}-\d{2})(T\d{2}:\d{2}(:\d{2}(\.\d+)?)?)?$/.exec(snapshot.starts_at ?? "");
+  return match ? match[1] : null;
+}
+
 /** 將 Redis canonical snapshot 疊到既有 DB payload；沒有 snapshot 時保持完全向後相容。 */
 export function applyLiveSnapshot(response: LiveApiResponse): LiveApiResponse {
   const snapshot = response.live_snapshot;
@@ -392,6 +440,10 @@ export function applyLiveSnapshot(response: LiveApiResponse): LiveApiResponse {
     ...response,
     game: {
       ...(response.game ?? {}),
+      // 頁首郵戳（日期＋球場）：DB 無列或該欄空（#237 E1 尚未導入）時改用 snapshot 的官方
+      // PreExeDate／Field.Abbe；DB 有值一律優先。⛔ snapshot 也沒有就維持 null，不補 completed。
+      game_date: present(response.game?.game_date) ? response.game?.game_date : snapshotGameDate(snapshot),
+      venue: present(response.game?.venue) ? response.game?.venue : snapshot.venue || null,
       year: Number(snapshot.game_id.slice(0, 4)),
       kind_code: snapshot.kind_code,
       game_sno: snapshot.game_sno,
