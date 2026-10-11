@@ -7,16 +7,17 @@ import { renderToStaticMarkup } from "react-dom/server";
 import GameBoard, { type Live } from "./game-board.tsx";
 import type { StatRow } from "@/lib/client.ts";
 import { applyLiveSnapshot, type LiveApiResponse, type LiveSnapshot } from "@/lib/live-game.ts";
+import type { PaFact } from "@/lib/game-facts.ts";
 
 // ───── #237 投手卡累計球數（純合成：年份 2031、場號 901、選手與事件皆虛構，非實際來源觀測）─────
 type PcPitch = {
   evt?: string | undefined; pitcher: string; pitchCnt?: unknown; content: string;
-  inning?: number; change?: boolean; strike?: boolean;
+  inning?: number; change?: boolean; strike?: boolean; hitter?: string;
 };
-const pcRow = ({ evt, pitcher, pitchCnt, content, inning = 1, change = false, strike = !change }: PcPitch) => ({
+const pcRow = ({ evt, pitcher, pitchCnt, content, inning = 1, change = false, strike = !change, hitter }: PcPitch) => ({
   ...(evt === undefined ? {} : { MainEventNo: evt }), VisitingHomeType: "1", InningSeq: inning, VisitingScore: 0, HomeScore: 0,
   IsChangePlayer: change ? "1" : "0", IsStrike: strike ? "1" : "0", Content: content,
-  HitterAcnt: change ? "" : "H01", HitterName: change ? "" : "虛構打者",
+  HitterAcnt: change ? "" : hitter ?? "H01", HitterName: change ? "" : "虛構打者",
   PitcherAcnt: pitcher, PitcherName: pitcher === "PA01" ? "虛構投手甲" : "虛構投手乙",
   ...(pitchCnt === undefined ? {} : { PitchCnt: pitchCnt }),
 });
@@ -145,6 +146,133 @@ test("#237 投手卡球數：事件鍵缺／空字串／純空白不能證明同
     ];
     assert.equal(pcCard(twoKnown, 1), "7", `MainEventNo=${JSON.stringify(evt)}：本列明示值優先`);
   }
+});
+
+// ───── #237 逐打席卡打席用球數（同一組純合成工廠；E30／E31 等事件鍵與選手皆虛構）─────
+/** 實際 SSR 渲染逐打席視圖的 HTML（與 pcCard 同一條渲染路徑）。 */
+const pcPaHtml = (rows: PcPitch[], idx: number, facts?: PaFact[] | null): string => {
+  const raw: LiveApiResponse = {
+    game: { year: 2031, kind_code: "A", game_sno: 901 },
+    scoreboard: [], livelog: [], batting: [], pitching: [], people: {}, records: {}, batter_avg: {},
+    detail: null, decisions: {}, decision_counts: null, has_tracking: false, tracking: [], spray: [],
+    live_snapshot: pcSnapshot(rows),
+  };
+  const data = applyLiveSnapshot(raw) as unknown as Live;
+  return renderToStaticMarkup(
+    <GameBoard data={data} idx={idx} setIdx={() => {}} view="pbp" gameSno="901" facts={facts} />,
+  ).replace(/<!-- -->/g, "");
+};
+/** 依畫面順序回傳各打席卡「（N 球）」的 N；未標示球數的打席不出現在陣列中。 */
+const pcPaLabels = (rows: PcPitch[], idx: number, facts?: PaFact[] | null): string[] =>
+  [...pcPaHtml(rows, idx, facts).matchAll(/（(\d+) 球）/g)].map((m) => m[1] ?? "");
+/** 同一打席（同打者、同一有效事件鍵 E30）四球，累計 21–24；第 24 球後另有重複 24 的結束公告列。 */
+const pcPaRows = (): PcPitch[] => [
+  { evt: "E30", pitcher: "PA01", pitchCnt: 21, content: "好球。" },
+  { evt: "E30", pitcher: "PA01", pitchCnt: 22, content: "壞球。", strike: false },
+  { evt: "E30", pitcher: "PA01", pitchCnt: 23, content: "界外。" },
+  { evt: "E30", pitcher: "PA01", pitchCnt: 24, content: "三振，3人出局。" },
+  { evt: "E30", pitcher: "PA01", pitchCnt: 24, content: "比賽結束。" },
+];
+
+test("#237 逐打席卡球數依投手累計 pitch_cnt：四球＋重複 24 的結束公告顯示 4 球，而非來源列數 5", () => {
+  const rows = pcPaRows();
+  const last = rows.length - 1;
+  assert.deepEqual(pcPaLabels(rows, last), ["4"], "結束公告重複同一累計值，不得多算一球");
+  assert.equal(pcCard(rows, last), "24", "投手卡累計維持 24，與打席 4 球（21–24）一致");
+  const html = pcPaHtml(rows, last);
+  assert.ok(html.includes("三振，3人出局。"), "第三出局列保留");
+  assert.ok(html.includes("比賽結束。"), "結束公告列保留，不因去重而消失");
+});
+
+test("#237 逐打席卡球數：逐打席各自計算，早段選中也是整個打席用球，不是全場累計", () => {
+  const rows: PcPitch[] = [
+    ...pcPaRows().slice(0, 3),
+    { evt: "E30", pitcher: "PA01", pitchCnt: 24, content: "三振，1人出局。" },
+    { evt: "E31", hitter: "H02", pitcher: "PA01", pitchCnt: 25, content: "壞球。", strike: false },
+    { evt: "E31", hitter: "H02", pitcher: "PA01", pitchCnt: 26, content: "飛球接殺，2人出局。" },
+    { evt: "E31", hitter: "H02", pitcher: "PA01", pitchCnt: 26, content: "比賽結束。" },
+  ];
+  assert.deepEqual(pcPaLabels(rows, rows.length - 1), ["4", "2"]);
+  assert.deepEqual(pcPaLabels(rows, 0), ["4", "2"], "選中第一打席首球：仍是各打席總球數，不截斷、不填 24／26");
+});
+
+test("#237 逐打席卡球數：打席中換投以（投手, pitch_cnt）區分，相同累計值不互相吞掉", () => {
+  const rows: PcPitch[] = [
+    { evt: "E40", pitcher: "PA01", pitchCnt: 1, content: "好球。" },
+    { evt: "E40", pitcher: "PA01", pitchCnt: 2, content: "壞球。", strike: false },
+    { evt: "E40", pitcher: "PB02", pitchCnt: 1, content: "好球。" },
+    { evt: "E40", pitcher: "PB02", pitchCnt: 2, content: "三振，3人出局。" },
+    { evt: "E40", pitcher: "PB02", pitchCnt: 2, content: "比賽結束。" },
+  ];
+  assert.deepEqual(pcPaLabels(rows, rows.length - 1), ["4"], "前後任各 2 球；只按累計值去重會誤成 2，按列數會誤成 5");
+});
+
+test("#237 逐打席卡球數：缺值／null／無效／倒退時不標示球數，不以列數補算、不寫 0", () => {
+  const base = pcPaRows();
+  const withCnt = (i: number, pitchCnt: unknown): PcPitch[] =>
+    base.map((row, k) => (k === i ? { ...row, pitchCnt } : row));
+  const cases: [string, PcPitch[]][] = [
+    ["中段明示 null", withCnt(1, null)],
+    ["中段空字串", withCnt(1, "")],
+    ["中段非整數", withCnt(1, "22.5")],
+    ["中段負數", withCnt(1, -1)],
+    ["中段缺 PitchCnt", withCnt(1, undefined)],
+    ["打席內倒退", withCnt(2, 21)],
+    ["整打席皆缺", base.map((row) => ({ ...row, pitchCnt: undefined }))],
+  ];
+  for (const [label, rows] of cases) {
+    assert.deepEqual(pcPaLabels(rows, rows.length - 1), [], label);
+  }
+});
+
+/** 合成 canonical 打席（公開 PaFact 契約欄位全數給定；契約無球數欄，此處也不另加）。 */
+const pcFact = (memberEventNos: string[], paIndex: number): PaFact => ({
+  pa_id: `2031-A-901-PA${paIndex}`, pa_index: paIndex, state: "ready", inning: 1, half: "1",
+  outs_before: 2, bases_before: [], away_score_before: 0, home_score_before: 0,
+  away_score_after: 0, home_score_after: 0, hitter: null, end_hitter: null, pitcher: null,
+  result_action: null, outcome_family: null,
+  start_event_no: memberEventNos[0] ?? null, end_event_no: memberEventNos[memberEventNos.length - 1] ?? null,
+  member_event_nos: memberEventNos, runs_on_play: 0, delta_re24: null, unavailable_reason: null,
+  garbage_time: false,
+});
+
+test("#237 逐打席卡球數：canonical 與近似切法共用同一計算；分組邊界各依原契約", () => {
+  // 打席中途代打（H01→H09）：canonical 成員同屬 E50 一個打席；近似切法依打者切成兩段
+  const rows: PcPitch[] = [
+    { evt: "E50", pitcher: "PA01", pitchCnt: 21, content: "好球。" },
+    { evt: "E50", pitcher: "PA01", pitchCnt: 22, content: "壞球。", strike: false },
+    { evt: "E50", hitter: "H09", pitcher: "PA01", pitchCnt: 23, content: "界外。" },
+    { evt: "E50", hitter: "H09", pitcher: "PA01", pitchCnt: 24, content: "三振，3人出局。" },
+    { evt: "E50", hitter: "H09", pitcher: "PA01", pitchCnt: 24, content: "比賽結束。" },
+  ];
+  const last = rows.length - 1;
+  const facts = [pcFact(["E50"], 0)];
+  assert.deepEqual(pcPaLabels(rows, last, facts), ["4"], "canonical 單一打席：4 球，結束公告不多算");
+  const html = pcPaHtml(rows, last, facts);
+  assert.ok(html.includes("三振，3人出局。") && html.includes("比賽結束。"), "canonical 下來源列全數保留");
+  assert.deepEqual(pcPaLabels(rows, last), ["2", "2"], "無 facts：兩段各依累計值計（後段以前段 22 為起點）");
+  const missing = rows.map((row, k) => (k === 1 ? { ...row, pitchCnt: null } : row));
+  assert.deepEqual(pcPaLabels(missing, last, facts), [], "canonical 下缺值同樣不標示");
+});
+
+test("#237 逐打席卡球數：投手無前值、打席首列是帶前一累計 20 的牽制，不得算成一球", () => {
+  const pickoff: PcPitch = { evt: "E60", pitcher: "PA01", pitchCnt: 20, content: "牽制。", strike: false };
+  const rows: PcPitch[] = [pickoff, ...pcPaRows().map((row) => ({ ...row, evt: "E60" }))];
+  const last = rows.length - 1;
+  const labels = pcPaLabels(rows, last);
+  assert.notDeepEqual(labels, ["5"], "首列牽制不是投球，不得把 20 算進本打席");
+  assert.deepEqual(labels, [], "投手無前值時無法證明 20 是否本打席所投：誠實不標示");
+  const html = pcPaHtml(rows, last);
+  assert.ok(html.includes("牽制。") && html.includes("比賽結束。"), "牽制與結束公告來源列都保留");
+  // 對照：同一投手已有前值 20（前一打席）→ 20 只是起點，本打席 4 球
+  const withPrior: PcPitch[] = [
+    { evt: "E59", hitter: "H02", pitcher: "PA01", pitchCnt: 20, content: "飛球接殺，1人出局。" },
+    ...rows,
+  ];
+  assert.deepEqual(pcPaLabels(withPrior, withPrior.length - 1), ["4"]);
+  // 對照：首列有明示投球旗標（好球）→ 20 是本打席第一球，共 5 球
+  const ledByPitch: PcPitch[] = [{ ...pickoff, content: "好球。", strike: true }, ...rows.slice(1)];
+  assert.deepEqual(pcPaLabels(ledByPitch, ledByPitch.length - 1), ["5"]);
 });
 
 
