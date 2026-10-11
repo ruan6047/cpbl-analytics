@@ -133,3 +133,26 @@ test("沒有Y或系列終結不造開賽前背景、先發或未來式觀察題"
     if(tab==="overview") assert.match(html,/outs 18/);
   }
 });
+
+
+test("有Y的野手面板保留可靠ID配對；無Y不將既有配對當公告先發",()=>{
+  const base: ReportPlayer={...p,role:"batting",periods:{series:{...empty,status:"available",counts:{pa:11,h:4},sample:{pa:11,ab:9}},regular:empty,opponent_regular:empty}};
+  for(const vs_starter of [
+    {status:"available",pitcher_id:"0000007778",counts:{pa:23,h:8},sample:{pa:23,ab:20},updated_at:"2026-10-10T02:00:00Z"},
+    {status:"missing",pitcher_id:"0000007778"},
+  ] as ReportPlayer["vs_starter"][]){
+    const player={...base,vs_starter};
+    const withTarget=renderToStaticMarkup(<ReportPlayerDialog player={player} close={()=>{}} season={2026} hasTarget={true}/>);
+    assert.match(withTarget,/本季對該場公告先發/);
+    if(vs_starter.counts) assert.match(withTarget,/23 PA · 20 AB/);
+    else assert.match(withTarget,/本站未取得投打配對/);
+    const noTarget=renderToStaticMarkup(<ReportPlayerDialog player={player} close={()=>{}} season={2026} hasTarget={false}/>);
+    assert.ok(!noTarget.includes("本季對該場公告先發"));
+    assert.ok(!noTarget.includes("23 PA · 20 AB"));
+    assert.ok(!noTarget.includes("本站未取得投打配對"));
+    for(const label of ["本系列","本季例行賽","本季對該隊"]) assert.ok(noTarget.includes(`>${label}</button>`));
+    assert.match(noTarget,/樣本 11 PA/);
+    assert.match(noTarget,/能力、官方 PR 與特性固定 2026 年一軍例行賽/);
+    assert.match(noTarget,/href="\/players\/fixture-p\?year=2026"/);
+  }
+});
