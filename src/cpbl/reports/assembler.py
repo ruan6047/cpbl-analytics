@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import UTC, datetime
 
 from cpbl.api import between_games as bg
-from cpbl.reports import background, population, readers
+from cpbl.reports import announcements, background, population, readers
 from cpbl.reports.context import bounded_context, key, validate_target
 from cpbl.reports.stats import field_candidates, player_period, three_periods, watch_points
 
@@ -27,7 +27,16 @@ def build_report(cur, season: int, kind: str, sno: int, next_kind: str | None = 
     population_sources = population.provenance(rosters)
     schedule_rows = readers.schedules(cur, season)
     context = bounded_context(anchor, all_games, schedule_rows, population_sources)
+    candidates = [r for r in context["rows"] if key(r) not in context["through_game_keys"]
+                  and r["game_date"] >= context["cutoff_date"]]
+    lineup_rows = readers.lineup_revisions(cur, season, candidates)
+    materials = announcements.context_materials(lineup_rows, schedule_rows, candidates) if lineup_rows else []
+    if materials:
+        context = bounded_context(anchor, all_games, schedule_rows, population_sources, materials)
     target = validate_target(context, next_kind, next_sno, supplied_hash) if next_kind else None
+    lineup = next((m["lineup"] for m in materials if target and m["game_key"] == key(target)),
+                  {"status": "unverified", "items": []})
+    announced_members = [m for m in lineup["items"] if m["team_code"] in team_codes]
     through_keys = context["through_game_keys"]
     upto = [g for g in all_games if key(g) in through_keys]
     snos = [g["game_sno"] for g in upto]
@@ -46,6 +55,12 @@ def build_report(cur, season: int, kind: str, sno: int, next_kind: str | None = 
                   "covered_game_keys": [s["game_key"]], "coverage_status": "available",
                   "updated_at": None, "read_at": read_at} for s in context["sources"]]]
     sources.extend({**s, "read_at": read_at} for s in population_sources)
+    if target and lineup.get("source_version"):
+        sources.append({"source": "lineup_announcement", "scope": {"year": season, "kind": next_kind,
+                        "game_sno": next_sno}, "reference": lineup["source_url"],
+                        "source_version": lineup["source_version"], "fetched_at": lineup.get("observed_at"),
+                        "updated_at": None, "read_at": read_at, "covered_game_keys": [key(target)],
+                        "coverage_status": lineup["status"], "cutoff_basis": "positive_scheduled_before_started_observation"})
     for r in readers.source_revisions(cur, season, kind, snos):
         sources.append({**r, "scope": {"year": season, "kind": kind},
                         "reference": f"/api/v1/games/{r['game_sno']}/live?season={season}&kind_code={kind}",
@@ -77,11 +92,13 @@ def build_report(cur, season: int, kind: str, sno: int, next_kind: str | None = 
             if starter["status"] == "announced":
                 starters[starter["team_code"]] = starter["acnt"]
                 ids.append(starter["acnt"])
+    ids.extend(m["player_id"] for m in announced_members)
     people = readers.people(cur, sorted(set(ids)))
     fields = readers.fielding(cur, season) if regular_closed else []
     hitter_ids = sorted({r["player_id"] for r in boxes["batting"]}
                         | {m["player_id"] for roster in rosters for m in roster["members"]
-                           if m.get("player_id") and m.get("role") == "batting"})
+                           if m.get("player_id") and m.get("role") == "batting"}
+                        | {m["player_id"] for m in announced_members})
     pairs = readers.matchups(cur, season, hitter_ids, list(starters.values())) if hitter_ids and starters and regular_closed else {}
     verified = background.current_matches(cur, season, regular_boxes) if regular_closed else {}
     teams = background.team_background(season, regular, regular_boxes, team_codes) if regular_closed else []
@@ -93,6 +110,8 @@ def build_report(cur, season: int, kind: str, sno: int, next_kind: str | None = 
             roster = next(r for r in rosters if r["team_code"] == team)
             members = {m["player_id"] for m in roster["members"] if m.get("player_id") and m.get("role") == role}
             members |= {r["player_id"] for r in rows if r["team_code"] == team}
+            if role == "batting":
+                members |= {m["player_id"] for m in announced_members if m["team_code"] == team}
             if role == "pitching" and team in starters:
                 members.add(starters[team])
             opponent = next(t for t in team_codes if t != team)
@@ -128,7 +147,10 @@ def build_report(cur, season: int, kind: str, sno: int, next_kind: str | None = 
                           "covered_game_keys": [], "coverage_status": "unverified"}
                 players.append({"player_id": pid, "team_code": team, "role": role,
                                 "name": next((m.get("name") for m in roster["members"]
-                                              if m["player_id"] == pid), None) or person.get("name")
+                                              if m["player_id"] == pid), None)
+                                        or next((m.get("name") for m in announced_members
+                                                 if m["player_id"] == pid and m["team_code"] == team), None)
+                                        or person.get("name")
                                         or next((r["name"] for r in rows if r["player_id"] == pid), None),
                                 "bats": person.get("bats"), "throws": person.get("throws"),
                                 "periods": periods, "pitching_usage": usage, "vs_starter": vs,
@@ -163,6 +185,6 @@ def build_report(cur, season: int, kind: str, sno: int, next_kind: str | None = 
                                  for t in team_codes},
             "teams": teams, "watch_points": watch_points(players, team_codes=team_codes,
                                                         anchor_key=f"{season}/{kind}/{sno}"),
-            "announcements": {"lineup": {"status": "unverified", "items": []}},
+            "announcements": {"lineup": lineup},
             "coverage": {"games": len(upto), "with_pitching": len({r["game_sno"] for r in boxes["pitching"]}),
                          "with_batting": len({r["game_sno"] for r in boxes["batting"]})}}

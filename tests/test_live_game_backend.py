@@ -832,3 +832,65 @@ def test_worker_carries_live_pitches_into_first_final_then_stops_fetching() -> N
     assert fetched == ["2026-A-227"]
     assert second["skipped_final"] == 1
     assert cache.get_snapshot(2026, "A", 227) is cached
+
+
+
+def announcement_inputs():
+    now=datetime(2026,10,12,0,0,tzinfo=UTC)
+    raw=_game("SCHEDULED")
+    raw.update(GameId="2026-E-4",GameSno=4,KindCode="E",PreExeDate="2026-10-12T17:05:00")
+    row=_schedule("2026-E-4","SCHEDULED",raw["PreExeDate"])
+    return now,raw,row
+
+
+def test_opt_in_sink_uses_actual_response_clock_and_keeps_cache_cycle_timestamp():
+    now,raw,row=announcement_inputs(); captured=[]; fetched=[]
+    received=now.replace(second=4)
+    def fetch(game_id):
+        fetched.append(game_id)
+        return raw
+    def clock():
+        assert fetched==["2026-E-4"]
+        return received
+    cache=_Cache()
+    worker=LiveGameWorker(cache=cache,fetch_schedule=lambda y,m,k="A":[row] if k=="E" else [],
+                          fetch_game=fetch,postseason_kinds=("E",),
+                          observation_sink=lambda *args:captured.append(args),observation_clock=clock)
+    result=worker.run_cycle(now)
+    assert captured==[("2026-E-4",raw,received)]
+    assert result["announcement_observed"]==1 and result["announcement_errors"]==[]
+    assert cache.items[(2026,"E",4)]["source"]["fetched_at"]==now.isoformat()
+    assert cache.released==1
+
+
+def test_persistence_error_is_separate_from_successful_live_cache():
+    now,raw,row=announcement_inputs();cache=_Cache()
+    def fail(*args):raise RuntimeError("fixture persistence failure")
+    worker=LiveGameWorker(cache=cache,fetch_schedule=lambda y,m,k="A":[row] if k=="E" else [],
+                          fetch_game=lambda _:raw,postseason_kinds=("E",),observation_sink=fail,
+                          observation_clock=lambda:now)
+    result=worker.run_cycle(now)
+    assert result["cached"]==1 and result["errors"]==0
+    assert result["announcement_errors"]==[{"game_id":"2026-E-4","error_type":"RuntimeError"}]
+    assert cache.source_errors==[] and cache.released==1
+
+
+def test_default_worker_has_no_sink_no_new_result_keys_or_persistence_calls():
+    now,raw,row=announcement_inputs();cache=_Cache()
+    worker=LiveGameWorker(cache=cache,fetch_schedule=lambda y,m,k="A":[row] if k=="E" else [],
+                          fetch_game=lambda _:raw,postseason_kinds=("E",))
+    result=worker.run_cycle(now)
+    assert "announcement_observed" not in result and "announcement_errors" not in result
+    assert result["cached"]==1
+
+
+
+def test_sink_clock_failure_does_not_destroy_successful_cache():
+    now,raw,row=announcement_inputs();cache=_Cache()
+    def fail_clock():raise RuntimeError("fixture clock error")
+    worker=LiveGameWorker(cache=cache,fetch_schedule=lambda y,m,k="A":[row] if k=="E" else [],
+                          fetch_game=lambda _:raw,postseason_kinds=("E",),
+                          observation_sink=lambda *args:None,observation_clock=fail_clock)
+    result=worker.run_cycle(now)
+    assert result["cached"]==1 and result["errors"]==0 and cache.released==1
+    assert result["announcement_errors"]==[{"game_id":"2026-E-4","error_type":"RuntimeError"}]

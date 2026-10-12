@@ -26,6 +26,10 @@ log = logging.getLogger("cpbl.liveworker")
 def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(description="CPBL centralized live game worker")
     parser.add_argument("--once", action="store_true", help="執行一個 cycle 後輸出 JSON 並結束")
+    parser.add_argument(
+        "--persist-announcements", action="store_true",
+        help="明示在已租用local DB保存2026 E/C公告版本；預設不寫DB",
+    )
     args = parser.parse_args(argv)
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s | %(message)s")
     if not settings.live_game_worker_enabled:
@@ -49,12 +53,18 @@ def main(argv: list[str] | None = None) -> None:
         lock_ttl_seconds=settings.live_game_lock_ttl_seconds,
     )
     source = StatsLiveSource()
+    observation_sink = None
+    if args.persist_announcements:
+        from cpbl.ingest.lineup_announcements import observe
+
+        observation_sink = observe
     worker = LiveGameWorker(
         cache=cache,
         fetch_schedule=source.fetch_schedule,
         fetch_game=source.fetch_game,
         max_games_per_cycle=settings.live_game_max_games_per_cycle,
         postseason_kinds=postseason_kinds,
+        observation_sink=observation_sink,
     )
     stopping = False
 
@@ -78,6 +88,10 @@ def main(argv: list[str] | None = None) -> None:
                 log.info("live cycle %s", result)
             if args.once:
                 print(json.dumps(result, ensure_ascii=False, sort_keys=True))
+                if args.persist_announcements and (
+                    result.get("announcement_errors") or result.get("state") != "ok"
+                ):
+                    raise SystemExit(1)
                 return
             delay = next_delay_seconds(
                 result,
@@ -89,8 +103,17 @@ def main(argv: list[str] | None = None) -> None:
                     break
                 time.sleep(1)
     finally:
-        source.close()
-        redis_client.close()
+        try:
+            source.close()
+        finally:
+            try:
+                redis_client.close()
+            finally:
+                if args.persist_announcements:
+                    from cpbl import db
+
+                    if db._pool is not None:
+                        db._pool.close()
 
 
 if __name__ == "__main__":

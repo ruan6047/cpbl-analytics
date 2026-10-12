@@ -110,6 +110,21 @@ docker compose exec redis redis-cli DEL cpbl:live:kill
 - final 後 TrackMan 可能延遲（2026-07-26 A-224／225 完賽當下仍 0），0 筆只標 pending。
 - 觀測矩陣與 canary evidence：[`research/LIVE_GAME_BACKEND1_OBSERVATION.md`](research/LIVE_GAME_BACKEND1_OBSERVATION.md)。
 
+### 有限先發打線公告保存（#238；預設關閉）
+
+`cpbl-live-worker --persist-announcements` 在既有 stats 單場回應後，將 **2026 E/C** 的公告投影保存至 `cpbl.game_lineup_announcement_revisions`。它不增加資料請求、不補造歷史公告、不用完賽 box 倒填；一般 worker 不帶此旗標時保持原 Redis 更新行為。啟用前須完成 migration 074，並確認本機 DB／Redis 的單 writer 與資源窗口；不是在 production 開啟新的採集 writer。
+
+```bash
+# 必須在已授本機採集／DB／Redis窗口內；單 cycle 的公告寫入失敗會 exit 1。
+uv run cpbl-live-worker --once --persist-announcements
+# 必須在已授 backup／schema／production DML 窗口內；僅同步公告表。
+LINEUP_ONLY=1 SKIP_SCRAPE=1 ./scripts/refresh-cpbl-prod.sh
+```
+
+內容或官方狀態改變會追加版本片段；同片段重觀測只延長 `last_seen_at`，自然鍵衝突不能覆寫既有原證。有限同步沿既有 production 備份與 migration 入口，於單一交易以自然鍵追加並合併較晚的 `last_seen_at`；不爬取、不同步其他資料表、不重建特徵或訓練，也不宣告整條 freshness 更新成功。對同自然鍵不同原證會整筆回滾。
+
+報告 GET 只讀已保存版本；表尚未部署、無正面賽前證據、公告撤回／不完整、來源時間不確定時保持「未核」。已開始後的資料不能倒填先發公告；九人名單與正式完整母體是不同證據。這個模式不會恢復原本未保存的歷史。
+
 **每日刷新現況（最後驗證 2026-07-19）**：本機 launchd 10:10 已成功完成爬取與 production 同步（`sync_ok=true`）。仍必須每天以 `refresh_status.py check --scheduled` 檢查；成功同步不等於資料語意正確——目前 `BUG-HELD-GAME-FRESHNESS1` 已證實未完成保留賽會污染 `last_game_date`，修復前不得僅以 freshness gate 判定資料正確。
 
 ### 本機每日爬取（launchd 每日 10:10；手動為 fallback）

@@ -47,6 +47,7 @@ scripts/refresh-cpbl-prod.sh — 把本機 CPBL 資料同步到 production（四
   WITH_DETAIL=1 ./scripts/refresh-cpbl-prod.sh                # 連同選手細項（耗時逾 1 小時）
   SKIP_SCRAPE=1 WITH_DETAIL=1 ./scripts/refresh-cpbl-prod.sh  # 本機已最新：只同步不重爬
                                                               # ↑ 每日鏈 scrape-daily.sh 走這條
+  LINEUP_ONLY=1 SKIP_SCRAPE=1 ./scripts/refresh-cpbl-prod.sh # 有限公告；不爬、不訓練、不檢查整鏈 freshness
 
 環境變數
   LOCAL_DB      本機 PostgreSQL 容器名（預設 cpbl-analytics-db-1）
@@ -55,6 +56,7 @@ scripts/refresh-cpbl-prod.sh — 把本機 CPBL 資料同步到 production（四
   API_INFO_URL  freshness 驗證要打的端點
   WITH_DETAIL   非空＝連同選手細項（投打對決 / 對戰各隊 / 分項）
   SKIP_SCRAPE   非空＝跳過爬取，直接同步本機現有資料
+  LINEUP_ONLY   1＝搭配 SKIP_SCRAPE=1，只驗證備份、套 schema、同步有限公告表
 
 離開碼
   0 成功 · 64 參數錯 · 65 取不到本機 freshness 基準 · 67 同步 payload 驗證失敗
@@ -86,6 +88,101 @@ API_INFO_URL="${API_INFO_URL:-https://cpbl.ruan-ruan.com/api/info}"
 REPO_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 YEAR="$(date +%Y)"
 PREV="$((YEAR - 1))"
+
+# 有限公告同步刻意在完整鏈之前退出；不碰一般 freshness/特徵/訓練。
+if [ -n "${LINEUP_ONLY:-}" ]; then
+  if [ "$LINEUP_ONLY" != 1 ] || [ "${SKIP_SCRAPE:-}" != 1 ]; then
+    echo 'FATAL: LINEUP_ONLY=1 必須搭配 SKIP_SCRAPE=1' >&2
+    exit 64
+  fi
+  LINEUP_TMP="$(mktemp -d)"
+  trap 'rm -rf "$LINEUP_TMP"' EXIT
+  docker exec "$LOCAL_DB" pg_dump -U cpbl -d cpbl --data-only \
+    -t cpbl.game_lineup_announcement_revisions > "$LINEUP_TMP/input.sql"
+  # pg_dump 的控制指令不得隨 COPY 資料進 production；只放行固定欄位的單一 COPY。
+  python3 - "$LINEUP_TMP/input.sql" "$LINEUP_TMP/copy.sql" <<'PY_VALIDATE' || exit 67
+import pathlib
+import re
+import sys
+
+columns = "year, kind_code, game_sno, source_type, source_url, fetched_at, content_hash, raw_status, raw_payload, last_seen_at"
+header = f"COPY cpbl.game_lineup_announcement_revisions ({columns}) FROM stdin;"
+lines = pathlib.Path(sys.argv[1]).read_text().splitlines(keepends=True)
+copy = []
+in_copy = False
+complete = False
+for line in lines:
+    text = line.rstrip("\r\n")
+    if in_copy:
+        copy.append(line)
+        if text == r"\.":
+            in_copy = False
+            complete = True
+        continue
+    if text == header and not copy:
+        copy.append(line.replace("COPY cpbl.game_lineup_announcement_revisions ", "COPY _lineup_stg ", 1))
+        in_copy = True
+    elif not text or text.startswith("--") or re.fullmatch(r"\\(?:un)?restrict [A-Za-z0-9]+", text):
+        continue
+    elif re.fullmatch(r"SET [a-z_]+ = (?:'[A-Za-z0-9_ /,.-]*'|[a-z0-9]+);", text):
+        continue
+    elif text == "SELECT pg_catalog.set_config('search_path', '', false);":
+        continue
+    else:
+        raise SystemExit("FATAL: 公告 dump 含未核定 SQL 或第二個 COPY")
+if not complete or in_copy:
+    raise SystemExit("FATAL: 公告 COPY 不完整")
+pathlib.Path(sys.argv[2]).write_text("".join(copy))
+PY_VALIDATE
+  echo '==> 有限公告：驗證備份、schema、單表自然鍵同步'
+  BACKUP_PATH="$(VPS="$VPS" DEPLOY_PATH="$DEPLOY_PATH" "$REPO_DIR/scripts/backup-prod-db.sh")"
+  echo "    ✓ 已驗證備份：${BACKUP_PATH}"
+  ssh -o BatchMode=yes "$VPS" 'docker exec prod_cpbl_api python -c "from cpbl.db import migrate; print(\"migrated:\", migrate())"'
+  {
+    cat <<'SQL_BEGIN'
+SET LOCAL statement_timeout = '5s';
+SET LOCAL lock_timeout = '1s';
+CREATE TEMP TABLE _lineup_stg
+  (LIKE cpbl.game_lineup_announcement_revisions INCLUDING DEFAULTS INCLUDING CONSTRAINTS)
+  ON COMMIT DROP;
+SQL_BEGIN
+    cat "$LINEUP_TMP/copy.sql"
+    cat <<'SQL_END'
+DO $$ BEGIN
+  IF EXISTS (SELECT 1 FROM _lineup_stg WHERE year <> 2026) THEN
+    RAISE EXCEPTION 'announcement scope mismatch';
+  END IF;
+  IF EXISTS (
+    SELECT 1 FROM _lineup_stg
+    GROUP BY year,kind_code,game_sno,source_type,fetched_at HAVING count(*) > 1
+  ) THEN
+    RAISE EXCEPTION 'duplicate announcement natural key';
+  END IF;
+  IF EXISTS (
+    SELECT 1 FROM _lineup_stg s
+    JOIN cpbl.game_lineup_announcement_revisions t
+      USING (year,kind_code,game_sno,source_type,fetched_at)
+    WHERE ROW(t.source_url,t.content_hash,t.raw_status,t.raw_payload)
+      IS DISTINCT FROM ROW(s.source_url,s.content_hash,s.raw_status,s.raw_payload)
+  ) THEN
+    RAISE EXCEPTION 'immutable announcement evidence conflict';
+  END IF;
+END $$;
+INSERT INTO cpbl.game_lineup_announcement_revisions AS tgt
+  (year,kind_code,game_sno,source_type,source_url,fetched_at,content_hash,raw_status,raw_payload,last_seen_at)
+SELECT year,kind_code,game_sno,source_type,source_url,fetched_at,content_hash,raw_status,raw_payload,last_seen_at
+FROM _lineup_stg
+ON CONFLICT (year,kind_code,game_sno,source_type,fetched_at) DO UPDATE
+SET last_seen_at=GREATEST(tgt.last_seen_at,EXCLUDED.last_seen_at)
+WHERE tgt.last_seen_at < EXCLUDED.last_seen_at;
+SQL_END
+  } > "$LINEUP_TMP/payload.sql"
+  ssh -o BatchMode=yes "$VPS" \
+    "cd ${DEPLOY_PATH} && set -a && . ./.env && docker exec -i prod_pg psql \
+      -v ON_ERROR_STOP=1 -q --single-transaction -U \"\$DB_USER\" -d \"\$DB_NAME\"" < "$LINEUP_TMP/payload.sql"
+  echo '    ✓ 公告單表同步完成（不代表完整更新鏈成功）'
+  exit 0
+fi
 
 # 非破壞性同步一張表（bash 3.2 相容，不用關聯陣列）：$1=表 $2=conflict鍵 其餘=upsert欄位
 sync_table() {

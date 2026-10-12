@@ -10,7 +10,7 @@ import hashlib
 import json
 from collections import Counter
 from collections.abc import Callable
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from typing import Any, Protocol
 from uuid import uuid4
 from zoneinfo import ZoneInfo
@@ -528,12 +528,16 @@ class LiveGameWorker:
         enabled: bool = True,
         max_games_per_cycle: int = 8,
         postseason_kinds: tuple[str, ...] = (),
+        observation_sink: Callable[[str, dict, datetime], Any] | None = None,
+        observation_clock: Callable[[], datetime] | None = None,
     ) -> None:
         self.cache = cache
         self.fetch_schedule = fetch_schedule
         self.fetch_game = fetch_game
         self.enabled = enabled
         self.max_games_per_cycle = max_games_per_cycle
+        self.observation_sink = observation_sink
+        self.observation_clock = observation_clock or (lambda: datetime.now(UTC))
         # #237 Phase B：額外追蹤的季後賽別（只接受 2026+ 須官方完賽判定的 E／C）。預設空＝
         # 原 A-only 行為逐字不變；開啟時 fetch_schedule 須接受第三個參數 kind_code。
         unsupported = [k for k in postseason_kinds if k not in POSTSEASON_OFFICIAL_KINDS]
@@ -601,6 +605,8 @@ class LiveGameWorker:
             phases: Counter[str] = Counter()
             game_summaries: list[dict[str, Any]] = []
             cached = errors = skipped_final = 0
+            announcement_observed = 0
+            announcement_errors: list[dict[str, str]] = []
             starts: list[datetime] = []
             for row in selected:
                 identity = _identity(row)
@@ -621,6 +627,17 @@ class LiveGameWorker:
                     ):
                         # 身分不符的 payload 不得寫進別場的 cache key（A 沿用原行為不檢）。
                         raise ValueError("stats single-game identity mismatch")
+                    if self.observation_sink is not None and year == 2026 and kind in ("E", "C"):
+                        try:
+                            # 只在2026 E/C明示保存模式，回應後取得UTC；clock錯也不能破cache。
+                            received_at = self.observation_clock()
+                            self.observation_sink(game_id, raw_game, received_at)
+                        except Exception as exc:  # noqa: BLE001 — 明示獨立保存邊界，保原cache流程。
+                            announcement_errors.append(
+                                {"game_id": game_id, "error_type": type(exc).__name__}
+                            )
+                        else:
+                            announcement_observed += 1
                     detail_starts_at = _starts_at(raw_game)
                     if (
                         detail_starts_at is None
@@ -660,6 +677,11 @@ class LiveGameWorker:
             if self.postseason_kinds:
                 # 只在開啟季後追蹤時出現，A-only 的 cycle 結果形狀不變。
                 extra = {"schedule_errors": schedule_errors, "rejected_rows": rejected_rows}
+            if self.observation_sink is not None:
+                extra.update(
+                    announcement_observed=announcement_observed,
+                    announcement_errors=announcement_errors,
+                )
             return {
                 **extra,
                 "state": "ok",

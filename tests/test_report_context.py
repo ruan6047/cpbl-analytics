@@ -84,3 +84,15 @@ def test_population_source_version_and_identity_metadata_are_pinned_with_both_re
     with pytest.raises(ContextChanged):
         validate_target(changed,"E",2,context["context_hash"])
     assert validate_target(same,"E",2,context["context_hash"])["game_sno"]==2
+
+
+
+def test_selected_announcement_material_changes_context_without_read_time_or_late_result():
+    x=game(1,9)
+    material=[{"game_key":"2026/E/2","lineup":{"status":"unverified","source_version":"v1"}}]
+    initial=bounded_context(x,[x],[schedule(2,10)],announcement_materials=material)
+    changed=bounded_context(x,[x],[schedule(2,10)],announcement_materials=[{"game_key":"2026/E/2","lineup":{"status":"unverified","source_version":"v2"}}])
+    assert initial["context_hash"]!=changed["context_hash"]
+    with pytest.raises(ContextChanged):
+        validate_target(changed,"E",2,initial["context_hash"])
+    assert bounded_context(x,[x],[schedule(2,10)],announcement_materials=[])==bounded_context(x,[x],[schedule(2,10)])
