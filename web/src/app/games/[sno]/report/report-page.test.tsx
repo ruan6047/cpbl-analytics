@@ -4,7 +4,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import ReportPage, { ReportPlayerDialog, ReportPlayerPeriod } from "./report-page";
 import { ReportTeamStyle } from "@/components/report-team-style";
 import { FieldDiagram } from "@/components/field-diagram";
-import { reportJourney } from "@/lib/between-games";
+import { previewMatches, reportJourney } from "@/lib/between-games";
 import type { Report, ReportPlayer } from "@/lib/report-types";
 
 const empty={status:"missing" as const,counts:{},sample:{},covered_game_keys:[],expected_game_keys:["2026/E/1"],coverage_status:"partial",source:"fixture",cutoff_label:"截至E1"};
@@ -242,5 +242,40 @@ test("X回顧只在傳入可靠Y時以「下一場觀戰報告」連Y；Y觀戰�
     assert.ok(html.includes('href="/games/1/report?kind=E&amp;year=2026&amp;tab=overview"'));
     assert.match(html,/截至場場間報告/);
     assert.ok(!html.includes(">下一場觀戰報告</a>"));
+  }
+});
+
+test("同系列換主場時，Y觀戰頁卡片、中央勝場與投野手左右沿Y；X頁仍沿X",()=>{
+  const next={year:2026,kind_code:"E",game_sno:2,game_date:"2026-10-10",away_team_code:"ACN011",home_team_code:"ADD011",venue:"洲際",away_starter:{acnt:null,name:null,status:"unverified",team_code:"ACN011"},home_starter:{acnt:null,name:null,status:"unverified",team_code:"ADD011"}};
+  const data: Report={...report,game:{...report.game!,away_score:1,home_score:5},next_game:next,
+    journey_context:{summary:[{kind_code:"E",team1_code:"ADD011",team2_code:"ACN011",games:[{game_no:1,game_sno:1,date:"2026-10-09",away_code:"ADD011",away_score:1,home_code:"ACN011",home_score:5}]}],
+      rows:[{year:2026,kind_code:"E",game_sno:2,game_date:"2026-10-10",away_team_code:"ACN011",home_team_code:"ADD011",away_score:0,home_score:0,completed:false,venue:"洲際"}],sources:[],context_hash:"c".repeat(64),cutoff_date:"2026-10-09",through_game_keys:["2026/E/1"],order_consistent:true}};
+  assert.equal(data.comparison,undefined);
+  const journey=reportJourney(data);
+  assert.equal(journey?.next?.row?.game_sno,2);
+  const view={report:data,journey,updating:false};
+  assert.equal(previewMatches(view,"E",2),true);
+  const cards=(html:string)=>[...html.matchAll(/>(客隊|主隊)<\/p>[\s\S]*?(中信兄弟|統一獅)[\s\S]*?(還差 \d 勝)/g)].map(m=>m.slice(1).join(" "));
+  const columns=(html:string)=>[...html.matchAll(/aria-label="(中信兄弟|統一獅)統計期間"/g)].map(m=>m[1]);
+  for(const tab of ["overview","pitchers","fielders"] as const){
+    const html=renderToStaticMarkup(<ReportPage view={view} tab={tab} preview={{kind:"E",sno:2}}/>);
+    assert.match(html,/<h1[^>]*>中信兄弟對統一獅 · 下一場觀戰報告<\/h1>/);
+    assert.match(html,/href="\/games\/1\?kind=E&amp;year=2026"/);
+    assert.ok(html.includes('href="/games/1/report?kind=E&amp;year=2026&amp;tab=overview"'));
+    assert.match(html,/2026-10-09 完賽後/);
+    if(tab==="overview"){
+      assert.deepEqual(cards(html),["客隊 中信兄弟 還差 1 勝","主隊 統一獅 還差 3 勝"]);
+      assert.ok(html.includes(">2 : 0</p>"),"中央勝場應為Y客隊兄弟：主隊統一");
+    } else assert.deepEqual(columns(html),["中信兄弟","統一獅"]);
+  }
+  for(const tab of ["overview","pitchers","fielders"] as const){
+    const html=renderToStaticMarkup(<ReportPage view={view} tab={tab}/>);
+    assert.match(html,/<h1[^>]*>統一獅對中信兄弟 · 場間報告<\/h1>/);
+    assert.match(html,/href="\/games\/1\?kind=E&amp;year=2026"/);
+    assert.match(html,/2026-10-09 完賽後/);
+    if(tab==="overview"){
+      assert.deepEqual(cards(html),["客隊 統一獅 還差 3 勝","主隊 中信兄弟 還差 1 勝"]);
+      assert.ok(html.includes(">0 : 2</p>"));
+    } else assert.deepEqual(columns(html),["統一獅","中信兄弟"]);
   }
 });

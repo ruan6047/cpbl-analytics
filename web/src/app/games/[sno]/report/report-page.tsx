@@ -115,12 +115,12 @@ export default function ReportPage({ view, tab, preview, nextPreview }: { view: 
   const comparison = report.comparison;
   const displayReport: Report = comparison ? {...report, ...comparison, game: historyGame, next_game: comparison.game} : report;
   const game = comparison?.game ?? historyGame;
-  const teamCodes = [game.away_team_code, game.home_team_code];
+  const titleGame = preview && displayReport.next_game ? displayReport.next_game : game;
+  const teamCodes = [titleGame.away_team_code, titleGame.home_team_code];
   const series = journey?.series[comparison?.kind_code ?? report.kind_code];
   const hasTarget = !!comparison || !!journey?.next;
   const pendingTransition = !!journey?.next && journey.next.kind !== report.kind_code && !comparison;
   const tabLink = (t: ReportTab) => preview ? previewLink(preview.sno, preview.kind, report.season, t) : reportLink(report.game_sno, report.kind_code, report.season, t);
-  const titleGame = preview && displayReport.next_game ? displayReport.next_game : game;
   return <div className="mx-auto max-w-6xl space-y-6 pb-10">
     <header><Link href={original} className="inline-block min-h-11 text-sm text-accent underline">返回原賽況</Link><h1 className="text-3xl font-bold tracking-tight">{teamName3(titleGame.away_team_code)}對{teamName3(titleGame.home_team_code)} · {preview ? "下一場觀戰報告" : "場間報告"}</h1><p className="mt-2 text-sm text-muted">{hasTarget && "開賽前背景 · "}{historyGame.game_date} 完賽後 · {report.anchor?.cutoff_label}{comparison && <> · {teamName3(historyGame.away_team_code)}對{teamName3(historyGame.home_team_code)}回顧</>}</p>{!preview && nextPreview && <Link href={nextPreview} className="inline-block min-h-11 py-3 text-sm font-semibold text-accent underline">下一場觀戰報告</Link>}{preview && <Link href={reportLink(report.game_sno, report.kind_code, report.season)} className="inline-block min-h-11 py-3 text-sm text-accent underline">截至場場間報告</Link>}</header>
     <nav aria-label="場間報告頁籤" className="flex gap-1 rounded-t-md bg-band p-1">{REPORT_TABS.map(t => <Link key={t.value} href={tabLink(t.value)} aria-current={tab === t.value ? "page" : undefined} className={`min-h-11 flex-1 px-4 py-3 text-center text-sm ${tab === t.value ? "bg-paper font-bold text-ink" : "text-muted hover:text-ink"}`}>{t.label}</Link>)}</nav>
