@@ -793,10 +793,6 @@ WRITE_ADJUDICATION: dict[str, tuple[bool, str]] = {
         False, "W2 命中的是 import 閉包 cpbl_fighting.py 的 INSERT；本檔只 import 其 "
                "`_token_in`，DB 連線強制 default_transaction_read_only、SQL 全是 SELECT，"
                "產物落 --workdir 與 src/cpbl/resources/ 的 JSON"),
-    "cpbl-live-worker": (
-        True, "#238 A8：只有明示 --persist-announcements 時，observation_sink callback "
-              "才呼叫 lineup_announcements.observe 寫入有限公告表；預設仍不寫DB。"
-              "W1 未追踪注入callback，但W2可見參數化INSERT／UPDATE；不是import即寫。"),
     "cpbl-backfill-season": (
         True, "#236：入口經 backfill_* → persist_season_records，以共用 cursor 的 "
               "executemany(_STATEMENTS[role], records) 寫入三季表；SQL 從模組常數傳入，"

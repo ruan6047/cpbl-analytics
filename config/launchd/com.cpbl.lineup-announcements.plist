@@ -1,4 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
+<!-- LIFECYCLE: standing · 常設owner配置，非calendar排程；核准啟用前不安裝 -->
 <plist version="1.0"><dict>
   <key>Label</key><string>com.cpbl.lineup-announcements</string>
   <key>ProgramArguments</key><array>
