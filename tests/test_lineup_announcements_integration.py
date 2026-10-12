@@ -152,7 +152,7 @@ def test_real_redis_fake_source_sink_preserves_cache_and_releases_owner_lock(iso
         raw = game(6)
         worker = LiveGameWorker(
             cache=cache,
-            fetch_schedule=lambda *_: [raw],
+            fetch_schedule=lambda year, month, kind="A": [raw] if kind == "E" else [],
             fetch_game=lambda _: raw,
             postseason_kinds=("E",),
             observation_sink=observe,
