@@ -69,7 +69,13 @@ def field_candidates(fielding: list[dict], *, team: str, player_ids: set[str]) -
 
 
 def watch_points(players: list[dict], *, team_codes: list[str], anchor_key: str) -> list[dict]:
-    """每隊最多兩則：前場 → 系列 → 對特定先發。只按原計數排序，不合成評分。"""
+    """每隊最多兩則：前場 → 系列 → 對特定先發，不推測下一場狀態。
+
+    同來源先各留一位打者／投手，不跨角色比較 SO 與長打數。
+    打者以已知長打、多次安打或保送為正證；投手只列已投出局、
+    零責失且保送有值的紀錄，再按局數／保送排序。SO 僅供呈現。
+    零責失不是零失分；缺值不當零，也不建立新的綜合評分。
+    """
     out = []
     for team in team_codes:
         candidates = []
@@ -83,17 +89,20 @@ def watch_points(players: list[dict], *, team_codes: list[str], anchor_key: str)
                     continue
                 c = period.get("counts", {})
                 if p["role"] == "batting":
-                    if not c.get("h") and not c.get("bb"):
+                    if not any(c.get(k) is not None and c[k] >= minimum
+                               for k, minimum in (("hr", 1), ("xbh", 1), ("h", 2), ("bb", 2))):
                         continue
-                    order = (-(c.get("xbh") or 0), -(c.get("h") or 0), -(c.get("bb") or 0))
-                    line = {k: c.get(k) for k in ("pa", "h", "xbh", "bb")}
+                    # 未知只在排序落後已知，不改写原始 counts。
+                    order = tuple(-(c[k] if c.get(k) is not None else -1)
+                                  for k in ("hr", "xbh", "h", "bb"))
+                    line = {k: c.get(k) for k in ("pa", "h", "hr", "xbh", "bb")}
                 else:
-                    if not c.get("so") or c.get("bb") is None:
+                    if c.get("er") != 0 or c.get("outs") is None or c["outs"] <= 0 or c.get("bb") is None:
                         continue
-                    order = (-c["so"], c["bb"], -(c.get("outs") or 0))
-                    line = {k: c.get(k) for k in ("outs", "so", "bb")}
+                    order = (-c["outs"], c["bb"])
+                    line = {k: c.get(k) for k in ("outs", "er", "h", "bb", "so")}
                 priority = {"last_game": 0, "series": 1, "season_vs_pitcher": 2}[origin]
-                candidates.append(((priority, *order, p["player_id"]), {
+                candidates.append(((priority, 0 if p["role"] == "batting" else 1, *order, p["player_id"]), p["role"], {
                     "team_code": team, "player_id": p["player_id"], "origin": origin,
                     "game_keys": [anchor_key] if origin == "last_game" else period.get("covered_game_keys", []),
                     "opponent_pitcher_id": period.get("pitcher_id"), "count_line": line,
@@ -101,10 +110,17 @@ def watch_points(players: list[dict], *, team_codes: list[str], anchor_key: str)
                     "question": "下一場能否延續這段表現？",
                 }))
         seen = set()
-        for _, point in sorted(candidates, key=lambda x: x[0]):
-            if point["player_id"] not in seen:
-                out.append(point)
-                seen.add(point["player_id"])
+        ordered = sorted(candidates, key=lambda x: x[0])
+        for priority in range(3):
+            group = [c for c in ordered if c[0][0] == priority and c[2]["player_id"] not in seen]
+            leads = [next((c for c in group if c[1] == role), None) for role in ("batting", "pitching")]
+            for candidate in [c for c in leads if c is not None] + group:
+                point = candidate[2]
+                if point["player_id"] not in seen:
+                    out.append(point)
+                    seen.add(point["player_id"])
+                if len(seen) == 2:
+                    break
             if len(seen) == 2:
                 break
     return out

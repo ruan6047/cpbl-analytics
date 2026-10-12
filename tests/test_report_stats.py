@@ -67,3 +67,59 @@ def test_field_ties_remain_candidates_and_missing_is_not_dh():
     ], team="A", player_ids={"p1", "p2", "missing"})
     assert fields["捕手"]["player_ids"] == ["p1", "p2"]
     assert fields["捕手"]["status"] == "tied" and "DH" not in fields
+
+
+def _watch_player(pid, role, counts, *, origin="last_game", team="A"):
+    available = {"status": "available", "counts": counts, "covered_game_keys": ["a1"],
+                 "source": "fixture", "sample": {}}
+    missing = {"status": "missing", "counts": {}}
+    return {"player_id": pid, "team_code": team, "role": role,
+            "last_game": available if origin == "last_game" else missing,
+            "periods": {"series": available if origin == "series" else missing},
+            "vs_starter": {**available, "pitcher_id": "starter"} if origin == "season_vs_pitcher" else missing}
+
+
+def test_watch_points_do_not_promote_strikeouts_over_runs_or_squeeze_homer_hitter():
+    from cpbl.reports.stats import watch_points
+
+    players = [
+        _watch_player("bad", "pitching", {"outs": 12, "er": 7, "bb": 5, "so": 8}),
+        _watch_player("clean", "pitching", {"outs": 18, "er": 0, "bb": 1, "so": 0}),
+        _watch_player("slugger", "batting", {"pa": 4, "h": 2, "hr": 2, "xbh": 2, "bb": 0}),
+    ]
+    points = watch_points(players, team_codes=["A"], anchor_key="e1")
+    assert [p["player_id"] for p in points] == ["slugger", "clean"]
+    assert points[1]["count_line"]["er"] == 0
+    assert points[1]["count_line"]["so"] == 0
+    players[0]["last_game"]["counts"]["so"] = 30
+    assert watch_points(players, team_codes=["A"], anchor_key="e1") == points
+
+
+def test_watch_points_require_actual_positive_evidence_without_filling_unknowns():
+    from cpbl.reports.stats import watch_points
+
+    players = [
+        _watch_player("unknown-er", "pitching", {"outs": 18, "er": None, "bb": 0, "so": 10}),
+        _watch_player("unknown-bb", "pitching", {"outs": 18, "er": 0, "bb": None, "so": 10}),
+        _watch_player("no-outs", "pitching", {"outs": 0, "er": 0, "bb": 0, "so": 0}),
+        _watch_player("single", "batting", {"h": 1, "bb": 0, "hr": 0, "xbh": 0}),
+        _watch_player("walks", "batting", {"h": None, "bb": 2, "hr": None, "xbh": None}),
+    ]
+    points = watch_points(players, team_codes=["A"], anchor_key="e1")
+    assert [p["player_id"] for p in points] == ["walks"]
+    assert points[0]["count_line"]["h"] is None
+    assert points[0]["count_line"]["hr"] is None
+
+
+def test_watch_points_preserve_source_priority_and_one_person_per_team():
+    from cpbl.reports.stats import watch_points
+
+    players = [
+        _watch_player("last", "batting", {"h": 2, "bb": 0, "hr": 0, "xbh": 0}),
+        _watch_player("series", "pitching", {"outs": 21, "er": 0, "bb": 1, "so": 9}, origin="series"),
+        _watch_player("pair", "batting", {"h": 10, "hr": 5, "xbh": 5, "bb": 4}, origin="season_vs_pitcher"),
+        _watch_player("other-team", "batting", {"h": 20, "hr": 10}, team="B"),
+    ]
+    points = watch_points(players, team_codes=["A"], anchor_key="e1")
+    assert [(p["player_id"], p["origin"]) for p in points] == [("last", "last_game"), ("series", "series")]
+    assert len({p["player_id"] for p in points}) == len(points)
