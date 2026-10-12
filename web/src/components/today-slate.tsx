@@ -225,8 +225,9 @@ export function TodayGameCard({ g, trainedThrough, nowMs, reveal = false }: {
         aside={<span className="text-right text-[12.5px] text-ink">{TODAY_COPY.reservedNote}</span>} />
     );
   }
-  // 賽前態：後端只在未開打的一軍場次帶 `pregame`；缺席時 resolver 回不支援的單行附註，
-  // 不會冒出 50% 假數字。沒有 snapshot 時不貼狀態章（不宣稱「未開打」，郵戳已承載日期）。
+  // 首頁只隱藏不支援賽事類型的提示文字，保留其他模型內容與卡片結構。
+  // 沒有 snapshot 時不貼狀態章（不宣稱「未開打」，郵戳已承載日期）。
+  const pregameModel = resolvePregameFromDaily(g.pregame, trainedThrough);
   return (
     <Ticket
       g={g}
@@ -236,7 +237,7 @@ export function TodayGameCard({ g, trainedThrough, nowMs, reveal = false }: {
       live={null}
       entry={PHASE_ENTRY.pregame}
       aside={
-        <PregameCard model={resolvePregameFromDaily(g.pregame, trainedThrough)}
+        <PregameCard model={pregameModel.status === "unsupported" ? { ...pregameModel, message: "" } : pregameModel}
           homeName={teamShort(g.home_team_code) || g.home_team_name} variant="aside" />
       }
     />

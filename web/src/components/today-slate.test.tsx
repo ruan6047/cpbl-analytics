@@ -129,10 +129,37 @@ test("延賽與保留賽是兩件事，徽章不得互換", () => {
 
 test("賽前態：走 PregameCard，不冒出延賽或保留徽章", () => {
   const out = text(card(game()));
-  assert.match(out, new RegExp(PREGAME_COPY.unsupported));
+  assert.doesNotMatch(out, new RegExp(PREGAME_COPY.unsupported));
   assert.doesNotMatch(out, new RegExp(LATEST_STATUS_COPY.postponed.label));
   assert.doesNotMatch(out, new RegExp(LATEST_STATUS_COPY.reserved.label));
 });
+
+for (const kind_code of ["E", "C"]) {
+  test(`季後賽 ${kind_code} 賽前態：只隱藏不支援文字，保留卡片結構與入口`, () => {
+    const node = card(game({ kind_code }));
+    const out = text(node);
+    assert.doesNotMatch(out, new RegExp(PREGAME_COPY.unsupported));
+    assert.doesNotMatch(out, /勝率|50%/);
+    assert.match(out, /統一7-ELEVEn獅/);
+    assert.match(out, /中信兄弟/);
+    assert.match(out, /賽事詳情/);
+    assert.match(markup(node), new RegExp(`/games/274\\?kind=${kind_code}&amp;year=2026`));
+    assert.match(markup(node), /role="note"/);
+  });
+
+  test(`季後賽 ${kind_code} 賽前態：其他模型內容維持原樣`, () => {
+    for (const [status, message] of [
+      ["artifact_missing", PREGAME_COPY.missingArtifact],
+      ["no_features", PREGAME_COPY.pending],
+      ["error", PREGAME_COPY.error],
+    ] as const) {
+      assert.match(text(card(game({ kind_code, pregame: { status, home_win_probability: null, signals: null } }))), new RegExp(message));
+    }
+    const out = text(card(game({ kind_code, pregame: { status: "available", home_win_probability: 0.6, signals: null } })));
+    assert.match(out, /60%/);
+    assert.match(out, new RegExp(PREGAME_COPY.methodologyLabel));
+  });
+}
 
 test("賽中態：畫出局數、比分與螢幕閱讀器播報", () => {
   const out = text(card(game({ live: live() })));
