@@ -8,7 +8,7 @@ import { reportJourney } from "@/lib/between-games";
 import type { Report, ReportPlayer } from "@/lib/report-types";
 
 const empty={status:"missing" as const,counts:{},sample:{},covered_game_keys:[],expected_game_keys:["2026/E/1"],coverage_status:"partial",source:"fixture",cutoff_label:"截至E1"};
-const p: ReportPlayer={player_id:"fixture-p",team_code:"ADD011",role:"pitching",name:"測試投手",bats:null,throws:"右",periods:{series:empty,regular:empty,opponent_regular:empty},last_game:empty,ability:{available:false,role:"pitching"},official_pr:null,traits:null,splits:[],fielding:[],vs_starter:{status:"missing"},pitching_usage:null};
+const p: ReportPlayer={player_id:"fixture-p",team_code:"ADD011",role:"pitching",name:"測試投手",bats:null,throws:"右投",periods:{series:empty,regular:empty,opponent_regular:empty},last_game:empty,ability:{available:false,role:"pitching"},official_pr:null,traits:null,splits:[],fielding:[],vs_starter:{status:"missing"},pitching_usage:null};
 const report: Report={status:"ok",season:2026,kind_code:"E",game_sno:1,game:{year:2026,kind_code:"E",game_sno:1,game_date:"2026-10-09",home_team_code:"ACN011",away_team_code:"ADD011",home_score:1,away_score:3,venue:"洲際"},players:[p],population:[],sources:[],teams:[]};
 test("正式三頁籤均保留 X 賽別年度、原賽況與可達入口",()=>{
   for(const tab of ["overview","pitchers","fielders"] as const){
@@ -38,6 +38,7 @@ test("面板投手四頁籤與野手三頁籤，左右分項保留 HR 及來源�
   for(const label of ["本系列","本季例行賽","本季對該隊","逐場使用"]) assert.ok(html.includes(`>${label}</button>`));
   assert.match(html,/2 HR · 1 BB · 9 SO/);
   assert.match(html,/守位：投手/);
+  assert.doesNotMatch(html,/右投投/);
   assert.ok(!html.includes("關閉"));
   const batting=renderToStaticMarkup(<ReportPlayerDialog player={{...p,role:"batting",fielding:[{pos:"捕手",g:50}]}} close={()=>{}} season={2026}/>);
   assert.ok(!batting.includes("逐場使用"));
@@ -102,12 +103,14 @@ test("Y已完賽回看仍固定X/Y，三頁籤明示開賽前背景",()=>{
   for(const tab of ["overview","pitchers","fielders"] as const){
     const html=renderToStaticMarkup(<ReportPage view={{report:historical,journey,updating:false}} tab={tab}/>);
     assert.match(html,/<header>[\s\S]*?開賽前背景[\s\S]*?<\/header>/);
-    assert.match(html,/2026-10-10 終場 0 : 1/);
+    assert.match(html,/2026-10-10 完賽後/);
+    assert.doesNotMatch(html,/終場 0 : 1/);
     assert.match(html,/href="\/games\/2\?kind=E&amp;year=2026"/);
     if(tab==="overview"){
       assert.match(html,/開賽前背景：統一獅對中信兄弟/);
       assert.match(html,/該場觀察重點/);
-      assert.match(html,/該場能否延續這段表現/);
+      assert.doesNotMatch(html,/能否延續這段表現/);
+      assert.match(html,/局數 6.0/);
       assert.ok(html.includes('>2 : 1</p>'));
     }
   }
@@ -130,7 +133,7 @@ test("沒有Y或系列終結不造開賽前背景、先發或未來式觀察題"
     assert.ok(!html.includes("距該場"));
     assert.ok(!html.includes("查看下一場賽況"));
     assert.ok(!html.includes("查看該場賽況"));
-    if(tab==="overview") assert.match(html,/outs 18/);
+    if(tab==="overview") { assert.match(html,/局數 6.0/); assert.doesNotMatch(html,/outs 18/); }
   }
 });
 
@@ -155,4 +158,30 @@ test("有Y的野手面板保留可靠ID配對；無Y不將既有配對當公告�
     assert.match(noTarget,/能力、官方 PR 與特性固定 2026 年一軍例行賽/);
     assert.match(noTarget,/href="\/players\/fixture-p\?year=2026"/);
   }
+});
+
+
+test("能力特色保留大雷達與逐軸PR，期間列完整指標但不補零", () => {
+  const player: ReportPlayer = {...p, ability:{available:true, role:"pitching",signature:"三振",axes:[{key:"k",label:"三振",pr:88,grade:"A",components:[]},{key:"bb",label:"控球",pr:67,grade:"B",components:[]}],overall:{pr:77,grade:"B"}}, periods:{...p.periods,series:{...empty,status:"available",counts:{ip:"6.0",so:9,bb:1,h:3,hr:0,era:1.5,whip:0.67,pitch_cnt:89},sample:{pa:23,outs:18}}}};
+  const html = renderToStaticMarkup(<ReportPlayerDialog player={player} close={()=>{}} season={2026}/>);
+  assert.match(html,/能力特色/);
+  assert.match(html,/三振型/);
+  assert.match(html,/PR 88/);
+  for (const label of ["ERA", "WHIP", "安打", "全壘打", "球數"]) assert.ok(html.includes(label));
+  assert.doesNotMatch(html,/>關閉<|aria-label="關閉/);
+});
+
+test("可信公告先發獨立能力卡，其他投手仍以個人卡進面板，不把未核先發補人", () => {
+  const starter = {...p, ability:{available:true, role:"pitching" as const,axes:[{key:"k",label:"三振",pr:80,grade:"A",components:[]}]}};
+  const data: Report = {...report,players:[starter,{...p,player_id:"reliever",name:"後援甲"}],next_game:{year:2026,kind_code:"E",game_sno:2,game_date:"2026-10-10",away_team_code:"ADD011",home_team_code:"ACN011",venue:"洲際",away_starter:{acnt:p.player_id,name:p.name,status:"announced",team_code:"ADD011"},home_starter:{acnt:null,name:null,status:"unverified",team_code:"ACN011"}}};
+  data.journey_context = {summary:[{kind_code:"E",team1_code:"ADD011",team2_code:"ACN011",games:[{game_no:1,game_sno:1,date:"2026-10-09",away_code:"ADD011",away_score:3,home_code:"ACN011",home_score:1}]}],rows:[],sources:[],context_hash:"fixture-starter",cutoff_date:"2026-10-09",through_game_keys:["2026/E/1"],order_consistent:true};
+  const journey = reportJourney(data);
+  assert.ok(journey?.next, "有正式 X 截止集合才有 Y，不能僅由 next_game 假造");
+  const html = renderToStaticMarkup(<ReportPage view={{report:data,journey,updating:false}} tab="pitchers"/>);
+  assert.match(html,/該場公告先發/);
+  assert.match(html,/本季能力雷達圖/);
+  assert.match(html,/PR 80/);
+  assert.match(html,/其他投手 · 含後援/);
+  assert.match(html,/後援甲/);
+  assert.match(html,/本站尚未取得可靠先發公告/);
 });

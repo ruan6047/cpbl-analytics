@@ -182,3 +182,17 @@ test("台灣大賽分頁：登錄名單寫本站尚未取得，不沿用挑戰�
     assert.doesNotMatch(html, /二手報導|官方未公布/);
   }
 });
+
+
+test("專頁首頁可達最新完賽報告，保留單場 kind/year 並標清所屬系列", () => {
+  const journey = build([LION, LION], "2026-10-11T12:00:00+08:00");
+  for (const active of ["E", "C"]) {
+    const html = renderToStaticMarkup(view(journey, active));
+    assert.match(html, /href="\/games\/2\/report\?kind=E&amp;year=2026&amp;tab=overview"/);
+    assert.doesNotMatch(html, /href="\/games\/[13]\/report/);
+    assert.match(html, /最新場間報告/);
+    assert.match(html, /季後挑戰賽.*G2/);
+  }
+  assert.match(renderToStaticMarkup(view(journey, "E")), /href="\/games\/2\?kind=E&amp;year=2026"/);
+  assert.doesNotMatch(renderToStaticMarkup(view(build([], "2026-10-08T12:00:00+08:00"), "E")), /\/report\?/);
+});
