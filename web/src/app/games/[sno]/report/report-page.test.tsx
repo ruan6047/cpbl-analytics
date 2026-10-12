@@ -185,3 +185,12 @@ test("可信公告先發獨立能力卡，其他投手仍以個人卡進面板�
   assert.match(html,/後援甲/);
   assert.match(html,/本站尚未取得可靠先發公告/);
 });
+
+test("觀察重點保留長打正證，與全壘打分開呈現且不露原始欄位", () => {
+  const hitter: ReportPlayer = {...p,role:"batting",name:"長打選手",last_game:{...empty,status:"available",counts:{pa:4,h:2,hr:1,xbh:2,rbi:0},sample:{pa:4}}};
+  const data: Report = {...report,players:[hitter],watch_points:[{team_code:hitter.team_code,player_id:hitter.player_id,origin:"last_game",count_line:{pa:4,h:2,hr:1,xbh:2,bb:0},question:"下一場能否延續這段表現？"}]};
+  const html = renderToStaticMarkup(<ReportPage view={{report:data,journey:null,updating:false}} tab="overview"/>);
+  assert.match(html,/長打 2/);
+  assert.match(html,/全壘打 1/);
+  assert.doesNotMatch(html,/xbh|outs|能否延續/);
+});

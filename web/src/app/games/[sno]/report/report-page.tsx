@@ -15,7 +15,7 @@ import { teamColor, teamName3 } from "@/lib/teams";
 import type { Counts, Period, Report, ReportPlayer, ReportTab, ReportView } from "@/lib/report-types";
 
 const periods = [{ key: "series", label: "本系列" }, { key: "regular", label: "本季例行賽" }, { key: "opponent_regular", label: "本季對該隊" }] as const;
-const labels: Record<string, string> = { g: "登場", pa: "PA", ab: "AB", h: "安打", hr: "全壘打", bb: "保送", so: "三振", ip: "局數", pitch_cnt: "球數", era: "ERA", whip: "WHIP", ops: "OPS", avg: "AVG", slg: "SLG", obp: "OBP", k_pct: "K%", bb_pct: "BB%", r: "得分", rbi: "打點", sb: "盜壘", hbp: "觸身球", er: "責失", bf: "面對打者" };
+const labels: Record<string, string> = { g: "登場", pa: "PA", ab: "AB", h: "安打", hr: "全壘打", xbh: "長打", bb: "保送", so: "三振", ip: "局數", pitch_cnt: "球數", era: "ERA", whip: "WHIP", ops: "OPS", avg: "AVG", slg: "SLG", obp: "OBP", k_pct: "K%", bb_pct: "BB%", r: "得分", rbi: "打點", sb: "盜壘", hbp: "觸身球", er: "責失", bf: "面對打者" };
 const d = (v: number | string | null | undefined, key?: string) => v == null ? "—" : typeof v === "number" && ["ops", "avg", "slg", "obp"].includes(key ?? "") ? v.toFixed(3).replace(/^0/, "") : typeof v === "number" && ["era", "whip"].includes(key ?? "") ? v.toFixed(2) : String(v);
 const hand = (value: string | null, suffix: "打" | "投") => value ? `${value.replace(new RegExp(`${suffix}$`), "")}${suffix}` : `${suffix}側未取得`;
 const officialValue = (value: number | string | null | undefined, key: string) => typeof value === "number" ? ["kp", "bbp", "hardhitp"].includes(key) ? `${(value * 100).toFixed(1)}%` : value.toFixed(3).replace(/^0/, "") : d(value);
@@ -101,7 +101,7 @@ function TeamPlayers({ report, team, role, open, hasTarget }: { report: Report; 
 function WatchLine({ point, player }: { point: NonNullable<Report["watch_points"]>[number]; player: ReportPlayer }) {
   const background = point.origin === "last_game" ? player.last_game.counts : point.origin === "series" ? player.periods.series.counts : player.vs_starter.counts ?? {};
   const counts = {...background, ...point.count_line};
-  const allowed = player.role === "pitching" ? ["ip", "outs", "er", "h", "so", "bb"] : ["pa", "h", "hr", "rbi", "bb"];
+  const allowed = player.role === "pitching" ? ["ip", "outs", "er", "h", "so", "bb"] : ["pa", "h", "hr", "xbh", "rbi", "bb"];
   const entries = Object.entries(counts).filter(([key, value]) => value != null && allowed.includes(key) && (key !== "outs" || counts.ip == null));
   return <p className="mt-2 text-sm text-ink"><span className="mr-2 text-xs text-muted">{point.origin === "last_game" ? "前場" : point.origin === "series" ? "本系列" : "本季對特定投手"}</span>{entries.map(([key, value]) => key === "outs" && typeof value === "number" && player.role === "pitching" ? `局數 ${Math.floor(value / 3)}.${value % 3}` : labels[key] ? `${labels[key]} ${d(value, key)}` : null).filter(Boolean).join(" · ") || "本站尚未取得完整表現指標"}</p>;
 }
