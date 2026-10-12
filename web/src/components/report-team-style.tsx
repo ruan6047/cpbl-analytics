@@ -15,17 +15,18 @@ export function ReportTeamStyle({ style }: { style: NonNullable<Report["teams"]>
   const data = style.axes.map(a => ({ label:a.label, z:clampZ(season.axes[a.key].z) }));
   const color = teamColor(style.team);
   return <figure className="min-w-0" aria-label="本季七軸球風">
-    <div className="mt-4 h-60 w-full min-w-0">
+    <div className="mt-4 h-72 sm:h-80 w-full min-w-0">
       <ResponsiveContainer width="100%" height="100%">
-        <RadarChart data={data} outerRadius="74%">
+        <RadarChart data={data} outerRadius="70%">
           <PolarGrid stroke={ct.line} />
-          <PolarAngleAxis dataKey="label" tick={{ fill:ct.muted, fontSize:11 }} />
+          <PolarAngleAxis dataKey="label" tick={{ fill:ct.ink, fontSize:12 }} />
           <PolarRadiusAxis domain={[-2,2]} tick={false} axisLine={false} />
-          <Radar dataKey="z" stroke={color} fill={color} fillOpacity={0.3} />
+          <Radar isAnimationActive={false} dataKey="z" stroke={color} fill={color} fillOpacity={0.3} />
         </RadarChart>
       </ResponsiveContainer>
     </div>
     <figcaption className="text-xs text-muted">{TEAM_STYLE_SECTION.radarCaption}</figcaption>
+    <div className="mt-3 flex flex-wrap gap-2" aria-label="聯盟前段特徵">{style.axes.filter(a => season.axes[a.key].rank <= 2).map(a => <span key={a.key} className="rounded bg-band px-2 py-1 text-xs font-bold text-ink">{a.label} · 第 {season.axes[a.key].rank}</span>)}</div>
     <dl className="mt-3 grid grid-cols-2 gap-3">{style.axes.map(a => <div key={a.key}><dt className="text-xs text-muted">{a.label}</dt><dd className="mt-1 font-mono text-sm">第 {season.axes[a.key].rank} / {season.n_teams} 隊</dd></div>)}</dl>
   </figure>;
 }

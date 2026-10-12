@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { recapReportLink } from "@/lib/between-games";
 import { Card, StatusBadge, TeamLogo, type StatusTone } from "@/components/ui";
 import { displayTeamName, slotDay, slotGameLabel } from "@/components/postseason-series";
 import type { RosterLead } from "@/lib/postseason-announcement";
@@ -222,6 +223,9 @@ export function PostseasonOverview({ journey, nameOf, seedOf, active }: {
   const { series, announcement: ann } = journey;
   const fallback: Key = journey.next?.kind ?? (series.E.status === "decided" ? "C" : "E");
   const cur: Key = active === "E" || active === "C" ? active : fallback;
+  const latest = journey.slots.filter(slot => slot.status === "final" && slot.row)
+    .sort((a, b) => b.date.localeCompare(a.date) || b.seq - a.seq)[0];
+  const latestReport = latest?.row ? recapReportLink(true, latest.row.game_sno, latest.kind, latest.row.year) : null;
   const hasCRow = journey.slots.some((s) => s.kind === "C" && s.row);
   const range = (k: Key) => {
     const xs = journey.slots.filter((s) => s.kind === k);
@@ -257,6 +261,10 @@ export function PostseasonOverview({ journey, nameOf, seedOf, active }: {
         })}
       </nav>
 
+      {latestReport && latest && <Link href={latestReport} className="mb-4 flex min-h-11 flex-wrap items-center justify-between gap-2 border-y border-line py-4 text-accent hover:underline">
+        <span className="font-bold">最新場間報告 →</span>
+        <span className="text-sm text-muted">{series[latest.kind].name} · G{latest.seq} 完賽後背景</span>
+      </Link>}
       <SeriesView journey={journey} k={cur} nameOf={nameOf} seedOf={seedOf} />
 
       <details className="mt-3 text-xs text-muted">
