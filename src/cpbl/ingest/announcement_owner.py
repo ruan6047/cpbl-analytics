@@ -85,7 +85,7 @@ class AnnouncementOwner:
                     self._save()
                     raise  # 時序／不可變原證不符須owner核對，不反覆重試。
                 except Exception as exc:  # noqa: BLE001 — 保留真觀測，下一正常cycle退避。
-                    self.state["next_flush"] = now + 300
+                    self.state["next_flush"] = self.clock() + 300
                     self._save()
                     return {"state": "persistence_failed", "error_type": type(exc).__name__}
                 self.state["next_flush"] = 0
@@ -109,6 +109,12 @@ class AnnouncementOwner:
                 self.state["paused"] = True
                 self._save()
                 raise RuntimeError("announcement sync timeout; remote stop must be verified") from None
+            now = self.clock()  # 備份／migration／sync可耗時；節奏從確定完成時計算。
+            # psql ON_ERROR_STOP=3、入口參數64、有限COPY驗證67均不能當暫時故障重送。
+            if result.returncode in (3, 64, 67):
+                self.state["paused"] = True
+                self._save()
+                raise RuntimeError(f"announcement sync integrity/configuration exit {result.returncode}; require owner handoff")
             if result.returncode in (255, 130, 137, 143, -9, -15):
                 self.state["paused"] = True
                 self._save()

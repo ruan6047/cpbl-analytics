@@ -98,3 +98,45 @@ def test_replayed_commit_before_checkpoint_still_requires_protected_sync(tmp_pat
     monkeypatch.setattr(module,"observe_projected",lambda *args:{"action":"replayed"})
     assert actor.after_cycle()["state"]=="synced"
     assert len(calls)==1 and not actor.state["pending"]
+
+
+@pytest.mark.parametrize("exit_code", [3, 64, 67])
+def test_protected_sync_integrity_or_configuration_failure_pauses_owner(tmp_path,monkeypatch,exit_code):
+    events=[]; actor,now,calls=owner(tmp_path,monkeypatch,events)
+    actor.observe("2026-C-1",raw(),datetime(2026,10,13,tzinfo=UTC))
+    attempts=[]
+    def conflict(*args,**kwargs):
+        attempts.append(now[0]); return SimpleNamespace(returncode=exit_code)
+    actor.runner=conflict
+    with pytest.raises(RuntimeError,match="handoff"):
+        actor.after_cycle()
+    assert actor.state["paused"] and actor.state["new_version"] and actor.lock.exists()
+    assert len(list(actor.path.parent.glob("sync-*.log")))==1
+    assert actor.after_cycle()["state"]=="deferred" and len(attempts)==1
+    with pytest.raises(RuntimeError,match="handoff"):
+        module.AnnouncementOwner(tmp_path,lock=actor.lock)
+
+
+def test_slow_failed_sync_backoff_starts_at_actual_completion(tmp_path,monkeypatch):
+    events=[]; actor,now,calls=owner(tmp_path,monkeypatch,events)
+    actor.observe("2026-C-1",raw(),datetime(2026,10,13,tzinfo=UTC))
+    attempts=[]
+    def slow_failure(*args,**kwargs):
+        attempts.append(now[0]); now[0]+=700; return SimpleNamespace(returncode=69)
+    actor.runner=slow_failure
+    assert actor.after_cycle()["state"]=="sync_failed"
+    assert actor.state["next_attempt"]==100700+600
+    assert actor.state["new_version"] and not actor.lock.exists()
+    assert actor.after_cycle()["state"]=="idle" and attempts==[100000]
+    now[0]=101300
+    assert actor.after_cycle()["state"]=="sync_failed" and attempts==[100000,101300]
+
+
+def test_slow_success_coalescing_and_last_seen_start_at_completion(tmp_path,monkeypatch):
+    events=[]; actor,now,calls=owner(tmp_path,monkeypatch,events)
+    actor.observe("2026-C-1",raw(),datetime(2026,10,13,tzinfo=UTC))
+    def slow_success(*args,**kwargs):
+        now[0]+=700; return SimpleNamespace(returncode=0)
+    actor.runner=slow_success
+    assert actor.after_cycle()["state"]=="synced"
+    assert actor.state["last_sync"]==100700 and actor.state["next_attempt"]==101000
