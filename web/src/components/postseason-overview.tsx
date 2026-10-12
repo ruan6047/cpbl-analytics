@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { PostseasonRefreshHint } from "@/components/postseason-refresh-hint";
 import { recapReportLink } from "@/lib/between-games";
 import { Card, StatusBadge, TeamLogo, type StatusTone } from "@/components/ui";
 import { displayTeamName, slotDay, slotGameLabel } from "@/components/postseason-series";
@@ -265,6 +266,7 @@ export function PostseasonOverview({ journey, nameOf, seedOf, active }: {
         <span className="font-bold">最新場間報告 →</span>
         <span className="text-sm text-muted">{series[latest.kind].name} · G{latest.seq} 完賽後背景</span>
       </Link>}
+      <PostseasonRefreshHint journey={journey} />
       <SeriesView journey={journey} k={cur} nameOf={nameOf} seedOf={seedOf} />
 
       <details className="mt-3 text-xs text-muted">

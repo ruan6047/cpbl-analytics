@@ -55,4 +55,14 @@ def test_router_passes_formal_population_records_without_year_or_round_substitut
         c,calls=client(monkeypatch)
         assert c.get(f"/api/v1/games/1/report?season={year}&kind_code={kind}").status_code==200
         records=calls[2]["population_records"]
-        assert sum(len(r["members"]) for r in records)==count
+        assert sum(len(r["members"]) for r in records if r["round"]==kind)==count
+        assert all(r["year"]==year and r["round"] in ("E","C") for r in records)
+
+
+def test_router_loads_each_round_once_for_base_and_enrichment(monkeypatch):
+    for query in ("", "&next_kind=C&next_sno=901&context_hash="+"a"*64):
+        requested=[]
+        c,_=client(monkeypatch)
+        monkeypatch.setattr(report.official_population,"load",lambda year,kind: requested.append((year,kind)) or [])
+        assert c.get("/api/v1/games/4/report?season=2026&kind_code=E"+query).status_code==200
+        assert requested==[(2026,"E"),(2026,"C")]

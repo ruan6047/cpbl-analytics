@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { PostseasonRefreshHint } from "@/components/postseason-refresh-hint";
 import type { PostseasonJourney } from "@/lib/postseason-journey";
 
 // 首頁戰績右側的季後入口卡（#237）。只吃共用旅程模型：一行系列概況＋一個直達季後總覽的入口。
@@ -33,6 +34,7 @@ export function PostseasonNextCard({ journey }: { journey: PostseasonJourney }) 
   return (
     <section aria-labelledby="ps-next-h" className="rounded-md bg-surface p-4">
       <h2 id="ps-next-h" className="mb-1 text-base font-bold text-ink">季後賽</h2>
+      <PostseasonRefreshHint journey={journey} />
       <p className="break-words text-[13px] text-muted">{seriesBrief(journey)}</p>
       <Link
         href={POSTSEASON_HUB_HREF}

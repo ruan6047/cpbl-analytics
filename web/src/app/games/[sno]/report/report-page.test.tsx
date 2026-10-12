@@ -194,3 +194,29 @@ test("觀察重點保留長打正證，與全壘打分開呈現且不露原始�
   assert.match(html,/全壘打 1/);
   assert.doesNotMatch(html,/xbh|outs|能否延續/);
 });
+
+test("跨系列比較三頁用兄弟/味全，X回顧與返回連結保持E4，不假造C1完賽", () => {
+  const target = {year:2026,kind_code:"C",game_sno:901,game_date:"2026-10-17",away_team_code:"ACN011",home_team_code:"AAA011",venue:"大巨蛋",away_starter:{acnt:null,name:null,status:"unverified",team_code:"ACN011"},home_starter:{acnt:null,name:null,status:"unverified",team_code:"AAA011"}};
+  const comparePitcher = {...p,team_code:"AAA011",name:"味全合成投手"};
+  const data: Report = {...report,game_sno:4,game:{...report.game!,game_sno:4},comparison:{game:target,kind_code:"C",series_game_keys:[],usage_cutoff_label:"近期使用，截至2026/E/4完賽",players:[comparePitcher],population:[],teams:[],watch_points:[],field_candidates:{},announcements:{lineup:{status:"unverified",items:[]}},coverage:{games:0,with_pitching:0,with_batting:0}}};
+  for (const tab of ["overview","pitchers","fielders"] as const) {
+    const html = renderToStaticMarkup(<ReportPage view={{report:data,journey:null,updating:false}} tab={tab}/>);
+    assert.match(html,/<h1[^>]*>中信兄弟對味全龍/);
+    assert.match(html,/統一獅對中信兄弟.*回顧/);
+    assert.match(html,/href="\/games\/4\?kind=E&amp;year=2026"/);
+    assert.match(html,/台灣大賽本系列尚無完賽資料/);
+    assert.doesNotMatch(html,/C.*901.*完賽/);
+    if (tab==="pitchers") assert.match(html,/味全合成投手/);
+  }
+});
+
+test("C比較的E近期先發紀錄不能標成C本系列曾先發", () => {
+  const target = {year:2026,kind_code:"C",game_sno:901,game_date:"2026-10-17",away_team_code:"ACN011",home_team_code:"AAA011",venue:"大巨蛋",away_starter:{acnt:null,name:null,status:"unverified",team_code:"ACN011"},home_starter:{acnt:null,name:null,status:"unverified",team_code:"AAA011"}};
+  const recentPitcher: ReportPlayer = {...p,team_code:"ACN011",pitching_usage:{started:true,through_game_keys:["2026/E/4"],cutoff_label:"截至2026/E/4完賽",appearances:[{game_key:"2026/E/4",date:"2026-10-12",role_type:"先發",outs:18,pitch_cnt:90}]}};
+  const data: Report = {...report,game_sno:4,comparison:{game:target,kind_code:"C",series_game_keys:[],usage_cutoff_label:"近期使用，截至2026/E/4完賽",players:[recentPitcher],population:[],teams:[],watch_points:[],field_candidates:{},announcements:{lineup:{status:"unverified",items:[]}},coverage:{games:0,with_pitching:0,with_batting:0}}};
+  const html = renderToStaticMarkup(<ReportPage view={{report:data,journey:null,updating:false}} tab="pitchers"/>);
+  assert.match(html,/台灣大賽本系列尚無完賽資料/);
+  assert.match(html,/近期曾先發/);
+  assert.doesNotMatch(html,/系列曾先發/);
+  assert.match(renderToStaticMarkup(<ReportPlayerPeriod player={recentPitcher} period="usage"/>),/截至2026\/E\/4完賽/);
+});

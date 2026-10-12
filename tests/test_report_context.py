@@ -96,3 +96,19 @@ def test_selected_announcement_material_changes_context_without_read_time_or_lat
     with pytest.raises(ContextChanged):
         validate_target(changed,"E",2,initial["context_hash"])
     assert bounded_context(x,[x],[schedule(2,10)],announcement_materials=[])==bounded_context(x,[x],[schedule(2,10)])
+
+
+def test_future_published_identity_can_be_compared_without_faking_starter_announcement():
+    # 官方future正常schedule revision，沒有IsPlayBall=N仍有真C身分；不是C1完賽。
+    x=game(4,12)
+    published={**schedule(1,17,flag=None,fetched=13),"kind_code":"C","raw_present_status":0,
+               "raw_payload":{"VisitingTeamCode":"ACN011","HomeTeamCode":"AAA011","FieldAbbe":"大巨蛋"}}
+    ctx=bounded_context(x,[x],[published])
+    y=validate_target(ctx,"C",1,ctx["context_hash"])
+    assert y["away_team_code"]=="ACN011" and y["home_team_code"]=="AAA011"
+    assert y["completed"] is False
+    assert ctx["sources"][0]["cutoff_basis"]=="published_identity_before_started"
+    from cpbl.api.between_games import pregame_schedule
+    assert pregame_schedule([published],date(2026,10,17))["away_starter"]["status"]=="unverified"
+    only_started={**published,"is_play_ball":"Y","fetched_at":datetime(2026,10,17,tzinfo=UTC)}
+    assert bounded_context(x,[x],[only_started])["rows"]==[]

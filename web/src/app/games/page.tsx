@@ -1,4 +1,7 @@
 import Link from "next/link";
+import { PostseasonRefreshHint } from "@/components/postseason-refresh-hint";
+import { taipeiDate } from "@/lib/taipei-date";
+import { TaipeiDayRefresh } from "@/components/taipei-day-refresh";
 import { TeamLogo, StatusBadge, EmptyState, type StatusTone } from "@/components/ui";
 import { SectionTitle } from "@/components/postmark";
 import { LevelYearNav } from "@/components/level-year-nav";
@@ -95,8 +98,7 @@ export default async function GamesPage({
     ...items.map((g) => ymOf(g.game_date)),
     ...[...announcedByDate.keys(), ...reserveDates].map(ymOf),
   ])].sort();
-  const now = new Date();
-  const todayStr = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+  const todayStr = taipeiDate();
   const todayYM = todayStr.slice(0, 7);
   const defaultMonth =
     monthsAvail.includes(todayYM) ? todayYM
@@ -149,6 +151,8 @@ export default async function GamesPage({
 
   return (
     <div>
+      <TaipeiDayRefresh day={todayStr} />
+      {journey && <PostseasonRefreshHint journey={journey} />}
       <header className="mb-5">
         <SectionTitle as="h1" date={season} cue={kind === "D" ? "二軍" : "一軍・季後賽"}>賽程與賽況</SectionTitle>
         <p className="-mt-1 text-sm text-muted">
