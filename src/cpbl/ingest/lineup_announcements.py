@@ -43,10 +43,8 @@ def _team(value) -> dict:
     code = team.get("Code") if isinstance(team, Mapping) else None
     hitters = value.get("Hitters")
     if isinstance(hitters, list):
-        rows = [
-            {k: r.get(k) for k in FIELDS} if isinstance(r, Mapping) else {"unsupported_row": r}
-            for r in hitters
-        ]
+        # 非Mapping row不解包猜欄位，僅保存四欄null，仍為unknown。
+        rows = [{k: r.get(k) if isinstance(r, Mapping) else None for k in FIELDS} for r in hitters]
         # 穩定排序不修改原欄位值，重複／超過9人也原樣保留以供unknown判斷。
         rows.sort(
             key=lambda r: (

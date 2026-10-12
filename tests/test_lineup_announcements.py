@@ -212,3 +212,73 @@ def test_naive_timestamp_stops_before_connection(monkeypatch):
     with pytest.raises(ValueError, match="timezone"):
         api().observe("2026-E-4", raw_game(), T0.replace(tzinfo=None))
     assert calls == []
+
+
+def wrapped_hitter_game():
+    raw = raw_game()
+    raw["Visiting"]["Hitters"][0] = [raw["Visiting"]["Hitters"][0]]
+    return raw
+
+
+def test_nonmapping_hitter_projects_only_null_approved_fields_and_saves_no_extras(monkeypatch):
+    raw = wrapped_hitter_game()
+    projected = api().project("2026-E-4", raw)
+    missing = {field: None for field in api().FIELDS}
+    assert missing in projected["Visiting"]["Hitters"]
+    assert len(projected["Visiting"]["Hitters"]) == 9
+    assert all(set(row) == set(api().FIELDS) for row in projected["Visiting"]["Hitters"])
+    calls, outcome = fake_connection(monkeypatch, [None, None])
+    api().observe("2026-E-4", raw, T0)
+    inserted_json = calls[-1][1][-2]
+    assert '"DOB":' not in inserted_json and '"Hits":' not in inserted_json
+    assert "not-projected" not in inserted_json and "unsupported_row" not in inserted_json
+    assert outcome["commit"] and not outcome["rollback"]
+
+
+@pytest.mark.parametrize("excluded,value", [("Hits", 123), ("DOB", "another-excluded-fixture")])
+def test_excluded_nested_stats_cannot_change_finite_projection_hash(excluded, value):
+    first = wrapped_hitter_game()
+    changed = deepcopy(first)
+    changed["Visiting"]["Hitters"][0][0][excluded] = value
+    assert api().content_hash(api().project("2026-E-4", first)) == api().content_hash(
+        api().project("2026-E-4", changed)
+    )
+    # 恢復真正Mapping row才是可採的內容改變；不猜一層list就是hitter。
+    changed["Visiting"]["Hitters"][0] = changed["Visiting"]["Hitters"][0][0]
+    assert api().content_hash(api().project("2026-E-4", first)) != api().content_hash(
+        api().project("2026-E-4", changed)
+    )
+
+
+def test_unsupported_row_remains_unverified_for_existing_pure_reader():
+    from cpbl.reports.announcements import select
+
+    raw = wrapped_hitter_game()
+    record = {
+        **existing_row(raw),
+        "year": 2026,
+        "kind_code": "E",
+        "game_sno": 4,
+        "source_type": "stats_datagame",
+        "source_url": "https://stats.cpbl.com.tw/api/proxy/v1/games/2026-E-4",
+    }
+    target = {
+        "year": 2026,
+        "kind_code": "E",
+        "game_sno": 4,
+        "away_team_code": "ACN011",
+        "home_team_code": "ADD011",
+    }
+    result = select([record], [], target)
+    assert result["team_evidence"]["ACN011"]["status"] == "unverified"
+    assert result["status"] == "partial"
+    assert not any(row["team_code"] == "ACN011" for row in result["items"])
+
+
+def test_mock_insert_does_not_keep_excluded_values_from_unsupported_hitter(monkeypatch):
+    calls, outcome = fake_connection(monkeypatch, [None, None])
+    api().observe("2026-E-4", wrapped_hitter_game(), T0)
+    payload = calls[-1][1][-2]
+    assert '"DOB":' not in payload and '"Hits":' not in payload
+    assert "not-projected" not in payload
+    assert outcome["commit"]
