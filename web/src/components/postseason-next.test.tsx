@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { ReactElement } from "react";
-import { renderToStaticMarkup } from "react-dom/server";
+import { renderToStaticMarkup as render } from "react-dom/server";
+import { AppRouterContext } from "next/dist/shared/lib/app-router-context.shared-runtime";
+const router={back(){},forward(){},push(){},replace(){},refresh(){},hmrRefresh(){},prefetch(){}};
+const renderToStaticMarkup=(node:ReactElement)=>render(<AppRouterContext.Provider value={router}>{node}</AppRouterContext.Provider>);
 
 import DailyHub from "./daily-hub.tsx";
 import { PostseasonNextCard, postseasonPointer } from "./postseason-next.tsx";
