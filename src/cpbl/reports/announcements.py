@@ -45,7 +45,7 @@ def _valid_revision(row: dict, target: dict) -> bool:
     status = status if isinstance(status, str) else None
     return (
         row.get("source_type") == SOURCE_TYPE
-        and raw.get("projection_version") == PROJECTION_VERSION
+        and raw.get("projection_version") in ("stats_datagame_lineup_v1", PROJECTION_VERSION)
         and raw.get("GameId") == game_id
         and raw.get("KindCode") == target["kind_code"]
         and integer(raw.get("GameSno")) == target["game_sno"]

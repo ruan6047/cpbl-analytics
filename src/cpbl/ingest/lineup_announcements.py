@@ -13,7 +13,7 @@ from psycopg.rows import dict_row
 from cpbl.db import conn
 
 SOURCE_TYPE = "stats_datagame"
-PROJECTION_VERSION = "stats_datagame_lineup_v1"
+PROJECTION_VERSION = "stats_datagame_lineup_v2"
 FIELDS = ("Lineup", "HitterAcnt", "HitterName", "DefendStation")
 
 
@@ -36,15 +36,20 @@ def integer(value) -> int | None:
     return None
 
 
+def _scalar(value):
+    # 有限欄位也不能夾帶任意nested payload；型別不符仍保留unknown。
+    return value if value is None or isinstance(value, (str, int, float, bool)) else None
+
+
 def _team(value) -> dict:
     if not isinstance(value, Mapping):
         return {"Team": {"Code": None}, "Hitters": None}
     team = value.get("Team")
-    code = team.get("Code") if isinstance(team, Mapping) else None
+    code = _scalar(team.get("Code")) if isinstance(team, Mapping) else None
     hitters = value.get("Hitters")
     if isinstance(hitters, list):
         # 非Mapping row不解包猜欄位，僅保存四欄null，仍為unknown。
-        rows = [{k: r.get(k) if isinstance(r, Mapping) else None for k in FIELDS} for r in hitters]
+        rows = [{k: _scalar(r.get(k)) if isinstance(r, Mapping) else None for k in FIELDS} for r in hitters]
         # 穩定排序不修改原欄位值，重複／超過9人也原樣保留以供unknown判斷。
         rows.sort(
             key=lambda r: (
@@ -57,8 +62,10 @@ def _team(value) -> dict:
     elif isinstance(hitters, Mapping):
         hitters = {
             "unsupported_shape": "object",
-            "projected_fields": {k: hitters.get(k) for k in FIELDS},
+            "projected_fields": {k: _scalar(hitters.get(k)) for k in FIELDS},
         }
+    elif hitters is not None:
+        hitters = {"unsupported_shape": "scalar"}
     return {"Team": {"Code": code}, "Hitters": hitters}
 
 
@@ -73,7 +80,7 @@ def project(game_id: str, raw: dict) -> dict:
         raise ValueError("stats announcement source identity mismatch")
     return {
         "projection_version": PROJECTION_VERSION,
-        **{k: raw.get(k) for k in ("GameId", "KindCode", "GameSno", "PreExeDate", "GameStatus")},
+        **{k: _scalar(raw.get(k)) for k in ("GameId", "KindCode", "GameSno", "PreExeDate", "GameStatus")},
         "Visiting": _team(raw.get("Visiting")),
         "Home": _team(raw.get("Home")),
     }
@@ -98,7 +105,34 @@ def observe(game_id: str, raw: dict, fetched_at: datetime) -> dict:
 
     單writer租用及CLI明示local mode由操作者保證。沒有migrate或正式worker隱式寫入。
     """
+    return observe_projected(game_id, project(game_id, raw), fetched_at)
+
+
+def observe_projected(game_id: str, payload: dict, fetched_at: datetime) -> dict:
+    """重播本機有限投影佇列；時間仍是原回應UTC，不取重播時鐘。"""
     year, kind, sno = identity(game_id)
+    if set(payload) != {"projection_version", "GameId", "KindCode", "GameSno", "PreExeDate", "GameStatus", "Visiting", "Home"}:
+        raise ValueError("announcement projected fields mismatch")
+    if any(_scalar(payload[k]) != payload[k] for k in ("GameId", "KindCode", "GameSno", "PreExeDate", "GameStatus")):
+        raise ValueError("announcement projected metadata fields mismatch")
+    for side in ("Visiting", "Home"):
+        team = payload[side]
+        if not isinstance(team, Mapping) or set(team) != {"Team", "Hitters"} or not isinstance(team["Team"], Mapping) or set(team["Team"]) != {"Code"}:
+            raise ValueError("announcement projected team fields mismatch")
+        if _scalar(team["Team"]["Code"]) != team["Team"]["Code"]:
+            raise ValueError("announcement projected team code mismatch")
+        hitters = team["Hitters"]
+        if isinstance(hitters, list):
+            if any(not isinstance(r, Mapping) or set(r) != set(FIELDS) or any(_scalar(v) != v for v in r.values()) for r in hitters):
+                raise ValueError("announcement projected hitter fields mismatch")
+        elif hitters is not None:
+            if not isinstance(hitters, Mapping):
+                raise ValueError("announcement projected shape mismatch")
+            expected = {"unsupported_shape", "projected_fields"} if hitters.get("unsupported_shape") == "object" else {"unsupported_shape"}
+            if not isinstance(hitters, Mapping) or set(hitters) != expected or ("projected_fields" in hitters and (set(hitters["projected_fields"]) != set(FIELDS) or any(_scalar(v) != v for v in hitters["projected_fields"].values()))):
+                raise ValueError("announcement projected shape mismatch")
+    if payload["projection_version"] != PROJECTION_VERSION or payload["GameId"] != game_id or payload["KindCode"] != kind or integer(payload["GameSno"]) != sno:
+        raise ValueError("announcement projected identity mismatch")
     if (
         not isinstance(fetched_at, datetime)
         or fetched_at.tzinfo is None
@@ -106,12 +140,13 @@ def observe(game_id: str, raw: dict, fetched_at: datetime) -> dict:
     ):
         raise ValueError("announcement response timestamp must be timezone aware")
     fetched_at = fetched_at.astimezone(UTC)
-    payload = project(game_id, raw)
     version = content_hash(payload)
     status = payload.get("GameStatus")
     status = status if isinstance(status, str) else None
     scope = (year, kind, sno, SOURCE_TYPE)
     with conn() as c, c.cursor(row_factory=dict_row) as cur:
+        cur.execute("SET LOCAL statement_timeout = '5s'")
+        cur.execute("SET LOCAL lock_timeout = '1s'")
         cur.execute(
             """SELECT * FROM cpbl.game_lineup_announcement_revisions
                        WHERE year=%s AND kind_code=%s AND game_sno=%s AND source_type=%s

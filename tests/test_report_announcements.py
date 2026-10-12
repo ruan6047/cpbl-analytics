@@ -61,6 +61,23 @@ def select(rows, schedules=None):
     return import_module("cpbl.reports.announcements").select(rows, schedules or [], TARGET)
 
 
+@pytest.mark.parametrize("version", ["stats_datagame_lineup_v1", "stats_datagame_lineup_v2"])
+def test_finite_projection_upgrade_keeps_verified_original_version_readable(version):
+    previous = row()
+    previous["raw_payload"]["projection_version"] = version
+    previous["content_hash"] = content_hash(previous["raw_payload"])
+    actual = select([previous])
+    assert actual["status"] == "announced" and len(actual["items"]) == 18
+    assert actual["source_version"] == previous["content_hash"]
+
+
+def test_unknown_projection_version_is_not_silently_interpreted():
+    unsupported = row()
+    unsupported["raw_payload"]["projection_version"] = "fixture-future-version"
+    unsupported["content_hash"] = content_hash(unsupported["raw_payload"])
+    assert select([unsupported])["status"] == "unverified"
+
+
 def test_scheduled_same_version_is_independent_per_team_without_fabricating_main_n():
     r = row(damage=lambda raw: raw["Home"]["Hitters"].pop())
     actual = select([r])

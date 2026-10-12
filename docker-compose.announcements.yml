@@ -1,0 +1,6 @@
+# 已授資源與來源審核後才採用；只既有Redis的loopback，原/data volume保留。
+# Host owner使用原Settings/DATABASE_URL與既有protect-sync SSH，prod worker不寫DB。
+services:
+  redis:
+    ports:
+      - "127.0.0.1:16379:6379"

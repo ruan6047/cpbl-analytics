@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- LIFECYCLE: standing · 常設owner配置，非calendar排程；核准啟用前不安裝 -->
+<plist version="1.0"><dict>
+  <key>Label</key><string>com.cpbl.lineup-announcements</string>
+  <key>ProgramArguments</key><array>
+    <string>/Users/ruanruan/.local/bin/uv</string><string>run</string><string>--no-sync</string>
+    <string>cpbl-live-worker</string><string>--persist-announcements</string><string>--sync-announcements</string>
+  </array>
+  <key>WorkingDirectory</key><string>/Users/ruanruan/Dev/cpbl-analytics</string>
+  <key>EnvironmentVariables</key><dict>
+    <key>LIVE_GAME_WORKER_ENABLED</key><string>true</string>
+    <key>LIVE_GAME_POSTSEASON_KINDS</key><string>E,C</string>
+    <key>REDIS_URL</key><string>redis://127.0.0.1:16379/0</string>
+    <key>TZ</key><string>Asia/Taipei</string>
+  </dict>
+  <key>KeepAlive</key><dict><key>SuccessfulExit</key><false/></dict>
+  <key>RunAtLoad</key><false/>
+  <key>ThrottleInterval</key><integer>300</integer>
+  <key>StandardOutPath</key><string>/Users/ruanruan/Dev/cpbl-analytics/logs/lineup-owner.out.log</string>
+  <key>StandardErrorPath</key><string>/Users/ruanruan/Dev/cpbl-analytics/logs/lineup-owner.err.log</string>
+</dict></plist>
