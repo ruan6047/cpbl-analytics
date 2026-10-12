@@ -58,7 +58,12 @@ def bounded_context(anchor: dict, games: list[dict], schedules: list[dict],
                and v.get("raw_game_result") in (None, "") and v.get("is_play_ball") == "N"
                and v.get("raw_game_date") and v.get("fetched_at")
                and (first_started is None or v["fetched_at"] < first_started)]
-        selected = max(pre, key=lambda v: (v["fetched_at"], v["payload_hash"]), default=None)
+        identities = [v for v in versions if v.get("raw_present_status") in (0, 1)
+                      and v.get("raw_game_result") in (None, "") and v.get("is_play_ball") != "Y"
+                      and v.get("raw_game_date") and v.get("fetched_at")
+                      and (first_started is None or v["fetched_at"] < first_started)]
+        # 發布的正式身分可供未完賽比較；不將它轉成N或可靠先發公告。
+        selected = max(identities, key=lambda v: (v["fetched_at"], v["payload_hash"]), default=None)
         if not selected:
             continue
         raw = selected["raw_payload"]
@@ -71,7 +76,7 @@ def bounded_context(anchor: dict, games: list[dict], schedules: list[dict],
                      "away_score": 0, "home_score": 0, "completed": False})
         sources.append({"source": "official_schedule", "game_key": f"{year}/{identity[0]}/{identity[1]}",
                         "source_version": selected["payload_hash"], "fetched_at": selected["fetched_at"],
-                        "reference": "https://www.cpbl.com.tw/schedule", "cutoff_basis": "positive_pregame"})
+                        "reference": "https://www.cpbl.com.tw/schedule", "cutoff_basis": "positive_pregame" if selected in pre else "published_identity_before_started"})
     context = jsonable({"summary": list(groups.values()), "rows": rows, "sources": sources,
                         "through_game_keys": [key(g) for g in upto],
                         "order_consistent": order_ok, "cutoff_date": anchor["game_date"],

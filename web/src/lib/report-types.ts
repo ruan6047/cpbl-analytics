@@ -33,6 +33,13 @@ export type Report = {
   teams?: { team: string; axes: { key: string; label: string; semantics: string }[]; seasons: { n_teams: number; axes: Record<string, { z: number; rank: number; raw: number | null }> }[] }[];
   watch_points?: { team_code: string; player_id: string; origin: string; count_line: Counts; question: string }[];
   announcements?: { lineup: { status: string; items: { player_id: string; team_code: string; pos: string; order: number; name?: string | null }[]; source_type?: string; raw_status?: string | null; source_url?: string; team_evidence?: Record<string, LineupTeamEvidence>; source_version?: string | null; observed_at?: string | null; pregame_evidence?: { is_play_ball?: string; fetched_at?: string; first_started_at?: string | null } } };
+  comparison?: ReportComparison | null;
   coverage?: { games: number; with_pitching: number; with_batting: number };
 };
 export type ReportView = { report: Report; journey: PostseasonJourney | null; updating: boolean };
+
+/** X回顧維持頂層；正式Y未完賽亦可有獨立系列背景，不替換X身分。 */
+export type ReportComparison = Pick<Report, "players" | "population" | "teams" | "watch_points" | "field_candidates" | "announcements" | "coverage" | "regular_coverage"> & {
+  game: NonNullable<Report["next_game"]>; kind_code: ReportKind;
+  series_game_keys: string[]; usage_cutoff_label: string;
+};

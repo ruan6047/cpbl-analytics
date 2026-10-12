@@ -31,7 +31,8 @@ def game_report(
             c.execute("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY")
             out = build_report(c.cursor(), season, kind_code, game_sno,
                                next_kind, next_sno, context_hash,
-                               population_records=official_population.load(season, kind_code))
+                               population_records=[record for round_kind in ("E", "C")
+                                                   for record in official_population.load(season, round_kind)])
         return jsonable(out)
     except ContextChanged as exc:
         raise HTTPException(409, str(exc)) from exc

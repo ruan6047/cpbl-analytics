@@ -746,3 +746,37 @@ def test_live_endpoint_returns_e_snapshot_when_games_table_has_no_row(monkeypatc
 def test_observed_at_constant_matches_recorded_utc() -> None:
     """釘住轉錄時刻：18:20:52+08 = 10:20:52Z（避免日後改 TZ 讓觀測窗測試靜默換義）。"""
     assert OBSERVED_AT.astimezone(UTC) == datetime(2026, 10, 9, 10, 20, 52, tzinfo=UTC)
+
+
+def test_normal_postseason_games_ingests_published_future_c_identity_before_first_game(monkeypatch):
+    """10/13正常全年度games步驟不以明細的昨天/今天窗口丟掉10/17 C1。"""
+    from contextlib import contextmanager
+    from datetime import date
+
+    from cpbl.ingest import cpbl_site
+    from cpbl.ingest import run_refresh_recent as rr
+    today=date(2026,10,13)
+    published={"Year":2026,"KindCode":"C","GameSeasonCode":"1","GameSno":1,
+               "GameDate":"2026-10-17T17:05:00","PresentStatus":0,"FieldAbbe":"大巨蛋",
+               "VisitingTeamCode":"ACN011","HomeTeamCode":"AAA011",
+               "VisitingTeamName":"中信兄弟","HomeTeamName":"味全龍",
+               "VisitingScore":None,"HomeScore":None}
+    stored=[];versions=[]
+    class Cursor:
+        def executemany(self,query,records):
+            assert "INSERT INTO cpbl.games" in query
+            stored.extend(records)
+    class Connection:
+        def cursor(self): return Cursor()
+    @contextmanager
+    def connection(): yield Connection()
+    monkeypatch.setattr(cpbl_site,"conn",connection)
+    monkeypatch.setattr(cpbl_site,"fetch_year",lambda year,kind:[published] if kind=="C" else [])
+    monkeypatch.setattr(cpbl_site,"record_schedule_revisions",lambda rows:versions.extend(rows))
+    monkeypatch.setattr(cpbl_site.time,"sleep",lambda _:None)
+    result=rr._postseason_games_step(2026,("E","C"),cpbl_site.scrape_games)
+    assert result["errors"]==[] and result["games"]["C"]=={2026:1}
+    assert stored[0][:6]==(2026,"C","1",1,date(2026,10,17),0)
+    assert stored[0][4]>today and stored[0][7]=="AAA011" and stored[0][9]=="ACN011"
+    assert stored[0][11:13]==(None,None)  # 不將尚未開始補成真和局。
+    assert versions==[published]
