@@ -89,12 +89,8 @@ REPO_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 YEAR="$(date +%Y)"
 PREV="$((YEAR - 1))"
 
-# 有限公告同步刻意在完整鏈之前退出；不碰一般 freshness/特徵/訓練。
-if [ -n "${LINEUP_ONLY:-}" ]; then
-  if [ "$LINEUP_ONLY" != 1 ] || [ "${SKIP_SCRAPE:-}" != 1 ]; then
-    echo 'FATAL: LINEUP_ONLY=1 必須搭配 SKIP_SCRAPE=1' >&2
-    exit 64
-  fi
+# 原有限投影與自然鍵guard共用於正常/full及LINEUP_ONLY。
+prepare_lineup_copy() {
   LINEUP_TMP="$(mktemp -d)"
   trap 'rm -rf "$LINEUP_TMP"' EXIT
   docker exec "$LOCAL_DB" pg_dump -U cpbl -d cpbl --data-only \
@@ -134,10 +130,9 @@ if not complete or in_copy:
     raise SystemExit("FATAL: 公告 COPY 不完整")
 pathlib.Path(sys.argv[2]).write_text("".join(copy))
 PY_VALIDATE
-  echo '==> 有限公告：驗證備份、schema、單表自然鍵同步'
-  BACKUP_PATH="$(VPS="$VPS" DEPLOY_PATH="$DEPLOY_PATH" "$REPO_DIR/scripts/backup-prod-db.sh")"
-  echo "    ✓ 已驗證備份：${BACKUP_PATH}"
-  ssh -o BatchMode=yes "$VPS" 'docker exec prod_cpbl_api python -c "from cpbl.db import migrate; print(\"migrated:\", migrate())"'
+}
+
+sync_lineup_announcements() {
   {
     cat <<'SQL_BEGIN'
 SET LOCAL statement_timeout = '5s';
@@ -181,6 +176,27 @@ SQL_END
     "cd ${DEPLOY_PATH} && set -a && . ./.env && docker exec -i prod_pg psql \
       -v ON_ERROR_STOP=1 -q --single-transaction -U \"\$DB_USER\" -d \"\$DB_NAME\"" < "$LINEUP_TMP/payload.sql"
   echo '    ✓ 公告單表同步完成（不代表完整更新鏈成功）'
+}
+
+# 有限公告同步在完整鏈之前退出，不碰 freshness／特徵／訓練。
+if [ -n "${LINEUP_ONLY:-}" ]; then
+  if [ "$LINEUP_ONLY" != 1 ] || [ "${SKIP_SCRAPE:-}" != 1 ]; then
+    echo 'FATAL: LINEUP_ONLY=1 必須搭配 SKIP_SCRAPE=1' >&2
+    exit 64
+  fi
+  prepare_lineup_copy
+  echo '==> 有限公告：驗證備份、schema、單表自然鍵同步'
+  BACKUP_PATH="$(VPS="$VPS" DEPLOY_PATH="$DEPLOY_PATH" "$REPO_DIR/scripts/backup-prod-db.sh")"
+  echo "    ✓ 已驗證備份：${BACKUP_PATH}"
+  ssh -o BatchMode=yes "$VPS" 'docker exec prod_cpbl_api python -c "
+from cpbl import db
+try:
+    print(\"migrated:\", db.migrate())
+finally:
+    if db._pool is not None:
+        db._pool.close()
+    print(\"migration pool closed\")"'
+  sync_lineup_announcements
   exit 0
 fi
 
@@ -550,7 +566,18 @@ echo "    ✓ 已驗證備份：${BACKUP_PATH}"
 
 echo "==> 3/4 套用 prod migration + 非破壞性 upsert 同步"
 # 同步前先讓 prod 套用任何新 migration（否則新欄位不存在、COPY 對不上）
-ssh -o BatchMode=yes "$VPS" 'docker exec prod_cpbl_api python -c "from cpbl.db import migrate; print(\"migrated:\", migrate())"'
+ssh -o BatchMode=yes "$VPS" 'docker exec prod_cpbl_api python -c "
+from cpbl import db
+try:
+    print(\"migrated:\", db.migrate())
+finally:
+    if db._pool is not None:
+        db._pool.close()
+    print(\"migration pool closed\")"'
+
+# 正常daily/full在同一次已驗證備份與schema後也同步074。
+prepare_lineup_copy
+sync_lineup_announcements
 
 sync_table games "year,kind_code,game_season_code,game_sno" \
   game_date present_status venue home_team_code home_team_name away_team_code away_team_name \

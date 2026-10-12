@@ -23,6 +23,7 @@ def _run_daily(
     docker_running: bool = True,
     trigger: str = "manual",
     active_lock_pid: int | None = None,
+    announcement_lock: bool = False,
 ) -> tuple[subprocess.CompletedProcess[str], dict[str, object]]:
     repo = tmp_path / "repo"
     scripts = repo / "scripts"
@@ -43,6 +44,9 @@ def _run_daily(
     if active_lock_pid is not None:
         lock_dir.mkdir()
         (lock_dir / "pid").write_text(str(active_lock_pid), encoding="utf-8")
+        if announcement_lock:
+            (lock_dir / "kind").write_text("lineup-announcements")
+            _executable(fake_bin / "sleep", f"#!/bin/sh\nrm '{lock_dir}/pid' '{lock_dir}/kind'\nrmdir '{lock_dir}'\n")
 
     env = os.environ.copy()
     env.update(
@@ -320,6 +324,8 @@ elif [[ "$*" == *information_schema.columns* ]]; then
   :
 elif [[ "$*" == *" psql "* ]]; then
   echo '2026-07-16|3'
+elif [[ "$*" == *" pg_dump "* && "$*" == *game_lineup_announcement_revisions* ]]; then
+  printf '%s\\n' 'COPY cpbl.game_lineup_announcement_revisions (year, kind_code, game_sno, source_type, source_url, fetched_at, content_hash, raw_status, raw_payload, last_seen_at) FROM stdin;' '\\.'
 elif [[ "$*" == *" pg_dump "* ]]; then
   printf '%s\n' 'COPY cpbl.games (id) FROM stdin;' '1' '\\.'
 fi
@@ -382,3 +388,10 @@ exit 0
     assert status["state"] == "failed"
     assert status["failed_phase"] == "sync"
     assert status["sync_exit_code"] == 42
+
+
+def test_natural_daily_queues_for_transient_announcement_owner_then_runs_entire_chain(tmp_path):
+    result,status=_run_daily(tmp_path,trigger="launchd",active_lock_pid=os.getpid(),announcement_lock=True)
+    assert result.returncode==0
+    assert status["state"]=="succeeded" and status["scrape_ok"] and status["sync_ok"]
+    assert status["trigger"]=="launchd"  # 合成wrapper證據，不當實際10:10自然run。

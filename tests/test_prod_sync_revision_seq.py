@@ -114,6 +114,10 @@ local_seq = json.loads(os.environ["STUB_LOCAL_SEQ"])
 
 if "pg_dump" in argv:
     table = argv[argv.index("-t") + 1].split(".", 1)[1]
+    if table == "game_lineup_announcement_revisions":
+        print("COPY cpbl.game_lineup_announcement_revisions (year, kind_code, game_sno, source_type, source_url, fetched_at, content_hash, raw_status, raw_payload, last_seen_at) FROM stdin;")
+        print(r"\\.")
+        raise SystemExit(0)
     # STUB_INJECT_SETVAL 模擬「有人改回 pg_dump 原生行為／序列名對不上」：即使呼叫端
     # 要求排除，dump 仍吐出原生 setval。守衛必須在送出前當場擋下（T6）。
     inject = os.environ.get("STUB_INJECT_SETVAL") == "1"
@@ -183,7 +187,7 @@ def _build_harness(tmp_path: Path) -> dict:
         "printf '%s\\n' \"$@\" > \"$STUB_LOG_DIR/curl/$$.args\"\n"
         "echo '{}'\n",
     )
-    _write_exec(fake_bin / "python3", "#!/bin/sh\ncat > /dev/null\nexit 0\n")
+    _write_exec(fake_bin / "python3", f'#!/bin/sh\ncase "$2:$3" in\n  */input.sql:*/copy.sql) exec "{sys.executable}" "$@" ;;\nesac\ncat > /dev/null\nexit 0\n')
 
     # 腳本以絕對路徑（$REPO_DIR/scripts/…）呼叫的兩支，樁在假 repo 內。
     _write_exec(repo / "scripts" / "backup-prod-db.sh", "#!/bin/sh\necho /dev/null\n")
@@ -646,3 +650,8 @@ def test_d3_fixed_point_regression_of_the_2026_08_14_collision() -> None:
 
         connection.execute("DROP SCHEMA seqtest CASCADE")
         connection.commit()
+
+
+def test_normal_full_sync_also_carries_protected_lineup_table(baseline_run):
+    _result,calls=baseline_run
+    assert any("COPY _lineup_stg" in c["stdin"] and "immutable announcement evidence conflict" in c["stdin"] for c in calls)

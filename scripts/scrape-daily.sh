@@ -103,6 +103,18 @@ release_lock() {
   fi
 }
 
+# 常設公告owner持有同一把鎖時，正常自然daily先有界排隊；不kickstart或搶鎖。
+# 未知／已死owner維持原fail-closed，不刪kind marker來猜remote已停止。
+if [ "$(cat "$LOCK_DIR/kind" 2>/dev/null || true)" = "lineup-announcements" ]; then
+  waited=0
+  while [ -d "$LOCK_DIR" ] && [ "$waited" -lt 1355 ]; do
+    owner_pid="$(cat "$LOCK_DIR/pid" 2>/dev/null || true)"
+    [ -n "$owner_pid" ] && kill -0 "$owner_pid" 2>/dev/null || break
+    sleep 1
+    waited=$((waited + 1))
+  done
+fi
+
 if ! mkdir "$LOCK_DIR" 2>/dev/null; then
   LOCK_PID="$(cat "$LOCK_DIR/pid" 2>/dev/null || true)"
   if [ -z "$LOCK_PID" ]; then

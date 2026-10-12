@@ -130,8 +130,11 @@ def fake_connection(monkeypatch, responses):
         def __exit__(self, *args):
             pass
 
-        def execute(self, sql, params):
-            calls.append((sql, params))
+        def execute(self, sql, params=None):
+            if sql.startswith("SET LOCAL"):
+                outcome.setdefault("settings", []).append(sql)
+            else:
+                calls.append((sql, params))
 
         def fetchone(self):
             return responses.pop(0)
@@ -159,6 +162,7 @@ def test_new_revision_uses_parameterized_source_only_insert(monkeypatch):
     result = api().observe("2026-E-4", raw_game(), T0)
     assert result["action"] == "inserted" and result["fetched_at"] == T0
     assert outcome["commit"] and not outcome["rollback"]
+    assert outcome["settings"] == ["SET LOCAL statement_timeout = '5s'", "SET LOCAL lock_timeout = '1s'"]
     sql, params = calls[-1]
     assert "INSERT INTO cpbl.game_lineup_announcement_revisions" in sql and "%s::jsonb" in sql
     assert params[:4] == (2026, "E", 4, "stats_datagame") and params[5] == params[-1] == T0
@@ -282,3 +286,20 @@ def test_mock_insert_does_not_keep_excluded_values_from_unsupported_hitter(monke
     assert '"DOB":' not in payload and '"Hits":' not in payload
     assert "not-projected" not in payload
     assert outcome["commit"]
+
+
+def test_buffered_projection_cannot_bypass_finite_fields_before_connection(monkeypatch):
+    projected=api().project("2026-E-4",raw_game())
+    projected["Visiting"]["Hitters"][0]["DOB"]="synthetic-private"
+    monkeypatch.setattr(api(),"conn",lambda:pytest.fail("bad projection must not connect"))
+    with pytest.raises(ValueError,match="fields"):
+        api().observe_projected("2026-E-4",projected,T0)
+
+
+def test_nested_or_scalar_unsupported_source_does_not_keep_arbitrary_content():
+    raw=raw_game()
+    raw["Visiting"]["Hitters"][0]["Lineup"]={"DOB":"synthetic-private"}
+    raw["Home"]["Hitters"]="arbitrary-secret-text"
+    payload=api().project("2026-E-4",raw)
+    assert "synthetic-private" not in str(payload) and "arbitrary-secret-text" not in str(payload)
+    assert payload["Home"]["Hitters"]=={"unsupported_shape":"scalar"}
