@@ -7,7 +7,7 @@ from fastapi import APIRouter, HTTPException, Query
 from cpbl.api.helpers import DEFAULT_SEASON
 from cpbl.db import conn
 from cpbl.reports import official_population
-from cpbl.reports.assembler import build_report
+from cpbl.reports.assembler import build_report, report_anchor
 from cpbl.reports.context import ContextChanged, jsonable
 
 router = APIRouter()
@@ -38,3 +38,15 @@ def game_report(
         raise HTTPException(409, str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(422, str(exc)) from exc
+
+
+@router.get("/api/v1/games/{game_sno}/report-anchor")
+def game_report_anchor(
+    game_sno: int,
+    season: int = Query(DEFAULT_SEASON),
+    kind_code: str = Query(..., pattern="^(E|C)$"),
+) -> dict:
+    """Y 觀戰報告只取截至場 X 身分；Y 是否為下一場仍由網頁 journey 與第二讀核對。"""
+    with conn() as c:
+        c.execute("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY")
+        return jsonable(report_anchor(c.cursor(), season, kind_code, game_sno))

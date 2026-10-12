@@ -220,3 +220,27 @@ test("C比較的E近期先發紀錄不能標成C本系列曾先發", () => {
   assert.doesNotMatch(html,/系列曾先發/);
   assert.match(renderToStaticMarkup(<ReportPlayerPeriod player={recentPitcher} period="usage"/>),/截至2026\/E\/4完賽/);
 });
+
+test("X回顧只在傳入可靠Y時以「下一場觀戰報告」連Y；Y觀戰頁頁籤固定Y身分、另連截至場",()=>{
+  const next={year:2026,kind_code:"E",game_sno:2,game_date:"2026-10-10",away_team_code:"ACN011",home_team_code:"ADD011",venue:"洲際",away_starter:{acnt:null,name:null,status:"unverified",team_code:"ACN011"},home_starter:{acnt:null,name:null,status:"unverified",team_code:"ADD011"}};
+  const data: Report={...report,next_game:next,
+    journey_context:{summary:[{kind_code:"E",team1_code:"ADD011",team2_code:"ACN011",games:[{game_no:1,game_sno:1,date:"2026-10-09",away_code:"ADD011",away_score:3,home_code:"ACN011",home_score:1}]}],
+      rows:[{year:2026,kind_code:"E",game_sno:2,game_date:"2026-10-10",away_team_code:"ACN011",home_team_code:"ADD011",away_score:0,home_score:0,completed:false,venue:"洲際"}],sources:[],context_hash:"a".repeat(64),cutoff_date:"2026-10-09",through_game_keys:["2026/E/1"],order_consistent:true}};
+  const journey=reportJourney(data);
+  assert.equal(journey?.next?.row?.game_sno,2);
+  const href="/games/2/preview?kind=E&year=2026&tab=overview";
+  const withTarget=renderToStaticMarkup(<ReportPage view={{report:data,journey,updating:false}} tab="overview" nextPreview={href}/>);
+  assert.ok(withTarget.includes('href="/games/2/preview?kind=E&amp;year=2026&amp;tab=overview"'));
+  assert.match(withTarget,/>下一場觀戰報告<\/a>/);
+  const noTarget=renderToStaticMarkup(<ReportPage view={{report:data,journey,updating:false}} tab="overview"/>);
+  assert.ok(!noTarget.includes("/preview?"));assert.ok(!noTarget.includes("下一場觀戰報告"));
+  for(const tab of ["overview","pitchers","fielders"] as const){
+    const html=renderToStaticMarkup(<ReportPage view={{report:data,journey,updating:false}} tab={tab} preview={{kind:"E",sno:2}} nextPreview={href}/>);
+    assert.match(html,/<h1[^>]*>中信兄弟對統一獅 · 下一場觀戰報告<\/h1>/);
+    for(const target of ["overview","pitchers","fielders"]) assert.ok(html.includes(`href="/games/2/preview?kind=E&amp;year=2026&amp;tab=${target}"`));
+    assert.ok(!html.includes('href="/games/1/report?kind=E&amp;year=2026&amp;tab=pitchers"'));
+    assert.ok(html.includes('href="/games/1/report?kind=E&amp;year=2026&amp;tab=overview"'));
+    assert.match(html,/截至場場間報告/);
+    assert.ok(!html.includes(">下一場觀戰報告</a>"));
+  }
+});

@@ -88,3 +88,13 @@ def test_c_population_version_is_pinned_in_first_read_even_before_y_selection(mo
     with pytest.raises(ContextChanged):
         assembler.build_report(object(), 2026, "E", 4, "C", 901,
                                base["journey_context"]["context_hash"], population_records=changed)
+
+
+def test_y_preview_anchor_is_latest_completed_x_and_never_guesses_y(monkeypatch):
+    transition_inputs(monkeypatch)
+    found = assembler.report_anchor(object(), 2026, "C", 901)
+    assert found["status"] == "ok"
+    assert found["anchor"] == {"kind_code": "E", "game_sno": 4}
+    assert assembler.report_anchor(object(), 2026, "E", 4)["status"] == "final"
+    # 公告 G1 沒有既存正式列：不造場號、不回 E4 背景冒充。
+    assert assembler.report_anchor(object(), 2026, "C", 1)["status"] == "not_found"

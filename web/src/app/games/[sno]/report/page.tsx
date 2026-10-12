@@ -1,7 +1,7 @@
 import Link from "next/link";
 import type { Metadata } from "next";
 import { api } from "@/lib/api";
-import { loadReport, reportTab } from "@/lib/between-games";
+import { loadReport, nextPreviewFor, reportTab } from "@/lib/between-games";
 import { gameLink } from "@/lib/postseason-journey";
 import type { ReportKind } from "@/lib/report-types";
 import { Card } from "@/components/ui";
@@ -21,7 +21,9 @@ export default async function Page({ params, searchParams }: {
   const kind = query.kind as ReportKind;
   try {
     const view = await loadReport(target => api.report(id, kind, year, target));
-    return <ReportPage view={view} tab={reportTab(query.tab)} />;
+    // 「下一場觀戰報告」只在 journey 正式 Y 與第二讀同指且 Y 定位回本場時顯示；讀取失敗不影響 X 回顧。
+    const nextPreview = await nextPreviewFor(view, (y, k) => api.reportAnchor(y, k, year)).catch(() => null);
+    return <ReportPage view={view} tab={reportTab(query.tab)} nextPreview={nextPreview} />;
   } catch {
     return <Card><h1 className="text-xl font-bold">報告暫時無法讀取</h1><p className="mt-3 text-muted">重新載入，或先回原賽況查看已取得資料。</p><Link className="mt-4 inline-block text-accent underline" href={gameLink(kind, id, year)}>返回原賽況</Link></Card>;
   }

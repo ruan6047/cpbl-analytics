@@ -9,10 +9,10 @@ import { TraitsContent, type TraitsData } from "@/components/traits-content";
 import { Card, ENTITY_LINK, PercentileBar, TeamBadge } from "@/components/ui";
 import { SectionTitle } from "@/components/postmark";
 import { reportField, reportFieldPlayer } from "@/lib/report-field";
-import { REPORT_TABS, reportLink } from "@/lib/between-games";
+import { REPORT_TABS, previewLink, reportLink } from "@/lib/between-games";
 import { gameLink } from "@/lib/postseason-journey";
 import { teamColor, teamName3 } from "@/lib/teams";
-import type { Counts, Period, Report, ReportPlayer, ReportTab, ReportView } from "@/lib/report-types";
+import type { Counts, Period, Report, ReportKind, ReportPlayer, ReportTab, ReportView } from "@/lib/report-types";
 
 const periods = [{ key: "series", label: "本系列" }, { key: "regular", label: "本季例行賽" }, { key: "opponent_regular", label: "本季對該隊" }] as const;
 const labels: Record<string, string> = { g: "登場", pa: "PA", ab: "AB", h: "安打", hr: "全壘打", xbh: "長打", bb: "保送", so: "三振", ip: "局數", pitch_cnt: "球數", era: "ERA", whip: "WHIP", ops: "OPS", avg: "AVG", slg: "SLG", obp: "OBP", k_pct: "K%", bb_pct: "BB%", r: "得分", rbi: "打點", sb: "盜壘", hbp: "觸身球", er: "責失", bf: "面對打者" };
@@ -106,7 +106,7 @@ function WatchLine({ point, player }: { point: NonNullable<Report["watch_points"
   const entries = Object.entries(counts).filter(([key, value]) => value != null && allowed.includes(key) && (key !== "outs" || counts.ip == null));
   return <p className="mt-2 text-sm text-ink"><span className="mr-2 text-xs text-muted">{point.origin === "last_game" ? "前場" : point.origin === "series" ? "本系列" : "本季對特定投手"}</span>{entries.map(([key, value]) => key === "outs" && typeof value === "number" && player.role === "pitching" ? `局數 ${Math.floor(value / 3)}.${value % 3}` : labels[key] ? `${labels[key]} ${d(value, key)}` : null).filter(Boolean).join(" · ") || "本站尚未取得完整表現指標"}</p>;
 }
-export default function ReportPage({ view, tab }: { view: ReportView; tab: ReportTab }) {
+export default function ReportPage({ view, tab, preview, nextPreview }: { view: ReportView; tab: ReportTab; preview?: { kind: ReportKind; sno: number }; nextPreview?: string | null }) {
   const { report, journey, updating } = view;
   const [selected, select] = useState<ReportPlayer | null>(null);
   const original = gameLink(report.kind_code, report.game_sno, report.season);
@@ -119,9 +119,11 @@ export default function ReportPage({ view, tab }: { view: ReportView; tab: Repor
   const series = journey?.series[comparison?.kind_code ?? report.kind_code];
   const hasTarget = !!comparison || !!journey?.next;
   const pendingTransition = !!journey?.next && journey.next.kind !== report.kind_code && !comparison;
+  const tabLink = (t: ReportTab) => preview ? previewLink(preview.sno, preview.kind, report.season, t) : reportLink(report.game_sno, report.kind_code, report.season, t);
+  const titleGame = preview && displayReport.next_game ? displayReport.next_game : game;
   return <div className="mx-auto max-w-6xl space-y-6 pb-10">
-    <header><Link href={original} className="inline-block min-h-11 text-sm text-accent underline">返回原賽況</Link><h1 className="text-3xl font-bold tracking-tight">{teamName3(game.away_team_code)}對{teamName3(game.home_team_code)} · 場間報告</h1><p className="mt-2 text-sm text-muted">{hasTarget && "開賽前背景 · "}{historyGame.game_date} 完賽後 · {report.anchor?.cutoff_label}{comparison && <> · {teamName3(historyGame.away_team_code)}對{teamName3(historyGame.home_team_code)}回顧</>}</p></header>
-    <nav aria-label="場間報告頁籤" className="flex gap-1 rounded-t-md bg-band p-1">{REPORT_TABS.map(t => <Link key={t.value} href={reportLink(report.game_sno, report.kind_code, report.season, t.value)} aria-current={tab === t.value ? "page" : undefined} className={`min-h-11 flex-1 px-4 py-3 text-center text-sm ${tab === t.value ? "bg-paper font-bold text-ink" : "text-muted hover:text-ink"}`}>{t.label}</Link>)}</nav>
+    <header><Link href={original} className="inline-block min-h-11 text-sm text-accent underline">返回原賽況</Link><h1 className="text-3xl font-bold tracking-tight">{teamName3(titleGame.away_team_code)}對{teamName3(titleGame.home_team_code)} · {preview ? "下一場觀戰報告" : "場間報告"}</h1><p className="mt-2 text-sm text-muted">{hasTarget && "開賽前背景 · "}{historyGame.game_date} 完賽後 · {report.anchor?.cutoff_label}{comparison && <> · {teamName3(historyGame.away_team_code)}對{teamName3(historyGame.home_team_code)}回顧</>}</p>{!preview && nextPreview && <Link href={nextPreview} className="inline-block min-h-11 py-3 text-sm font-semibold text-accent underline">下一場觀戰報告</Link>}{preview && <Link href={reportLink(report.game_sno, report.kind_code, report.season)} className="inline-block min-h-11 py-3 text-sm text-accent underline">截至場場間報告</Link>}</header>
+    <nav aria-label="場間報告頁籤" className="flex gap-1 rounded-t-md bg-band p-1">{REPORT_TABS.map(t => <Link key={t.value} href={tabLink(t.value)} aria-current={tab === t.value ? "page" : undefined} className={`min-h-11 flex-1 px-4 py-3 text-center text-sm ${tab === t.value ? "bg-paper font-bold text-ink" : "text-muted hover:text-ink"}`}>{t.label}</Link>)}</nav>
     {comparison && comparison.series_game_keys.length === 0 && <p className="text-sm text-muted">{comparison.kind_code === "C" ? "台灣大賽" : "季後挑戰賽"}本系列尚無完賽資料（截至原完賽場）；近期使用另截至原完賽場，個人缺值仍未取得。</p>}
     {pendingTransition && <p role="status" className="text-sm text-muted">{journey?.next?.awayLabel}對{journey?.next?.homeLabel}的本站正式場次資料尚未取得；下列保留原系列回顧，不以公告G1猜正式場號。</p>}
     {updating && <p role="status" className="text-sm text-muted">資料更新中，背景稍後重新載入。</p>}
@@ -135,7 +137,7 @@ export default function ReportPage({ view, tab }: { view: ReportView; tab: Repor
             <p className="mt-3 text-xs text-muted">{series ? `${series.winsNeeded} 勝${(comparison?.kind_code ?? report.kind_code) === "E" ? "晉級" : "封王"}` : "門檻待核實"}</p>{series && series.tally.a.ruleWins + series.tally.b.ruleWins > 0 && <p className="mt-1 text-xs text-muted">含公告規則讓勝</p>}
           </div>
         </div>
-        <p className="mt-4 text-xs text-muted">本季一軍固定尺度 · <Link href={reportLink(report.game_sno, report.kind_code, report.season, "pitchers")} className="inline-flex min-h-11 items-center text-accent underline">比較投手</Link> · <Link href={reportLink(report.game_sno, report.kind_code, report.season, "fielders")} className="inline-flex min-h-11 items-center text-accent underline">比較野手</Link></p>
+        <p className="mt-4 text-xs text-muted">本季一軍固定尺度 · <Link href={tabLink("pitchers")} className="inline-flex min-h-11 items-center text-accent underline">比較投手</Link> · <Link href={tabLink("fielders")} className="inline-flex min-h-11 items-center text-accent underline">比較野手</Link></p>
       </section>
       <section><SectionTitle>{hasTarget ? "該場觀察重點" : "本場觀察"}</SectionTitle><div className="grid gap-5 md:grid-cols-2">{teamCodes.map(team => <div key={team} className="min-w-0"><h3 className="mb-2 font-bold"><TeamBadge code={team} name={teamName3(team)} /></h3>{(displayReport.watch_points ?? []).filter(p => p.team_code === team).map(point => { const p = displayReport.players?.find(p => p.player_id === point.player_id && p.team_code === team); return p ? <div key={p.player_id} className="py-3"><PlayerButton player={p} open={select} /><WatchLine point={point} player={p} /></div> : null; })}{!(displayReport.watch_points ?? []).some(p => p.team_code === team) && <p className="py-4 text-sm text-muted">已取得樣本尚無可核實的觀察點</p>}</div>)}</div></section>
 

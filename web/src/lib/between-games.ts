@@ -2,13 +2,17 @@
 import { announcementFor } from "./postseason-announcement.ts";
 import { buildPostseasonJourney } from "./postseason-journey.ts";
 import { ApiError } from "./http-error.ts";
-import type { Report, ReportKind, ReportTab, ReportView } from "./report-types.ts";
+import type { Report, ReportAnchor, ReportKind, ReportTab, ReportView } from "./report-types.ts";
 
 export const REPORT_TABS: readonly { value: ReportTab; label: string }[] = [
   { value: "overview", label: "總覽" }, { value: "pitchers", label: "投手" }, { value: "fielders", label: "野手" },
 ];
 export function reportLink(sno: number, kind: ReportKind, year: number, tab: ReportTab = "overview") {
   return `/games/${sno}/report?kind=${kind}&year=${year}&tab=${tab}`;
+}
+/** Y 觀戰報告網址固定 Y 身分；不以 X 回顧網址冒充。 */
+export function previewLink(sno: number, kind: ReportKind, year: number, tab: ReportTab = "overview") {
+  return `/games/${sno}/preview?kind=${kind}&year=${year}&tab=${tab}`;
 }
 export function reportTab(raw: string | undefined): ReportTab {
   return REPORT_TABS.some(t => t.value === raw) ? raw as ReportTab : "overview";
@@ -49,4 +53,24 @@ export async function loadReport(read: ReportRead): Promise<ReportView> {
     }
   }
   return { report: { ...base!, next_game: null }, journey: reportJourney(base!), updating: true };
+}
+/** 既有 journey 與第二讀都指向同一正式 Y 才成立觀戰報告；否則不以 X 背景冒充 Y。 */
+export function previewMatches(view: ReportView, kind: ReportKind, sno: number): boolean {
+  const row = view.journey?.next?.row, next = view.report.next_game;
+  return !view.updating && !!row && !!next && row.kind_code === kind && row.game_sno === sno
+    && next.kind_code === kind && next.game_sno === sno;
+}
+/** 入口只在 Y 有既存正式列時給觀戰網址；公告場沒有正式場號回 null，不造 ID。 */
+export function nextPreviewLink(row: { kind_code: string; game_sno: number; year?: unknown } | null | undefined): string | null {
+  const year = Number(row?.year);
+  if (!row || !["E", "C"].includes(row.kind_code) || !Number.isSafeInteger(row.game_sno) || row.game_sno <= 0
+    || !Number.isInteger(year) || year < 1990 || year > 2100) return null;
+  return previewLink(row.game_sno, row.kind_code as ReportKind, year);
+}
+/** X 的下一場：journey 正式 Y 與第二讀同指，且 Y 定位回同一 X 才成立；否則 null，入口不顯示。 */
+export async function nextPreviewFor(view: ReportView, anchorOf: (sno: number, kind: ReportKind) => Promise<ReportAnchor>): Promise<string | null> {
+  const row = view.journey?.next?.row, href = nextPreviewLink(row);
+  if (!row || !href || !previewMatches(view, row.kind_code as ReportKind, row.game_sno)) return null;
+  const found = await anchorOf(row.game_sno, row.kind_code as ReportKind);
+  return found.status === "ok" && found.anchor?.kind_code === view.report.kind_code && found.anchor.game_sno === view.report.game_sno ? href : null;
 }

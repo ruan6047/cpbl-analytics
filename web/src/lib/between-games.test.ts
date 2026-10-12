@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { loadReport, recapReportLink, reportJourney, reportLink, reportTab } from "./between-games.ts";
+import { loadReport, nextPreviewFor, nextPreviewLink, previewLink, previewMatches, recapReportLink, reportJourney, reportLink, reportTab } from "./between-games.ts";
 import { ApiError } from "./http-error.ts";
-import type { Report, ReportKind } from "./report-types.ts";
+import type { Report, ReportAnchor, ReportKind } from "./report-types.ts";
 
 const L="ADD011", B="ACN011", D="AAA011";
 export function fixture(kind: ReportKind="E", wins=1): Report {
@@ -48,4 +48,30 @@ test("409 最多重做一次，第二次仍變更保留基礎且清除 next",asy
 });
 test("非 409 不自動重試",async()=>{
   let n=0;await assert.rejects(loadReport(async target=>{n++;if(target)throw new ApiError("fixture",422);return fixture();}));assert.equal(n,2);
+});
+
+const nextE2={year:2026,kind_code:"E",game_sno:2,game_date:"2026-10-10",away_team_code:B,home_team_code:L,venue:"洲際",away_starter:{acnt:null,name:null,status:"unverified",team_code:B},home_starter:{acnt:null,name:null,status:"unverified",team_code:L}};
+test("Y觀戰網址固定Y身分；只有journey與第二讀同指Y才成立",()=>{
+  assert.equal(previewLink(901,"C",2026),"/games/901/preview?kind=C&year=2026&tab=overview");
+  const report=fixture();const journey=reportJourney(report);
+  assert.equal(previewMatches({report:{...report,next_game:nextE2},journey,updating:false},"E",2),true);
+  assert.equal(previewMatches({report:{...report,next_game:nextE2},journey,updating:false},"E",3),false);
+  assert.equal(previewMatches({report,journey,updating:false},"E",2),false);
+  assert.equal(previewMatches({report:{...report,next_game:nextE2},journey,updating:true},"E",2),false);
+});
+test("入口只給既存正式列；Y須定位回同一X才給觀戰網址",async()=>{
+  assert.equal(nextPreviewLink({kind_code:"C",game_sno:901,year:2026}),"/games/901/preview?kind=C&year=2026&tab=overview");
+  assert.equal(nextPreviewLink(null),null);
+  assert.equal(nextPreviewLink({kind_code:"A",game_sno:1,year:2026}),null);
+  const report=fixture();const journey=reportJourney(report);
+  const view={report:{...report,next_game:nextE2},journey,updating:false};
+  const anchor=(kind_code:ReportKind,game_sno:number):ReportAnchor=>({status:"ok",season:2026,kind_code:"E",game_sno:2,anchor:{kind_code,game_sno}});
+  const asked:unknown[]=[];
+  assert.equal(await nextPreviewFor(view,async(sno,kind)=>{asked.push([sno,kind]);return anchor("E",1);}),"/games/2/preview?kind=E&year=2026&tab=overview");
+  assert.deepEqual(asked,[[2,"E"]]);
+  assert.equal(await nextPreviewFor(view,async()=>anchor("E",4)),null);
+  assert.equal(await nextPreviewFor(view,async()=>({status:"final",season:2026,kind_code:"E",game_sno:2})),null);
+  let n=0;const announced=fixture("E",3);
+  assert.equal(await nextPreviewFor({report:announced,journey:reportJourney(announced),updating:false},async()=>{n++;return anchor("E",3);}),null);
+  assert.equal(n,0);
 });

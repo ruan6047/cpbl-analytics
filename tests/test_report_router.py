@@ -66,3 +66,13 @@ def test_router_loads_each_round_once_for_base_and_enrichment(monkeypatch):
         monkeypatch.setattr(report.official_population,"load",lambda year,kind: requested.append((year,kind)) or [])
         assert c.get("/api/v1/games/4/report?season=2026&kind_code=E"+query).status_code==200
         assert requested==[(2026,"E"),(2026,"C")]
+
+
+def test_report_anchor_is_read_only_and_only_returns_x_identity(monkeypatch):
+    c,calls=client(monkeypatch)
+    monkeypatch.setattr(report,'report_anchor',lambda cur,season,kind,sno: calls.append((season,kind,sno)) or {'status':'ok','anchor':{'kind_code':'E','game_sno':4}})
+    r=c.get('/api/v1/games/901/report-anchor?season=2026&kind_code=C')
+    assert r.status_code==200 and r.json()['anchor']=={'kind_code':'E','game_sno':4}
+    assert calls==['SET TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY',(2026,'C',901)]
+    assert c.get('/api/v1/games/901/report-anchor?season=2026&kind_code=A').status_code==422
+    assert c.post('/api/v1/games/901/report-anchor?season=2026&kind_code=C').status_code==405

@@ -95,6 +95,7 @@ export default function GameLivePage() {
   const [pregame, setPregame] = useState<PregameCardModel | null>(null);
   const [milestones, setMilestones] = useState<{ player: string; text: string }[]>([]);
   const [facts, setFacts] = useState<GameFacts | null>(null);
+  const [previewHref, setPreviewHref] = useState<string | null>(null);
 
   useEffect(() => {
     let disposed = false;
@@ -216,6 +217,19 @@ export default function GameLivePage() {
     };
   }, [sno, kind, year]);
 
+  // 「下一場觀戰報告」只在可靠 Y（既有 journey 正式列且定位回本場）時取代場間報告入口；無 target 不顯示。
+  const backendFinal = data?.game ? officialCompletionOf(data.game) === true : false;
+  useEffect(() => {
+    setPreviewHref(null);
+    if (!backendFinal || !year || !["E", "C"].includes(kind)) return;
+    let disposed = false;
+    fetch(`/games/${sno}/preview-target?${new URLSearchParams({ kind, year: String(year) })}`, { cache: "no-store" })
+      .then((res) => res.ok ? (res.json() as Promise<{ href?: unknown }>) : { href: null })
+      .then((body) => { if (!disposed) setPreviewHref(typeof body.href === "string" ? body.href : null); })
+      .catch(() => {});
+    return () => { disposed = true; };
+  }, [sno, kind, year, backendFinal]);
+
   if (err) return <ErrorState>載入賽況失敗。</ErrorState>;
   // 載入骨架：對齊記分條(rounded-2xl)＋linescore＋總覽雙卡的量體，避免 CLS
   if (!data) return (
@@ -311,7 +325,7 @@ export default function GameLivePage() {
   return (
     <div>
       <GameHead g={g} sno={sno} kind={String(g.kind_code ?? kind)} />
-      {recapReportLink(completed, sno, kind, g.year) && <div className="mb-4 flex justify-end"><Link href={recapReportLink(completed, sno, kind, g.year)!} className="min-h-11 py-3 text-sm font-semibold text-accent underline">場間報告：下一場兩隊背景</Link></div>}
+      {recapReportLink(completed, sno, kind, g.year) && <div className="mb-4 flex justify-end"><Link href={previewHref ?? recapReportLink(completed, sno, kind, g.year)!} className="min-h-11 py-3 text-sm font-semibold text-accent underline">{previewHref ? "下一場觀戰報告" : "場間報告：下一場兩隊背景"}</Link></div>}
       {liveInterrupted && (
         <Notice className="mb-3" label="更新中斷">
           即時更新暫時中斷；畫面保留最後一次成功賽況，恢復連線後會自動續接。
