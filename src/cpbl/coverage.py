@@ -87,11 +87,26 @@ def coverage_verdict(
     判定（嚴重度由高到低）：任一場待更新 → ``pending_update``；否則任一場讀不到官方狀態 →
     ``unknown``；否則 ``covered``。延賽／保留不算落後。
 
+    **同一場只列一次，原因依固定優先序**（#268 審核 F1）：官方賽程異動 ＞ 過日未完成（官方 final／
+    非終止）＞ 即時 final 未入庫 ＞ 無從判斷。異動訊號最優先，因為它說明本站這一場的日期／主客／球場
+    本身已過時——由舊日期推出的「過日」「延賽不算落後」都建立在過時資料上，不得遮掉它；延賽／保留
+    只在**沒有**異動訊號時才豁免。
+
     ``pending_games`` 列出**所有**造成非 covered 的場次（含 unknown 者），供呈現端逐場說明。
     """
     pending: list[dict] = []
     unknown: list[dict] = []
     seen: set[GameKey] = set()
+    for row in change_signals:
+        key = _key(row)
+        if key in seen:
+            continue
+        seen.add(key)
+        day = row.get("game_date")
+        pending.append({"year": key[0], "kind_code": key[1], "game_sno": key[2],
+                        "game_date": _as_date(day).isoformat() if day else None,
+                        "official_status": (official_statuses or {}).get(key, "unknown"),
+                        "reason": REASON_OFFICIAL_CHANGE})
     for row in past_uncompleted:
         game_day = _as_date(row["game_date"])
         if game_day >= taipei_day:
@@ -120,17 +135,6 @@ def coverage_verdict(
         pending.append({"year": key[0], "kind_code": key[1], "game_sno": key[2],
                         "game_date": _as_date(row["game_date"]).isoformat(),
                         "official_status": status, "reason": REASON_LIVE_FINAL})
-    # 異動訊號排在「無從判斷」之前：同一場既有異動又無觀測時，以確定待更新為準。
-    for row in change_signals:
-        key = _key(row)
-        if key in seen:
-            continue
-        seen.add(key)
-        day = row.get("game_date")
-        pending.append({"year": key[0], "kind_code": key[1], "game_sno": key[2],
-                        "game_date": _as_date(day).isoformat() if day else None,
-                        "official_status": (official_statuses or {}).get(key, "unknown"),
-                        "reason": REASON_OFFICIAL_CHANGE})
     for row in today_unobserved:
         key = _key(row)
         if key in seen:

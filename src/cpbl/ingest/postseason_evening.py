@@ -25,7 +25,8 @@
   以實際日期時刻記錄，不改寫成賽事日。唯一的時刻規則是**讓位給每日 10:10 鏈**
   （:data:`DAILY_GUARD`）：那是避免與既有排程搶同一把鎖，不是縮短晚間要求。
 * **www 次數上限與冷卻**：每事件最多 3 次、間隔至少 20 分鐘；挑戰類失敗第二次即停止當晚所有
-  www 嘗試（``blocked``）。
+  www 嘗試（``blocked``）。www 請求以賽別為單位，冷卻也以賽別計，只抓冷卻已過的賽別（:func:`www_kinds`）。
+* **跨月界**：偵測窗口含上月與未結事件月份；stats 沒回到的場次不視為已解決（:func:`apply_detection`）。
 * **錯誤即停**（核定規劃 §4.3）：data-only 對帳不等（refresh 回 68）→ 記失敗並停止當晚
   （``sync_blocked_at``，隔日 12:00 後才再試）；其他同步非零（64–67、psql／schema 錯誤、備份失敗）
   → ``halted``，之後每次喚醒都直接退出，直到人工清除狀態檔的 ``halted``；不調時段補洞。
@@ -264,7 +265,7 @@ def empty_state() -> dict[str, Any]:
             "pending_sync": False, "sync_blocked_at": None, "halted": None,
             "needs_owner_decision": None, "last_run": None,
             "detected_changes": [], "signals_dirty": False, "signals_error": None,
-            "signals_unsynced": False}
+            "signals_unsynced": False, "www_requests": {}, "scrape_kinds": []}
 
 
 def _starts(g: Mapping) -> datetime | None:
@@ -324,41 +325,70 @@ def www_blocked(state: Mapping, now: datetime) -> bool:
     return now < release
 
 
+def _kind_of(key: str) -> str:
+    return key.split("-")[1]
+
+
+def www_kinds(state: Mapping, now: datetime) -> tuple[str, ...]:
+    """這次可以抓的賽別（#268 審核 F2）。
+
+    www 的實際請求單位是**賽別**（既有 ``_postseason_games_step(year, kinds)`` 對每個賽別抓整年，
+    不能只抓單場），所以冷卻也以賽別計：某賽別上一次請求（或該賽別任一未結事件的上一次嘗試）未滿
+    20 分鐘，整個賽別都不得再抓——否則新事件會讓同賽別仍在冷卻的舊事件被再抓一次。賽別內至少要有
+    一個未結且未用盡 3 次的事件。不同賽別互不連坐（E 冷卻中，C 的新公告仍可立即抓 C）。"""
+    requests = state.get("www_requests") or {}
+    out = []
+    for kind in KINDS:
+        evs = [e for e in open_events(state).values() if _kind_of(e["key"]) == kind]
+        if not any(len(e.get("attempts") or []) < WWW_MAX_ATTEMPTS for e in evs):
+            continue
+        stamps = [_parse(requests.get(kind))] + [_parse(a) for e in evs for a in e.get("attempts") or []]
+        stamps = [s for s in stamps if s is not None]
+        if stamps and now - max(stamps) < WWW_COOLDOWN:
+            continue
+        out.append(kind)
+    return tuple(out)
+
+
 def www_decision(state: Mapping, now: datetime) -> tuple[bool, str]:
-    """有未結事件時，這次喚醒能不能連 www（每事件 ≤3 次、間隔 ≥20 分鐘、挑戰兩次停當晚）。"""
+    """有未結事件時，這次喚醒能不能連 www（每事件 ≤3 次、間隔 ≥20 分鐘、挑戰兩次停當晚）。
+    可抓的賽別見 :func:`www_kinds`。"""
     if state.get("halted"):
         return False, "halted"
     if in_daily_guard(now):
         return False, "yield_to_daily"
     if www_blocked(state, now):
         return False, "blocked"
-    eligible = []
-    for e in open_events(state).values():
-        attempts = [_parse(a) for a in e.get("attempts") or []]
-        if len(attempts) >= WWW_MAX_ATTEMPTS:
-            continue
-        if attempts and now - max(attempts) < WWW_COOLDOWN:
-            continue
-        eligible.append(e)
-    if not eligible:
+    if not www_kinds(state, now):
         return False, "cooldown_or_exhausted" if open_events(state) else "no_events"
     return True, "event"
 
 
 def apply_detection(state: dict, events: list[Event], now: datetime,
                     local_first_seen: Mapping[str, str | None] | None = None, *,
-                    resolved_by_chain: bool = False) -> dict:
+                    resolved_by_chain: bool = False,
+                    observed_keys: Iterable[str] | None = None,
+                    chain_kinds: Iterable[str] | None = None) -> dict:
     """偵測結果併入狀態：新事件記 T1（stats 首次觀測＝官方發佈上界）；不再被偵測到的
     未結事件依來源結清。
 
     ``resolved_by_chain=True`` 只在**本鏈剛跑完 www** 之後的那次比對使用：此時消失的事件
     是本鏈處理的 → ``ingested``（等同步補 T3）。其他時候（下一次 plan 才發現消失）代表是
     別的路徑（例如隔日 10:10）補上的 → ``unreached``／``resolved_outside_evening_chain``，
-    **不得算成同晚達成**，即使本鏈先前試過 www。"""
+    **不得算成同晚達成**，即使本鏈先前試過 www。
+
+    ``observed_keys``＝本次 stats 實際回了哪些場次（#268 審核 F3）。「這一場這次沒被看到」不等於
+    「差異已消失」：只有 stats 看得到該場、且不再報差異，才算結清；看不到的場次事件維持原狀、其異動
+    訊號也保留上一輪的值（不因查詢窗口或來源漏列而被結清）。``None``＝呼叫端不提供（視同全部看得到）。
+    ``chain_kinds``＝本鏈這次實際抓的賽別（F2）：只有這些賽別的事件可記為本鏈 ``ingested``。"""
     events_state = state.setdefault("events", {})
     current = {f"{e.type}:{e.key}": e for e in events}
+    observed = None if observed_keys is None else set(observed_keys)
     # D1：本次偵測仍成立的異動（含已記未達者）＝應維持開啟的訊號；見 signal_rows。
-    state["detected_changes"] = [
+    # 本次沒看到的場次沿用上一輪的異動（F3）。
+    carried = [] if observed is None else [
+        c for c in state.get("detected_changes") or [] if c["key"] not in observed]
+    state["detected_changes"] = carried + [
         {"key": e.key, "field": f, "official_value": v}
         for e in events if e.type in SIGNAL_EVENT_TYPES for f, v in e.official]
     state["signals_dirty"] = True
@@ -376,8 +406,11 @@ def apply_detection(state: dict, events: list[Event], now: datetime,
     for ident, rec in events_state.items():
         if rec.get("state") != "open" or ident in current:
             continue
+        if observed is not None and rec["key"] not in observed:
+            continue   # 本次 stats 沒有這一場：無從判斷差異是否消失，維持未結（F3）
         rec["t2_local_first_seen"] = (local_first_seen or {}).get(rec["key"]) or rec.get("t2_local_first_seen")
-        if resolved_by_chain and rec.get("attempts"):
+        by_chain = resolved_by_chain and (chain_kinds is None or _kind_of(rec["key"]) in set(chain_kinds))
+        if by_chain and rec.get("attempts"):
             rec["state"] = "ingested"
         else:
             rec["state"] = "unreached"
@@ -416,7 +449,8 @@ def plan(state: dict, now: datetime, *, probe: Callable[[], list[StatsGame]],
             state["probe_status"] = "ok"
             state["last_probe_at"] = _iso(now)
             state["schedule"] = [asdict(g) for g in stats]
-            apply_detection(state, detect_events(stats, load_local()), now, local_first_seen())
+            apply_detection(state, detect_events(stats, load_local()), now, local_first_seen(),
+                            observed_keys=[g.key for g in stats])
     # 對帳不等已停止當晚：只記錄偵測（T1），不再連 www、不再同步。
     if sync_blocked(state, now):
         return "idle", "sync_blocked_tonight"
@@ -428,7 +462,10 @@ def plan(state: dict, now: datetime, *, probe: Callable[[], list[StatsGame]],
     if open_events(state):
         ok, reason = www_decision(state, now)
         # 能連 www 就先抓（之後同一次喚醒的同步會一併帶上訊號表）；不能連時才單獨同步訊號。
-        return ("scrape", reason) if ok else with_signal_sync(state, now, "idle", reason)
+        if ok:
+            state["scrape_kinds"] = list(www_kinds(state, now))   # scrape 只抓這些賽別（F2）
+            return "scrape", reason
+        return with_signal_sync(state, now, "idle", reason)
     return with_signal_sync(state, now, "idle", why if not due else "no_events")
 
 
@@ -450,13 +487,21 @@ def with_signal_sync(state: Mapping, now: datetime, action: str, reason: str) ->
 
 
 def record_scrape(state: dict, now: datetime, *, errors: list[dict], changed: bool,
-                  stats_has_c: bool, local_c_rows: int) -> str:
+                  stats_has_c: bool, local_c_rows: int, kinds: Iterable[str] = KINDS) -> str:
     """一次 www 嘗試的結果入帳。回 changed／unchanged／failed。
+
+    ``kinds``＝這次實際抓的賽別：只有這些賽別的未結事件記一次嘗試，並記賽別的請求時刻
+    （:func:`www_kinds` 據此冷卻；#268 審核 F2）。沒抓到的賽別事件不記、不耗次數。
 
     「www 抓取成功（C 無錯）但本機 C 列仍為 0」依規劃 §4.6 **只停該項**：C 的 new_game 事件
     記未達並標 ``needs_owner_decision``，不換工具、不繞道，也不連坐 E 或同步。"""
+    kinds = tuple(kinds)
+    requests = state.setdefault("www_requests", {})
+    for kind in kinds:
+        requests[kind] = _iso(now)
     for rec in open_events(state).values():
-        rec.setdefault("attempts", []).append(_iso(now))
+        if _kind_of(rec["key"]) in kinds:
+            rec.setdefault("attempts", []).append(_iso(now))
     challenge = any(any(m.lower() in str(e.get("error", "")).lower() for m in CHALLENGE_MARKERS)
                     for e in errors)
     if challenge:
@@ -469,7 +514,7 @@ def record_scrape(state: dict, now: datetime, *, errors: list[dict], changed: bo
     if changed:
         state["pending_sync"] = True
     c_error = any(e.get("kind") == "C" for e in errors)
-    if stats_has_c and not c_error and local_c_rows == 0:
+    if "C" in kinds and stats_has_c and not c_error and local_c_rows == 0:   # 這次真的抓了 C 才算
         for rec in open_events(state).values():
             if rec["type"] == "new_game" and rec["key"].split("-")[1] == "C":
                 rec["state"] = "unreached"
@@ -671,9 +716,23 @@ def _season_year(now: datetime) -> int:
     return int(os.environ.get("POSTSEASON_YEAR") or taipei(now).year)
 
 
-def _months(now: datetime) -> list[int]:
+def _months(now: datetime, state: Mapping | None = None) -> list[int]:
+    """stats 偵測窗口（月份）。當月、下月（公告新場次）、**上月**，以及任何未結／待同步事件的賽事月份。
+
+    #268 審核 F3：原本只查當月／下月，10/31 深夜未完成的事件在 11/1 00:00 起就不在查詢結果中，
+    被誤當成「已由其他路徑解決」；月末深夜才公布的前月終場也會漏偵測。不設截止＝跨過月界也要
+    繼續看前月。只限同一季年度（1 月不回頭查前一年 12 月）。"""
     m = taipei(now).month
-    return [m] if m == 12 else [m, m + 1]
+    months = {m}
+    if m < 12:
+        months.add(m + 1)
+    if m > 1:
+        months.add(m - 1)
+    for rec in ((state or {}).get("events") or {}).values():
+        day = str(rec.get("game_date") or "")
+        if rec.get("state") in ("open", "ingested") and len(day) >= 7 and day[5:7].isdigit():
+            months.add(int(day[5:7]))
+    return sorted(months)
 
 
 # =========================================================================== CLI
@@ -701,7 +760,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "plan":
         action, reason = plan(
             state, now,
-            probe=lambda: stats_probe(year, _months(now)),
+            probe=lambda: stats_probe(year, _months(now, state)),
             load_local=lambda: load_local_games(year, now),
             local_first_seen=lambda: local_first_seen(year),
         )
@@ -723,18 +782,26 @@ def main(argv: list[str] | None = None) -> int:
         from cpbl.config import parse_postseason_kinds, settings
         from cpbl.ingest.run_refresh_recent import _postseason_games_step
 
-        kinds = parse_postseason_kinds(settings.refresh_postseason_kinds) or KINDS
+        configured = parse_postseason_kinds(settings.refresh_postseason_kinds) or KINDS
+        # F2：只抓 plan 判定冷卻已過的賽別（既有 helper 的 kinds 參數，helper 本身不改）。
+        kinds = tuple(k for k in configured if k in (state.get("scrape_kinds") or ()))
+        if not kinds:
+            state["last_run"] = {"at": _iso(now), "action": "scrape", "outcome": "unchanged", "errors": []}
+            save_json(path, state)
+            print("unchanged")
+            return 0
         before = local_signature(year)
-        result = _postseason_games_step(year, tuple(kinds))
+        result = _postseason_games_step(year, kinds)
         after = local_signature(year)
         stats_has_c = any(g.get("kind_code") == "C" for g in state.get("schedule") or [])
         local_c = sum(1 for k in load_local_games(year, now) if k.split("-")[1] == "C")
         outcome = record_scrape(state, now, errors=result.get("errors") or [],
                                 changed=before != after, stats_has_c=stats_has_c,
-                                local_c_rows=local_c)
-        apply_detection(state, detect_events(
-            [StatsGame(**g) for g in state.get("schedule") or []], load_local_games(year, now)),
-            now, local_first_seen(year), resolved_by_chain=True)
+                                local_c_rows=local_c, kinds=kinds)
+        schedule = [StatsGame(**g) for g in state.get("schedule") or []]
+        apply_detection(state, detect_events(schedule, load_local_games(year, now)),
+                        now, local_first_seen(year), resolved_by_chain=True,
+                        observed_keys=[g.key for g in schedule], chain_kinds=kinds)
         state["last_run"] = {"at": _iso(now), "action": "scrape", "outcome": outcome,
                              "errors": result.get("errors") or []}
         publish_signals(state, year, now)

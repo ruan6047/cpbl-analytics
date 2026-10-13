@@ -382,6 +382,113 @@ def test_publish_signals_failure_is_recorded_not_swallowed(monkeypatch):
     assert clean["signals_error"] is None
 
 
+# —— #268 審核 F2：交錯事件不得破壞每事件冷卻 ——
+
+def _scrape_like_cli(state, now, *, changed=False, stats_has_c=False, local_c_rows=0):
+    """照 CLI：plan 決定的 scrape_kinds 才是這次真正抓的賽別。"""
+    return pe.record_scrape(state, now, errors=[], changed=changed, stats_has_c=stats_has_c,
+                            local_c_rows=local_c_rows, kinds=state["scrape_kinds"])
+
+
+def test_new_event_of_another_kind_does_not_refetch_an_event_still_in_cooldown():
+    """審核反例：20:00 E4 final 未入庫已抓一次；20:05 新增 C1 公告。舊碼只要 C1 eligible 就整批抓並對
+    E4 再記一次（E4 兩次相距 5 分鐘）。修後只抓 C，E4 次數不變，20:20 才可再抓 E。"""
+    c1 = pe.parse_stats_games([raw_game("C", 1, "SCHEDULED", "2026-10-17T17:05:00",
+                                        away="ACN011", home="AAA011", venue="大巨蛋")], 2026)
+    state = pe.empty_state()
+    t = tpe(2026, 10, 13, 20, 0)
+    assert pe.plan(state, t, probe=lambda: E4_FINISHED, load_local=lambda: E4_LOCAL_PENDING)[0] == "scrape"
+    assert state["scrape_kinds"] == ["E"]
+    _scrape_like_cli(state, t)
+
+    t5 = t + timedelta(minutes=5)
+    assert pe.plan(state, t5, probe=lambda: E4_FINISHED + c1,
+                   load_local=lambda: E4_LOCAL_PENDING) == ("scrape", "event")
+    assert state["scrape_kinds"] == ["C"], "E 仍在冷卻：只抓 C"
+    _scrape_like_cli(state, t5, stats_has_c=True, local_c_rows=1)
+    e4 = state["events"]["final_not_ingested:2026-E-4"]
+    assert e4["attempts"] == [pe._iso(t)], "E4 不因新事件被再抓"
+    assert state["events"]["new_game:2026-C-1"]["attempts"] == [pe._iso(t5)]
+
+    assert pe.www_kinds(state, t + timedelta(minutes=19)) == ()
+    assert pe.www_kinds(state, t + timedelta(minutes=20)) == ("E",)
+    assert pe.www_kinds(state, t5 + timedelta(minutes=20)) == ("E", "C")
+
+
+def test_new_event_of_the_same_kind_waits_for_that_kinds_cooldown():
+    """同賽別新事件：一次請求就會重抓同賽別舊事件 → 須等該賽別滿 20 分鐘，兩事件一起記一次。"""
+    e5 = pe.parse_stats_games([raw_game("E", 5, "FINISHED", "2026-10-13T18:35:00")], 2026)
+    state = pe.empty_state()
+    t = tpe(2026, 10, 13, 22, 0)
+    pe.plan(state, t, probe=lambda: E4_FINISHED, load_local=lambda: E4_LOCAL_PENDING)
+    _scrape_like_cli(state, t)
+    e5_local = {**E4_LOCAL_PENDING, "2026-E-5": pe.LocalGame(2026, "E", 5, "2026-10-13", "ADD011",
+                                                             "ACN011", "洲際", False)}
+    assert pe.plan(state, t + timedelta(minutes=5), probe=lambda: E4_FINISHED + e5,
+                   load_local=lambda: e5_local) == ("idle", "cooldown_or_exhausted")
+    assert pe.plan(state, t + timedelta(minutes=20), probe=lambda: E4_FINISHED + e5,
+                   load_local=lambda: e5_local)[0] == "scrape"
+    _scrape_like_cli(state, t + timedelta(minutes=20))
+    attempts = {k: v["attempts"] for k, v in state["events"].items()}
+    assert attempts["final_not_ingested:2026-E-4"] == [pe._iso(t), pe._iso(t + timedelta(minutes=20))]
+    assert attempts["final_not_ingested:2026-E-5"] == [pe._iso(t + timedelta(minutes=20))]
+
+
+# —— #268 審核 F3：月末跨午夜不得放掉前月事件 ——
+
+def _month_fetch(rows_by_month):
+    def fetch(path, params):
+        rows = [r for r in rows_by_month.get(int(params["month"]), []) if r["KindCode"] == params["kindCode"]]
+        return {"Data": {"Games": rows}}
+    return fetch
+
+
+def test_window_keeps_the_previous_month_and_open_event_months():
+    assert pe._months(tpe(2026, 11, 1, 0, 0)) == [10, 11, 12]
+    assert pe._months(tpe(2026, 10, 13, 20, 0)) == [9, 10, 11]
+    assert pe._months(tpe(2026, 12, 1, 0, 5)) == [11, 12]
+    state = {"events": {"x": {"state": "open", "game_date": "2026-09-29", "key": "2026-C-7"}}}
+    assert pe._months(tpe(2026, 11, 1, 0, 0), state) == [9, 10, 11, 12]
+
+
+def test_previous_month_event_survives_midnight_month_boundary():
+    """審核反例：10/31 23:55 偵測 C7 final 未入庫（scrape）；11/1 00:00 舊碼只查 11／12 月 → C7 不在結果
+    → 被結清為 resolved_outside_evening_chain 且不再嘗試。修後 00:00 仍查 10 月、事件續開；
+    即使 stats 某次漏回該場，也只維持未結，不結清。"""
+    c7 = raw_game("C", 7, "FINISHED", "2026-10-31T17:05:00", away="ACN011", home="AAA011", venue="大巨蛋")
+    local = {"2026-C-7": pe.LocalGame(2026, "C", 7, "2026-10-31", "ACN011", "AAA011", "大巨蛋", False)}
+    fetch = _month_fetch({10: [c7]})
+    state = pe.empty_state()
+
+    def plan_at(at, f=fetch):
+        return pe.plan(state, at, probe=lambda: pe.stats_probe(2026, pe._months(at, state), fetch=f),
+                       load_local=lambda: local)
+
+    t = tpe(2026, 10, 31, 23, 55)
+    assert plan_at(t) == ("scrape", "event")
+    midnight = tpe(2026, 11, 1, 0, 0)
+    assert plan_at(midnight)[0] in ("scrape", "idle")
+    (row,) = pe.timeline(state)
+    assert row["state"] == "open" and row["reason"] is None, "跨月仍續處理，不得誤結清"
+    _scrape_like_cli(state, midnight)
+    # stats 漏回該場（來源漏列）：看不到 ≠ 已解決
+    plan_at(tpe(2026, 11, 1, 0, 25), f=_month_fetch({}))
+    assert pe.timeline(state)[0]["state"] == "open"
+    assert plan_at(tpe(2026, 11, 1, 0, 45)) == ("scrape", "event"), "冷卻滿 20 分鐘後照常再試"
+
+
+def test_unobserved_change_keeps_its_signal_open():
+    """F3 同一規則用於 D1 訊號：該場本次沒被 stats 回到時，沿用上一輪的異動，不解決訊號。"""
+    moved = [raw_game("C", 3, "SCHEDULED", "2026-10-21T18:35:00", away="AAA011", home="ACN011", venue="大巨蛋")]
+    stale = {"2026-C-3": pe.LocalGame(2026, "C", 3, "2026-10-20", "AAA011", "ACN011", "大巨蛋", False)}
+    state = pe.empty_state()
+    t = tpe(2026, 10, 19, 22, 0)
+    pe.plan(state, t, probe=lambda: pe.parse_stats_games(moved, 2026), load_local=lambda: stale)
+    assert [r["field"] for r in pe.signal_rows(state)] == ["date"]
+    pe.plan(state, t + timedelta(minutes=30), probe=lambda: [], load_local=lambda: stale)
+    assert [r["field"] for r in pe.signal_rows(state)] == ["date"]
+
+
 # —— #268 B1：異動訊號表同步到正式站（需求方裁定 6142744045）——
 
 def _fake_signal_db(monkeypatch, changed: int) -> list:

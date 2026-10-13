@@ -743,10 +743,10 @@ GitHub 會自動標記。判斷是否經 PR 合併要看 `gh api repos/.../commi
   `scripts/schedule_watch.py` 的登記表只認 daily／weekly，放進去會讓偵測器判 REGISTRY_INVALID／INCOMPLETE。
   **安裝前**須先決定登記方式（例如讓偵測器支援 interval cadence，另案核定）；否則安裝後偵測器會如實報 REGISTRY_INCOMPLETE。
 - 每次喚醒：
-  1. `plan`：不取鎖；到期才以 httpx **唯讀**讀 `stats.cpbl.com.tw/api/proxy/v1/games/schedule`（E、C × 本月／下月），與本機 DB 比對。
+  1. `plan`：不取鎖；到期才以 httpx **唯讀**讀 `stats.cpbl.com.tw/api/proxy/v1/games/schedule`（E、C × 上月／本月／下月＋未結事件所在月份；跨月界不放掉前月，stats 沒回到的場次不當作已解決），與本機 DB 比對。
      事件只有三類：stats `FINISHED` 但本機未完成、stats 有本機沒有的 `(year, kind, sno)`、日期或主客異動。沒有事件就結束，**不連 www**。
      stats 資料不寫賽程／狀態表、不作完賽依據（判準仍是 `cpbl.completion`）；唯一例外是 #268 D1 待更新訊號：新場次／異動寫本機 `cpbl.official_change_signals`（migration 075），同步對帳通過或偵測不再成立才寫 `resolved_at`，首頁／季後頁／日曆據此標「賽程待更新」（`official_change_not_ingested`）。此表隨三表一起同步到 prod（每日鏈與晚間鏈共用 `sync_postseason_results`，需求方裁定 6142744045）；本機表變了而三表沒變（www／同步失敗、對帳通過後才解決）時，晚間鏈另走一次**僅訊號變動**的同步（plan／sync-due 回 `signals`；同一條已驗證備份→同步→對帳路徑，同樣受 halted／68 停當晚／讓位 10:10 約束）。⚠️ prod 須先部署含 075 的映像，否則同步在此表失敗（同 073 前例）。
-  2. 有事件：取 refresh lock，跑既有 `_postseason_games_step`（www getgamedatas）。每事件最多 3 次、間隔 ≥20 分鐘；
+  2. 有事件：取 refresh lock，跑既有 `_postseason_games_step`（www getgamedatas），只抓冷卻已過的賽別（請求以賽別為單位，冷卻亦以賽別計）。每事件最多 3 次、間隔 ≥20 分鐘；
      挑戰類失敗第 2 次即停止當晚所有 www（`www_blocked_at`，隔日 12:00 後才解除）；10:10 前後（09:45–10:15）讓位給每日鏈。
   3. 本機有變化：`POSTSEASON_RESULTS_ONLY=1 SKIP_SCRAPE=1 BACKUP_DIR=<晚間專用> bash scripts/refresh-cpbl-prod.sh`
      ＝已驗證備份 → 只同步 `games`／`game_schedule_status_revisions`／`game_source_revisions`／`official_change_signals` → `/api/info` data-only 對帳。

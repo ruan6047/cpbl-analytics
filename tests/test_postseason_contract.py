@@ -91,6 +91,26 @@ def test_official_change_signal_is_pending_and_outranks_unobserved():
     assert [(g["game_sno"], g["game_date"]) for g in got["pending_games"]] == [(7, None), (4, "2026-10-12")]
 
 
+@pytest.mark.parametrize("status", ["postponed", "reserved", "unknown", "final", "scheduled"])
+def test_change_signal_on_a_past_game_is_never_masked_by_its_past_classification(status):
+    """#268 審核 F1：過日未完成場（本站日期 10/12）同鍵帶官方改期訊號（新日期 10/14）。
+    不論本站對舊日期的官方狀態是延賽／保留／未知／final，都必須是確定待更新＋異動原因、只列一次、
+    日期取訊號的新日期——舊碼在過日分支先占用同鍵，延賽／保留得 covered、未知／final 失去異動原因。"""
+    change = {**_E4, "game_date": "2026-10-14"}
+    got = coverage_verdict([_E4], {(2026, "E", 4): status}, taipei_day=date(2026, 10, 13),
+                           change_signals=[change])
+    assert got["status"] == "pending_update"
+    assert [(g["game_sno"], g["game_date"], g["reason"], g["official_status"])
+            for g in got["pending_games"]] == [(4, "2026-10-14", REASON_OFFICIAL_CHANGE, status)]
+
+
+def test_change_signal_outranks_a_live_final_on_the_same_game():
+    live = {"season": 2026, "kind_code": "C", "game_sno": 1, "game_date": "2026-10-17"}
+    got = coverage_verdict([], {}, taipei_day=date(2026, 10, 17), live_final_uncompleted=[live],
+                           change_signals=[{**live, "year": 2026, "game_date": "2026-10-18"}])
+    assert [(g["game_sno"], g["reason"]) for g in got["pending_games"]] == [(1, REASON_OFFICIAL_CHANGE)]
+
+
 def test_signal_games_prefers_the_official_new_date_and_never_guesses():
     rows = [
         {"year": 2026, "kind_code": "C", "game_sno": 2, "field": "venue", "official_value": "大巨蛋",
