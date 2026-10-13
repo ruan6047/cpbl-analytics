@@ -269,3 +269,21 @@ def build_report(cur, season: int, kind: str, sno: int, next_kind: str | None = 
             "journey_context": context, **historical,
             "next_game": comparison["game"] if comparison else historical["next_game"],
             "comparison": comparison, "sources": sources, "read_at": read_at}
+
+
+def report_anchor(cur, season: int, kind: str, sno: int) -> dict:
+    """Y 須有既存正式列；只定位最新完賽 E/C 為截至場 X，下一場判定仍交 journey。"""
+    games = readers.games(cur, season)
+    own = next((g for g in games if g["kind_code"] == kind and g["game_sno"] == sno), None)
+    base = {"season": season, "kind_code": kind, "game_sno": sno}
+    if own is not None and own["completed"]:
+        return {**base, "status": "final"}
+    if own is None and not any(r["kind_code"] == kind and r["game_sno"] == sno
+                               for r in readers.schedules(cur, season)):
+        return {**base, "status": "not_found"}
+    done = [g for g in games if g["kind_code"] in ("E", "C") and g["completed"]]
+    if not done:
+        return {**base, "status": "no_anchor"}
+    anchor = max(done, key=lambda g: (g["game_date"], g["kind_code"] == "C", g["game_sno"]))
+    return {**base, "status": "ok",
+            "anchor": {"kind_code": anchor["kind_code"], "game_sno": anchor["game_sno"]}}

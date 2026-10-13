@@ -43,3 +43,6 @@ export type ReportComparison = Pick<Report, "players" | "population" | "teams" |
   game: NonNullable<Report["next_game"]>; kind_code: ReportKind;
   series_game_keys: string[]; usage_cutoff_label: string;
 };
+
+/** Y 觀戰報告入口只取截至場 X 身分；不含 Y 判定。 */
+export type ReportAnchor = { status: "ok" | "final" | "not_found" | "no_anchor"; season: number; kind_code: ReportKind; game_sno: number; anchor?: { kind_code: ReportKind; game_sno: number } };

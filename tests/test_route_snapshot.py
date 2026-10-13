@@ -24,6 +24,7 @@ EXPECTED = {
     "/api/v1/games/{game_sno}/recap-wp",
     "/api/v1/games/{game_sno}/facts",
     "/api/v1/games/{game_sno}/report",
+    "/api/v1/games/{game_sno}/report-anchor",
     "/api/v1/matchups",
     "/api/v1/outcome/backtest",
     "/api/v1/outcome/evaluate",
