@@ -36,6 +36,7 @@ from cpbl.api.helpers import (
 )
 from cpbl.api.live_cache import get_public_live_snapshot
 from cpbl.api.pregame_serving import serving_state
+from cpbl.change_signals import UNRESOLVED_SQL, signal_games
 from cpbl.completion import (
     completed_games_sql_with_evidence,
     is_completed_game,
@@ -44,6 +45,7 @@ from cpbl.completion import (
     requires_official_completion,
 )
 from cpbl.config import settings
+from cpbl.coverage import coverage_verdict
 from cpbl.db import conn
 from cpbl.models.outcome_simple import ORIENT, load_outcome_rows
 
@@ -339,7 +341,15 @@ def _last_refresh(cursor) -> dict:
 
 
 def _unresolved_statuses(cursor, rows: list[dict]) -> dict[tuple[int, str, int], str]:
+    """`_official_statuses` 的相容外殼：查詢失敗時退回空 dict（＝整批 unknown）。"""
+    return _official_statuses(cursor, rows) or {}
+
+
+def _official_statuses(cursor, rows: list[dict]) -> dict[tuple[int, str, int], str] | None:
     """未定案場次 → 官方排程狀態（`helpers.official_status`，與單場狀態端點同一份判定）。
+
+    回傳 `None`＝**查詢本身失敗**（缺表／權限）。與「查得到但沒有列」（空 dict）分開，是因為
+    #268 的 `coverage` 需要分辨「官方說延賽」與「根本讀不到官方狀態」——後者只能判 unknown。
 
     這一格取代了原本硬編的 `"unknown"`。**值得多這一次查詢的理由是它真的分得開三件事**
     ——`cpbl.games` 一律只看得到 0–0：
@@ -379,11 +389,26 @@ def _unresolved_statuses(cursor, rows: list[dict]) -> dict[tuple[int, str, int],
         )
         revisions = _dicts(cursor)
     except Exception:  # noqa: BLE001 — 缺表／權限問題退回 unknown，與原本硬編時的行為相同
-        return {}
+        return None
     by_game: dict[tuple[int, str, int], list[dict]] = {}
     for row in revisions:
         by_game.setdefault((row["year"], row["kind_code"], row["game_sno"]), []).append(row)
     return {key: official_status(group)[0] for key, group in by_game.items()}
+
+
+def _change_signals(cursor, kinds: list[str], season: int | None) -> list[dict]:
+    """#268 D1：未解決的官方賽程異動訊號（每場一筆）。只在範圍含季後 E／C 時查（二軍不查）。
+
+    放在本端點最後一支查詢：失敗（表尚未 migrate／權限）時只少這個訊號、不污染前面的讀取。
+    失敗退回空清單＝與 D1 之前相同的資訊量，不因此宣稱或否認任何異動。
+    """
+    if not {"E", "C"} & set(kinds):
+        return []
+    try:
+        cursor.execute(UNRESOLVED_SQL, {"kinds": list(kinds), "season": season})
+        return signal_games(_dicts(cursor))
+    except Exception:  # noqa: BLE001 — 缺表／權限：不讓首頁掛掉
+        return []
 
 
 def _pregame_source() -> tuple[dict | None, dict]:
@@ -444,6 +469,18 @@ def _attach_pregame(row: dict, pregame: dict, artifact: dict | None, meta: dict)
             "status": "no_features", "home_win_probability": None, "signals": None})
 
 
+def _live_unobserved(live: dict | None) -> bool:
+    """即時來源對這場沒有可信訊號：沒有快照，或已進入二階中斷（`live_interrupt` 的 blackout）。"""
+    return live is None or live.get("interrupt") == "blackout"
+
+
+def _officially_suspended_today(game: dict) -> bool:
+    """官方 `delay_kind` 延賽／保留且不是改期到今天的補賽（與 web `todayCardKind` 同判準）。"""
+    delay = (game.get("delay_kind") or "").strip()
+    rescheduled_to_today = bool(game.get("orig_date")) and game.get("orig_date") != game.get("game_date")
+    return delay in {"延賽", "保留"} and not rescheduled_to_today
+
+
 def _today_block(rows: list[dict], *, game_day: date, as_of: date, pregame: dict,
                  artifact: dict | None, meta: dict) -> dict:
     """今天的場次 ＋ 疊上 canonical live snapshot。
@@ -492,7 +529,8 @@ def daily_summary(
 
     以 4 次唯讀查詢（日期界線、相關日的場次、未定案場次、refresh_log）取代首頁的十餘組
     請求；模型可用時再加 1 次 game_features 查詢，**有**未定案場次時再加 1 次官方排程狀態
-    （常態是 0 筆故不查，見 `_unresolved_statuses`）。今日場次另加最多 3 次 Redis GET（唯讀
+    （常態是 0 筆故不查，見 `_unresolved_statuses`）；範圍含季後 E／C 時再加 1 次未解決的官方
+    賽程異動訊號（#268 D1，`_change_signals`）。今日場次另加最多 3 次 Redis GET（唯讀
     canonical snapshot，Redis 不可用時整段退化為 None）。DB 失效時讓錯誤上浮（500）
     而非回空陣列——空白會被讀成「今天沒比賽」。
 
@@ -567,8 +605,18 @@ def daily_summary(
         # 所以這一行現在防的是未來，不是現況。
         # 2026 起的季後 E／C 帶比分也可能未定案（賽中部分比分，#237），故不受「比分為 0」限制。
         unresolved =[row for row in _dicts(cur) if not _completed(row, as_of)]
-        unresolved_status = _unresolved_statuses(cur, unresolved)
+        # #268 coverage 的日界缺口：上面那支查詢以容器本地日 `as_of` 為界（`< as_of`），容器跑
+        # UTC 時台北 00:00–08:00 的 `as_of` 仍是前一天，於是「台北昨天」的未完成場次（10/12 E4
+        # 在 10/13 00:40）既不在 unresolved、也還沒被任何人說成待更新。這一段只補
+        # `[as_of, 台北今天)` 這個區間，且**不多一次查詢**：`as_of` 這一天本來就在 by_day 裡。
+        # 判準照舊是 `_completed`；`as_of` 的語意一字不改（REMEDY1 Phase 2 的範圍）。
+        day_gap = [row for day, day_rows in by_day.items() if as_of <= day < game_day
+                   for row in day_rows if not _completed(row, as_of)]
+        # 官方狀態一次查完（未定案＋日界缺口）。常態兩者皆空 → 不查（見 `_official_statuses`）。
+        official = _official_statuses(cur, unresolved + day_gap)
+        unresolved_status = official or {}
         last_refresh = _last_refresh(cur)
+        change_signals = _change_signals(cur, kinds, season)
 
     latest_games = [_serialize(row, as_of) for row in by_day.get(latest_day, [])]
     next_games = [_serialize(row, as_of) for row in by_day.get(next_day, [])]
@@ -588,6 +636,22 @@ def daily_summary(
     today = (_today_block(today_rows, game_day=game_day, as_of=as_of, pregame=pregame,
                           artifact=artifact, meta=pregame_meta)
              if today_rows else None)
+
+    # #268 coverage：與 `last_refresh` 分開的第二條軸。今天（台北日）已由即時來源標 final、正式
+    # 判準卻還沒成立的場次也算待更新——它只是訊號，不是完賽（#237：不拿快取灌比分）。
+    live_final = [g for g in (today or {}).get("games", [])
+                  if not g["completed"] and (g.get("live") or {}).get("phase") == "final"]
+    # 今天未完賽、但即時來源取不到（worker 觀測窗為開賽前 30 小時起，正常時今天每場都有快照）或
+    # 已二階中斷的場次：無從確認是否已終場 → coverage 不得稱 covered。官方已宣告延賽／保留且
+    # 不是今天補賽者（同首頁 `todayCardKind` 的判準）不算。
+    today_unobserved = [g for g in (today or {}).get("games", [])
+                        if not g["completed"] and _live_unobserved(g.get("live"))
+                        and not _officially_suspended_today(g)]
+    coverage = coverage_verdict(
+        [*unresolved, *day_gap], official, taipei_day=game_day,
+        live_final_uncompleted=live_final, today_unobserved=today_unobserved,
+        change_signals=change_signals,
+    )
 
     if scoped_games == 0:
         schedule_status = {"status": "source_missing", "reason": "範圍內無任何賽程列"}
@@ -616,6 +680,10 @@ def daily_summary(
             "as_of": _iso(as_of),
             "last_completed_game_date": _iso(latest_day),
             "last_refresh": last_refresh,
+            # 「已涵蓋最新完賽」與上一格「最後刷新是否成功」是兩件事（#268 驗收 5）：刷新成功
+            # 不代表昨晚那一場已入庫。呈現端只有在 last_refresh=fresh **且** coverage=covered
+            # 時才可說「資料為最新」。日界取台北日（`coverage.taipei_date`）。
+            "coverage": coverage,
             # 過去日期卻仍無比分。`cpbl.games` 只看得到 0–0，分不出刷新落後與延賽未更新新
             # 日期，所以 status 改引用**官方排程狀態**（`_unresolved_statuses`，與單場狀態
             # 端點共用同一份判定）——這是 API-DAILY-SUMMARY1 當初登記、等官方狀態語意定案

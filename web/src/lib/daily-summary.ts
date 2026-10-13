@@ -20,6 +20,7 @@ import {
 } from "./pregame-card.ts";
 import { methodologyHref } from "./methodology-anchors.ts";
 import { isTopHalf, phaseLabel, type CanonicalPhase, type LiveDecisions } from "./live-game.ts";
+import { withGameTeamNames } from "./teams.ts";
 import type { StatusTone } from "@/components/ui";
 
 // —— API 契約鏡射（欄位與後端一致故 snake_case）——
@@ -102,6 +103,35 @@ export type TodaySlate = {
   games: TodayGame[];
 };
 
+/** #268：「已涵蓋最新完賽」軸（後端 `cpbl.coverage.coverage_verdict`）。與 `last_refresh`
+ *  （最後一次刷新成功與否）是兩件事：刷新成功不代表昨晚那一場已入庫。 */
+export type CoverageStatus = "covered" | "pending_update" | "unknown";
+
+export type CoveragePendingReason =
+  | "official_final_not_ingested"
+  | "past_game_without_result"
+  | "live_final_not_ingested"
+  | "official_status_unknown"
+  /** 今天未完賽、即時來源取不到或已中斷（coverage=unknown；不計入「N 場賽果待更新」）。 */
+  | "live_status_unavailable"
+  /** 官方賽程異動（新場次／改期／改主客／改球場）已偵測、本站正式資料尚未反映（#268 D1；確定待更新）。 */
+  | "official_change_not_ingested";
+
+export type Coverage = {
+  status: CoverageStatus;
+  /** 判定用的台北日（不是 `as_of`：`as_of` 是容器本地日，語意刻意不動）。 */
+  taipei_date: string;
+  pending_games: {
+    year: number;
+    kind_code: string;
+    game_sno: number;
+    /** 異動訊號在官方與本站都沒有日期時為 null（不猜）。 */
+    game_date: string | null;
+    official_status: string;
+    reason: CoveragePendingReason;
+  }[];
+};
+
 export type DailySummary = {
   scope: { season: number | null; kind_code: string; kinds: string[]; as_of: string };
   /** 今天的排定場次；今天沒有任何場次時為 null（不是空陣列，見驗收條件「零空容器」）。 */
@@ -112,6 +142,8 @@ export type DailySummary = {
     as_of: string;
     last_completed_game_date: string | null;
     last_refresh: LastRefresh;
+    /** 舊版 API 沒有這一格：缺席一律視為 unknown（不得因此說「資料為最新」）。 */
+    coverage?: Coverage;
     unresolved_games: (DailyGame & { status: string })[];
   };
   availability: {
@@ -141,6 +173,20 @@ export type PregameModelAxis = AxisStatus & PregameServingMeta & {
  *  舊機率配上「一切正常」＝完全沒有提示的舊模型機率。
  *  現在 dailySummary 走 no-store，且此函式無從接收第二個來源。
  */
+/** 首頁收到的每一份 summary（SSR 與輪詢）都走這裡補齊顯示隊名（#268 公開反例：C 場次官方隊名空白，
+ *  票券唸成「No.1 對 ，賽事詳情」）。只補空白名、不改隊碼與其他欄位；見 `teams.ts` 的 `gameTeamName`。 */
+export function summaryWithTeamNames(summary: DailySummary): DailySummary {
+  return {
+    ...summary,
+    today: summary.today ? { ...summary.today, games: summary.today.games.map(withGameTeamNames) } : null,
+    latest_game_day: summary.latest_game_day
+      ? { ...summary.latest_game_day, games: summary.latest_game_day.games.map(withGameTeamNames) } : null,
+    next_slate: summary.next_slate
+      ? { ...summary.next_slate, games: summary.next_slate.games.map(withGameTeamNames) } : null,
+    freshness: { ...summary.freshness, unresolved_games: summary.freshness.unresolved_games.map(withGameTeamNames) },
+  };
+}
+
 export function homePregameNotice(summary: DailySummary): string | null {
   return pregameServingNotice(summary.availability.pregame_model);
 }
@@ -210,6 +256,121 @@ export const REFRESH_COPY: Record<RefreshStatus, { label: string; tone: Freshnes
 
 export function refreshCopy(status: RefreshStatus): { label: string; tone: FreshnessTone } {
   return REFRESH_COPY[status] ?? REFRESH_COPY.unknown;
+}
+
+// —— #268 雙軸 freshness：刷新成功 × 已涵蓋最新完賽 ——
+//
+// 反例：10/12 E4 已完賽、正式資料仍停在 E3，刷新紀錄卻是成功——舊版徽章只看刷新紀錄，於是
+// 「資料為最新」印在缺一場的畫面上。修法是把兩件事拆成兩個徽章，且**只有兩軸都綠**才可用
+// 「資料為最新」這句話；任一軸未達就各自照實說，不互相掩蓋。
+
+export const COVERAGE_COPY = {
+  /** 刷新成功但未涵蓋（或無法確認涵蓋）時，刷新軸改用這句——它只陳述刷新本身。 */
+  refreshOk: "最近一次刷新成功",
+  unknown: "最新賽果涵蓋待確認",
+  pendingPrefix: "賽果待更新",
+  /** 待更新者全是官方賽程異動時（#268 D1），不得說成「賽果」。 */
+  schedulePendingPrefix: "賽程待更新",
+  mixedPendingPrefix: "賽果／賽程待更新",
+  changeSuffix: "賽程異動",
+} as const;
+
+const KIND_LABEL: Record<string, string> = { A: "例行賽", E: "季後挑戰賽", C: "台灣大賽", D: "二軍", F: "二軍總冠軍賽" };
+
+/** 賽別短名；不認得的代碼原樣回傳。 */
+export function kindLabel(kind: string): string {
+  return KIND_LABEL[kind] ?? kind;
+}
+
+/** 季後場次的系列名（首頁票券用）；不是季後賽回 null。 */
+export function postseasonKindLabel(kind: string): string | null {
+  return kind === "E" || kind === "C" ? KIND_LABEL[kind] : null;
+}
+
+export type FreshnessAxes = {
+  refresh: { label: string; tone: FreshnessTone };
+  /** covered 時為 null（刷新軸那一句「資料為最新」已涵蓋兩軸）。 */
+  coverage: { label: string; tone: FreshnessTone; detail: string | null } | null;
+};
+
+/** 待更新場次一句話：「10/12 季後挑戰賽 No.4」；多場以「、」相接。 */
+const UNKNOWN_REASONS: ReadonlySet<CoveragePendingReason> = new Set([
+  "official_status_unknown", "live_status_unavailable"]);
+
+/** 確定待更新的場次（排除「無從判斷」類原因）。 */
+function pendingOnly(coverage: Coverage | undefined) {
+  return (coverage?.pending_games ?? []).filter((g) => !UNKNOWN_REASONS.has(g.reason));
+}
+
+export function coveragePendingText(coverage: Coverage | undefined): string | null {
+  const games = pendingOnly(coverage);
+  if (games.length === 0) return null;
+  return games.map((g) => `${shortDate(g.game_date)} ${kindLabel(g.kind_code)} No.${g.game_sno}`
+    + (g.reason === "official_change_not_ingested" ? ` ${COVERAGE_COPY.changeSuffix}` : "")).join("、");
+}
+
+export function freshnessAxes(freshness: DailySummary["freshness"]): FreshnessAxes {
+  const status: CoverageStatus = freshness.coverage?.status ?? "unknown";
+  const base = refreshCopy(freshness.last_refresh.status);
+  const refresh = freshness.last_refresh.status === "fresh" && status !== "covered"
+    ? { label: COVERAGE_COPY.refreshOk, tone: "done" as const }
+    : base;
+  if (status === "covered") return { refresh, coverage: null };
+  if (status === "pending_update") {
+    const detail = coveragePendingText(freshness.coverage);
+    const pending = pendingOnly(freshness.coverage);
+    const count = pending.length;
+    const changes = pending.filter((g) => g.reason === "official_change_not_ingested").length;
+    const prefix = changes === 0 ? COVERAGE_COPY.pendingPrefix
+      : changes === count ? COVERAGE_COPY.schedulePendingPrefix : COVERAGE_COPY.mixedPendingPrefix;
+    return {
+      refresh,
+      coverage: { label: `${count > 0 ? `${count} 場` : ""}${prefix}`, tone: "warn", detail },
+    };
+  }
+  return { refresh, coverage: { label: COVERAGE_COPY.unknown, tone: "scheduled", detail: null } };
+}
+
+// —— #268 B2：季後頁與日曆讀同一份 coverage 的「官方賽程異動」（需求方裁定 6142744045）——
+//
+// 兩頁原本只看旅程（資料庫列＋公告時刻），官方異動訊號只出現在首頁。修法是兩頁另讀既有的
+// `/api/v1/daily/summary`（不新增端點），只取 `official_change_not_ingested` 這一類，文案沿用首頁那兩句
+// （`N 場賽程待更新`＋`MM/DD 台灣大賽 No.N 賽程異動`）。完賽類待更新仍由旅程的「賽果待更新」承載，
+// 這裡不重複；「無從判斷」類（unknown）也不在兩頁出現。
+//
+// ⛔ 對應場次只認**正式身分**（year、kind、game_sno 與資料庫列完全相同）：訊號的場號不得拿來對公告的
+// 第幾場（G 序）——那等於從公告推場號（#237／#268 紅線）。對不到資料庫列的訊號只出現在頁首那一句。
+
+export type ScheduleChange = { year: number; kind_code: string; game_sno: number; game_date: string | null };
+
+/** 帶上官方賽程異動的季後旅程（頁面層組合；旅程本身的 `next`／`row`／狀態語意一律不動）。 */
+export type WithScheduleChanges<T> = T & { scheduleChanges?: ScheduleChange[] };
+
+/** coverage → 該季 E／C 的官方賽程異動場次。summary 取不到（null）＝空集合，頁面照舊。 */
+export function scheduleChanges(summary: Pick<DailySummary, "freshness"> | null, year: number): ScheduleChange[] {
+  return (summary?.freshness.coverage?.pending_games ?? [])
+    .filter((g) => g.reason === "official_change_not_ingested" && g.year === year
+      && (g.kind_code === "E" || g.kind_code === "C"))
+    .map(({ year: y, kind_code, game_sno, game_date }) => ({ year: y, kind_code, game_sno, game_date }));
+}
+
+export function withScheduleChanges<T extends object>(journey: T, changes: ScheduleChange[]): WithScheduleChanges<T> {
+  return { ...journey, scheduleChanges: changes };
+}
+
+/** 頁首一句：`{ label: "1 場賽程待更新", detail: "10/17 台灣大賽 No.1 賽程異動" }`；沒有異動回 null。 */
+export function scheduleChangeCopy(changes: ScheduleChange[] | undefined): { label: string; detail: string } | null {
+  if (!changes || changes.length === 0) return null;
+  const detail = changes.map((g) => `${shortDate(g.game_date)} ${kindLabel(g.kind_code)} No.${g.game_sno} ${COVERAGE_COPY.changeSuffix}`)
+    .join("、");
+  return { label: `${changes.length} 場${COVERAGE_COPY.schedulePendingPrefix}`, detail };
+}
+
+/** 資料庫列是否有未入庫的官方賽程異動（身分完全相同才算）。 */
+export function hasScheduleChange(changes: ScheduleChange[] | undefined,
+                                  row: { year: number; kind_code: string; game_sno: number } | null | undefined): boolean {
+  return !!row && (changes ?? []).some((g) =>
+    g.year === row.year && g.kind_code === row.kind_code && g.game_sno === row.game_sno);
 }
 
 /** 顯示用時區固定為台北。

@@ -14,6 +14,7 @@ import {
   tallyBreakdownText,
   teamShortName,
 } from "@/lib/postseason-journey";
+import { hasScheduleChange, scheduleChangeCopy, type ScheduleChange, type WithScheduleChanges } from "@/lib/daily-summary";
 
 // 當季季後總覽（#237）。需求方：「資料太多重複」「可以將挑戰賽跟台灣大賽分開來」。
 // 兩個系列各自一個分頁（?ps=E|C，純連結、無用戶端狀態），每頁只有一套：進度 → 晉級關係 → 該系列賽程。
@@ -73,7 +74,7 @@ function ProgressRow({ s, side, seed, nameOf }: { s: JourneySeries; side: SideTa
 }
 
 /** 賽程一列：日期時刻與狀態在上、主客與球場在下。下一場以底色與「下一場」標記；正式場次才可點進單場。 */
-function GameRow({ s, isNext, asOf }: { s: JourneySlot; isNext: boolean; asOf: string | null }) {
+function GameRow({ s, isNext, asOf, changed = false }: { s: JourneySlot; isNext: boolean; asOf: string | null; changed?: boolean }) {
   const venue = s.venue ?? (s.venueNote?.startsWith("依挑戰賽勝隊") ? "球場依挑戰賽勝隊而定" : s.venueNote);
   const body = (
     <span className="grid grid-cols-[2.25rem_minmax(0,1fr)] gap-x-2 gap-y-0.5">
@@ -93,6 +94,8 @@ function GameRow({ s, isNext, asOf }: { s: JourneySlot; isNext: boolean; asOf: s
         <span className="col-start-2 text-xs text-down">已過預定開賽時間・本站尚無賽果紀錄{asOf ? `（本站賽果紀錄至 ${shortDay(asOf)}）` : ""}</span>
       )}
       {s.changeNote && <span className="col-start-2 text-xs text-down">{s.changeNote}</span>}
+      {/* #268 B2：同一正式場次（year／kind／game_sno）有未入庫的官方賽程異動（daily summary coverage）。 */}
+      {changed && <span data-testid="ps-row-schedule-pending" className="col-start-2 text-xs font-bold text-down">賽程待更新・官方賽程已異動，本站正式資料尚未反映</span>}
     </span>
   );
   // 列在同一張 .card 內以分隔線排列（不畫框、不卡中卡）；下一場沿用日曆「今天」格的 bg-stub 底色標示。
@@ -104,6 +107,14 @@ function GameRow({ s, isNext, asOf }: { s: JourneySlot; isNext: boolean; asOf: s
   ) : (
     <li data-announced={s.row ? undefined : "true"} className={`px-4 py-2.5 ${tone}`}>{body}</li>
   );
+}
+
+/** #268 B2：頁首一句官方賽程異動（文案同首頁）；對不到正式列的訊號（例如尚無 C 列的新場次）只在這裡出現。 */
+function ScheduleChangeNote({ changes }: { changes: ScheduleChange[] | undefined }) {
+  const copy = scheduleChangeCopy(changes);
+  return copy ? (
+    <b data-testid="ps-schedule-pending" className="font-bold text-down">{`・${copy.label}：${copy.detail}`}</b>
+  ) : null;
 }
 
 function ReserveRow({ date }: { date: string }) {
@@ -144,7 +155,7 @@ function RosterLine({ name, leads }: { name: string; leads: RosterLead[] }) {
 
 /** 一個系列的分頁內容：進度 → 晉級關係 → 賽程 → 該系列才有的條件說明。 */
 function SeriesView({ journey, k, nameOf, seedOf }: {
-  journey: PostseasonJourney; k: Key;
+  journey: WithScheduleChanges<PostseasonJourney>; k: Key;
   nameOf: (c: string | null) => string; seedOf: (code: string | null) => string;
 }) {
   const { announcement: ann, series } = journey;
@@ -200,7 +211,8 @@ function SeriesView({ journey, k, nameOf, seedOf }: {
       <Card padding="" className="overflow-hidden">
         <ol aria-label={`${s.name}賽程`} className="divide-y divide-line">
           {items.map((it) => "slot" in it
-            ? <GameRow key={it.slot.key} s={it.slot} isNext={journey.next?.key === it.slot.key} asOf={journey.dataAsOf} />
+            ? <GameRow key={it.slot.key} s={it.slot} isNext={journey.next?.key === it.slot.key} asOf={journey.dataAsOf}
+                changed={hasScheduleChange(journey.scheduleChanges, it.slot.row)} />
             : <ReserveRow key={it.reserve} date={it.reserve} />)}
         </ol>
       </Card>
@@ -215,7 +227,8 @@ function SeriesView({ journey, k, nameOf, seedOf }: {
 
 /** 當季季後總覽：兩系列分頁，一次只讀一套進度與賽程。 */
 export function PostseasonOverview({ journey, nameOf, seedOf, active }: {
-  journey: PostseasonJourney;
+  /** 頁面層可帶上 daily summary coverage 的官方賽程異動（#268 B2）；缺席＝不顯示。 */
+  journey: WithScheduleChanges<PostseasonJourney>;
   nameOf: (c: string | null) => string;
   seedOf: (code: string | null) => string;
   /** 網址 `ps`；無效或缺時預設為下一場所在系列。 */
@@ -241,7 +254,14 @@ export function PostseasonOverview({ journey, nameOf, seedOf, active }: {
       <div className="mb-3 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
         <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
           <h2 id="ps-h" className="text-xl font-bold tracking-[0.04em] text-ink">季後賽</h2>
-          <span className="text-[12.5px] text-muted">官方公告賽程・{journeyAsOfText(journey)}</span>
+          <span className="text-[12.5px] text-muted">官方公告賽程・{journeyAsOfText(journey)}{/* #268：預設分頁可能是另一系列，已過開賽時間仍無賽果的場次在標頭明示一次 */}
+            {journey.slots.some((s) => s.status === "result_pending") && (
+              <b data-testid="ps-pending" className="font-bold text-down">
+                {`・${journey.slots.filter((s) => s.status === "result_pending").map((s) => `${series[s.kind].name} G${s.seq}`).join("、")} 賽果待更新`}
+              </b>
+            )}
+            <ScheduleChangeNote changes={journey.scheduleChanges} />
+          </span>
         </div>
         {month && (
           <Link href={`/games?month=${month}`} className="inline-flex min-h-11 items-center text-sm text-accent hover:underline">

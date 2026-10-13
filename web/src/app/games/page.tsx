@@ -8,11 +8,12 @@ import { LevelYearNav } from "@/components/level-year-nav";
 import { NavBarRow, StickyNavBar } from "@/components/sticky-nav-bar";
 import { api, type CalendarGame } from "@/lib/api";
 import { hasFinalResult } from "@/lib/live-game";
-import { teamFullName } from "@/lib/teams";
+import { teamFullName, teamNamesFromGames, withGameTeamNames } from "@/lib/teams";
 import { LiveCalendarGame } from "@/components/live-calendar-game";
 import { PostseasonExplainer, slotGameLabel } from "@/components/postseason-series";
 import { AnnouncedCompact, AnnouncedMobile } from "@/components/postseason-calendar";
 import { announcementFor } from "@/lib/postseason-announcement";
+import { COVERAGE_COPY, hasScheduleChange, scheduleChangeCopy, scheduleChanges } from "@/lib/daily-summary";
 import {
   POSTSEASON_COPY, journeyAsOfText, liveEntryProbes, liveEntryResults, postseasonJourneyFor, slotMayInvolve, withLiveEntries,
   type JourneySlot,
@@ -68,7 +69,10 @@ export default async function GamesPage({
   // 啟用時 calendar 與季後摘要都不走跨請求快取，避免同一頁組到不同時間的快照（api.ts journeyGet）。
   const announced = isCurrent && announcementFor(selectedYear) !== null;
   const live = { live: announced };
-  const { season, items } = await api.gamesCalendar(isCurrent ? undefined : selectedYear, kind, live);
+  const calendarRes = await api.gamesCalendar(isCurrent ? undefined : selectedYear, kind, live);
+  const season = calendarRes.season;
+  // #268：官方空白隊名（台灣大賽 C 列）以現役隊碼補齊顯示名，日曆格、即時卡與篩選共用同一份。
+  const items = calendarRes.items.map(withGameTeamNames);
   const hasDetail = selectedYear >= 2018;
 
   // 季後摘要取不到時旅程模型只用 calendar 列，不擋日曆本身。
@@ -76,6 +80,14 @@ export default async function GamesPage({
     ? await api.postseasonSummary(selectedYear, "A", live).catch(() => null)
     : null;
   const baseJourney = isCurrent ? postseasonJourneyFor(selectedYear, postSummary?.series ?? null, items, Date.now()) : null;
+  // #268 B2：與首頁同一支既有 daily summary（no-store），只取 coverage 的官方賽程異動；失敗＝不顯示，不擋日曆。
+  const changes = baseJourney && announced
+    ? scheduleChanges(await api.dailySummary().catch(() => null), baseJourney.year)
+    : [];
+  const changeCopy = scheduleChangeCopy(changes);
+  const changedRow = (g: CalendarGame) => hasScheduleChange(changes, g);
+  /** 官方賽程已異動、本站尚未反映的未完賽列：狀態改標「賽程待更新」（優先於賽果待更新——日期可能就是錯的）。 */
+  const changeStatus = { label: COVERAGE_COPY.schedulePendingPrefix, tone: "warn" as StatusTone };
   // 單場賽況入口（#237）：資料庫還沒有 E 列的公告格，依官方場號查既有單場狀態（最多 4 支、no-store、
   // 有逾時），身分全部相符才整格連到單場頁；任何失敗都等於沒有入口。有資料庫列的場次不查也不覆蓋。
   const probes = baseJourney && announced ? liveEntryProbes(baseJourney) : [];
@@ -107,11 +119,7 @@ export default async function GamesPage({
   const [my, mm] = month.split("-").map(Number);
 
   // 球隊篩選 chips
-  const names = new Map<string, string>();
-  for (const g of items) {
-    names.set(g.home_team_code, g.home_team_name);
-    names.set(g.away_team_code, g.away_team_name);
-  }
+  const names = teamNamesFromGames(items);
   const teamCodes = [...names.keys()].sort();
   const teamOk = (g: CalendarGame) => !team || g.home_team_code === team || g.away_team_code === team;
   const qs = (extra: Record<string, string>) => {
@@ -153,6 +161,11 @@ export default async function GamesPage({
     <div>
       <TaipeiDayRefresh day={todayStr} />
       {journey && <PostseasonRefreshHint journey={journey} />}
+      {journey && changeCopy && (
+        <p data-testid="schedule-change-pending" role="status" className="mb-3 text-xs leading-relaxed text-down">
+          <b className="font-bold">{changeCopy.label}</b>：{changeCopy.detail}・官方賽程已異動，本站正式資料尚未反映，以官方賽程為準。
+        </p>
+      )}
       <header className="mb-5">
         <SectionTitle as="h1" date={season} cue={kind === "D" ? "二軍" : "一軍・季後賽"}>賽程與賽況</SectionTitle>
         <p className="-mt-1 text-sm text-muted">
@@ -236,7 +249,8 @@ export default async function GamesPage({
                     // 打完就是「完賽」（延賽/保留性質改以「補賽／續賽」文字保留）；未打才顯示延賽/保留/未開打
                     // 季後正式場次（#237）：已過公告開賽時間仍無賽果 → 賽果待更新。
                     const js = slotByRow.get(`${g.kind_code}-${g.game_sno}`);
-                    const st = !done && js?.status === "result_pending"
+                    const st = !done && changedRow(g) ? changeStatus
+                      : !done && js?.status === "result_pending"
                       ? { label: POSTSEASON_COPY.status.result_pending, tone: "warn" as StatusTone }
                       : statusOf(done, g.delay_kind, g, todayStr);
                     const info = done
@@ -303,7 +317,8 @@ export default async function GamesPage({
                 const awayWin = done && g.away_score > g.home_score;
                 const homeWin = done && g.home_score > g.away_score;
                 const js = slotByRow.get(`${g.kind_code}-${g.game_sno}`);
-                const st = !done && js?.status === "result_pending"
+                const st = !done && changedRow(g) ? changeStatus
+                  : !done && js?.status === "result_pending"
                   ? { label: POSTSEASON_COPY.status.result_pending, tone: "warn" as StatusTone }
                   : statusOf(done, g.delay_kind, g, todayStr);
                 const info = done

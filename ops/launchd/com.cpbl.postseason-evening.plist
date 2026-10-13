@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- 季後事件觸發晚間鏈（#268 WP3）的 launchd 樣板。製作不等於啟用：
+     安裝／啟用屬 P1 共享操作，須另經需求方核定的具體操作包（備份、排他、錯誤即停、真釋放）。
+
+     為什麼不放 scripts/：scripts/schedule_watch.py 的登記表只認 StartCalendarInterval（daily／weekly），
+     本 job 是 StartInterval（每 5 分鐘喚醒、無鐘點截止）。放進 scripts/ 會讓排程偵測器判
+     REGISTRY_INVALID／REGISTRY_INCOMPLETE 而擋下其他 job 的判定。安裝前須先決定登記方式
+     （例如讓偵測器支援 interval cadence）；未決定前安裝，偵測器會如實報 REGISTRY_INCOMPLETE。
+
+     安裝（僅在 P1 核定後由具名本機角色執行）：
+       ln -sf "$PWD/ops/launchd/com.cpbl.postseason-evening.plist" ~/Library/LaunchAgents/com.cpbl.postseason-evening.plist
+       launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.cpbl.postseason-evening.plist
+     停用（系列決定後或任何停止條件）：
+       launchctl bootout gui/$(id -u)/com.cpbl.postseason-evening
+       並確認 launchctl print gui/$(id -u)/com.cpbl.postseason-evening 已查無此 job。
+     ⛔ 不得用 kickstart 冒充事件（未核定的手動觸發）。 -->
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>com.cpbl.postseason-evening</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/bash</string>
+    <string>/Users/ruanruan/Dev/cpbl-analytics/scripts/postseason-evening.sh</string>
+  </array>
+  <key>WorkingDirectory</key><string>/Users/ruanruan/Dev/cpbl-analytics</string>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key><string>/Users/ruanruan/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+    <key>REFRESH_TRIGGER</key><string>launchd</string>
+    <key>REFRESH_POSTSEASON_KINDS</key><string>E,C</string>
+  </dict>
+  <key>StartInterval</key><integer>300</integer>
+  <key>RunAtLoad</key><false/>
+  <key>StandardOutPath</key><string>/Users/ruanruan/Dev/cpbl-analytics/logs/launchd-postseason-evening.out.log</string>
+  <key>StandardErrorPath</key><string>/Users/ruanruan/Dev/cpbl-analytics/logs/launchd-postseason-evening.err.log</string>
+</dict>
+</plist>

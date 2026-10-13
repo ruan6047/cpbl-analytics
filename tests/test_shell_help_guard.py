@@ -61,8 +61,12 @@ ROOT = Path(__file__).resolve().parents[1]
 # 它與前四支的**危害等級不同**（唯讀偵測器，不寫 DB、不爬官網），故不在
 # `test_negative_control_unguarded_help_really_reaches_the_main_flow` 的參數化裡——
 # 拿掉守衛後它落進的主流程只是跑一支唯讀 python，那條要證的「實害」在它身上不成立。
+#
+# `postseason-evening.sh` 是 #268 WP3 新增的第六支：守衛與 canonical 逐字相同 ⇒ 清冊判 safe
+# ⇒ 依 fail-closed 要求必須在這裡被證明。它會呼叫 refresh-cpbl-prod.sh（生產同步）與 launchctl。
 GUARDED_SHELLS = (
     "scripts/backup-prod-db.sh",
+    "scripts/postseason-evening.sh",
     "scripts/refresh-cpbl-prod.sh",
     "scripts/schedule-watchdog.sh",
     "scripts/scrape-daily.sh",

@@ -11,10 +11,12 @@ import type { CalendarGame } from "@/lib/api";
 import { previousGameDay, type ResultGame } from "@/lib/home-results";
 import {
   dailySummaryQuery,
+  freshnessAxes,
   homePregameNotice,
   liveSourceSignal,
-  refreshCopy,
+  postseasonKindLabel,
   refreshAtText,
+  summaryWithTeamNames,
   shortDate,
   slateDistanceText,
   todayCardKind,
@@ -190,15 +192,67 @@ function PregameNotice({ text }: { text: string }) {
   );
 }
 
-export default function DailyHub({ summary: initial, calendar, postseason = null }: {
+/** 左欄沒有場次時的季後指引（`postseasonPointer`）。`next`＝共用旅程模型的下一場（#268）：
+ *  資料庫還沒有該場正式列時只是公告安排，`gameHref` 為 null——不造場號、不給單場連結。 */
+export type PostseasonPointer = {
+  text: string;
+  href: string;
+  next?: {
+    title: string;
+    when: string;
+    away: string;
+    home: string;
+    venue: string;
+    status: string;
+    gameHref: string | null;
+  } | null;
+};
+
+function PostseasonNextSlate({ p }: { p: PostseasonPointer }) {
+  const n = p.next;
+  return (
+    <div data-testid="postseason-pointer" className="rounded-md bg-surface px-4 py-4 text-sm text-ink">
+      {n ? (
+        <div data-testid="postseason-next-slot" className="grid gap-1">
+          <p className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+            <b className="text-base font-bold">{n.title}</b>
+            <span className="tabular-nums">{n.when}</span>
+            <StatusBadge tone={n.gameHref ? "scheduled" : "warn"}>{n.status}</StatusBadge>
+          </p>
+          <p className="break-words">
+            {n.away}（客）<span className="mx-1 text-faint">對</span>{n.home}（主）
+            {n.venue && <span className="text-muted">・{n.venue}</span>}
+          </p>
+          {n.gameHref && (
+            <Link href={n.gameHref} className="inline-flex min-h-11 items-center text-accent hover:underline">
+              賽事詳情 →
+            </Link>
+          )}
+        </div>
+      ) : null}
+      <p className={n ? "mt-1 text-[12.5px] text-muted" : "py-2 text-center"}>
+        {p.text}
+        <Link href={p.href} className="ml-2 inline-flex min-h-11 items-center text-accent hover:underline">
+          季後賽程與系列 →
+        </Link>
+      </p>
+    </div>
+  );
+}
+
+export default function DailyHub({ summary: initial, calendar, postseason = null, seriesLabels = {} }: {
   summary: DailySummary;
   /** SSR 取一次的本季 calendar（A＋季後 E／C）；失敗時為 null，右欄退回 summary 能給的。 */
   calendar: CalendarGame[] | null;
   /** 季後公告仍有未完成場次時的指引（#237，SSR 由共用旅程模型推導）。有值時左欄沒有場次
    *  也不得稱「本季賽程已全部結束」——資料庫還沒有季後列不代表季後賽不打。 */
-  postseason?: { text: string; href: string } | null;
+  postseason?: PostseasonPointer | null;
+  /** 季後正式場次的系列標籤（`${year}-${kind}-${sno}` → 「台灣大賽 G1」，#268），由共用旅程
+   *  模型推導；查無時票券退回只寫系列名，不猜場序。 */
+  seriesLabels?: Record<string, string>;
 }) {
-  const [summary, setSummary] = useState<DailySummary>(initial);
+  // #268：SSR 首屏與每次輪詢都經同一個 helper 補齊空白隊名（C 場次官方隊名空白的公開反例）。
+  const [summary, setSummary] = useState<DailySummary>(() => summaryWithTeamNames(initial));
   // 首次渲染刻意不帶時鐘（見 `liveInterrupt` 的 null 分支）；掛載後由 effect 補上，
   // 之後每次輪詢（成功或失敗）都往前推——輪詢打不出去時資料仍必須繼續老化。
   const [nowMs, setNowMs] = useState<number | null>(null);
@@ -209,8 +263,9 @@ export default function DailyHub({ summary: initial, calendar, postseason = null
   const [revealed, setRevealed] = useState<ReadonlySet<string>>(() => new Set());
 
   useEffect(() => {
-    setSummary(initial);
-    latest.current = initial;
+    const named = summaryWithTeamNames(initial);
+    setSummary(named);
+    latest.current = named;
   }, [initial]);
 
   useEffect(() => {
@@ -241,7 +296,7 @@ export default function DailyHub({ summary: initial, calendar, postseason = null
       clear();
       if (disposed || !visible()) return;
       try {
-        const next = await clientGet<DailySummary>(`/api/v1/daily/summary${query}`);
+        const next = summaryWithTeamNames(await clientGet<DailySummary>(`/api/v1/daily/summary${query}`));
         if (disposed) return;
         latest.current = next;
         setSummary(next);
@@ -275,7 +330,9 @@ export default function DailyHub({ summary: initial, calendar, postseason = null
   // serving 沿用上一版時，卡片上的機率其實不是最新回測那個模型算的——必須在賽事卡上方
   // 明講，不能只寫進後端 log 或只在方法頁揭露（ML-OUTCOME-SIMPLE-LEAK2 紅線 5）。
   const notice = homePregameNotice(summary);
-  const refresh = refreshCopy(freshness.last_refresh.status);
+  // #268 雙軸：刷新成功與否 × 已涵蓋最新完賽。「資料為最新」只在兩軸都達成時出現。
+  const axes = freshnessAxes(freshness);
+  const refresh = axes.refresh;
   const refreshedAt = refreshAtText(freshness.last_refresh.at, freshness.as_of);
   const liveSource = liveSourceSignal(today);
   // 倒數的週期直接取輪詢實際用的那個值（live 20 秒／未定案無 live 60 秒），不另寫死常數；
@@ -320,11 +377,18 @@ export default function DailyHub({ summary: initial, calendar, postseason = null
               即時來源訊號併在這一條（藍圖 §8.1）：**恆常渲染**（含「今日無賽程」這個正常態），
               只描述觀察到的事實，不診斷即時管道的成因。 */}
           <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[12.5px] text-muted">
-            <span className={`pm-fresh ${refresh.tone === "warn" ? "pm-fresh--stale" : ""}`}>
+            <span className={`pm-fresh ${refresh.tone === "warn" || axes.coverage?.tone === "warn" ? "pm-fresh--stale" : ""}`}>
               資料更新至 <b className="font-bold text-ink">{shortDate(freshness.last_completed_game_date)}</b>
             </span>
-            <span className={refresh.tone === "warn" ? "font-bold text-down" : undefined}>{refresh.label}</span>
+            <span data-testid="refresh-axis" className={refresh.tone === "warn" ? "font-bold text-down" : undefined}>{refresh.label}</span>
             {refreshedAt && <span>{refreshedAt}</span>}
+            {axes.coverage && (
+              <span data-testid="coverage-axis" data-status={freshness.coverage?.status ?? "unknown"}
+                className="inline-flex flex-wrap items-center gap-x-1.5">
+                <StatusBadge tone={axes.coverage.tone}>{axes.coverage.label}</StatusBadge>
+                {axes.coverage.detail && <span className="text-down">{axes.coverage.detail}</span>}
+              </span>
+            )}
             {liveSource.display === "symbol" ? (
               <span role="img" aria-label={liveSource.label} title={liveSource.label} className="font-bold text-accent">
                 {liveSource.symbol}
@@ -341,21 +405,20 @@ export default function DailyHub({ summary: initial, calendar, postseason = null
             <div className="pm-rows">
               {leftGames.map((g) => (
                 <TodayGameCard key={gameKey(g)} g={g} trainedThrough={trainedThrough} nowMs={nowMs}
-                  reveal={revealed.has(gameKey(g))} />
+                  reveal={revealed.has(gameKey(g))}
+                  seriesLabel={seriesLabels[gameKey(g)] ?? postseasonKindLabel(g.kind_code)} />
               ))}
             </div>
           ) : (
             <div className="pm-rows">
               {postseason ? (
-                <p data-testid="postseason-pointer" className="rounded-md bg-surface px-4 py-6 text-center text-sm text-ink">
-                  {postseason.text}
-                  <Link href={postseason.href} className="ml-2 inline-flex min-h-11 items-center text-accent hover:underline">
-                    季後賽程與系列 →
-                  </Link>
-                </p>
+                <PostseasonNextSlate p={postseason} />
               ) : (
                 <EmptyState className="rounded-md bg-surface py-6">
-                  {availability.schedule.status === "season_complete"
+                  {/* #268：還有已過日期的場次待更新時，不得把「沒有未來列」說成全季結束。 */}
+                  {availability.schedule.status === "season_complete" && freshness.coverage?.status === "pending_update"
+                    ? "最新賽果待更新，後續賽程待確認"
+                    : availability.schedule.status === "season_complete"
                     ? "本季賽程已全部結束"
                     : availability.schedule.status === "source_missing"
                       ? "查無賽程資料"

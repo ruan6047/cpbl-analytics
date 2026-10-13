@@ -87,12 +87,12 @@
 
 ## 計數對帳
 
-- `scripts/**`：**53**
+- `scripts/**`：**54**
 - `docs/research/**/*.py`：**22**
 - `pyproject [project.scripts]`：**47**
-- **三面總和：122**
+- **三面總和：123**
 
-檔案面分類分佈：CI 繫結守衛 10、一次性產物 42、待產品裁定 1、常設工具 22
+檔案面分類分佈：CI 繫結守衛 10、一次性產物 42、待產品裁定 1、常設工具 23
 
 ## 寫入面：兩套獨立判準交叉複算
 
@@ -102,7 +102,7 @@
 **不取聯集也不取交集**：聯集會把「只是 import 了一個含寫入函式的模組」誤判成寫入者；交集會漏掉「呼叫 `build_splits()` 但自己一行 SQL 都沒有」的真寫入者。不一致者逐支人工裁定，出現**未裁定的新不一致**即 CI 紅，**裁定條目過期**（兩判準已一致）也會 CI 紅——後者是刻意的，`roadmap_lines.py` 的 `GATE_OVERRIDES` 被 `#137` 判為缺陷的理由正是「沒有到期來源」。
 
 - 兩判準皆適用：**112** 支，其中不一致 **31** 支（全部已裁定）
-- **只有一套判準：10** 支（`.sh`／`.plist` 沒有 Python AST，W1 結構性不適用）——**這一格沒有交叉複算**，不假裝有
+- **只有一套判準：11** 支（`.sh`／`.plist` 沒有 Python AST，W1 結構性不適用）——**這一格沒有交叉複算**，不假裝有
 - 判定為寫入型：**54** 支（`scripts/**` 10、`docs/research/` 1、CLI 43）
 
 > [!important] **W1 有一個結構性盲點，而它剛好落在最危險的那支上。**
@@ -155,6 +155,7 @@
 | `com.cpbl.scrape-daily.plist` | 唯讀 | 唯讀 | W2 單獨採信 |
 | `com.cpbl.weekly-box-revisions.plist` | 唯讀 | 唯讀 | W2 單獨採信 |
 | `com.cpbl.weekly-game-pitches.plist` | 唯讀 | 唯讀 | W2 單獨採信 |
+| `postseason-evening.sh` | 唯讀 | 唯讀 | W2 單獨採信 |
 | `refresh-cpbl-prod.sh` | 寫 | **寫** | W2 單獨採信 |
 | `schedule-watchdog.sh` | 唯讀 | 唯讀 | W2 單獨採信 |
 | `scrape-daily.sh` | 寫 | **寫** | W2 單獨採信 |
@@ -163,16 +164,16 @@
 
 ## 引用完整性（不變式 3）
 
-全庫 `scripts/<name>.<ext>` 字面路徑共 **1117** 處。**只有 `enforced` 那一面強制**——其餘的過期是歷史事實不是缺陷：
+全庫 `scripts/<name>.<ext>` 字面路徑共 **1130** 處。**只有 `enforced` 那一面強制**——其餘的過期是歷史事實不是缺陷：
 
 | 面別 | 處數 | 強制？ | 為什麼 |
 |---|---:|---|---|
 | `scan` | 363 | 回報 | 掃描器產物 JSON 是當時的快照 |
 | `sealed` | 198 | 回報 | `docs/control-plane/**` 已於 `8271d7c` 封存唯讀，**永遠改不了** |
 | `self` | 190 | 不適用 | 掃描器自身的說明範例 |
-| `enforced` | 174 | ✅ 強制 | `scripts/`、`src/`、活契約與設計文件——壞了就是現在的缺陷 |
+| `enforced` | 185 | ✅ 強制 | `scripts/`、`src/`、活契約與設計文件——壞了就是現在的缺陷 |
 | `historical` | 152 | 回報 | `docs/archive/**` 與卡片交付產物＝凍結證據，**本卡射程外** |
-| `fixture` | 40 | 不適用 | `tests/**` 的合成路徑；真實路徑壞掉 pytest 自己會紅（更強的機制） |
+| `fixture` | 42 | 不適用 | `tests/**` 的合成路徑；真實路徑壞掉 pytest 自己會紅（更強的機制） |
 
 **壞路徑——歷史面（僅回報）（3）**：
 
@@ -187,7 +188,7 @@
 
 判定為**高後果**的入口，argv 必須在主流程前被解析。**既有不合格者具名列入 allowlist**。
 
-高後果 **65** 支（其中非寫入型 **11** 支）。
+高後果 **66** 支（其中非寫入型 **12** 支）。
 
 ### 判準的形狀：出口目錄 ＋ 一台可達性引擎
 
@@ -273,7 +274,7 @@ shell 沒有 argparse，判準原本是一條寬鬆正則（「有 `getopts`／`
 
 四支的 `--help` 零外部呼叫、零檔案產出，由 `tests/test_shell_help_guard.py` 以**副本 ＋ 假樁**逐支證明，並釘住「守衛之前不得有副作用」；該檔的 `test_every_safe_shell_is_covered_here` 使「清冊判 safe 卻沒人證明」直接 CI 紅。
 
-## 清冊：`scripts/**`（53）
+## 清冊：`scripts/**`（54）
 
 | 入口 | 分類 | 位置 | 應在 | 寫入 | runnable | 卡 | purpose_declared | purpose_verified |
 |---|---|---|---|---|---|---|---|---|
@@ -316,6 +317,7 @@ shell 沒有 argparse，判準原本是一條寬鬆正則（「有 `getopts`／`
 | `com.cpbl.weekly-box-revisions.plist` | 常設工具 | `scripts/` | ✅ | 唯讀 | — | — | — | ⚠️ 未查證 |
 | `com.cpbl.weekly-game-pitches.plist` | 常設工具 | `scripts/` | ✅ | 唯讀 | — | — | — | ⚠️ 未查證 |
 | `pa_transition_taxonomy.py` | 常設工具 | `scripts/` | ✅ | 唯讀 | ✅ --help 安全 | GAME-RECAP-PA1-TAXONOMY1 | GAME-RECAP-PA1-TAXONOMY1：canonical PA 狀態機 transition taxonomy 唯讀稽核。 | canonical taxonomy 的產生器（唯讀）；產物勿手改，改了要重跑 |
+| `postseason-evening.sh` | 常設工具 | `scripts/` | ✅ | 唯讀 | ✅ --help 安全 | — | 季後期間才安裝的事件觸發晚間鏈（#268 WP3）；製作≠啟用，安裝屬 P1 共享操作。 | ⚠️ 未查證 |
 | `reconcile_scoreless_streak.py` | 常設工具 | `scripts/` | ✅ | 唯讀 | ✅ --help 安全 | ML-PITCHER-SCORELESS1 | 窮舉對帳：連續無自責分局數（ML-PITCHER-SCORELESS1）＋連續無失分局數（ML-PITCHER-RUNLESS1）。 | 窮舉對帳；AI_RUNBOOK:380 寫「改動演算法後必跑」，義務靠人記得 |
 | `refresh-cpbl-prod.sh` | 常設工具 | `scripts/` | ✅ | **寫** | ✅ --help 安全 | — | CPBL 線上資料手動更新（不掛 cron，避免浪費資源；要更新時自己跑）。 | 本機爬完同步生產的主鏈；讀碼確認會呼叫 backup-prod-db.sh 與 verify_refresh_info.py |
 | `refresh_status.py` | 常設工具 | `scripts/` | ✅ | 唯讀 | ✅ --help 安全 | OPS-SCHEDULE-FAILURE-BLIND1 | Write and inspect machine-readable daily refresh status files. 兩種產物，語意不同，不要混用： 1. `logs/last-*.json`（`start`／`finish` 寫）——**最近一次**執行的完整快照，供人／AI 接手診斷。 | 每日鏈的狀態記錄輔助，唯讀 JSON 檔 |
@@ -455,5 +457,5 @@ shell 沒有 argparse，判準原本是一條寬鬆正則（「有 `getopts`／`
 - **「未找到消費者」不等於「沒有消費者」**：本清冊的觀測面只有 **git 追蹤檔案**。本機執行歷史、需求方手動操作、封存前的口頭流程都不在裡面。用詞一律「未找到」。
 - **本輪零刪除**。已用盡的只標記，刪除是需求方的獨立裁定。
 - 位置不變式證明的是「位置與分類一致」，**不是「分類是對的」**。分類含具名人工改判，機器只驗一致性不驗真假。
-- **分段路徑**（`"scripts/" + name` 這類靜態解析不了的組裝）共 61 處，引用完整性檢查涵蓋不到，逐處列出：`docs/research/TIME-SEMANTICS-CONTRACT1/scan_time_semantics.py:149`、`scripts/data_rules_audit1.py:761`、`scripts/data_tie_remedy1.py:322`、`scripts/script_inventory.py:72`、`scripts/script_inventory.py:396`、`scripts/script_inventory.py:400`、`scripts/script_inventory.py:1085`、`scripts/script_inventory.py:1310`、`scripts/script_inventory.py:1998`、`tests/test_backup_prod_db.py:16`、`tests/test_backup_prod_db.py:186`、`tests/test_backup_prod_db.py:202`、`tests/test_backup_prod_db.py:251`、`tests/test_bio_gap2_backfill.py:19`、`tests/test_bio_gap_backfill.py:27`、`tests/test_gamelog_reconcile.py:510`、`tests/test_gamelog_reconcile.py:511`、`tests/test_gamelog_reconcile.py:569`、`tests/test_prod_sync_revision_seq.py:33`、`tests/test_prod_sync_revision_seq.py:193`、`tests/test_prod_sync_revision_seq.py:194`、`tests/test_prod_sync_revision_seq.py:195`、`tests/test_prod_sync_revision_seq.py:226`、`tests/test_refresh_pitch_ingest.py:26`、`tests/test_refresh_remote_train.py:20`、`tests/test_refresh_status.py:29`、`tests/test_refresh_status.py:30`、`tests/test_refresh_status.py:31`、`tests/test_refresh_status.py:32`、`tests/test_review_prompt.py:7`、`tests/test_roadmap_lines.py:28`、`tests/test_schedule_watch.py:22`、`tests/test_schedule_watch.py:23`、`tests/test_schedule_watch.py:291`、`tests/test_schedule_watch.py:364`、`tests/test_scrape_daily.py:33`、`tests/test_scrape_daily.py:34`、`tests/test_scrape_daily.py:119`、`tests/test_scrape_daily.py:136`、`tests/test_scrape_daily.py:160`、`tests/test_scrape_daily.py:314`、`tests/test_script_inventory.py:249`、`tests/test_script_inventory.py:614`、`tests/test_script_inventory.py:660`、`tests/test_script_inventory.py:674`、`tests/test_script_inventory.py:682`、`tests/test_script_inventory.py:690`、`tests/test_script_inventory.py:702`、`tests/test_script_inventory.py:755`、`tests/test_script_inventory.py:813`、`tests/test_script_inventory.py:818`、`tests/test_script_inventory.py:819`、`tests/test_script_inventory.py:820`、`tests/test_script_inventory.py:911`、`tests/test_shell_help_guard.py:311`、`tests/test_shell_help_guard.py:383`、`tests/test_state_plane_migrate.py:16`、`tests/test_sync_table_column_guard.py:22`、`tests/test_task_card_sections.py:8`、`tests/test_verify_refresh_info.py:27`、`tests/test_workflow_ledger.py:5`
+- **分段路徑**（`"scripts/" + name` 這類靜態解析不了的組裝）共 69 處，引用完整性檢查涵蓋不到，逐處列出：`docs/research/TIME-SEMANTICS-CONTRACT1/scan_time_semantics.py:149`、`scripts/data_rules_audit1.py:761`、`scripts/data_tie_remedy1.py:322`、`scripts/script_inventory.py:72`、`scripts/script_inventory.py:396`、`scripts/script_inventory.py:400`、`scripts/script_inventory.py:1085`、`scripts/script_inventory.py:1310`、`scripts/script_inventory.py:1998`、`tests/test_backup_prod_db.py:16`、`tests/test_backup_prod_db.py:186`、`tests/test_backup_prod_db.py:202`、`tests/test_backup_prod_db.py:251`、`tests/test_bio_gap2_backfill.py:19`、`tests/test_bio_gap_backfill.py:27`、`tests/test_gamelog_reconcile.py:510`、`tests/test_gamelog_reconcile.py:511`、`tests/test_gamelog_reconcile.py:569`、`tests/test_postseason_evening_sync.py:32`、`tests/test_postseason_evening_sync.py:33`、`tests/test_postseason_evening_sync.py:48`、`tests/test_postseason_evening_sync.py:75`、`tests/test_postseason_evening_sync.py:119`、`tests/test_postseason_evening_sync.py:214`、`tests/test_postseason_evening_sync.py:219`、`tests/test_postseason_evening_sync.py:231`、`tests/test_prod_sync_revision_seq.py:33`、`tests/test_prod_sync_revision_seq.py:193`、`tests/test_prod_sync_revision_seq.py:194`、`tests/test_prod_sync_revision_seq.py:195`、`tests/test_prod_sync_revision_seq.py:226`、`tests/test_refresh_pitch_ingest.py:26`、`tests/test_refresh_remote_train.py:20`、`tests/test_refresh_status.py:29`、`tests/test_refresh_status.py:30`、`tests/test_refresh_status.py:31`、`tests/test_refresh_status.py:32`、`tests/test_review_prompt.py:7`、`tests/test_roadmap_lines.py:28`、`tests/test_schedule_watch.py:22`、`tests/test_schedule_watch.py:23`、`tests/test_schedule_watch.py:291`、`tests/test_schedule_watch.py:364`、`tests/test_scrape_daily.py:33`、`tests/test_scrape_daily.py:34`、`tests/test_scrape_daily.py:119`、`tests/test_scrape_daily.py:136`、`tests/test_scrape_daily.py:160`、`tests/test_scrape_daily.py:314`、`tests/test_script_inventory.py:249`、`tests/test_script_inventory.py:614`、`tests/test_script_inventory.py:660`、`tests/test_script_inventory.py:674`、`tests/test_script_inventory.py:682`、`tests/test_script_inventory.py:690`、`tests/test_script_inventory.py:702`、`tests/test_script_inventory.py:755`、`tests/test_script_inventory.py:813`、`tests/test_script_inventory.py:818`、`tests/test_script_inventory.py:819`、`tests/test_script_inventory.py:820`、`tests/test_script_inventory.py:914`、`tests/test_shell_help_guard.py:315`、`tests/test_shell_help_guard.py:387`、`tests/test_state_plane_migrate.py:16`、`tests/test_sync_table_column_guard.py:22`、`tests/test_task_card_sections.py:8`、`tests/test_verify_refresh_info.py:27`、`tests/test_workflow_ledger.py:5`
 

@@ -875,10 +875,12 @@ def test_counts_reconcile_across_three_surfaces() -> None:
     research = [e for e in entries if e.surface == "research"]
     cli = [e for e in entries if e.surface == "cli"]
 
-    assert len(scripts) == 53, (
+    assert len(scripts) == 54, (
         "49（基準 33c7c3f）＋ 1（DEV-SCRIPT-INVENTORY1 的 script_inventory.py）"
         "＋ 3（OPS-SCHEDULE-FAILURE-BLIND1／#132：schedule_watch.py、"
-        "schedule-watchdog.sh、com.cpbl.schedule-watchdog.plist）。"
+        "schedule-watchdog.sh、com.cpbl.schedule-watchdog.plist）"
+        "＋ 1（#268 WP3：postseason-evening.sh，季後事件觸發晚間鏈的常設入口；"
+        "其 launchd 樣板刻意放 ops/launchd/、不在 scripts/，故不另計）。"
         "同卡的 schedule-registry.json 是純資料不是入口，見 NON_ENTRY_BASENAMES")
     assert len(research) == 22, (
         "19（基準）＋ 1（OPS-SCHEDULE-FAILURE-BLIND1／#132："
@@ -892,8 +894,9 @@ def test_counts_reconcile_across_three_surfaces() -> None:
         "≤2017 官方逐年對戰列的一次性收集與重建工具。住在自己卡的目錄裡，"
         "符合 oneshot 的位置規則）")
     assert len(cli) == 47, "CLI 不變"
-    assert len(scripts) + len(research) + len(cli) == 122, (
-        "119＋1（#132 的量測工具）＋1（#100 的重測工具）＋1（#201 的收集工具）")
+    assert len(scripts) + len(research) + len(cli) == 123, (
+        "119＋1（#132 的量測工具）＋1（#100 的重測工具）＋1（#201 的收集工具）"
+        "＋1（#268 的 postseason-evening.sh）")
 
 
 def test_invariant_proof_enumerates_every_entry(capsys: pytest.CaptureFixture) -> None:
