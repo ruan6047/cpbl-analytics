@@ -98,3 +98,34 @@ def test_y_preview_anchor_is_latest_completed_x_and_never_guesses_y(monkeypatch)
     assert assembler.report_anchor(object(), 2026, "E", 4)["status"] == "final"
     # 公告 G1 沒有既存正式列：不造場號、不回 E4 背景冒充。
     assert assembler.report_anchor(object(), 2026, "C", 1)["status"] == "not_found"
+
+
+def test_context_only_first_read_pins_same_context_without_background_reads(monkeypatch):
+    records, calls = transition_inputs(monkeypatch)
+    heavy = []
+    for func in ("people", "source_revisions", "pitching_sources"):
+        monkeypatch.setattr(readers, func, lambda *_, name=func: heavy.append(name) or ({} if name == "people" else []))
+    monkeypatch.setattr(assembler.background, "player_background",
+                        lambda *a, **k: heavy.append("player_background") or {})
+    light = assembler.build_report(object(), 2026, "E", 4, population_records=records, context_only=True)
+    assert set(light) == {"season", "kind_code", "game_sno", "status", "game", "journey_context"}
+    assert calls == [] and heavy == []  # 第一讀不做 box、來源版本或逐人背景組裝。
+    full = assembler.build_report(object(), 2026, "E", 4, population_records=records)
+    assert calls and "people" in heavy and "player_background" in heavy
+    assert light["journey_context"] == full["journey_context"]
+    enriched = assembler.build_report(object(), 2026, "E", 4, "C", 901,
+                                      light["journey_context"]["context_hash"], population_records=records)
+    assert enriched["comparison"]["game"]["game_sno"] == 901
+    missing = assembler.build_report(object(), 2026, "E", 99)
+    assert missing["status"] == "not_found" and assembler.build_report(object(), 2026, "E", 99, context_only=True) == missing
+
+
+def test_full_read_without_target_rejects_changed_context(monkeypatch):
+    records, _ = transition_inputs(monkeypatch)
+    light = assembler.build_report(object(), 2026, "E", 4, population_records=records, context_only=True)
+    pinned = light["journey_context"]["context_hash"]
+    changed = [{**r, "roster_version": "changed-C"} if r["round"] == "C" else r for r in records]
+    with pytest.raises(ContextChanged):
+        assembler.build_report(object(), 2026, "E", 4, supplied_hash=pinned, population_records=changed)
+    full = assembler.build_report(object(), 2026, "E", 4, supplied_hash=pinned, population_records=records)
+    assert full["journey_context"]["context_hash"] == pinned and full["players"]

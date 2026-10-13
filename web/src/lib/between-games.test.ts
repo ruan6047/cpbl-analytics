@@ -37,17 +37,20 @@ test("C 結束沒有下一場",()=>{
   base.journey_context!.summary.push({kind_code:"C",team1_code:L,team2_code:D,games:Array.from({length:4},(_,i)=>({game_no:i+1,game_sno:i+1,date:`2026-10-${17+i}`,home_code:D,home_score:5,away_code:L,away_score:0}))});
   assert.equal(reportJourney(base)?.next,null);
 });
-test("兩次唯讀取數帶同 context，沒有正式場號只讀一次",async()=>{
-  const calls:unknown[]=[];const result=await loadReport(async target=>{calls.push(target);return fixture();});
-  assert.deepEqual(calls,[undefined,{kind:"E",sno:2,contextHash:"a".repeat(64)}]);assert.equal(result.updating,false);
-  let n=0;await loadReport(async()=>{n++;return fixture("E",3);});assert.equal(n,1);
+test("第一讀只取 context；有正式 Y 才帶 Y，無 Y 也帶同 context 做唯一完整讀",async()=>{
+  const calls:unknown[]=[];const result=await loadReport(async request=>{calls.push(request);return fixture();});
+  assert.deepEqual(calls,[{contextOnly:true},{kind:"E",sno:2,contextHash:"a".repeat(64)}]);assert.equal(result.updating,false);
+  const none:unknown[]=[];await loadReport(async request=>{none.push(request);return fixture("E",3);});
+  assert.deepEqual(none,[{contextOnly:true},{contextHash:"a".repeat(64)}]);
 });
-test("409 最多重做一次，第二次仍變更保留基礎且清除 next",async()=>{
-  let n=0;const result=await loadReport(async target=>{n++;if(target)throw new ApiError("fixture",409);return fixture();});
-  assert.equal(n,4);assert.equal(result.updating,true);assert.equal(result.report.next_game,null);
+test("409 最多重做一次，第二次仍變更另讀完整 X 且清除 next",async()=>{
+  for(const wins of [1,3]){
+    const calls:unknown[]=[];const result=await loadReport(async request=>{calls.push(request);if(request&&"contextHash" in request)throw new ApiError("fixture",409);return fixture("E",wins);});
+    assert.equal(calls.length,5);assert.equal(calls[4],undefined);assert.equal(result.updating,true);assert.equal(result.report.next_game,null);
+  }
 });
 test("非 409 不自動重試",async()=>{
-  let n=0;await assert.rejects(loadReport(async target=>{n++;if(target)throw new ApiError("fixture",422);return fixture();}));assert.equal(n,2);
+  let n=0;await assert.rejects(loadReport(async request=>{n++;if(request&&"contextHash" in request)throw new ApiError("fixture",422);return fixture();}));assert.equal(n,2);
 });
 
 const nextE2={year:2026,kind_code:"E",game_sno:2,game_date:"2026-10-10",away_team_code:B,home_team_code:L,venue:"洲際",away_starter:{acnt:null,name:null,status:"unverified",team_code:B},home_starter:{acnt:null,name:null,status:"unverified",team_code:L}};
@@ -74,4 +77,19 @@ test("入口只給既存正式列；Y須定位回同一X才給觀戰網址",asyn
   let n=0;const announced=fixture("E",3);
   assert.equal(await nextPreviewFor({report:announced,journey:reportJourney(announced),updating:false},async()=>{n++;return anchor("E",3);}),null);
   assert.equal(n,0);
+});
+test("每次載入完整組裝只讀一次；查無／未完賽不重讀，第一讀回應不冒充完整回顧",async()=>{
+  for(const wins of [1,3]){
+    let full=0;
+    const view=await loadReport(async request=>{
+      const base=fixture("E",wins);
+      if(request&&"contextOnly" in request)return {status:base.status,season:base.season,kind_code:base.kind_code,game_sno:base.game_sno,game:base.game,journey_context:base.journey_context};
+      full++;return {...base,next_game:wins===1?nextE2:null};
+    });
+    assert.equal(full,1);assert.deepEqual(view.report.players,[]);assert.equal(view.updating,false);
+    assert.equal(previewMatches(view,"E",2),wins===1);
+  }
+  let reads=0;const pending={status:"not_final",season:2026,kind_code:"E",game_sno:5} as Report;
+  const view=await loadReport(async()=>{reads++;return pending;});
+  assert.equal(reads,1);assert.equal(view.report,pending);assert.equal(view.journey,null);
 });

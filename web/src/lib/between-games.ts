@@ -2,7 +2,7 @@
 import { announcementFor } from "./postseason-announcement.ts";
 import { buildPostseasonJourney } from "./postseason-journey.ts";
 import { ApiError } from "./http-error.ts";
-import type { Report, ReportAnchor, ReportKind, ReportTab, ReportView } from "./report-types.ts";
+import type { Report, ReportAnchor, ReportKind, ReportRequest, ReportTab, ReportView } from "./report-types.ts";
 
 export const REPORT_TABS: readonly { value: ReportTab; label: string }[] = [
   { value: "overview", label: "總覽" }, { value: "pitchers", label: "投手" }, { value: "fielders", label: "野手" },
@@ -37,22 +37,26 @@ export function reportJourney(report: Report) {
   const bounded = buildPostseasonJourney({ ...input, rows });
   return bounded.series.C.tally.decided ? { ...bounded, next: null, remaining: false } : bounded;
 }
-export type ReportRead = (target?: { kind: ReportKind; sno: number; contextHash: string }) => Promise<Report>;
+export type ReportRead = (request?: ReportRequest) => Promise<Report>;
+/** 第一讀只取 context 給既有 journey 選 Y；完整組裝只讀一次，並帶同 context_hash 由後端核對同源。 */
 export async function loadReport(read: ReportRead): Promise<ReportView> {
-  let base: Report | null = null;
   for (let attempt = 0; attempt < 2; attempt++) {
-    base = await read();
+    const base = await read({ contextOnly: true });
     const journey = reportJourney(base);
-    const next = journey?.next?.row;
-    if (!next) return { report: base, journey, updating: false };
+    // 查無／未完賽在第一讀與完整讀同樣提早回傳，不必再讀。
+    if (base.status !== "ok") return { report: base, journey, updating: false };
+    const next = journey?.next?.row, contextHash = base.journey_context?.context_hash;
     try {
-      const enriched = await read({ kind: next.kind_code as ReportKind, sno: next.game_sno, contextHash: base.journey_context!.context_hash });
-      return { report: enriched, journey, updating: false };
+      const report = await read(next && contextHash ? { kind: next.kind_code as ReportKind, sno: next.game_sno, contextHash }
+        : contextHash ? { contextHash } : undefined);
+      return { report, journey, updating: false };
     } catch (error) {
       if (!(error instanceof ApiError) || error.status !== 409) throw error;
     }
   }
-  return { report: { ...base!, next_game: null }, journey: reportJourney(base!), updating: true };
+  // 兩次皆變更：第一讀沒有背景，另讀完整 X 回顧，不給 Y。
+  const report = await read();
+  return { report: { ...report, next_game: null }, journey: reportJourney(report), updating: true };
 }
 /** 既有 journey 與第二讀都指向同一正式 Y 才成立觀戰報告；否則不以 X 背景冒充 Y。 */
 export function previewMatches(view: ReportView, kind: ReportKind, sno: number): boolean {

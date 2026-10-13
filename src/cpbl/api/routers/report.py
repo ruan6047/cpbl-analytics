@@ -21,18 +21,22 @@ def game_report(
     next_kind: str | None = Query(None, pattern="^(E|C)$"),
     next_sno: int | None = Query(None, ge=1),
     context_hash: str | None = Query(None, pattern="^[0-9a-f]{64}$"),
+    context_only: bool = Query(False),
 ) -> dict:
     if (next_kind is None) != (next_sno is None):
         raise HTTPException(422, "next_kind 與 next_sno 必須成對")
     if next_kind is not None and context_hash is None:
         raise HTTPException(422, "指定下一場必須帶 context_hash")
+    if context_only and (next_kind is not None or context_hash is not None):
+        raise HTTPException(422, "context_only 只供第一讀，不可帶下一場或 context_hash")
     try:
         with conn() as c:
             c.execute("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY")
             out = build_report(c.cursor(), season, kind_code, game_sno,
                                next_kind, next_sno, context_hash,
                                population_records=[record for round_kind in ("E", "C")
-                                                   for record in official_population.load(season, round_kind)])
+                                                   for record in official_population.load(season, round_kind)],
+                               context_only=context_only)
         return jsonable(out)
     except ContextChanged as exc:
         raise HTTPException(409, str(exc)) from exc
