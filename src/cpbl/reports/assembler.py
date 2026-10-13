@@ -6,7 +6,7 @@ from datetime import UTC, datetime
 
 from cpbl.api import between_games as bg
 from cpbl.reports import announcements, background, population, readers
-from cpbl.reports.context import bounded_context, key, validate_target
+from cpbl.reports.context import ContextChanged, bounded_context, key, validate_target
 from cpbl.reports.stats import field_candidates, player_period, three_periods, watch_points
 
 
@@ -177,7 +177,7 @@ def _report_background(cur, season: int, kind: str, anchor: dict, upto: list[dic
 
 def build_report(cur, season: int, kind: str, sno: int, next_kind: str | None = None,
                  next_sno: int | None = None, supplied_hash: str | None = None,
-                 population_records: list[dict] | None = None) -> dict:
+                 population_records: list[dict] | None = None, context_only: bool = False) -> dict:
     all_games = readers.games(cur, season)
     anchor = next((g for g in all_games if g["kind_code"] == kind and g["game_sno"] == sno), None)
     base = {"season": season, "kind_code": kind, "game_sno": sno}
@@ -204,6 +204,11 @@ def build_report(cur, season: int, kind: str, sno: int, next_kind: str | None = 
     materials = announcements.context_materials(lineup_rows, schedule_rows, candidates) if lineup_rows else []
     if materials:
         context = bounded_context(anchor, all_games, schedule_rows, population_sources, materials)
+    if supplied_hash is not None and next_kind is None and supplied_hash != context["context_hash"]:
+        raise ContextChanged("報告來源已更新，請重新讀取")
+    if context_only:
+        # 第一讀只供網頁 journey 選 Y 並固定 context_hash；背景組裝留給帶同 hash 的完整讀，只做一次。
+        return {**base, "status": "ok", "game": anchor, "journey_context": context}
     target = validate_target(context, next_kind, next_sno, supplied_hash) if next_kind else None
     lineup = next((m["lineup"] for m in materials if target and m["game_key"] == key(target)),
                   {"status": "unverified", "items": []})

@@ -76,3 +76,15 @@ def test_report_anchor_is_read_only_and_only_returns_x_identity(monkeypatch):
     assert calls==['SET TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY',(2026,'C',901)]
     assert c.get('/api/v1/games/901/report-anchor?season=2026&kind_code=A').status_code==422
     assert c.post('/api/v1/games/901/report-anchor?season=2026&kind_code=C').status_code==405
+
+
+def test_context_only_first_read_is_exclusive_and_forwarded(monkeypatch):
+    c,calls=client(monkeypatch)
+    for query in ('&context_hash='+'a'*64,'&next_kind=E&next_sno=2&context_hash='+'a'*64):
+        assert c.get('/api/v1/games/1/report?season=2026&kind_code=E&context_only=true'+query).status_code==422
+    assert not calls
+    assert c.get('/api/v1/games/1/report?season=2026&kind_code=E&context_only=true').status_code==200
+    assert calls[2]['context_only'] is True
+    calls.clear()
+    assert c.get('/api/v1/games/1/report?season=2026&kind_code=E&context_hash='+'a'*64).status_code==200
+    assert calls[1][1:7]==(2026,'E',1,None,None,'a'*64) and calls[2]['context_only'] is False

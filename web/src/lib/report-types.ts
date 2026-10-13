@@ -37,6 +37,8 @@ export type Report = {
   coverage?: { games: number; with_pitching: number; with_batting: number };
 };
 export type ReportView = { report: Report; journey: PostseasonJourney | null; updating: boolean };
+/** 第一讀只取 journey context；完整讀帶同 context_hash，有正式 Y 時另帶 Y 身分。 */
+export type ReportRequest = { contextOnly: true } | { contextHash: string } | { kind: ReportKind; sno: number; contextHash: string };
 
 /** X回顧維持頂層；正式Y未完賽亦可有獨立系列背景，不替換X身分。 */
 export type ReportComparison = Pick<Report, "players" | "population" | "teams" | "watch_points" | "field_candidates" | "announcements" | "coverage" | "regular_coverage"> & {
