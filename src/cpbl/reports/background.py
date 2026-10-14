@@ -5,7 +5,7 @@ from collections import defaultdict
 
 from cpbl.api.helpers import _dicts
 from cpbl.api.routers.ability import _ADV_GATE, ability_cards
-from cpbl.api.routers.players import _player_traits
+from cpbl.api.routers.players import _player_traits, _player_traits_many
 from cpbl.api.team_style import build_team_style
 from cpbl.models import team_style as ts
 
@@ -32,10 +32,14 @@ def current_matches(cur, season: int, boxes: dict[str, list[dict]]) -> dict[str,
 
 
 def player_background(cur, pid: str, role: str, season: int, verified: bool, card: dict | None = None,
-                      *, trait_league_cache: dict | None = None) -> dict:
+                      *, trait_league_cache: dict | None = None, prefetched: dict | None = None) -> dict:
     if not verified:
         return {'ability': {'available': False, 'status': 'source_unverified'},
                 'official_pr': None, 'traits': None, 'splits': []}
+    if prefetched is not None:
+        return {'ability': card or {'available': False, 'role': role, 'scope': 'season'},
+                'official_pr': prefetched['official_pr'], 'traits': prefetched['traits'],
+                'splits': prefetched['splits']}
     cur.execute(
         f"SELECT a.* FROM cpbl.advanced_stats a WHERE a.acnt=%s AND a.year=%s "
         f"AND a.role=%s AND a.kind_code='A' AND {_ADV_GATE}", (pid, season, role))
@@ -50,14 +54,50 @@ def player_background(cur, pid: str, role: str, season: int, verified: bool, car
             'traits': _player_traits(cur, pid, season, role, league_cache=trait_league_cache), 'splits': splits}
 
 
+def prefetch_player_backgrounds(cur, season: int, verified: dict[str, bool],
+                                pids_by_role: dict[str, list[str]], *,
+                                trait_league_cache: dict | None = None) -> dict[tuple[str, str], dict]:
+    """逐人三表改為每個 role 各一次 ANY 讀取；逐人結果與 player_background 單人查詢相同。
+
+    advanced_stats PK＝(year,kind_code,acnt,role)、traits PK＝(year,kind_code,player_id)，
+    所以每人至多一列；splits 依 acnt 分組後保留 item_index 排序。未核實的 role 不讀（同單人路徑）。
+    """
+    out: dict[tuple[str, str], dict] = {}
+    for role, pids in pids_by_role.items():
+        if not verified.get(role) or not pids:
+            continue
+        cur.execute(
+            f"SELECT a.* FROM cpbl.advanced_stats a WHERE a.acnt=ANY(%s) AND a.year=%s "
+            f"AND a.role=%s AND a.kind_code='A' AND {_ADV_GATE}", (list(pids), season, role))
+        advanced: dict[str, dict] = {}
+        for row in _dicts(cur):
+            advanced.setdefault(row['acnt'], row)
+        table = 'pitching_splits' if role == 'pitching' else 'batting_splits'
+        cur.execute(  # noqa: S608 — 固定投打白名單
+            f"SELECT * FROM cpbl.{table} WHERE acnt=ANY(%s) AND year=%s AND kind_code='A' "
+            "AND item_group_code='3' ORDER BY acnt, item_index", (list(pids), season))
+        splits = defaultdict(list)
+        for row in _dicts(cur):
+            splits[row['acnt']].append(row)
+        traits = _player_traits_many(cur, pids, season, role, league_cache=trait_league_cache)
+        for pid in pids:
+            out[(pid, role)] = {'official_pr': advanced.get(pid), 'traits': traits[pid],
+                                'splits': splits.get(pid, [])}
+    return out
+
+
 def team_background(season: int, games: list[dict], boxes: dict[str, list[dict]], teams: list[str]) -> list[dict]:
     """全聯盟完整 A box 才沿共享球風算法，缺計數不交給其零值容錯。"""
+    grouped = {role: defaultdict(list) for role in ('batting', 'pitching')}
+    for role, index in grouped.items():
+        for r in boxes[role]:
+            index[(r['game_key'], r['team_code'])].append(r)
     by_team = defaultdict(list)
     for game in games:
         for team in (game['away_team_code'], game['home_team_code']):
             identity = f"{season}/A/{game['game_sno']}"
-            bat = [r for r in boxes['batting'] if r['game_key'] == identity and r['team_code'] == team]
-            pit = [r for r in boxes['pitching'] if r['game_key'] == identity and r['team_code'] == team]
+            bat = grouped['batting'].get((identity, team), [])
+            pit = grouped['pitching'].get((identity, team), [])
             if not bat or not pit:
                 return []
             record = {}

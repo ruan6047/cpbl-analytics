@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections import defaultdict
 from collections.abc import Iterable
 from typing import Any
 
@@ -21,13 +22,43 @@ def sum_pitching(rows: Iterable[dict]) -> dict:
             **pa_rates(out["pa"], out["so"], out["bb"])}
 
 
+class BoxIndex:
+    """同一份 box 列依 (player_id, team_code) 與 team_code 分組；只改查找方式，列與相對順序不變。"""
+
+    __slots__ = ("rows", "by_player", "coverage", "_by_opponent")
+
+    def __init__(self, rows: list[dict]):
+        self.rows = rows
+        self.by_player: dict[tuple, list[dict]] = defaultdict(list)
+        self.coverage: dict[str, set[str]] = defaultdict(set)
+        for r in rows:
+            self.by_player[(r["player_id"], r["team_code"])].append(r)
+            self.coverage[r["team_code"]].add(r["game_key"])
+        self._by_opponent: dict[str, BoxIndex] | None = None
+
+    def player_rows(self, player_id: str, team: str) -> list[dict]:
+        return self.by_player.get((player_id, team), [])
+
+    def opponent(self, opponent: str) -> BoxIndex:
+        """等同 `[r for r in rows if r["opponent_code"] == opponent]` 的索引。"""
+        if self._by_opponent is None:
+            groups: dict[str, list[dict]] = defaultdict(list)
+            for r in self.rows:
+                groups[r["opponent_code"]].append(r)
+            self._by_opponent = {code: BoxIndex(items) for code, items in groups.items()}
+        found = self._by_opponent.get(opponent)
+        return found if found is not None else BoxIndex([])
+
+
 def player_period(rows: list[dict], *, role: str, player_id: str, team: str,
                   expected_keys: list[str], source: str, cutoff: str,
-                  complete_population: bool = False) -> dict:
-    scoped = [r for r in rows if r["player_id"] == player_id and r["team_code"] == team
-              and r["game_key"] in expected_keys]
-    coverage = {r["game_key"] for r in rows if r["team_code"] == team}
-    complete = bool(expected_keys) and set(expected_keys) <= coverage
+                  complete_population: bool = False, index: BoxIndex | None = None) -> dict:
+    """`index` 須由同一份 `rows` 建立；省略時現建，結果相同。"""
+    index = index if index is not None else BoxIndex(rows)
+    expected = set(expected_keys)
+    scoped = [r for r in index.player_rows(player_id, team) if r["game_key"] in expected]
+    coverage = index.coverage.get(team, set())
+    complete = bool(expected_keys) and expected <= coverage
     counts = (sum_pitching(scoped) if role == "pitching" else sum_batting(scoped))
     status = "available" if scoped else "not_appeared" if complete and complete_population else "missing"
     return {"status": status, "counts": counts,
@@ -39,17 +70,23 @@ def player_period(rows: list[dict], *, role: str, player_id: str, team: str,
 
 def three_periods(*, series: list[dict], regular: list[dict], role: str, player_id: str,
                   team: str, opponent: str, series_keys: list[str], regular_keys: list[str],
-                  cutoff: str, complete_population: bool, opponent_keys: list[str] | None = None) -> dict:
-    opponent_rows = [r for r in regular if r["opponent_code"] == opponent]
+                  cutoff: str, complete_population: bool, opponent_keys: list[str] | None = None,
+                  series_index: BoxIndex | None = None, regular_index: BoxIndex | None = None) -> dict:
+    """`series_index`／`regular_index` 須分別由 `series`／`regular` 建立；省略時現建，結果相同。"""
+    series_index = series_index if series_index is not None else BoxIndex(series)
+    regular_index = regular_index if regular_index is not None else BoxIndex(regular)
+    opponent_index = regular_index.opponent(opponent)
     if opponent_keys is None:
-        opponent_keys = sorted({r["game_key"] for r in opponent_rows if r["team_code"] == team})
+        opponent_keys = sorted({r["game_key"] for r in opponent_index.rows if r["team_code"] == team})
     shared = {"role": role, "player_id": player_id, "team": team, "cutoff": cutoff,
               "complete_population": complete_population}
     return {
-        "series": player_period(series, expected_keys=series_keys, source="gamelog_series", **shared),
-        "regular": player_period(regular, expected_keys=regular_keys, source="gamelog_A", **shared),
-        "opponent_regular": player_period(opponent_rows, expected_keys=opponent_keys,
-                                          source="gamelog_A_vs_team", **shared),
+        "series": player_period(series, expected_keys=series_keys, source="gamelog_series",
+                                index=series_index, **shared),
+        "regular": player_period(regular, expected_keys=regular_keys, source="gamelog_A",
+                                 index=regular_index, **shared),
+        "opponent_regular": player_period(opponent_index.rows, expected_keys=opponent_keys,
+                                          source="gamelog_A_vs_team", index=opponent_index, **shared),
     }
 
 

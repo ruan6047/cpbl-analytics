@@ -4,7 +4,7 @@ import type { JourneyRow, SummarySeries, PostseasonJourney } from "./postseason-
 export type ReportKind = "E" | "C";
 export type ReportTab = "overview" | "pitchers" | "fielders";
 export type Counts = Record<string, number | string | null>;
-export type Period = { status: "available" | "not_appeared" | "missing"; counts: Counts; sample: Counts; covered_game_keys: string[]; expected_game_keys: string[]; coverage_status: string; source: string; cutoff_label: string };
+export type Period = { status: "available" | "not_appeared" | "missing"; counts: Counts; sample: Counts; /** preview 依頁籤投影時改傳 covered_game_count（畫面只讀場數）、不傳 expected_game_keys。 */ covered_game_keys?: string[]; covered_game_count?: number; expected_game_keys?: string[]; coverage_status: string; source: string; cutoff_label: string };
 export type ReportPlayer = {
   player_id: string; team_code: string; role: "batting" | "pitching"; name: string | null; bats: string | null; throws: string | null;
   periods: Record<"series" | "regular" | "opponent_regular", Period>;
@@ -16,7 +16,8 @@ export type ReportPlayer = {
   vs_starter: { status: string; pitcher_id?: string | null; counts?: Counts; sample?: Counts; updated_at?: string | null; coverage_status?: string };
   pitching_usage: { recent_games?: Record<string, unknown>[]; total_outs?: number | null; total_pitches?: number | null; consecutive_days?: number | null; days_to_next?: number | null; [k: string]: unknown } | null;
 };
-export type ReportSource = { source: string; source_version: string | null; fetched_at?: string | null; updated_at?: string | null; last_seen_at?: string | null; read_at?: string; reference: string; cutoff_basis?: string; coverage_status?: string };
+/** preview 依頁籤投影時只留畫面讀到的鍵（source／reference／updated_at／fetched_at／coverage_status）。 */
+export type ReportSource = { source: string; source_version?: string | null; fetched_at?: string | null; updated_at?: string | null; last_seen_at?: string | null; read_at?: string; reference: string; cutoff_basis?: string; coverage_status?: string };
 export type Starter = { acnt: string | null; name: string | null; status: string; team_code: string; observed_at?: string | null; source_version?: string | null };
 export type LineupTeamEvidence = { status: string; source_type?: string; raw_status?: string | null; source_version?: string | null; fetched_at?: string | null; observed_at?: string | null; first_content_at?: string | null; first_status_at?: string | null; first_started_at?: string | null; boundary_sources?: { source_type: string; source_version?: string | null; raw_status?: string | null; fetched_at: string }[] };
 export type Report = {
