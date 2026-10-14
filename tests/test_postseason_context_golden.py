@@ -10,6 +10,9 @@ Python 以固定輸入＋固定 now 產生 ``series_context``，與 repo 內 com
 - ``2026-e-after-e2``：真實 E1–E2（兄弟、獅各一勝），E3–E4 未完賽、C 尚未入庫。
 - ``2026-c-swept-injected``：注入 C1–C4 兄弟連勝（真實事件未發生、未驗證；隊碼真實）。
 - ``2025-complete``：已完成 E→C 真實年（無公告安排 ⇒ 前端不建旅程，只驗系列計數）。
+- ``2026-c8-pending-injected``（再審 F1）：C1–C7 一和、各三勝，官方新增未完賽 C8（注入事件，隊碼真實）。
+- ``2026-c2-live-c1-unsynced-injected``（再審 F2）：經**讀取層**（腳本化 cursor）組輸入；C1 尚未同步完賽、
+  C2 唯一 live（注入事件，場次身分為 2026 真實 C1／C2）。
 """
 
 from __future__ import annotations
@@ -17,11 +20,19 @@ from __future__ import annotations
 import json
 import os
 from dataclasses import replace
-from datetime import datetime
+from datetime import date, datetime
 from pathlib import Path
 
 import pytest
-from postseason_context_inputs import games, inputs, with_result
+from postseason_context_inputs import (
+    READER_GAME_COLS,
+    READER_GAMES,
+    ScriptedCursor,
+    games,
+    inputs,
+    reader_table,
+    with_result,
+)
 
 from cpbl import postseason_contract as pc
 
@@ -44,11 +55,31 @@ def _c_swept():
     return out
 
 
+def _g8_pending():
+    out = [g for g in games(2026) if g.kind_code == "E"]
+    cs = [g for g in games(2026) if g.kind_code == "C"]
+    for g, (a, h) in zip(cs, [(3, 3), (1, 2), (2, 1), (1, 2), (2, 1), (1, 2), (2, 1)], strict=True):
+        out.append(with_result(g, a, h))
+    out.append(replace(cs[-1], game_sno=8, game_date=date(2026, 10, 26), official_status="scheduled"))
+    return out
+
+
+def _c2_live_via_reader():
+    t = reader_table()
+    t[pc.GAMES_V2_SQL] = (READER_GAME_COLS, [*READER_GAMES, (2026, "C", 2, date(2026, 10, 18), "大巨蛋", None,
+                                                              "ACN011", "AAA011", 0, 0, False)])
+    now = datetime.fromisoformat("2026-10-18T18:00:00+08:00")
+    return pc.read_series_inputs(ScriptedCursor(t), 2026, now=now,
+                                 live_reader=lambda y, k, n, *, now: {"phase": "live"} if n == 2 else None)
+
+
 CASES = {
     "2026-e-decided-c-pending": (lambda: inputs(2026), "2026-10-15T01:00:00+08:00"),
     "2026-e-after-e2": (lambda: inputs(2026, games_override=_after_e2()), "2026-10-10T23:00:00+08:00"),
     "2026-c-swept-injected": (lambda: inputs(2026, games_override=_c_swept()), "2026-10-22T09:00:00+08:00"),
     "2025-complete": (lambda: inputs(2025), "2026-10-15T01:00:00+08:00"),
+    "2026-c8-pending-injected": (lambda: inputs(2026, games_override=_g8_pending()), "2026-10-26T12:00:00+08:00"),
+    "2026-c2-live-c1-unsynced-injected": (_c2_live_via_reader, "2026-10-18T18:00:00+08:00"),
 }
 
 

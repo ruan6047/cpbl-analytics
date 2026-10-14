@@ -6,7 +6,7 @@ import { renderToStaticMarkup as render } from "react-dom/server";
 import { AppRouterContext } from "next/dist/shared/lib/app-router-context.shared-runtime";
 
 import { PostseasonOverview } from "../components/postseason-overview.tsx";
-import { postseasonGameLabels, postseasonPointer, postseasonResultLabels } from "../components/postseason-next.tsx";
+import { postseasonGameLabels, postseasonPointer, postseasonPreviewLinks, postseasonResultLabels } from "../components/postseason-next.tsx";
 import { AnnouncedCompact } from "../components/postseason-calendar.tsx";
 import { POSTSEASON_2026 } from "./postseason-announcement.ts";
 import {
@@ -44,6 +44,8 @@ const now = golden("2026-e-decided-c-pending");
 const afterE2 = golden("2026-e-after-e2");
 const swept = golden("2026-c-swept-injected");
 const y2025 = golden("2025-complete");
+const g8 = golden("2026-c8-pending-injected");
+const c2Live = golden("2026-c2-live-c1-unsynced-injected");
 
 function journeyOf(ctx: PostseasonSeriesContextV2): PostseasonJourney {
   const j = postseasonJourneyFromContext(ctx, null);
@@ -177,4 +179,37 @@ test("已知差異（本卡修正）：決勝後仍有 DB 列的未需場，舊�
   const legacy = buildPostseasonJourney({ announcement: POSTSEASON_2026, summary, rows, nowMs: Date.parse(swept.as_of.now), dataAsOf: null });
   assert.notEqual(legacy.slots.find((s) => s.key === "C5")?.status, "not_needed");
   assert.equal(slot(journeyOf(swept), "C5").status, "not_needed");
+});
+
+// —— #283 再審 F1／F2：同一份 Python 輸出，TS 各消費端一致 ——
+
+test("F1：公告外的真實 C8（未完賽）是下一場；首頁指標、場次標籤、觀戰報告連結、單場頁都看得到", () => {
+  assert.equal(g8.series.C.series_status, "active");
+  const j = journeyOf(g8);
+  assert.equal(j.remaining, true);
+  assert.equal(j.next?.key, "C-sno8");
+  assert.equal(j.next?.seq, 8);
+  assert.equal(j.next?.href, "/games/8?kind=C&year=2026");
+  assert.ok(postseasonPointer(j));
+  assert.match(postseasonGameLabels(j)["2026-C-8"] ?? "", /台灣大賽 G8/);
+  assert.match(Object.values(postseasonPreviewLinks(j)).join(" "), /\/games\/8\/preview\?kind=C&year=2026/);
+  const s = arrangedSlotForGame(g8, "C", 8);
+  assert.equal(s?.seq, 8);
+  assert.equal(s?.announced, false);
+  // 公告轉錄不被 G8 污染：仍是官方公告的 11 格
+  assert.deepEqual(j.announcement, POSTSEASON_2026);
+  assert.match(seriesProgressText(j.series.C), /還差 1 勝/);
+});
+
+test("F2：較早 C1 未同步、C2 唯一 live ⇒ 讀取層給 T4／目標 C2，消費端讀同一份", () => {
+  assert.equal(c2Live.state.default_series, "C");
+  assert.equal(c2Live.state.layout_state, "T4");
+  assert.deepEqual(c2Live.state.target_game_key, { year: 2026, kind_code: "C", game_sno: 2 });
+  assert.equal(c2Live.state.target_status, "live");
+  assert.equal(c2Live.games.find((g) => g.game_key.kind_code === "C" && g.game_key.game_sno === 2)?.target_status, "live");
+  // 安排格的顯示狀態沿 #237 規則（不含 live 值）：已過開賽而無完賽紀錄＝賽果待更新，不偽造 C1 賽果；
+  // live 只進 state（T4／target），由消費端依 state 呈現賽中。
+  const j = journeyOf(c2Live);
+  assert.equal(slot(j, "C1").status, "result_pending");
+  assert.equal(slot(j, "C2").status, "result_pending");
 });
