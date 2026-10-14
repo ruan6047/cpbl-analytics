@@ -140,7 +140,7 @@ uv run cpbl-roster show --year 2026 --series C --team ACN011
 - **不可變**：每 (year, series, team) 一份；三表 UPDATE／DELETE／TRUNCATE 由觸發器拒絕，sync_table 式 `ON CONFLICT DO UPDATE` 也會被擋；每份恰 32 人由延遲約束在提交時保證。同內容重送回原 `roster_id`、不重算提交時間；不同內容拒絕並列差異。錯匯⛔ 不 routine 修改：停止對外宣稱已核，交需求方例外裁定、另卡處理。
 - **身分**：`@id=` 或同年同隊（team_roster／一軍出賽／已提交名單）範圍內唯一精確姓名才解析；⛔ 不模糊比對、⛔ 不創假 ID。外籍三態：`players.country` 缺＝身分未知，不猜成本土，摘要標「外籍資格檢查不完整」；已核洋將 > 3 拒絕。參賽隊只驗 team_dim 存在，系列參賽資格需人工確認（S02 契約未核定）。
 - **資格≠可用**：名單與角色不代表先發、當場 28 人登錄或可用；`show` 的本季 A 出賽以 LEFT JOIN 取得，沒有就是「無」，不是 0。
-- **生產同步**：只走獨立 insert-only 路徑 `cpbl.rosters.sync`（先唯讀比對：無變更不備份不寫、內容不同 exit 70 拒絕不重試；有待插入才備份＋單交易插入＋事後雜湊對帳）。⛔ 不進 sync_table 清單、⛔ 不掛每日鏈；schema 只隨部署窗口套用（同步本身不 migrate）。每次同步須另取需求方授權。生產接線為 `refresh-cpbl-prod.sh` 的 `ROSTER_ONLY=1` 早退模式（#284 T2）——以 `scripts/refresh-cpbl-prod.sh --help` 有無列出 `ROSTER_ONLY` 為準；沒有列出就是尚未落地，⛔ 不得改用其他方式對生產執行。
+- **生產同步**：只走獨立 insert-only 路徑 `cpbl.rosters.sync`（先唯讀比對：無變更不備份不寫、內容不同 exit 70 拒絕不重試；有待插入才備份＋單交易插入＋事後雜湊對帳）。⛔ 不進 sync_table 清單、⛔ 不掛每日鏈；schema 只隨部署窗口套用（同步本身不 migrate）。每次同步須另取需求方授權。生產入口只有 `ROSTER_ONLY=1 SKIP_SCRAPE=1 BACKUP_DIR=<非每日預設的獨立目錄> scripts/refresh-cpbl-prod.sh`（#284 T2；mock 證據 `tests/test_roster_only_mode.py`），⛔ 不得改用其他方式對生產執行。
 
 **每日刷新現況（最後驗證 2026-07-19）**：本機 launchd 10:10 已成功完成爬取與 production 同步（`sync_ok=true`）。仍必須每天以 `refresh_status.py check --scheduled` 檢查；成功同步不等於資料語意正確——目前 `BUG-HELD-GAME-FRESHNESS1` 已證實未完成保留賽會污染 `last_game_date`，修復前不得僅以 freshness gate 判定資料正確。
 
