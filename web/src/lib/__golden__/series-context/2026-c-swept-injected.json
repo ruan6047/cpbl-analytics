@@ -1,0 +1,921 @@
+{
+ "algorithm_version": "s02.1",
+ "announcement": {
+  "captured_at": "2026-10-06T14:28:00+08:00",
+  "checks": [
+   {
+    "note": "官方進階數據站 E1–E4 的日期、開賽時間、主客與球場與公告一致",
+    "ok": true,
+    "on": "2026-10-08",
+    "scope": "E",
+    "url": "https://stats.cpbl.com.tw/api/proxy/v1/games/schedule?kindCode=E&year=2026&month=10"
+   },
+   {
+    "note": "官方進階數據站尚無台灣大賽賽程，台灣大賽沿用 10/06 取得的公告",
+    "ok": false,
+    "on": "2026-10-08",
+    "scope": "C",
+    "url": "https://stats.cpbl.com.tw/api/proxy/v1/games/schedule?kindCode=C&year=2026&month=10"
+   },
+   {
+    "note": "以瀏覽器讀取官網公告文內賽程表：台灣大賽 G5–G7 為「季後挑戰賽晉級球隊@味全龍」、臺北大巨蛋、如有必要；其餘場次與 10/06 版一致。文內圖片只含挑戰賽四場。（同日稍早以非瀏覽器讀取被反爬擋下）",
+    "ok": true,
+    "on": "2026-10-08",
+    "scope": "announcement",
+    "url": "https://www.cpbl.com.tw/xmdoc/cont?SId=0Q278399722865824041"
+   }
+  ],
+  "published_on": "2026-10-05",
+  "reserve_days": [
+   {
+    "date": "2026-10-19",
+    "note": "移動補賽日",
+    "series": "C"
+   },
+   {
+    "date": "2026-10-22",
+    "note": "移動補賽日",
+    "series": "C"
+   }
+  ],
+  "series": {
+   "C": {
+    "best_of": 7,
+    "name": "台灣大賽",
+    "opponent_from": "E",
+    "roster_leads": [],
+    "seeded_team": "AAA011",
+    "wins_needed": 4
+   },
+   "E": {
+    "best_of": 5,
+    "handicap_team": "ACN011",
+    "name": "季後挑戰賽",
+    "roster_leads": [
+     {
+      "kind": "二手報導",
+      "label": "UDN",
+      "published_on": "2026-10-08",
+      "url": "https://udn.com/news/story/7001/9803100"
+     }
+    ],
+    "teams": [
+     "ADD011",
+     "ACN011"
+    ],
+    "wins_needed": 3
+   }
+  },
+  "url": "https://www.cpbl.com.tw/xmdoc/cont?SId=0Q278399722865824041"
+ },
+ "arrangement": {
+  "next_slot_id": null,
+  "remaining": false,
+  "slots": [
+   {
+    "announced_date": "2026-10-09",
+    "away": {
+     "code": "ADD011"
+    },
+    "change": null,
+    "conditional": false,
+    "date": "2026-10-09",
+    "display_status": "final",
+    "game_key": {
+     "game_sno": 1,
+     "kind_code": "E",
+     "year": 2026
+    },
+    "hidden_not_needed": false,
+    "home": {
+     "code": "ACN011"
+    },
+    "kind_code": "E",
+    "official_sno": 1,
+    "seq": 1,
+    "slot_id": "E1",
+    "start": "17:05",
+    "venue": {
+     "name": "洲際"
+    }
+   },
+   {
+    "announced_date": "2026-10-10",
+    "away": {
+     "code": "ACN011"
+    },
+    "change": null,
+    "conditional": false,
+    "date": "2026-10-10",
+    "display_status": "final",
+    "game_key": {
+     "game_sno": 2,
+     "kind_code": "E",
+     "year": 2026
+    },
+    "hidden_not_needed": false,
+    "home": {
+     "code": "ADD011"
+    },
+    "kind_code": "E",
+    "official_sno": 2,
+    "seq": 2,
+    "slot_id": "E2",
+    "start": "17:05",
+    "venue": {
+     "name": "亞太主"
+    }
+   },
+   {
+    "announced_date": "2026-10-11",
+    "away": {
+     "code": "ADD011"
+    },
+    "change": null,
+    "conditional": true,
+    "date": "2026-10-11",
+    "display_status": "final",
+    "game_key": {
+     "game_sno": 3,
+     "kind_code": "E",
+     "year": 2026
+    },
+    "hidden_not_needed": false,
+    "home": {
+     "code": "ACN011"
+    },
+    "kind_code": "E",
+    "official_sno": 3,
+    "seq": 3,
+    "slot_id": "E3",
+    "start": "17:05",
+    "venue": {
+     "name": "洲際"
+    }
+   },
+   {
+    "announced_date": "2026-10-12",
+    "away": {
+     "code": "ADD011"
+    },
+    "change": null,
+    "conditional": true,
+    "date": "2026-10-12",
+    "display_status": "final",
+    "game_key": {
+     "game_sno": 4,
+     "kind_code": "E",
+     "year": 2026
+    },
+    "hidden_not_needed": false,
+    "home": {
+     "code": "ACN011"
+    },
+    "kind_code": "E",
+    "official_sno": 4,
+    "seq": 4,
+    "slot_id": "E4",
+    "start": "18:35",
+    "venue": {
+     "name": "洲際"
+    }
+   },
+   {
+    "announced_date": "2026-10-17",
+    "away": {
+     "placeholder": "E_WINNER"
+    },
+    "change": null,
+    "conditional": false,
+    "date": "2026-10-17",
+    "display_status": "final",
+    "game_key": {
+     "game_sno": 1,
+     "kind_code": "C",
+     "year": 2026
+    },
+    "hidden_not_needed": false,
+    "home": {
+     "code": "AAA011"
+    },
+    "kind_code": "C",
+    "official_sno": null,
+    "seq": 1,
+    "slot_id": "C1",
+    "start": "17:05",
+    "venue": {
+     "name": "大巨蛋"
+    }
+   },
+   {
+    "announced_date": "2026-10-18",
+    "away": {
+     "placeholder": "E_WINNER"
+    },
+    "change": null,
+    "conditional": false,
+    "date": "2026-10-18",
+    "display_status": "final",
+    "game_key": {
+     "game_sno": 2,
+     "kind_code": "C",
+     "year": 2026
+    },
+    "hidden_not_needed": false,
+    "home": {
+     "code": "AAA011"
+    },
+    "kind_code": "C",
+    "official_sno": null,
+    "seq": 2,
+    "slot_id": "C2",
+    "start": "17:05",
+    "venue": {
+     "name": "大巨蛋"
+    }
+   },
+   {
+    "announced_date": "2026-10-20",
+    "away": {
+     "code": "AAA011"
+    },
+    "change": null,
+    "conditional": false,
+    "date": "2026-10-20",
+    "display_status": "final",
+    "game_key": {
+     "game_sno": 3,
+     "kind_code": "C",
+     "year": 2026
+    },
+    "hidden_not_needed": false,
+    "home": {
+     "placeholder": "E_WINNER"
+    },
+    "kind_code": "C",
+    "official_sno": null,
+    "seq": 3,
+    "slot_id": "C3",
+    "start": "18:35",
+    "venue": {
+     "by_winner": {
+      "ACN011": "大巨蛋",
+      "ADD011": "亞太主"
+     }
+    }
+   },
+   {
+    "announced_date": "2026-10-21",
+    "away": {
+     "code": "AAA011"
+    },
+    "change": null,
+    "conditional": false,
+    "date": "2026-10-21",
+    "display_status": "final",
+    "game_key": {
+     "game_sno": 4,
+     "kind_code": "C",
+     "year": 2026
+    },
+    "hidden_not_needed": false,
+    "home": {
+     "placeholder": "E_WINNER"
+    },
+    "kind_code": "C",
+    "official_sno": null,
+    "seq": 4,
+    "slot_id": "C4",
+    "start": "18:35",
+    "venue": {
+     "by_winner": {
+      "ACN011": "大巨蛋",
+      "ADD011": "亞太主"
+     }
+    }
+   },
+   {
+    "announced_date": "2026-10-23",
+    "away": {
+     "placeholder": "E_WINNER"
+    },
+    "change": null,
+    "conditional": true,
+    "date": "2026-10-23",
+    "display_status": "not_needed",
+    "game_key": {
+     "game_sno": 5,
+     "kind_code": "C",
+     "year": 2026
+    },
+    "hidden_not_needed": true,
+    "home": {
+     "code": "AAA011"
+    },
+    "kind_code": "C",
+    "official_sno": null,
+    "seq": 5,
+    "slot_id": "C5",
+    "start": "18:35",
+    "venue": {
+     "name": "大巨蛋"
+    }
+   },
+   {
+    "announced_date": "2026-10-24",
+    "away": {
+     "placeholder": "E_WINNER"
+    },
+    "change": null,
+    "conditional": true,
+    "date": "2026-10-24",
+    "display_status": "not_needed",
+    "game_key": {
+     "game_sno": 6,
+     "kind_code": "C",
+     "year": 2026
+    },
+    "hidden_not_needed": true,
+    "home": {
+     "code": "AAA011"
+    },
+    "kind_code": "C",
+    "official_sno": null,
+    "seq": 6,
+    "slot_id": "C6",
+    "start": "17:05",
+    "venue": {
+     "name": "大巨蛋"
+    }
+   },
+   {
+    "announced_date": "2026-10-25",
+    "away": {
+     "placeholder": "E_WINNER"
+    },
+    "change": null,
+    "conditional": true,
+    "date": "2026-10-25",
+    "display_status": "not_needed",
+    "game_key": {
+     "game_sno": 7,
+     "kind_code": "C",
+     "year": 2026
+    },
+    "hidden_not_needed": true,
+    "home": {
+     "code": "AAA011"
+    },
+    "kind_code": "C",
+    "official_sno": null,
+    "seq": 7,
+    "slot_id": "C7",
+    "start": "17:05",
+    "venue": {
+     "name": "大巨蛋"
+    }
+   }
+  ]
+ },
+ "as_of": {
+  "coverage": "covered",
+  "last_completed_game_date": "2026-10-21",
+  "last_refresh_at": null,
+  "last_refresh_ok": null,
+  "last_refresh_scope": null,
+  "now": "2026-10-22T09:00:00+08:00",
+  "pending_games": [],
+  "taipei_date": "2026-10-22"
+ },
+ "context_version": "9d2eff3c2af9ef184c527a8a8a297beac506c32d40e0a025b42877dea8deb520",
+ "contract": "postseason-series-context/v2",
+ "coverage": "covered",
+ "games": [
+  {
+   "analysis": "pending",
+   "announced_slot_id": "E1",
+   "away_score": 1,
+   "away_team_code": "ADD011",
+   "completed": true,
+   "counted_for_wins": true,
+   "game_date": "2026-10-09",
+   "game_key": {
+    "game_sno": 1,
+    "kind_code": "E",
+    "year": 2026
+   },
+   "home_score": 4,
+   "home_team_code": "ACN011",
+   "official_game_sno": 1,
+   "official_mvp_id": null,
+   "official_status": "final",
+   "result": "home_win",
+   "series_game_no": 1,
+   "target_status": "final",
+   "venue": null
+  },
+  {
+   "analysis": "pending",
+   "announced_slot_id": "E2",
+   "away_score": 0,
+   "away_team_code": "ACN011",
+   "completed": true,
+   "counted_for_wins": true,
+   "game_date": "2026-10-10",
+   "game_key": {
+    "game_sno": 2,
+    "kind_code": "E",
+    "year": 2026
+   },
+   "home_score": 1,
+   "home_team_code": "ADD011",
+   "official_game_sno": 2,
+   "official_mvp_id": null,
+   "official_status": "final",
+   "result": "home_win",
+   "series_game_no": 2,
+   "target_status": "final",
+   "venue": null
+  },
+  {
+   "analysis": "pending",
+   "announced_slot_id": "E3",
+   "away_score": 4,
+   "away_team_code": "ADD011",
+   "completed": true,
+   "counted_for_wins": true,
+   "game_date": "2026-10-11",
+   "game_key": {
+    "game_sno": 3,
+    "kind_code": "E",
+    "year": 2026
+   },
+   "home_score": 2,
+   "home_team_code": "ACN011",
+   "official_game_sno": 3,
+   "official_mvp_id": null,
+   "official_status": "final",
+   "result": "away_win",
+   "series_game_no": 3,
+   "target_status": "final",
+   "venue": null
+  },
+  {
+   "analysis": "pending",
+   "announced_slot_id": "E4",
+   "away_score": 2,
+   "away_team_code": "ADD011",
+   "completed": true,
+   "counted_for_wins": true,
+   "game_date": "2026-10-12",
+   "game_key": {
+    "game_sno": 4,
+    "kind_code": "E",
+    "year": 2026
+   },
+   "home_score": 8,
+   "home_team_code": "ACN011",
+   "official_game_sno": 4,
+   "official_mvp_id": null,
+   "official_status": "final",
+   "result": "home_win",
+   "series_game_no": 4,
+   "target_status": "final",
+   "venue": null
+  },
+  {
+   "analysis": "pending",
+   "announced_slot_id": "C1",
+   "away_score": 5,
+   "away_team_code": "ACN011",
+   "completed": true,
+   "counted_for_wins": true,
+   "game_date": "2026-10-17",
+   "game_key": {
+    "game_sno": 1,
+    "kind_code": "C",
+    "year": 2026
+   },
+   "home_score": 1,
+   "home_team_code": "AAA011",
+   "official_game_sno": 1,
+   "official_mvp_id": null,
+   "official_status": "final",
+   "result": "away_win",
+   "series_game_no": 1,
+   "target_status": "final",
+   "venue": null
+  },
+  {
+   "analysis": "pending",
+   "announced_slot_id": "C2",
+   "away_score": 5,
+   "away_team_code": "ACN011",
+   "completed": true,
+   "counted_for_wins": true,
+   "game_date": "2026-10-18",
+   "game_key": {
+    "game_sno": 2,
+    "kind_code": "C",
+    "year": 2026
+   },
+   "home_score": 1,
+   "home_team_code": "AAA011",
+   "official_game_sno": 2,
+   "official_mvp_id": null,
+   "official_status": "final",
+   "result": "away_win",
+   "series_game_no": 2,
+   "target_status": "final",
+   "venue": null
+  },
+  {
+   "analysis": "pending",
+   "announced_slot_id": "C3",
+   "away_score": 1,
+   "away_team_code": "AAA011",
+   "completed": true,
+   "counted_for_wins": true,
+   "game_date": "2026-10-20",
+   "game_key": {
+    "game_sno": 3,
+    "kind_code": "C",
+    "year": 2026
+   },
+   "home_score": 5,
+   "home_team_code": "ACN011",
+   "official_game_sno": 3,
+   "official_mvp_id": null,
+   "official_status": "final",
+   "result": "home_win",
+   "series_game_no": 3,
+   "target_status": "final",
+   "venue": null
+  },
+  {
+   "analysis": "pending",
+   "announced_slot_id": "C4",
+   "away_score": 1,
+   "away_team_code": "AAA011",
+   "completed": true,
+   "counted_for_wins": true,
+   "game_date": "2026-10-21",
+   "game_key": {
+    "game_sno": 4,
+    "kind_code": "C",
+    "year": 2026
+   },
+   "home_score": 5,
+   "home_team_code": "ACN011",
+   "official_game_sno": 4,
+   "official_mvp_id": null,
+   "official_status": "final",
+   "result": "home_win",
+   "series_game_no": 4,
+   "target_status": "final",
+   "venue": null
+  },
+  {
+   "analysis": null,
+   "announced_slot_id": "C5",
+   "away_score": null,
+   "away_team_code": "ACN011",
+   "completed": false,
+   "counted_for_wins": false,
+   "game_date": "2026-10-23",
+   "game_key": {
+    "game_sno": 5,
+    "kind_code": "C",
+    "year": 2026
+   },
+   "home_score": null,
+   "home_team_code": "AAA011",
+   "official_game_sno": 5,
+   "official_mvp_id": null,
+   "official_status": "scheduled",
+   "result": null,
+   "series_game_no": 5,
+   "target_status": "scheduled",
+   "venue": null
+  },
+  {
+   "analysis": null,
+   "announced_slot_id": "C6",
+   "away_score": null,
+   "away_team_code": "ACN011",
+   "completed": false,
+   "counted_for_wins": false,
+   "game_date": "2026-10-24",
+   "game_key": {
+    "game_sno": 6,
+    "kind_code": "C",
+    "year": 2026
+   },
+   "home_score": null,
+   "home_team_code": "AAA011",
+   "official_game_sno": 6,
+   "official_mvp_id": null,
+   "official_status": "scheduled",
+   "result": null,
+   "series_game_no": 6,
+   "target_status": "scheduled",
+   "venue": null
+  },
+  {
+   "analysis": null,
+   "announced_slot_id": "C7",
+   "away_score": null,
+   "away_team_code": "ACN011",
+   "completed": false,
+   "counted_for_wins": false,
+   "game_date": "2026-10-25",
+   "game_key": {
+    "game_sno": 7,
+    "kind_code": "C",
+    "year": 2026
+   },
+   "home_score": null,
+   "home_team_code": "AAA011",
+   "official_game_sno": 7,
+   "official_mvp_id": null,
+   "official_status": "scheduled",
+   "result": null,
+   "series_game_no": 7,
+   "target_status": "scheduled",
+   "venue": null
+  }
+ ],
+ "missing_reason": [
+  "roster_store_not_delivered",
+  "registration_source_not_delivered",
+  "ended_at_unavailable"
+ ],
+ "rule_status": "sourced",
+ "rule_version": "cpbl-regs-ch12/§60@110-12-29,§63@106-02-09,§66@106-02-09",
+ "series": {
+  "C": {
+   "analysis_status": "pending",
+   "best_of": 7,
+   "conflict_reason": null,
+   "corrections": [],
+   "counted_game_keys": [
+    {
+     "game_sno": 1,
+     "kind_code": "C",
+     "year": 2026
+    },
+    {
+     "game_sno": 2,
+     "kind_code": "C",
+     "year": 2026
+    },
+    {
+     "game_sno": 3,
+     "kind_code": "C",
+     "year": 2026
+    },
+    {
+     "game_sno": 4,
+     "kind_code": "C",
+     "year": 2026
+    }
+   ],
+   "decided_by_game_key": {
+    "game_sno": 4,
+    "kind_code": "C",
+    "year": 2026
+   },
+   "kind_code": "C",
+   "participants_status": "known",
+   "series_id": {
+    "kind_code": "C",
+    "rule_version": "cpbl-regs-ch12/§60@110-12-29,§63@106-02-09,§66@106-02-09",
+    "teams": [
+     "AAA011",
+     "ACN011"
+    ],
+    "year": 2026
+   },
+   "series_status": "decided",
+   "sides": [
+    {
+     "clinch": false,
+     "facing_elimination": false,
+     "game_wins": 0,
+     "initial_wins": 0,
+     "initial_wins_basis": "announcement_confirmed",
+     "remaining": 0,
+     "team_code": "AAA011",
+     "total_wins": 0
+    },
+    {
+     "clinch": false,
+     "facing_elimination": false,
+     "game_wins": 4,
+     "initial_wins": 0,
+     "initial_wins_basis": "announcement_confirmed",
+     "remaining": 0,
+     "team_code": "ACN011",
+     "total_wins": 4
+    }
+   ],
+   "summary_kind": "championship_summary",
+   "ties": 0,
+   "winner": "ACN011",
+   "wins_needed": 4
+  },
+  "E": {
+   "analysis_status": "pending",
+   "best_of": 5,
+   "conflict_reason": null,
+   "corrections": [],
+   "counted_game_keys": [
+    {
+     "game_sno": 1,
+     "kind_code": "E",
+     "year": 2026
+    },
+    {
+     "game_sno": 2,
+     "kind_code": "E",
+     "year": 2026
+    },
+    {
+     "game_sno": 3,
+     "kind_code": "E",
+     "year": 2026
+    },
+    {
+     "game_sno": 4,
+     "kind_code": "E",
+     "year": 2026
+    }
+   ],
+   "decided_by_game_key": {
+    "game_sno": 4,
+    "kind_code": "E",
+    "year": 2026
+   },
+   "kind_code": "E",
+   "participants_status": "known",
+   "series_id": {
+    "kind_code": "E",
+    "rule_version": "cpbl-regs-ch12/§60@110-12-29,§63@106-02-09,§66@106-02-09",
+    "teams": [
+     "ACN011",
+     "ADD011"
+    ],
+    "year": 2026
+   },
+   "series_status": "decided",
+   "sides": [
+    {
+     "clinch": false,
+     "facing_elimination": false,
+     "game_wins": 2,
+     "initial_wins": 1,
+     "initial_wins_basis": "announcement_confirmed",
+     "remaining": 0,
+     "team_code": "ACN011",
+     "total_wins": 3
+    },
+    {
+     "clinch": false,
+     "facing_elimination": false,
+     "game_wins": 2,
+     "initial_wins": 0,
+     "initial_wins_basis": "announcement_confirmed",
+     "remaining": 0,
+     "team_code": "ADD011",
+     "total_wins": 2
+    }
+   ],
+   "summary_kind": "advance_summary",
+   "ties": 0,
+   "winner": "ACN011",
+   "wins_needed": 3
+  }
+ },
+ "source_manifest": [
+  {
+   "observed_at": null,
+   "scope": "2026",
+   "source": "rule_constant",
+   "status": "ok",
+   "version_or_hash": "cpbl-regs-ch12/§60@110-12-29,§63@106-02-09,§66@106-02-09"
+  },
+  {
+   "observed_at": null,
+   "scope": "2026/E,C",
+   "source": "games",
+   "status": "ok",
+   "version_or_hash": "fixture"
+  }
+ ],
+ "state": {
+  "by_series": {
+   "C": {
+    "kind_code": "C",
+    "layout_reason": "series_decided",
+    "layout_state": "T5",
+    "overlays": [],
+    "section_order": [
+     1,
+     3,
+     4,
+     2
+    ],
+    "summary_kind": "championship_summary",
+    "target_game_key": {
+     "game_sno": 4,
+     "kind_code": "C",
+     "year": 2026
+    },
+    "target_status": "final",
+    "window": {
+     "basis": "unknown",
+     "ends_at": null,
+     "started_at": null
+    }
+   },
+   "E": {
+    "kind_code": "E",
+    "layout_reason": "series_decided",
+    "layout_state": "T5",
+    "overlays": [],
+    "section_order": [
+     1,
+     3,
+     4,
+     2
+    ],
+    "summary_kind": "advance_summary",
+    "target_game_key": {
+     "game_sno": 4,
+     "kind_code": "E",
+     "year": 2026
+    },
+    "target_status": "final",
+    "window": {
+     "basis": "unknown",
+     "ends_at": null,
+     "started_at": null
+    }
+   }
+  },
+  "default_series": "C",
+  "kind_code": "C",
+  "layout_reason": "series_decided",
+  "layout_state": "T5",
+  "overlays": [],
+  "section_order": [
+   1,
+   3,
+   4,
+   2
+  ],
+  "summary_kind": "championship_summary",
+  "target_game_key": {
+   "game_sno": 4,
+   "kind_code": "C",
+   "year": 2026
+  },
+  "target_status": "final",
+  "window": {
+   "basis": "unknown",
+   "ends_at": null,
+   "started_at": null
+  }
+ },
+ "teams": [
+  {
+   "registration_status": "unknown",
+   "roster_status": "missing",
+   "series": "E",
+   "starter_status": "missing",
+   "team_code": "ACN011"
+  },
+  {
+   "registration_status": "unknown",
+   "roster_status": "missing",
+   "series": "E",
+   "starter_status": "missing",
+   "team_code": "ADD011"
+  },
+  {
+   "registration_status": "unknown",
+   "roster_status": "missing",
+   "series": "C",
+   "starter_status": "missing",
+   "team_code": "AAA011"
+  },
+  {
+   "registration_status": "unknown",
+   "roster_status": "missing",
+   "series": "C",
+   "starter_status": "missing",
+   "team_code": "ACN011"
+  }
+ ],
+ "year": 2026
+}
