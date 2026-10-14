@@ -529,8 +529,10 @@ def test_shipped_registry_is_internally_consistent() -> None:
     labels = [job["label"] for job in registry["jobs"]]
     on_disk = sorted(p.name[: -len(".plist")] for p in (ROOT / "scripts").glob("com.cpbl.*.plist"))
 
-    assert sorted(labels) == on_disk, "登記表與 scripts/ 下的 plist 必須一一對應"
+    ops = sorted(p.name[: -len(".plist")] for p in (ROOT / "ops" / "launchd").glob("com.cpbl.*.plist"))
+    assert sorted(labels) == sorted(on_disk + ops), "登記表與 scripts/、ops/launchd/ 下的 plist 必須一一對應"
     for job in registry["jobs"]:
+        assert (ROOT / job["plist"]).exists(), job["label"]
         for field in sw.REQUIRED_JOB_FIELDS:
             assert field in job, f"{job.get('label')} 缺 {field}"
         expected = dict(job["cadence"])
@@ -1131,3 +1133,123 @@ def test_unknown_suppression_type_fails_closed_to_the_worst_case() -> None:
     assert known is False and "可能永遠不會出現" in note
     assert sw.suppression_semantics("silence")[1] is False
     assert sw.suppression_semantics("delay delivery")[1] is True
+
+
+# ------------------------------------- 固定間隔 job（#268 季後晚間鏈，StartInterval）
+
+EVENING = "com.cpbl.postseason-evening"
+INTERVAL = {"kind": "interval", "seconds": 300}
+
+INTERVAL_PLIST = """<?xml version="1.0" encoding="UTF-8"?>
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>{label}</string>
+  <key>StartInterval</key><integer>{seconds}</integer>
+  <key>RunAtLoad</key><false/>
+</dict>
+</plist>
+"""
+
+
+def _interval_repo(tmp_path: Path, *, expected_installed: bool, seconds: int = 300,
+                   register: bool = True) -> tuple[Path, dict]:
+    """每日 job（有完整歷史，維持安靜）＋ ops/launchd/ 下的晚間 interval job。"""
+    daily = _job("com.cpbl.daily", DAILY)
+    repo, registry = _build_repo(tmp_path, [daily])
+    _write_history(repo, "com.cpbl.daily", [
+        _record("2026-10-13T10:10:00+0800", "succeeded", exit_code=0),
+        _record("2026-10-14T10:10:00+0800", "succeeded", exit_code=0),
+    ])
+    plist = repo / "ops" / "launchd" / f"{EVENING}.plist"
+    plist.parent.mkdir(parents=True, exist_ok=True)
+    plist.write_text(INTERVAL_PLIST.format(label=EVENING, seconds=seconds), encoding="utf-8")
+    if register:
+        registry["jobs"].append({
+            **_job(EVENING, INTERVAL, effective_from=None, history_from="2026-10-14",
+                   expected_installed=expected_installed),
+            "plist": f"ops/launchd/{EVENING}.plist",
+            "status_path": "logs/last-postseason-evening.json",
+        })
+    return repo, registry
+
+
+def _installed(*labels: str):
+    return lambda label: label in labels
+
+
+NOW = "2026-10-14T21:10:00+0800"
+
+
+def test_interval_plist_is_parsed_and_malformed_interval_fails_closed(tmp_path: Path) -> None:
+    """舊碼只認 StartCalendarInterval：interval plist 一律 None → 登記即 REGISTRY_INVALID。"""
+    good = tmp_path / "good.plist"
+    good.write_text(INTERVAL_PLIST.format(label=EVENING, seconds=300), encoding="utf-8")
+    assert sw.plist_cadence(good) == INTERVAL
+    for bad in ("0", "-5"):
+        path = tmp_path / f"bad{bad}.plist"
+        path.write_text(INTERVAL_PLIST.format(label=EVENING, seconds=bad), encoding="utf-8")
+        assert sw.plist_cadence(path) is None
+    assert sw.plist_cadence(ROOT / "ops" / "launchd" / f"{EVENING}.plist") == INTERVAL
+
+
+def test_dormant_interval_job_is_silent_and_unauthorised_install_is_a_conflict(tmp_path: Path) -> None:
+    repo, registry = _interval_repo(tmp_path, expected_installed=False)
+    quiet = _evaluate(repo, registry, NOW, installed=_installed("com.cpbl.daily"))
+    assert quiet["exit_code"] == 0, quiet["message"]
+    assert [j["label"] for j in quiet["jobs"]] == ["com.cpbl.daily"]
+
+    conflict = _evaluate(repo, registry, NOW, installed=_installed("com.cpbl.daily", EVENING),
+                         listing=["com.cpbl.daily", EVENING])
+    assert "REGISTRY_CONFLICT" in _verdicts(conflict)
+
+
+def test_enabled_interval_job_without_history_is_not_reported_missing(tmp_path: Path) -> None:
+    """負控：每 5 分鐘、無事件不寫歷史 ⇒ 不得被週期判定報成 MISSING（舊碼在 previous_fire 直接 ValueError）。"""
+    repo, registry = _interval_repo(tmp_path, expected_installed=True)
+    report = _evaluate(repo, registry, NOW, installed=_installed("com.cpbl.daily", EVENING),
+                       listing=["com.cpbl.daily", EVENING])
+    assert report["exit_code"] == 0, report["message"]
+    evening = next(j for j in report["jobs"] if j["label"] == EVENING)
+    assert evening["findings"] == [] and evening["cycles"] == []
+
+
+def test_halted_interval_job_is_reported_and_bootout_is_not_installed(tmp_path: Path) -> None:
+    """錯誤即停後沒人處理：bootout 成功 → JOB_NOT_INSTALLED；bootout 失敗仍裝著 → 狀態檔 halted 報 FAILED。"""
+    repo, registry = _interval_repo(tmp_path, expected_installed=True)
+    status = repo / "logs" / "last-postseason-evening.json"
+    status.parent.mkdir(parents=True, exist_ok=True)
+    status.write_text(json.dumps({"halted": {"at": "2026-10-14T13:00:00+00:00", "reason": "sync_exit_67"}}),
+                      encoding="utf-8")
+
+    still_installed = _evaluate(repo, registry, NOW, installed=_installed("com.cpbl.daily", EVENING),
+                                listing=["com.cpbl.daily", EVENING])
+    assert "FAILED" in _verdicts(still_installed)
+    assert "季後晚間鏈失敗" in still_installed["message"]
+
+    booted_out = _evaluate(repo, registry, NOW, installed=_installed("com.cpbl.daily"),
+                           listing=["com.cpbl.daily"])
+    assert {"JOB_NOT_INSTALLED", "FAILED"} <= _verdicts(booted_out)
+
+    status.write_text(json.dumps({"halted": None, "pending_sync": False}), encoding="utf-8")
+    cleared = _evaluate(repo, registry, NOW, installed=_installed("com.cpbl.daily", EVENING),
+                        listing=["com.cpbl.daily", EVENING])
+    assert cleared["exit_code"] == 0, cleared["message"]
+
+
+def test_interval_cadence_drift_and_unregistered_ops_plist_alarm_the_registry(tmp_path: Path) -> None:
+    drift_repo, drift = _interval_repo(tmp_path / "drift", expected_installed=False, seconds=600)
+    assert "REGISTRY_INVALID" in _verdicts(_evaluate(drift_repo, drift, NOW,
+                                                     installed=_installed("com.cpbl.daily")))
+
+    stray_repo, stray = _interval_repo(tmp_path / "stray", expected_installed=False, register=False)
+    report = _evaluate(stray_repo, stray, NOW, installed=_installed("com.cpbl.daily"))
+    assert "REGISTRY_INCOMPLETE" in _verdicts(report), "舊碼只掃 scripts/，ops/launchd/ 的 plist 不被看見"
+    assert report["registry_blocked"] is True
+
+
+def test_shipped_evening_job_is_registered_dormant_until_authorised() -> None:
+    registry = json.loads(REAL_REGISTRY.read_text(encoding="utf-8"))
+    job = next(j for j in registry["jobs"] if j["label"] == EVENING)
+    assert job["cadence"] == INTERVAL
+    assert job["expected_installed"] is False, "P1 授權前不得宣告應安裝（裁定 6160858879）"
+    assert job["status_path"] == "logs/last-postseason-evening.json"

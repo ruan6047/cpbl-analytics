@@ -320,8 +320,43 @@ def _floor(job: dict, anchor: date | None = None) -> date | None:
     return max(date.fromisoformat(effective), date.fromisoformat(history), anchor)
 
 
+def evaluate_interval_job(job: dict, repo: Path) -> dict:
+    """固定間隔 job（`cadence.kind == "interval"`）：沒有「上一個週期」可判缺席。
+
+    每 5 分鐘喚醒、沒事件就直接退出且不留歷史（#268 季後晚間鏈），Mac 睡眠時也不會醒——
+    拿週期判 MISSING 只會整片誤報（#115 死於此）。所以這裡只判一件事：**錯誤即停之後
+    沒人處理**。該 job 同步失敗時自己寫狀態檔 `halted` 並 bootout；bootout 會由
+    `check_registry` 報 JOB_NOT_INSTALLED，bootout 失敗時則由這裡讀狀態檔報 FAILED。
+    狀態檔不存在＝還沒跑過或沒有事件，不指控。"""
+    result: dict[str, Any] = {
+        "label": job["label"], "cadence": job["cadence"], "history_path": job["history_path"],
+        "corrupt_lines": 0, "findings": [], "cycles": [], "streak": 0,
+        "note": "固定間隔 job：不做週期缺席判定，只看狀態檔是否 halted",
+    }
+    status_file = repo / job["status_path"]
+    try:
+        status = json.loads(status_file.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        return result
+    except (OSError, ValueError):
+        result["findings"].append({"verdict": "HISTORY_CORRUPT",
+                                   "detail": f"狀態檔無法解析：{job['status_path']}"})
+        return result
+    halted = status.get("halted") if isinstance(status, dict) else None
+    if halted:
+        reason = halted.get("reason") if isinstance(halted, dict) else str(halted)
+        result["findings"].append({
+            "verdict": "FAILED", "streak": 0, "cycle": None,
+            "exit_code": None, "failed_phase": reason, "log": job["status_path"],
+            "detail": f"{job['label']} 已錯誤即停（{reason}），等人工檢視後清除狀態檔的 halted",
+        })
+    return result
+
+
 def evaluate_job(job: dict, now: datetime, repo: Path, lookback: int,
                  anchor: date | None = None) -> dict:
+    if job["cadence"].get("kind") == "interval":
+        return evaluate_interval_job(job, repo)
     cadence = job["cadence"]
     history_file = repo / job["history_path"]
     records, corrupt = load_history(history_file)
@@ -446,6 +481,11 @@ def plist_cadence(plist_path: Path) -> dict | None:
         return None
     interval = data.get("StartCalendarInterval")
     if not isinstance(interval, dict):
+        # 固定間隔喚醒的 job（#268 季後晚間鏈：StartInterval 300、沒有鐘點）。兩者並存或
+        # 型別不對都不是本表能對帳的形狀 → None（fail closed）。
+        seconds = data.get("StartInterval")
+        if interval is None and isinstance(seconds, int) and not isinstance(seconds, bool) and seconds > 0:
+            return {"kind": "interval", "seconds": seconds}
         return None
     if "Weekday" in interval:
         return {"kind": "weekly", "weekday": _launchd_weekday_to_iso(interval["Weekday"]),
@@ -505,6 +545,13 @@ def check_registry(registry: dict, repo: Path, today: date, installed_probe=None
         if label not in declared:
             findings.append({"verdict": "REGISTRY_INCOMPLETE",
                              "detail": f"磁碟上有 {plist_path.name} 而登記表沒有 {label}"})
+    # ops/launchd/ 放的是不由清冊自動視為「已安裝排程」的樣板（#268 季後晚間鏈），
+    # 一樣要在登記表上，否則同樣對登記表告警。
+    for plist_path in sorted((repo / "ops" / "launchd").glob("com.cpbl.*.plist")):
+        label = plist_path.name[: -len(".plist")]
+        if label not in declared:
+            findings.append({"verdict": "REGISTRY_INCOMPLETE",
+                             "detail": f"磁碟上有 ops/launchd/{plist_path.name} 而登記表沒有 {label}"})
     for label in listing_probe():
         if label not in declared:
             findings.append({"verdict": "REGISTRY_INCOMPLETE",
@@ -629,6 +676,7 @@ _JOB_TEXT = {
     "com.cpbl.weekly-box-revisions": "週跑 box",
     "com.cpbl.weekly-game-pitches": "週跑逐球",
     "com.cpbl.schedule-watchdog": "排程偵測器",
+    "com.cpbl.postseason-evening": "季後晚間鏈",
 }
 
 
