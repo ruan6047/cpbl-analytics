@@ -57,7 +57,7 @@ def test_three_surfaces_are_enumerated_from_git_not_hand_listed() -> None:
         p for p in si._git_ls(si.SCRIPTS_GLOB) if Path(p).name not in si.NON_ENTRY_BASENAMES
     }
     assert by_surface["research"] == set(si._git_ls(si.RESEARCH_GLOB))
-    assert len(by_surface["cli"]) == 47, "pyproject [project.scripts] 應為 47 支"
+    assert len(by_surface["cli"]) == 48, "pyproject [project.scripts] 應為 48 支（47＋#284 cpbl-roster）"
     assert len(entries) == sum(len(v) for v in by_surface.values())
 
 
@@ -893,10 +893,12 @@ def test_counts_reconcile_across_three_surfaces() -> None:
         "＋ 1（#201：docs/research/ISSUE-201/collect_matchup_pre2018.py，"
         "≤2017 官方逐年對戰列的一次性收集與重建工具。住在自己卡的目錄裡，"
         "符合 oneshot 的位置規則）")
-    assert len(cli) == 47, "CLI 不變"
-    assert len(scripts) + len(research) + len(cli) == 123, (
+    assert len(cli) == 48, (
+        "47 ＋ 1（#284 S03：cpbl-roster，季後 32 人資格名單的本機唯一會員 writer；"
+        "放在 cpbl.ingest 底下以受 test_cli_help_guard 的 --help 零副作用探針涵蓋）")
+    assert len(scripts) + len(research) + len(cli) == 124, (
         "119＋1（#132 的量測工具）＋1（#100 的重測工具）＋1（#201 的收集工具）"
-        "＋1（#268 的 postseason-evening.sh）")
+        "＋1（#268 的 postseason-evening.sh）＋1（#284 的 cpbl-roster CLI）")
 
 
 def test_invariant_proof_enumerates_every_entry(capsys: pytest.CaptureFixture) -> None:
