@@ -42,8 +42,9 @@ export function reportField(report: Report, team: string): { cells: FieldCells; 
   const dh = candidates["指定打擊"] ?? candidates.DH;
   return {
     cells: Object.fromEntries(Object.entries(candidates).flatMap(([pos,c]) => {
+      // #273 N06：候選（非公告）是野手守位主力，投手格不列——投手見投手頁；公告打線若有 P 仍照公告。
       const code = posCode(pos);
-      return code ? [[code,{
+      return code && code !== "P" ? [[code,{
       main:c.player_ids.map(person).join("／"),sub:`${c.g} 場${c.status === "tied" ? " · 並列" : ""}`,
       href:c.player_ids.length === 1 ? `#report-player-${c.player_ids[0]}` : undefined,
       }]] : [];
