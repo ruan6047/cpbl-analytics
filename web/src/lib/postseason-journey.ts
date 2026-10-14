@@ -1,6 +1,12 @@
-// 季後追賽旅程的共用檢視模型（#237）：把官方公告（postseason-announcement.ts）與資料庫
-// 已有的正式場次歸併成**同一份**場次清單與系列進度。首頁、季後總覽、日曆三個入口都只吃
-// `buildPostseasonJourney` 的輸出，同樣輸入得到同樣的安排，三處才不會互相矛盾。
+// 季後追賽旅程的共用檢視模型（#237）：把官方公告與資料庫已有的正式場次歸併成**同一份**場次
+// 清單與系列進度。首頁、季後總覽、日曆三個入口都只吃 `postseasonJourneyFromContext` 的輸出。
+//
+// #283 S02：系列勝場、讓勝、決勝、未需場、下一場**只在 Python 計算**（`series_context`，
+// `/api/v1/postseason-summary`）；`postseasonJourneyFromContext` 只把 API 欄位轉成既有元件形狀，
+// ⛔ 不再自算 initial_wins／decided／winner／not_needed／next。
+// 殘留（T1 裁定前）：報告路徑 `between-games.ts` 仍走舊的 `buildPostseasonJourney`（TS 公告常數），
+// 另有等值測試釘住「2026 TS 舊算 == Python」；歷史年系列卡（`postseason-series.tsx`）的 `tallySeries`
+// 屬 T2，交 S10。
 //
 // 純函式：不抓資料、不讀時鐘（現在時刻由呼叫端注入）、不碰執行環境時區。
 //
@@ -12,7 +18,8 @@
 //    （withLiveEntries），它只補連結，不補列、不計勝場。
 // 3. 沒有完賽紀錄就沒有比分；已過預定開賽時間仍沒有賽果時明說「賽果待更新」，不猜結果。
 
-import { announcementFor, type AnnouncedSlot, type PostseasonAnnouncement, type TeamSlot } from "./postseason-announcement.ts";
+import { type AnnouncedSlot, type PostseasonAnnouncement, type TeamSlot } from "./postseason-announcement.ts";
+import type { ArrangedSlotV2, PostseasonSeriesContextV2, SeriesGameV2, SeriesV2, TeamSlotV2, VenueV2 } from "./postseason-series-contract.ts";
 import { teamName3, teamShort } from "./teams.ts";
 import { hasFinalResult, type CanonicalPhase } from "./live-game.ts";
 
@@ -88,8 +95,9 @@ export function gameWinner(g: Pick<SeriesGame, "home_code" | "home_score" | "awa
   return g.home_score > g.away_score ? g.home_code : g.away_score > g.home_score ? g.away_code : null;
 }
 
-/** 系列大比分：實際勝場＋規則勝。系列卡與旅程模型共用這一份算法。
- *  沒有任何完賽場時不判勝負（沿用既有系列卡行為）。 */
+/** 系列大比分：實際勝場＋規則勝（**舊 TS 算法**）。
+ *  #283 起當季旅程改讀 API；本函式只剩報告路徑（`buildPostseasonJourney`，T1 裁定前）與歷史年系列卡
+ *  （T2，交 S10）使用。⛔ 不得新增呼叫端。 */
 export function tallySeries(
   a: { code: string | null; handicap: boolean },
   b: { code: string | null; handicap: boolean },
@@ -115,7 +123,8 @@ export function tallySeries(
   };
 }
 
-export type SeriesStatus = "not_started" | "in_progress" | "decided";
+/** `unknown`：Python 判為衝突或規則未建檔（`series_context.series.*.series_status=unknown`）。 */
+export type SeriesStatus = "not_started" | "in_progress" | "decided" | "unknown";
 
 export type JourneySeries = {
   kind: "E" | "C";
@@ -254,7 +263,8 @@ export function teamShortName(code: string): string {
   return teamShort(code) || code;
 }
 
-/** 歸併公告與資料庫。純函式；同樣輸入必得同樣輸出。 */
+/** 歸併公告與資料庫（**舊 TS 算法**）。#283 起只剩報告路徑（`between-games.ts`）使用，
+ *  T1 裁定前保留，等值測試見 `postseason-context.test.ts`。⛔ 不得新增呼叫端。 */
 export function buildPostseasonJourney(input: JourneyInput): PostseasonJourney {
   const { announcement: ann, summary, nowMs, dataAsOf } = input;
   const year = ann.year;
@@ -387,24 +397,135 @@ export function buildPostseasonJourney(input: JourneyInput): PostseasonJourney {
   };
 }
 
-/** 三入口的唯一進入點：該年度有官方公告才建模型，否則回 null（呼叫端走原路徑）。
- *  `rows` 用 calendar 的場次；資料截至取其中最近一筆完賽紀錄。 */
-export function postseasonJourneyFor(
-  year: number,
-  summary: SummarySeries[] | null,
+// —— API → 旅程（#283 S02；首頁、日曆、當季戰績的唯一進入點） ——
+
+const STATUS_FROM_API: Record<SeriesV2["series_status"], SeriesStatus> = {
+  pending: "not_started", active: "in_progress", decided: "decided", unknown: "unknown",
+};
+
+function teamSlotOf(t: TeamSlotV2 | null): TeamSlot | null {
+  return t == null ? null : "code" in t ? { code: t.code } : { placeholder: "E_WINNER" };
+}
+
+function venueSpecOf(v: VenueV2): AnnouncedSlot["venue"] {
+  return "name" in v ? { name: v.name } : "by_winner" in v ? { byWinner: v.by_winner } : { unknown: true };
+}
+
+/** API 的公告轉錄＋安排 → 既有 `PostseasonAnnouncement` 形狀（元件與單場入口沿用）。 */
+export function announcementFromContext(ctx: PostseasonSeriesContextV2): PostseasonAnnouncement | null {
+  const a = ctx.announcement;
+  if (!a || !ctx.arrangement) return null;
+  const lead = (r: { url: string; label: string; published_on: string; kind: "二手報導" }) =>
+    ({ url: r.url, label: r.label, publishedOn: r.published_on, kind: r.kind });
+  return {
+    year: ctx.year,
+    source: { url: a.url, publishedOn: a.published_on, capturedAt: a.captured_at, checks: a.checks.map((c) => ({ ...c })) },
+    series: {
+      E: { name: a.series.E.name, bestOf: 5, winsNeeded: 3, handicapTeam: a.series.E.handicap_team,
+        teams: a.series.E.teams, rosterLeads: a.series.E.roster_leads.map(lead) },
+      C: { name: a.series.C.name, bestOf: 7, winsNeeded: 4, seededTeam: a.series.C.seeded_team, opponentFrom: "E",
+        rosterLeads: a.series.C.roster_leads.map(lead) },
+    },
+    slots: ctx.arrangement.slots.map((s): AnnouncedSlot => ({
+      key: s.slot_id, kind: s.kind_code, seq: s.seq, date: s.announced_date, start: s.start,
+      away: teamSlotOf(s.away), home: teamSlotOf(s.home), venue: venueSpecOf(s.venue), conditional: s.conditional,
+      ...(s.official_sno != null ? { officialSno: s.official_sno } : {}),
+    })),
+    reserveDays: a.reserve_days.map((d) => ({ ...d })),
+  };
+}
+
+function rowOf(g: SeriesGameV2): JourneyRow {
+  return {
+    year: g.game_key.year, kind_code: g.game_key.kind_code, game_sno: g.game_key.game_sno,
+    game_date: g.game_date ?? "", venue: g.venue,
+    away_team_code: g.away_team_code, home_team_code: g.home_team_code,
+    // 未完賽時比分一律 null（DB 0–0 是佔位）；JourneyRow 沿用舊形狀以 0 表示、並帶 completed=false。
+    away_score: g.away_score ?? 0, home_score: g.home_score ?? 0, completed: g.completed,
+  };
+}
+
+function sideOf(s: SeriesV2["sides"][number], decided: boolean, needed: number): SideTally {
+  const ruleWins = s.initial_wins ?? 0;
+  const total = s.total_wins ?? s.game_wins;
+  // 對手未定（C 等挑戰賽勝隊）時 API 不給 remaining；沿用既有顯示：還差＝門檻−0。
+  return { code: s.team_code, ruleWins, gameWins: s.game_wins, total, remaining: decided ? 0 : s.remaining ?? Math.max(0, needed - total) };
+}
+
+/** API 系列 → 既有 `JourneySeries`。`order` 只決定兩隊的顯示先後（不影響任何數字）。 */
+export function seriesFromContext(ctx: PostseasonSeriesContextV2, kind: "E" | "C", name: string, order?: readonly string[]): JourneySeries {
+  const s = ctx.series[kind];
+  const decided = s.series_status === "decided";
+  let [a, b] = s.sides;
+  if (order && b?.team_code && order.indexOf(b.team_code) >= 0 && order.indexOf(b.team_code) < order.indexOf(a?.team_code ?? "")) [a, b] = [b, a];
+  const games = ctx.games
+    .filter((g) => g.game_key.kind_code === kind && g.completed)
+    .map((g, i): SeriesGame => ({
+      game_no: i + 1, game_sno: g.game_key.game_sno, date: g.game_date,
+      home_code: g.home_team_code, home_score: g.home_score ?? 0, away_code: g.away_team_code, away_score: g.away_score ?? 0,
+    }));
+  const winsNeeded = s.wins_needed ?? (kind === "E" ? 3 : 4);
+  return {
+    kind, name, bestOf: s.best_of ?? (kind === "E" ? 5 : 7), winsNeeded,
+    tally: { a: sideOf(a, decided, winsNeeded), b: sideOf(b, decided, winsNeeded), decided, winner: s.winner, ties: s.ties },
+    status: STATUS_FROM_API[s.series_status], games,
+  };
+}
+
+function slotFromContext(s: ArrangedSlotV2, ann: PostseasonAnnouncement, byKey: Map<string, SeriesGameV2>, eWinner: string | null, year: number): JourneySlot {
+  const g = s.game_key ? byKey.get(`${s.game_key.kind_code}-${s.game_key.game_sno}`) ?? null : null;
+  const row = g ? rowOf(g) : null;
+  const announced = ann.slots.find((x) => x.key === s.slot_id)!;
+  const away = row ? { code: row.away_team_code, label: teamName3(row.away_team_code) || row.away_team_code } : teamOf(announced.away, eWinner);
+  const home = row ? { code: row.home_team_code, label: teamName3(row.home_team_code) || row.home_team_code } : teamOf(announced.home, eWinner);
+  const v = row?.venue ? { venue: row.venue, note: null } : venueOf(announced, eWinner);
+  const changeNote = s.change?.kind === "moved" ? `公告原定 ${md(s.change.announced_date)}`
+    : s.change?.kind === "changed" ? POSTSEASON_COPY.changed : null;
+  return {
+    key: s.slot_id, kind: s.kind_code, seq: s.seq, date: s.date, start: s.start,
+    awayCode: away.code, homeCode: home.code, awayLabel: away.label, homeLabel: home.label,
+    venue: v.venue, venueNote: v.note, conditional: s.conditional, status: s.display_status, changeNote,
+    score: s.display_status === "final" && g && g.away_score != null && g.home_score != null ? { away: g.away_score, home: g.home_score } : null,
+    href: row ? gameLink(row.kind_code, row.game_sno, year) : null,
+    liveEntry: false,
+    row,
+  };
+}
+
+/** 首頁、日曆、當季戰績的唯一進入點（#283）：`series_context` 有公告安排才建模型，否則回 null（呼叫端走原路徑）。
+ *  `rows`（calendar 場次）只用來算「本站最近一筆完賽紀錄」，⛔ 不參與系列計算。 */
+export function postseasonJourneyFromContext(
+  ctx: PostseasonSeriesContextV2 | null | undefined,
   rows: JourneyRow[] | null,
-  nowMs: number,
 ): PostseasonJourney | null {
-  const announcement = announcementFor(year);
-  if (!announcement) return null;
-  return buildPostseasonJourney({ announcement, summary, rows, nowMs, dataAsOf: latestResultDate(rows) });
+  if (!ctx || ctx.contract !== "postseason-series-context/v2") return null;
+  const ann = announcementFromContext(ctx);
+  if (!ann || !ctx.arrangement) return null;
+  const series = {
+    E: seriesFromContext(ctx, "E", ann.series.E.name, ann.series.E.teams),
+    C: seriesFromContext(ctx, "C", ann.series.C.name),
+  };
+  const eWinner = ctx.series.E.series_status === "decided" ? ctx.series.E.winner : null;
+  const byKey = new Map(ctx.games.map((g) => [`${g.game_key.kind_code}-${g.game_key.game_sno}`, g]));
+  const slots = ctx.arrangement.slots.map((s) => slotFromContext(s, ann, byKey, eWinner, ctx.year));
+  return {
+    year: ctx.year,
+    announcement: ann,
+    series,
+    slots,
+    next: slots.find((s) => s.key === ctx.arrangement!.next_slot_id) ?? null,
+    remaining: ctx.arrangement.remaining,
+    recordedGames: series.E.games.length + series.C.games.length,
+    dataAsOf: latestResultDate(rows),
+    reserveDays: ann.reserveDays,
+  };
 }
 
 // —— 單場賽況入口（#237） ——
 // 資料庫還沒有 E 場次列時，首頁與日曆只能從公告的官方場號（officialSno）去查既有的單場狀態端點；
 // 身分全部相符才補一個連結到既有單場頁。⛔ 只補連結、不補列：不建 row、不給比分、不改狀態，
 // 也不進系列進度、完賽場數或資料截至——那些只認資料庫的完賽判定，快照 final 也一樣。
-// C 沒有官方場號，不查也不推場號；沒有公告的年份不會走到這裡（postseasonJourneyFor 回 null）。
+// C 沒有官方場號，不查也不推場號；沒有公告安排的年份不會走到這裡（postseasonJourneyFromContext 回 null）。
 
 /** 單場狀態端點（/api/v1/games/{sno}/status）回應中這裡會讀到的欄位；取不到時 null。 */
 export type LiveEntryStatus = {
@@ -493,9 +614,11 @@ export function withLiveEntries(j: PostseasonJourney, statuses: Record<string, L
 export function slotMayInvolve(j: PostseasonJourney, s: JourneySlot, team: string): boolean {
   if (s.awayCode === team || s.homeCode === team) return true;
   if (s.awayCode && s.homeCode) return false;
-  const e = j.announcement.series.E.teams;
+  // 可能的參賽隊一律讀 API 系列（#283）：C＝種子隊＋挑戰賽勝隊（未定時為挑戰賽兩隊）。
+  const codes = (x: JourneySeries) => [x.tally.a.code, x.tally.b.code].filter((c): c is string => !!c);
+  const e = codes(j.series.E);
   const cand = s.kind === "C"
-    ? [j.announcement.series.C.seededTeam, ...(j.series.E.tally.winner ? [j.series.E.tally.winner] : e)]
+    ? [...codes(j.series.C), ...(j.series.E.tally.winner ? [] : e)]
     : e;
   return cand.includes(team);
 }
@@ -540,6 +663,7 @@ export function seriesProgressText(s: JourneySeries): string {
   const bn = name(b, POSTSEASON_COPY.eWinner);
   const rule = [a, b].filter((t) => t.ruleWins > 0).map((t) => `${name(t, "")}${tallyBreakdownText(t)}`);
   const score = `${an} ${a.total}：${bn} ${b.total}${rule.length ? `（${rule.join("、")}）` : ""}`;
+  if (s.status === "unknown") return `${score}・系列狀態待確認`;
   if (s.status === "decided") {
     const w = s.tally.winner === a.code ? an : bn;
     return `${score}・${w}${s.kind === "E" ? "晉級台灣大賽" : "奪得總冠軍"}`;
@@ -578,4 +702,13 @@ export function latestResultDate(
     if (hasFinalResult(r) && (!best || r.game_date > best)) best = r.game_date;
   }
   return best;
+}
+
+/** 單場頁的公告安排（#283）：只認 API 已歸併到這一場的格（`game_key` 相符），⛔ 不以場號或日期猜場序。 */
+export function arrangedSlotForGame(
+  ctx: PostseasonSeriesContextV2 | null | undefined,
+  kind: string,
+  sno: number,
+): ArrangedSlotV2 | null {
+  return ctx?.arrangement?.slots.find((s) => s.game_key?.kind_code === kind && s.game_key.game_sno === sno) ?? null;
 }

@@ -9,7 +9,7 @@ import { PostseasonOverview } from "@/components/postseason-overview";
 import { api } from "@/lib/api";
 import type { OfficialStanding, OfficialStandingsResponse, SpecialRecord, WL } from "@/lib/api";
 import { announcementFor } from "@/lib/postseason-announcement";
-import { postseasonJourneyFor, type PostseasonJourney, type SeriesGame } from "@/lib/postseason-journey";
+import { postseasonJourneyFromContext, type PostseasonJourney, type SeriesGame } from "@/lib/postseason-journey";
 import { scheduleChanges, withScheduleChanges, type WithScheduleChanges } from "@/lib/daily-summary";
 import { teamPageCode, teamShort } from "@/lib/teams";
 
@@ -488,8 +488,9 @@ export default async function Standings({ searchParams }: { searchParams: Promis
     // #268 B2：與首頁同一支既有 daily summary（no-store），只取 coverage 的官方賽程異動；失敗＝不顯示，不擋頁。
     announcement ? api.dailySummary().catch(() => null) : Promise.resolve(null),
   ]);
-  const baseJourney = announcement
-    ? postseasonJourneyFor(selectedYear, postseason?.series ?? null, calendar?.items ?? null, Date.now())
+  // 系列事實只讀 API 的 series_context（#283）；calendar 只供「本站賽果紀錄至」。
+  const baseJourney = announcement && postseason?.season === selectedYear
+    ? postseasonJourneyFromContext(postseason.series_context, calendar?.items ?? null)
     : null;
   const journey = baseJourney && withScheduleChanges(baseJourney, scheduleChanges(daily, baseJourney.year));
   const hasPlayoffPanel = !!(h0r?.items?.length && h1r?.items?.length && h2r?.items?.length);
