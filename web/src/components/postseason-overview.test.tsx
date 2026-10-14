@@ -76,7 +76,7 @@ test("台灣大賽分頁：G5–G7 為挑戰賽勝隊（客）對味全龍（主
   const html = renderToStaticMarkup(view(j, "C"));
   const t = text(view(j, "C"));
   assert.match(t, /台灣大賽 7 戰 4 勝 味全龍/);
-  assert.match(t, /味全龍 上半季冠軍・保送 0 還差 4 勝/);
+  assert.match(t, /味全龍 上半季冠軍・直接晉級 0 還差 4 勝/);
   assert.match(t, /挑戰賽勝隊 挑戰賽分出勝負後確定 0 待定/);
   assert.match(t, /味全直接晉級，對手由季後挑戰賽決定；先拿 4 勝奪得總冠軍。 看季後挑戰賽 →/);
   for (const [g, day] of [["G5", "10/23（五） 18:35"], ["G6", "10/24（六） 17:05"], ["G7", "10/25（日） 17:05"]]) {

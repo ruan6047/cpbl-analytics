@@ -18,12 +18,12 @@ test("既存中文守位逐格轉接，未知守位略過且 DH 只接受明確�
   assert.equal(model.cells.C?.href,"#report-player-p0");
   assert.equal(model.dh?.main,"p9");assert.equal(model.announced,false);
 });
-test("守位投手只有投球列仍取姓名與可達面板；同人打者列優先且不跨隊",()=>{
+test("候選守位不列投手格（#273 N06）；同人打者列優先且不跨隊",()=>{
   const pitcher={player_id:"pitch-only",team_code:"T",role:"pitching",name:"測試投手"} as ReportPlayer;
-  const report={...base,players:[pitcher],field_candidates:{T:{投手:{status:"known",g:20,player_ids:[pitcher.player_id]}}}};
+  const report={...base,players:[pitcher],field_candidates:{T:{投手:{status:"known",g:20,player_ids:[pitcher.player_id]},游擊手:{status:"known",g:20,player_ids:["ss"]}}}};
   const model=reportField(report,"T");
-  assert.equal(model.cells.P?.main,"測試投手");
-  assert.equal(model.cells.P?.href,"#report-player-pitch-only");
+  assert.equal(model.cells.P,undefined);
+  assert.equal(model.cells.SS?.main,"ss");
   assert.equal(reportFieldPlayer(report,"T",pitcher.player_id)?.role,"pitching");
   assert.equal(reportFieldPlayer(report,"other",pitcher.player_id),null);
   report.players.push({...pitcher,role:"batting"});

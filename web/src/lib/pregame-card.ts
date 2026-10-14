@@ -138,6 +138,8 @@ export const PREGAME_COPY = {
   trainedThroughSuffix: "季",
   missingArtifact: "模型尚未建置，暫無賽前預測",
   unsupported: "此賽事類型不在賽前模型範圍",
+  /** #273 R2：季後賽（E／C）講清楚為什麼沒有，不只說「不在範圍」。 */
+  unsupportedPostseason: "季後賽不提供賽前勝率（模型只涵蓋例行賽一軍）",
   pending: "預測準備中，資料到齊後提供",
   error: "預測服務暫時無法使用",
   favorsHome: "利主隊",
@@ -272,7 +274,7 @@ export function resolvePregameCard(input: ResolvePregameInput): PregameCardModel
   if (fetchFailed || response == null) return unavailable("error", PREGAME_COPY.error);
   // 模型只涵蓋一軍例行賽（game_features 全史 kind A）；其他賽別誠實標示不支援。
   if (game.kind_code !== "A")
-    return unavailable("unsupported", PREGAME_COPY.unsupported);
+    return unavailable("unsupported", game.kind_code === "E" || game.kind_code === "C" ? PREGAME_COPY.unsupportedPostseason : PREGAME_COPY.unsupported);
   if (!response.available)
     return unavailable("missing_artifact", PREGAME_COPY.missingArtifact);
   const item = (response.items ?? []).find(

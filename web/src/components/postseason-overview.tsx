@@ -167,7 +167,8 @@ function SeriesView({ journey, k, nameOf, seedOf }: {
     ? (s.tally.a.code === ann.series.E.handicapTeam ? [s.tally.a, s.tally.b] : [s.tally.b, s.tally.a])
         .map((side) => ({ side, seed: seedOf(side.code) }))
     : [
-        { side: s.tally.a, seed: seedOf(s.tally.a.code) ? `${seedOf(s.tally.a.code)}・保送` : "保送" },
+        // #273 N12：「保送」在棒球是四壞球，季後語境一律寫「直接晉級」（同卡下方句同一說法）。
+        { side: s.tally.a, seed: seedOf(s.tally.a.code) ? `${seedOf(s.tally.a.code)}・直接晉級` : "直接晉級" },
         { side: s.tally.b, seed: s.tally.b.code ? `${ann.series.E.name}勝隊` : "挑戰賽分出勝負後確定" },
       ];
   const reserves = k === "C" ? journey.reserveDays.map((d) => d.date) : [];

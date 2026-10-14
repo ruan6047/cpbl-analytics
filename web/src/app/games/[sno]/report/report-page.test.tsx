@@ -51,9 +51,9 @@ test("面板切換的單一期間同步數字及樣本；第4期沿真用量不�
     assert.ok(html.includes(`樣本 ${sample} PA`));assert.ok(!html.includes(`樣本 ${other} PA`));
   }
   const usage=renderToStaticMarkup(<ReportPlayerPeriod player={player} period="usage"/>);
-  assert.match(usage,/最後一任 · 0.2 局 · 19 球/);assert.match(usage,/距該場 — 天/);assert.ok(!usage.includes("救援"));
+  assert.match(usage,/最後一任 · 0.2 局 · 19 球/);assert.match(usage,/距下一場 — 天/);assert.ok(!usage.includes("救援"));
   const noTargetUsage=renderToStaticMarkup(<ReportPlayerPeriod player={player} period="usage" hasTarget={false}/>);
-  assert.ok(!noTargetUsage.includes("距該場"));assert.match(noTargetUsage,/合計 0.2 局 · 19 球/);
+  assert.ok(!noTargetUsage.includes("距下一場"));assert.match(noTargetUsage,/合計 0.2 局 · 19 球/);
   assert.match(renderToStaticMarkup(<ReportPlayerPeriod player={p} period="usage"/>),/未取得可靠使用紀錄/);
 });
 
@@ -130,7 +130,7 @@ test("沒有Y或系列終結不造開賽前背景、先發或未來式觀察題"
     assert.ok(!html.includes("下一場能否"));
     assert.ok(!html.includes("下一場先發"));
     assert.ok(!html.includes("該場公告先發"));
-    assert.ok(!html.includes("距該場"));
+    assert.ok(!html.includes("距下一場"));
     assert.ok(!html.includes("查看下一場賽況"));
     assert.ok(!html.includes("查看該場賽況"));
     if(tab==="overview") { assert.match(html,/局數 6.0/); assert.doesNotMatch(html,/outs 18/); }
@@ -278,4 +278,27 @@ test("同系列換主場時，Y觀戰頁卡片、中央勝場與投野手左右�
       assert.ok(html.includes(">0 : 2</p>"));
     } else assert.deepEqual(columns(html),["統一獅","中信兄弟"]);
   }
+});
+
+test("#273 N02／N06／N08：系列未開打預設本季例行賽、野手頁不列純投手、頁尾時戳與來源名給一般讀者", () => {
+  const target = {year:2026,kind_code:"C",game_sno:1,game_date:"2026-10-17",away_team_code:"ACN011",home_team_code:"AAA011",venue:"大巨蛋",away_starter:{acnt:null,name:null,status:"unverified",team_code:"ACN011"},home_starter:{acnt:null,name:null,status:"unverified",team_code:"AAA011"}};
+  const fielder: ReportPlayer = {...p,player_id:"f1",team_code:"ACN011",role:"batting",name:"野手甲",fielding:[{pos:"游擊手",g:80}]};
+  const pitcherBatting: ReportPlayer = {...p,player_id:"p1",team_code:"ACN011",role:"batting",name:"投手打擊",fielding:[{pos:"投手",g:50}]};
+  const data: Report = {...report,game_sno:4,read_at:"2026-10-14T04:49:44.916317+00:00",regular_coverage:{year:2026,kind:"A",closed_before_X:true,covered_game_keys:[]},
+    sources:[{source:"livelog",source_version:null,reference:"/api/x",updated_at:"2026-10-13T02:10:12.653764+00:00",coverage_status:"available"},{source:"livelog",source_version:null,reference:"/api/y",fetched_at:null,coverage_status:"verified"},{source:"mystery_table",source_version:null,reference:"/api/z"}],
+    comparison:{game:target,kind_code:"C",series_game_keys:[],usage_cutoff_label:"近期使用，截至2026/E/4完賽",players:[fielder,pitcherBatting],population:[],teams:[],watch_points:[],field_candidates:{},announcements:{lineup:{status:"unverified",items:[]}},coverage:{games:0,with_pitching:0,with_batting:0}}};
+  const html = renderToStaticMarkup(<ReportPage view={{report:data,journey:null,updating:false}} tab="fielders"/>);
+  assert.match(html,/台灣大賽還沒開打，下列先顯示本季例行賽/);
+  assert.match(html,/aria-pressed="true"[^>]*>本季例行賽</);
+  assert.match(html,/野手甲/);
+  assert.doesNotMatch(html,/投手打擊/);
+  assert.match(html,/本頁資料讀取於 2026-10-14 12:49（台北）/);
+  assert.doesNotMatch(html,/\+00:00|\.916317|>livelog<|closed_before_X/);
+  assert.match(html,/逐打席紀錄：2 筆，最近更新 2026-10-13 10:10（台北）/);
+  assert.match(html,/其他來源（mystery_table）/);
+  assert.match(html,/逐筆來源連結（3 筆）/);
+  // 系列已有完賽場時維持「本系列」預設。
+  const started = renderToStaticMarkup(<ReportPage view={{report:{...data,comparison:{...data.comparison!,series_game_keys:["2026/C/1"]}},journey:null,updating:false}} tab="fielders"/>);
+  assert.match(started,/aria-pressed="true"[^>]*>本系列</);
+  assert.doesNotMatch(started,/下列先顯示本季例行賽/);
 });

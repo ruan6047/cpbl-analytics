@@ -3,7 +3,7 @@ import { Card, ErrorState } from "@/components/ui";
 import { api } from "@/lib/api";
 import DailyHub from "@/components/daily-hub";
 import MiniStandings from "@/components/mini-standings";
-import { PostseasonNextCard, postseasonGameLabels, postseasonPointer } from "@/components/postseason-next";
+import { PostseasonNextCard, postseasonGameLabels, postseasonPointer, postseasonPreviewLinks, postseasonResultLabels } from "@/components/postseason-next";
 import { announcementFor } from "@/lib/postseason-announcement";
 import { withGameTeamNames } from "@/lib/teams";
 import { liveEntryProbes, liveEntryResults, postseasonJourneyFor, withLiveEntries } from "@/lib/postseason-journey";
@@ -71,7 +71,8 @@ export default async function Home({
           自行翻態，而它的前景輪詢打的就是這裡 SSR 用的同一支 dailySummary。 */}
       {dailyR.status === "fulfilled" ? (
         <DailyHub summary={dailyR.value} calendar={calendar} postseason={postseasonPointer(journey)}
-          seriesLabels={postseasonGameLabels(journey)} />
+          seriesLabels={postseasonGameLabels(journey)} reportLinks={postseasonPreviewLinks(journey)}
+          resultLabels={postseasonResultLabels(journey)} />
       ) : (
         <Card padding="p-6">
           <h1 className="sr-only">今日賽事</h1>
