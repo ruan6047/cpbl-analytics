@@ -153,7 +153,7 @@ for (const kind_code of ["E", "C"]) {
     const href = `/games/274/preview?kind=${kind_code}&year=2026&tab=overview`;
     const html = markup(<TodayGameCard g={game({ kind_code })} trainedThrough={2025} nowMs={null} reportHref={href} />);
     assert.ok(html.includes(`href="/games/274/preview?kind=${kind_code}&amp;year=2026&amp;tab=overview"`));
-    assert.match(html, /觀戰報告：開賽前兩隊背景/);
+    assert.match(html, />觀戰報告 →</);
     assert.doesNotMatch(html, /role="note"/);
   });
 
