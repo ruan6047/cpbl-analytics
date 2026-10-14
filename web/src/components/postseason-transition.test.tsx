@@ -133,7 +133,7 @@ test("系列標籤只收已入庫場次，不從公告場序推場號", () => {
 
 test("首頁季後卡：挑戰賽已決要說出來", () => {
   const j = journeyAt("2026-10-13T10:30:00+08:00", E_GAMES);
-  assert.match(text(<PostseasonNextCard journey={j} />), /挑戰賽已決：兄弟晉級・台灣大賽・本站季後賽果 4 場/);
+  assert.match(text(<PostseasonNextCard journey={j} />), /挑戰賽已決：兄弟晉級・台灣大賽尚未開打/);
 });
 
 // —— 季後頁：預設分頁是台灣大賽時，挑戰賽 E4 待更新仍要在標頭明示（N8 情境 A 自檢發現）——

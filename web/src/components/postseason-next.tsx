@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { PostseasonRefreshHint } from "@/components/postseason-refresh-hint";
 import type { PostseasonPointer } from "@/components/daily-hub";
+import { nextPreviewLink } from "@/lib/between-games";
 import {
   POSTSEASON_COPY,
   slotVenueText,
@@ -60,18 +61,40 @@ export function postseasonGameLabels(j: PostseasonJourney | null): Record<string
   return out;
 }
 
-/** 一行系列概況：系列名、是否已分勝負、本站季後賽果場數、是否有場次賽果待更新。
- *  挑戰賽已決而台灣大賽未決時，先說挑戰賽結果（#268 驗收：首頁看得到挑戰賽已決）。 */
+/** 下一場（旅程 next）已有正式列時的觀戰報告入口（`${year}-${kind}-${sno}` → 網址；#273 N03）。
+ *  只給下一場：其他場的觀戰報告不成立。網址本身由觀戰報告頁再核對一次，這裡不重複判斷。 */
+export function postseasonPreviewLinks(j: PostseasonJourney | null): Record<string, string> {
+  const row = j?.next?.row;
+  const href = nextPreviewLink(row);
+  return row && href ? { [`${row.year}-${row.kind_code}-${row.game_sno}`]: href } : {};
+}
+
+/** 首頁賽果卡的季後標籤（#273 N10）：「季後挑戰賽 G4」，分出系列勝負的那一場另說誰晉級／封王。 */
+export function postseasonResultLabels(j: PostseasonJourney | null): Record<string, string> {
+  const out = postseasonGameLabels(j);
+  for (const s of j ? [j.series.E, j.series.C] : []) {
+    const last = s.games.at(-1);
+    const key = last?.game_sno != null ? `${j!.year}-${s.kind}-${last.game_sno}` : null;
+    if (s.status === "decided" && s.tally.winner && key && out[key]) {
+      out[key] = `${out[key]}・${teamShortName(s.tally.winner)}${s.kind === "E" ? "晉級台灣大賽" : "奪得總冠軍"}`;
+    }
+  }
+  return out;
+}
+
+/** 一行系列概況：挑戰賽已決時先說誰晉級（#268 驗收），再說進行中的系列是什麼狀態。
+ *  #273 N11：不再寫「本站季後賽果 N 場」——讀者會把它讀成台灣大賽已有 N 場結果；改說「尚未開打／系列進行中」。
+ *  日期時刻刻意不寫（#237：下一場細節只在季後總覽）；已過開賽時間仍無賽果時不說「尚未開打」。 */
 function seriesBrief(j: PostseasonJourney): string {
   const eDone = j.series.E.status === "decided";
   const s = eDone ? j.series.C : j.series.E;
   const eWinner = eDone ? j.series.E.tally.winner : null;
+  const pending = j.slots.some((x) => x.status === "result_pending");
   return [
     eWinner && s.status !== "decided" ? `挑戰賽已決：${teamShortName(eWinner)}晉級` : null,
-    s.name,
+    `${s.name}${s.status === "not_started" && !pending ? "尚未開打" : s.status === "in_progress" ? "系列進行中" : ""}`,
     s.status === "decided" ? "系列已分勝負" : null,
-    j.recordedGames > 0 ? `本站季後賽果 ${j.recordedGames} 場` : "本站尚無季後賽果紀錄",
-    j.slots.some((x) => x.status === "result_pending") ? "部分場次賽果待更新" : null,
+    pending ? "部分場次賽果待更新" : null,
   ].filter(Boolean).join("・");
 }
 

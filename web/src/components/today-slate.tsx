@@ -200,12 +200,14 @@ function FinalTicket({ g, reveal, seriesLabel }: { g: TodayGame; reveal: boolean
 
 /** 單場票券的三態分派。`nowMs` 一律由呼叫端注入（島持有的 tick），元件內不叫
  *  `Date.now()`——同一份 props 必須畫出同一個畫面，SSR 與 client 首次渲染才會一致。 */
-export function TodayGameCard({ g, trainedThrough, nowMs, reveal = false, seriesLabel = null }: {
+export function TodayGameCard({ g, trainedThrough, nowMs, reveal = false, seriesLabel = null, reportHref = null }: {
   g: TodayGame; trainedThrough: number | null; nowMs: number | null;
   /** 這一輪剛轉為終場：郵戳落章一次。 */
   reveal?: boolean;
   /** 季後系列標籤（「台灣大賽 G1」，#268）；例行賽為 null。 */
   seriesLabel?: string | null;
+  /** 季後下一場的觀戰報告（#273 N03）；賽前模型不涵蓋時放在右格。 */
+  reportHref?: string | null;
 }) {
   const kind = todayCardKind(g);
   // 狀態章文案與最近比賽日共用同一張表（`todayStatusCopy` → `LATEST_STATUS_COPY`），
@@ -237,7 +239,10 @@ export function TodayGameCard({ g, trainedThrough, nowMs, reveal = false, series
   }
   // 首頁只隱藏不支援賽事類型的提示文字，保留其他模型內容與卡片結構。
   // 沒有 snapshot 時不貼狀態章（不宣稱「未開打」，郵戳已承載日期）。
+  // #273 N09：不支援時右格不放空白附註（否則 `:empty` 不成立，畫成空灰框）；季後下一場改放觀戰報告出口（N03）。
+  // 右格 z-index:1，連結不會被票券的延伸點擊區蓋住。
   const pregameModel = resolvePregameFromDaily(g.pregame, trainedThrough);
+  const unsupported = pregameModel.status === "unsupported";
   return (
     <Ticket
       g={g}
@@ -247,10 +252,14 @@ export function TodayGameCard({ g, trainedThrough, nowMs, reveal = false, series
       showScore={false}
       live={null}
       entry={PHASE_ENTRY.pregame}
-      aside={
-        <PregameCard model={pregameModel.status === "unsupported" ? { ...pregameModel, message: "" } : pregameModel}
-          homeName={teamShort(g.home_team_code) || g.home_team_name} variant="aside" />
-      }
+      aside={unsupported ? (reportHref ? (
+        <Link href={reportHref} data-testid="ticket-report-link"
+          className="inline-flex min-h-11 items-center text-right text-[13px] font-semibold text-accent underline">
+          觀戰報告：開賽前兩隊背景 →
+        </Link>
+      ) : undefined) : (
+        <PregameCard model={pregameModel} homeName={teamShort(g.home_team_code) || g.home_team_name} variant="aside" />
+      )}
     />
   );
 }
