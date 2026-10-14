@@ -2,12 +2,19 @@
 
 from __future__ import annotations
 
+from collections import defaultdict
 from datetime import UTC, datetime
 
 from cpbl.api import between_games as bg
 from cpbl.reports import announcements, background, population, readers
 from cpbl.reports.context import ContextChanged, bounded_context, key, validate_target
-from cpbl.reports.stats import field_candidates, player_period, three_periods, watch_points
+from cpbl.reports.stats import (
+    BoxIndex,
+    field_candidates,
+    player_period,
+    three_periods,
+    watch_points,
+)
 
 
 def _report_background(cur, season: int, kind: str, anchor: dict, upto: list[dict],
@@ -76,6 +83,22 @@ def _report_background(cur, season: int, kind: str, anchor: dict, upto: list[dic
     cards = background.cards(cur, ids, season, verified)
     players = []
     trait_league_cache = cache.setdefault("trait_league", {})
+    player_cache = cache.setdefault("player_background", {})
+    # 分組索引只在本次請求內使用：同一份列只掃一次，查找結果與逐列篩選相同。
+    regular_index = cache.setdefault("regular_index", {})
+    for role in boxes:
+        if role not in regular_index:
+            regular_index[role] = BoxIndex(regular_boxes[role])
+    series_index = {role: BoxIndex(rows) for role, rows in boxes.items()}
+    recent_index = series_index if recent_boxes is boxes else {
+        role: BoxIndex(rows) for role, rows in recent_boxes.items()}
+    if "fields_by_player" not in cache:
+        fields_by_player = defaultdict(list)
+        for r in fields:
+            fields_by_player[(r["player_id"], r["team_code"])].append(r)
+        cache["fields_by_player"] = fields_by_player
+    fields_by_player = cache["fields_by_player"]
+    groups = []
     for role, rows in boxes.items():
         for team in team_codes:
             roster = next(r for r in rosters if r["team_code"] == team)
@@ -89,62 +112,73 @@ def _report_background(cur, season: int, kind: str, anchor: dict, upto: list[dic
                 members |= {m["player_id"] for m in announced_members if m["team_code"] == team}
             if role == "pitching" and team in starters:
                 members.add(starters[team])
-            opponent = next(t for t in team_codes if t != team)
-            reg_keys = [key(g) for g in regular if team in (g["away_team_code"], g["home_team_code"])]
-            cutoff = f"截至 {season}/{anchor['kind_code']}/{anchor['game_sno']} 完賽"
-            for pid in sorted(members):
-                player_cache = cache.setdefault("player_background", {})
-                if (pid, role) not in player_cache:
-                    player_cache[(pid, role)] = background.player_background(
-                        cur, pid, role, season, verified.get(role, False), cards[role].get(pid),
-                        trait_league_cache=trait_league_cache)
-                person = people.get(pid, {})
-                periods = three_periods(series=rows, regular=regular_boxes[role], role=role,
-                                        player_id=pid, team=team, opponent=opponent,
-                                        series_keys=through_keys, regular_keys=reg_keys,
-                                        # 註冊完整不等於全 box 完整：既有 reader 只有
-                                        # game-range row coverage，不能推出會員未登場。
-                                        cutoff=cutoff, complete_population=False,
-                                        opponent_keys=[key(g) for g in regular if {team, opponent}
-                                                       == {g["away_team_code"], g["home_team_code"]}])
-                apps = [{"game_key": r["game_key"], "game_sno": r["game_sno"],
-                         "date": g["game_date"], "date_trusted": bg.date_trusted(g),
-                         "role_type": r["role_type"], "outs": r["outs"], "pitch_cnt": r["pitch_cnt"]}
-                        for g in recent_games for r in recent_boxes[role] if role == "pitching" and r["game_sno"] == g["game_sno"]
-                        and r["player_id"] == pid and r["team_code"] == team]
-                usage = bg.pitcher_usage(apps, target_date) if role == "pitching" and apps else None
-                if usage is not None:
-                    usage_period = player_period(recent_boxes[role], role=role, player_id=pid, team=team,
-                                                 expected_keys=[key(g) for g in recent_games],
-                                                 source="recent_completed_through_X", cutoff=cutoff)
-                    usage["coverage_status"] = usage_period["coverage_status"]
-                    usage["through_game_keys"] = [key(g) for g in recent_games]
-                    usage["cutoff_label"] = cutoff
-                    if usage["coverage_status"] != "complete":
-                        usage["consecutive_days"] = usage["days_to_next"] = None
-                pair = pairs.get((pid, starters.get(opponent))) if role == "batting" else None
-                vs = {"status": "missing" if role == "batting" else "not_applicable",
-                      "pitcher_id": starters.get(opponent) if role == "batting" else None}
-                if pair:
-                    vs = {"status": "available", "pitcher_id": pair["pitcher_acnt"],
-                          "counts": {**bg.sum_batting([pair]), "g": None}, "sample": {"pa": pair["pa"], "ab": pair["ab"]},
-                          "source": "batter_pitcher_matchups_A", "updated_at": pair["updated_at"],
-                          "covered_game_keys": [], "coverage_status": "unverified"}
-                players.append({"player_id": pid, "team_code": team, "role": role,
-                                "name": next((m.get("name") for m in roster["members"]
-                                              if m["player_id"] == pid), None)
-                                        or next((m.get("name") for m in announced_members
-                                                 if m["player_id"] == pid and m["team_code"] == team), None)
-                                        or person.get("name")
-                                        or next((r["name"] for r in [*rows, *recent_boxes[role], *regular_boxes[role]]
-                                                 if r["player_id"] == pid and r["team_code"] == team), None),
-                                "bats": person.get("bats"), "throws": person.get("throws"),
-                                "periods": periods, "pitching_usage": usage, "vs_starter": vs,
-                                "fielding": [r for r in fields if r["player_id"] == pid and r["team_code"] == team],
-                                "last_game": player_period(recent_boxes[role], role=role, player_id=pid, team=team,
-                                                           expected_keys=[key(anchor)],
-                                                           source="box_X", cutoff=cutoff),
-                                **player_cache[(pid, role)]})
+            groups.append((role, rows, team, roster, sorted(members)))
+    missing = defaultdict(list)
+    for role, _rows, _team, _roster, members in groups:
+        for pid in members:
+            if (pid, role) not in player_cache and pid not in missing[role]:
+                missing[role].append(pid)
+    prefetched = background.prefetch_player_backgrounds(cur, season, verified, dict(missing),
+                                                        trait_league_cache=trait_league_cache)
+    for role, rows, team, roster, members in groups:
+        opponent = next(t for t in team_codes if t != team)
+        reg_keys = [key(g) for g in regular if team in (g["away_team_code"], g["home_team_code"])]
+        cutoff = f"截至 {season}/{anchor['kind_code']}/{anchor['game_sno']} 完賽"
+        for pid in members:
+            if (pid, role) not in player_cache:
+                player_cache[(pid, role)] = background.player_background(
+                    cur, pid, role, season, verified.get(role, False), cards[role].get(pid),
+                    trait_league_cache=trait_league_cache, prefetched=prefetched.get((pid, role)))
+            person = people.get(pid, {})
+            periods = three_periods(series=rows, regular=regular_boxes[role], role=role,
+                                    player_id=pid, team=team, opponent=opponent,
+                                    series_keys=through_keys, regular_keys=reg_keys,
+                                    # 註冊完整不等於全 box 完整：既有 reader 只有
+                                    # game-range row coverage，不能推出會員未登場。
+                                    cutoff=cutoff, complete_population=False,
+                                    opponent_keys=[key(g) for g in regular if {team, opponent}
+                                                   == {g["away_team_code"], g["home_team_code"]}],
+                                    series_index=series_index[role], regular_index=regular_index[role])
+            own_recent = recent_index[role].player_rows(pid, team)
+            apps = [{"game_key": r["game_key"], "game_sno": r["game_sno"],
+                     "date": g["game_date"], "date_trusted": bg.date_trusted(g),
+                     "role_type": r["role_type"], "outs": r["outs"], "pitch_cnt": r["pitch_cnt"]}
+                    for g in recent_games for r in own_recent if role == "pitching" and r["game_sno"] == g["game_sno"]]
+            usage = bg.pitcher_usage(apps, target_date) if role == "pitching" and apps else None
+            if usage is not None:
+                usage_period = player_period(recent_boxes[role], role=role, player_id=pid, team=team,
+                                             expected_keys=[key(g) for g in recent_games],
+                                             source="recent_completed_through_X", cutoff=cutoff,
+                                             index=recent_index[role])
+                usage["coverage_status"] = usage_period["coverage_status"]
+                usage["through_game_keys"] = [key(g) for g in recent_games]
+                usage["cutoff_label"] = cutoff
+                if usage["coverage_status"] != "complete":
+                    usage["consecutive_days"] = usage["days_to_next"] = None
+            pair = pairs.get((pid, starters.get(opponent))) if role == "batting" else None
+            vs = {"status": "missing" if role == "batting" else "not_applicable",
+                  "pitcher_id": starters.get(opponent) if role == "batting" else None}
+            if pair:
+                vs = {"status": "available", "pitcher_id": pair["pitcher_acnt"],
+                      "counts": {**bg.sum_batting([pair]), "g": None}, "sample": {"pa": pair["pa"], "ab": pair["ab"]},
+                      "source": "batter_pitcher_matchups_A", "updated_at": pair["updated_at"],
+                      "covered_game_keys": [], "coverage_status": "unverified"}
+            players.append({"player_id": pid, "team_code": team, "role": role,
+                            "name": next((m.get("name") for m in roster["members"]
+                                          if m["player_id"] == pid), None)
+                                    or next((m.get("name") for m in announced_members
+                                             if m["player_id"] == pid and m["team_code"] == team), None)
+                                    or person.get("name")
+                                    or next((r["name"] for index in (series_index[role], recent_index[role],
+                                                                    regular_index[role])
+                                             for r in index.player_rows(pid, team)), None),
+                            "bats": person.get("bats"), "throws": person.get("throws"),
+                            "periods": periods, "pitching_usage": usage, "vs_starter": vs,
+                            "fielding": list(fields_by_player.get((pid, team), [])),
+                            "last_game": player_period(recent_boxes[role], role=role, player_id=pid, team=team,
+                                                       expected_keys=[key(anchor)],
+                                                       source="box_X", cutoff=cutoff, index=recent_index[role]),
+                            **player_cache[(pid, role)]})
     for p in players:
         advanced = p.get("official_pr")
         if advanced:

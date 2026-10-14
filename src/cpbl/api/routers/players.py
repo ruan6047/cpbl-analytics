@@ -742,25 +742,47 @@ def player_traits(player_id: str, season: int = Query(DEFAULT_SEASON),
 def _player_traits(cur, player_id: str, season: int, role: str, *, league_cache: dict | None = None) -> dict:
     """共用同一讀取交易；報告不再逐人開第二條連線。"""
     table = "batter_traits" if role == "batting" else "pitcher_traits"
-    pa_col = "pa" if role == "batting" else "bf"
     cur.execute(  # noqa: S608 — table 白名單如上
         f"SELECT * FROM cpbl.{table} WHERE player_id=%s AND year=%s AND kind_code='A'",
         (player_id, season))
     rows = _dicts(cur)
+    lg = _traits_league(cur, season, role, league_cache)
+    return _traits_shape(rows[0] if rows else None, lg, season, role)
+
+
+def _player_traits_many(cur, player_ids: list[str], season: int, role: str, *,
+                        league_cache: dict | None = None) -> dict[str, dict]:
+    """報告用批次版：一次讀多人，逐人結果與 `_player_traits` 相同（PK 為 year,kind_code,player_id）。"""
+    table = "batter_traits" if role == "batting" else "pitcher_traits"
+    cur.execute(  # noqa: S608 — table 白名單如上
+        f"SELECT * FROM cpbl.{table} WHERE player_id=ANY(%s) AND year=%s AND kind_code='A'",
+        (list(player_ids), season))
+    found: dict[str, dict] = {}
+    for row in _dicts(cur):
+        found.setdefault(row["player_id"], row)
+    lg = _traits_league(cur, season, role, league_cache)
+    return {pid: _traits_shape(found.get(pid), lg, season, role) for pid in player_ids}
+
+
+def _traits_league(cur, season: int, role: str, league_cache: dict | None):
+    table = "batter_traits" if role == "batting" else "pitcher_traits"
+    pa_col = "pa" if role == "batting" else "bf"
     cache_key = (season, role)
     if league_cache is not None and cache_key in league_cache:
-        lg = league_cache[cache_key]
-    else:
-        cur.execute(  # 聯盟均值（有效樣本：打者 100 PA / 投手 100 BF）
-            f"SELECT round(avg(p_pa)::numeric, 2), "  # noqa: S608
-            f"round(avg(go::numeric / nullif(fo, 0)), 2), "
-            f"round(avg(100.0 * two_strike_k / nullif(two_strike_pa, 0)), 1) "
-            f"FROM cpbl.{table} WHERE year=%s AND kind_code='A' AND {pa_col} >= 100",
-            (season,))
-        lg = cur.fetchone()
-        if league_cache is not None:
-            league_cache[cache_key] = lg  # 只由同一 report 讀取交易持有，不是跨請求快取。
-    me = rows[0] if rows else None
+        return league_cache[cache_key]
+    cur.execute(  # 聯盟均值（有效樣本：打者 100 PA / 投手 100 BF）
+        f"SELECT round(avg(p_pa)::numeric, 2), "  # noqa: S608
+        f"round(avg(go::numeric / nullif(fo, 0)), 2), "
+        f"round(avg(100.0 * two_strike_k / nullif(two_strike_pa, 0)), 1) "
+        f"FROM cpbl.{table} WHERE year=%s AND kind_code='A' AND {pa_col} >= 100",
+        (season,))
+    lg = cur.fetchone()
+    if league_cache is not None:
+        league_cache[cache_key] = lg  # 只由同一 report 讀取交易持有，不是跨請求快取。
+    return lg
+
+
+def _traits_shape(me: dict | None, lg, season: int, role: str) -> dict:
     if me:
         me["go_fo"] = round(me["go"] / me["fo"], 2) if me.get("fo") else None
         if me.get("two_strike_pa"):
