@@ -41,6 +41,15 @@ test("unsupported 判定看賽別而非 response：二軍場即使 API 有資料
   assert.equal(model.status, "unsupported");
 });
 
+test("#273 R2：季後賽（E／C）不支援時說明原因，二軍維持原文案", () => {
+  for (const kind_code of ["E", "C"]) {
+    const model = resolvePregameCard({ ...PREGAME_FIXTURES.unsupported, game: { ...PREGAME_FIXTURES.unsupported.game, kind_code } });
+    assert.ok(model.status === "unsupported" && model.message === PREGAME_COPY.unsupportedPostseason);
+  }
+  const farm = resolvePregameCard(PREGAME_FIXTURES.unsupported);
+  assert.ok(farm.status !== "available" && farm.message === PREGAME_COPY.unsupported);
+});
+
 // —— 點機率＋1 個主要訊號（驗收條件 1）——
 
 test("available 只有一個點機率，view model 不含任何區間欄位", () => {
