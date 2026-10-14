@@ -93,6 +93,22 @@ def test_import_status_never_guesses_null_as_local():
     assert import_status("0000000001", "美國") == VERIFIED_IMPORT
     assert import_status("0000006818", "日本") == VERIFIED_NON_IMPORT   # 永田
     assert import_status("0000000121", "美國") == VERIFIED_NON_IMPORT   # 羅力
+    # #284 R1 F2：條款球員國籍 NULL 也是 unknown，不得直接當已核
+    for pid in ("0000006818", "0000000121", "0000000762"):
+        assert import_status(pid, None) == UNKNOWN
+        assert import_status(pid, "") == UNKNOWN
+
+
+def test_clause_player_null_country_marks_check_incomplete():
+    ctx = context_from_fixture(2026, "ADD011")
+    pid = "0000006818"  # 髙塩將樹（永田條款），真實 ADD011 會員
+    ctx.players[pid] = PlayerRecord(pid, ctx.players[pid].name, None)
+    p = prep("ADD011", ctx=ctx)
+    row = next(r for r in p.rows if r.player_id == pid)
+    assert row.import_status == UNKNOWN
+    assert p.status == "ready" and p.import_check["complete"] is False
+    assert [u["player_id"] for u in p.import_check["unknown"]] == [pid]
+    assert len(p.import_check["verified_imports"]) == 3
 
 
 def test_count_31_and_33_are_violations():

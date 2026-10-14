@@ -32,10 +32,12 @@ PARTICIPANT_NOTE = "需人工確認（S02 系列參賽隊契約未核定；本�
 
 
 def import_status(player_id: str, country: str | None) -> str:
-    if player_id in NAGATA_PIDS or player_id in LOREE_PIDS:
-        return VERIFIED_NON_IMPORT  # 申請制條款的手動 override，皆不占洋將名額
+    # 核定判準（PLAN §2.4）：country 非空才算已核，再套 override；NULL 一律 unknown——
+    # 條款球員也不例外（#284 R1 F2），否則主檔缺國籍時仍會宣稱檢查完整。
     if country is None or not country.strip():
         return UNKNOWN
+    if player_id in NAGATA_PIDS or player_id in LOREE_PIDS:
+        return VERIFIED_NON_IMPORT  # 申請制條款的手動 override，皆不占洋將名額
     return VERIFIED_NON_IMPORT if country.strip() == "中華民國" else VERIFIED_IMPORT
 
 
