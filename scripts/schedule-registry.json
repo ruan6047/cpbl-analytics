@@ -117,7 +117,7 @@
       "effective_from": null,
       "effective_from_evidence": "尚未啟用。啟用（P1，需求方授權後）時與 expected_installed 一起改為實際 bootstrap 日。",
       "expected_installed": false,
-      "expected_installed_reason": "#268 WP3 只製作、WP4 啟用屬 P1 共享操作，須另經需求方授權（裁定 6160858879：審核通過前不啟用）。比照 weekly-game-pitches 的 Phase A 寫法：宣告『刻意不安裝』，未授權即被安裝時 watchdog 報 REGISTRY_CONFLICT；啟用操作包第一步把本欄改 true（同一窗口內 bootstrap），系列結束 bootout 後再改回 false。",
+      "expected_installed_reason": "#268 WP3 只製作、WP4 啟用屬 P1 共享操作，須另經需求方授權（裁定 6160858879：審核通過前不啟用）。比照 weekly-game-pitches 的 Phase A 寫法：宣告『刻意不安裝』，未授權即被安裝時 watchdog 報 REGISTRY_CONFLICT；啟用時（操作包唯讀檢查通過後、同一窗口內 bootstrap 前）把本欄改 true、填 effective_from，並在本欄引用需求方啟用授權留言 issuecomment-<id>（tests/test_schedule_watch.py 只接受休眠或已授權兩種形狀）；系列結束 bootout 後改回 false、effective_from 回 null。",
       "status_path": "logs/last-postseason-evening.json",
       "history_path": "logs/schedule-history/com.cpbl.postseason-evening.jsonl",
       "history_from": "2026-10-14",

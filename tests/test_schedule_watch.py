@@ -1190,6 +1190,12 @@ def test_interval_plist_is_parsed_and_malformed_interval_fails_closed(tmp_path: 
         path.write_text(INTERVAL_PLIST.format(label=EVENING, seconds=bad), encoding="utf-8")
         assert sw.plist_cadence(path) is None
     assert sw.plist_cadence(ROOT / "ops" / "launchd" / f"{EVENING}.plist") == INTERVAL
+    mixed = tmp_path / "mixed.plist"   # 審核二 N1：兩種 trigger 並存不得被當成 daily
+    mixed.write_text(INTERVAL_PLIST.format(label=EVENING, seconds=300).replace(
+        "<key>RunAtLoad</key>",
+        "<key>StartCalendarInterval</key><dict><key>Hour</key><integer>10</integer>"
+        "<key>Minute</key><integer>10</integer></dict>\n  <key>RunAtLoad</key>"), encoding="utf-8")
+    assert sw.plist_cadence(mixed) is None
 
 
 def test_dormant_interval_job_is_silent_and_unauthorised_install_is_a_conflict(tmp_path: Path) -> None:
@@ -1247,9 +1253,79 @@ def test_interval_cadence_drift_and_unregistered_ops_plist_alarm_the_registry(tm
     assert report["registry_blocked"] is True
 
 
-def test_shipped_evening_job_is_registered_dormant_until_authorised() -> None:
+MAKING_RULING = "6160858879"   # 「製作啟用包」的裁定，不是啟用授權本身
+
+
+def _evening_registration_problems(job: dict) -> list[str]:
+    """晚間 job 登記只有兩種合法形狀（#268 審核二 F1）：
+
+    * **休眠**（授權前）：`expected_installed=false` 且 `effective_from=null`。未授權卻被安裝由偵測器
+      執行期報 REGISTRY_CONFLICT（見 test_dormant_interval_job_is_silent_and_unauthorised_install_is_a_conflict）。
+    * **已授權啟用**（操作包 §1.3 的 PR）：`expected_installed=true`、`effective_from` 為不早於
+      `history_from` 的日期，且 `expected_installed_reason` 引用需求方**啟用授權**留言
+      `issuecomment-<id>`（不得只引製作裁定 6160858879）。
+
+    其他（半翻轉、無授權來源的翻轉、非 bool）一律是問題——CI 擋的是「沒有授權來源的翻轉」，
+    不是「翻轉本身」，所以核定的啟用 PR 能綠。"""
+    import re
+
+    problems = []
+    if job.get("cadence") != INTERVAL:
+        problems.append("cadence 必須是 interval 300")
+    if job.get("status_path") != "logs/last-postseason-evening.json":
+        problems.append("status_path 必須是晚間鏈的最終狀態檔")
+    installed, effective = job.get("expected_installed"), job.get("effective_from")
+    if installed is False:
+        if effective is not None:
+            problems.append("休眠宣告不得帶 effective_from（半翻轉）")
+    elif installed is True:
+        if not effective:
+            problems.append("啟用須填 effective_from（實際 bootstrap 日）")
+        elif datetime.fromisoformat(effective).date() < datetime.fromisoformat(job["history_from"]).date():
+            problems.append("effective_from 不得早於 history_from")
+        refs = set(re.findall(r"issuecomment-(\d+)", job.get("expected_installed_reason") or ""))
+        if not refs - {MAKING_RULING}:
+            problems.append("啟用須引用需求方啟用授權留言 issuecomment-<id>（不是製作裁定）")
+    else:
+        problems.append("expected_installed 必須是 bool")
+    return problems
+
+
+def _shipped_evening_job() -> dict:
     registry = json.loads(REAL_REGISTRY.read_text(encoding="utf-8"))
-    job = next(j for j in registry["jobs"] if j["label"] == EVENING)
-    assert job["cadence"] == INTERVAL
-    assert job["expected_installed"] is False, "P1 授權前不得宣告應安裝（裁定 6160858879）"
-    assert job["status_path"] == "logs/last-postseason-evening.json"
+    return next(j for j in registry["jobs"] if j["label"] == EVENING)
+
+
+def test_shipped_evening_registration_is_dormant_or_authorised() -> None:
+    """取代舊的無條件 `expected_installed is False`：那條讓操作包 §1.3 的啟用 PR 必然 CI 紅。"""
+    assert _evening_registration_problems(_shipped_evening_job()) == []
+
+
+def _activation_pr(job: dict, **overrides) -> dict:
+    """操作包 §1.3 的四項翻轉（值為合成示例）。"""
+    return {**job, "expected_installed": True, "effective_from": "2026-10-16",
+            "effective_from_evidence": "2026-10-16 20:05 台北 bootstrap（合成示例）",
+            "expected_installed_reason": "需求方啟用授權 https://github.com/ruan6047/cpbl-analytics/issues/268"
+                                         "#issuecomment-6170000000（合成示例）", **overrides}
+
+
+def test_activation_pr_from_the_package_passes_ci() -> None:
+    dormant = _shipped_evening_job()
+    flipped = _activation_pr({**dormant, "expected_installed": False, "effective_from": None})
+    assert _evening_registration_problems(flipped) == []
+
+
+@pytest.mark.parametrize("overrides", [
+    {"expected_installed_reason": "照計畫啟用"},                                    # 沒有授權來源
+    {"expected_installed_reason": f"依 issuecomment-{MAKING_RULING} 啟用"},          # 只引製作裁定
+    {"effective_from": None},                                                      # 半翻轉：沒填生效日
+    {"effective_from": "2026-10-01"},                                              # 早於 history_from
+    {"expected_installed": "true"},                                                # 非 bool
+])
+def test_unauthorised_or_half_flips_are_caught(overrides: dict) -> None:
+    assert _evening_registration_problems(_activation_pr(_shipped_evening_job(), **overrides))
+
+
+def test_dormant_registration_must_not_carry_an_effective_date() -> None:
+    assert _evening_registration_problems({**_shipped_evening_job(), "expected_installed": False,
+                                           "effective_from": "2026-10-16"})

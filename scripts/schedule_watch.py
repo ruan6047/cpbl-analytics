@@ -487,6 +487,8 @@ def plist_cadence(plist_path: Path) -> dict | None:
         if interval is None and isinstance(seconds, int) and not isinstance(seconds, bool) and seconds > 0:
             return {"kind": "interval", "seconds": seconds}
         return None
+    if "StartInterval" in data:
+        return None   # 曆時點與固定間隔並存：只對帳其一會漏掉另一個的漂移（審核二 N1）
     if "Weekday" in interval:
         return {"kind": "weekly", "weekday": _launchd_weekday_to_iso(interval["Weekday"]),
                 "hour": interval.get("Hour"), "minute": interval.get("Minute")}
