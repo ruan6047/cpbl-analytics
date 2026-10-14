@@ -11,7 +11,7 @@ import { SectionTitle } from "@/components/postmark";
 import { reportField, reportFieldPlayer } from "@/lib/report-field";
 import { REPORT_TABS, previewLink, reportLink } from "@/lib/between-games";
 import { gameLink } from "@/lib/postseason-journey";
-import { taipeiMinute } from "@/lib/postseason-game-name";
+import { REPORT_NAMES, monthDay, nextGameName, postseasonGameName, taipeiMinute } from "@/lib/postseason-game-name";
 import { teamColor, teamName3 } from "@/lib/teams";
 import type { Counts, Period, Report, ReportKind, ReportPlayer, ReportTab, ReportView } from "@/lib/report-types";
 
@@ -57,17 +57,18 @@ function AbilityPanel({ player }: { player: ReportPlayer }) {
   </section>;
 }
 type PlayerPeriod = typeof periods[number]["key"] | "usage";
-export function ReportPlayerPeriod({ player, period, hasTarget = true }: { player: ReportPlayer; period: PlayerPeriod; hasTarget?: boolean }) {
+/** `usageCutoff`：頁面以季後場次名組好的截至說明（「截至季後挑戰賽 G4 完賽」）；未給時沿後端原字串。 */
+export function ReportPlayerPeriod({ player, period, hasTarget = true, usageCutoff = null }: { player: ReportPlayer; period: PlayerPeriod; hasTarget?: boolean; usageCutoff?: string | null }) {
   if (period !== "usage") return <PeriodRow period={player.periods[period]} role={player.role} full />;
   const usage = player.pitching_usage;
   if (!usage) return <p className="text-sm text-muted">本站未取得可靠使用紀錄</p>;
   return <>
-    {usage.cutoff_label && <p className="mb-2 text-xs text-muted">近期使用 · {String(usage.cutoff_label)}</p>}
+    {(usageCutoff ?? usage.cutoff_label) && <p className="mb-2 text-xs text-muted">近期使用 · {usageCutoff ?? String(usage.cutoff_label)}</p>}
     <p className="text-sm text-muted">合計 {String(usage.ip ?? "—")} 局 · {String(usage.pitch_total ?? "—")} 球 · 連續出賽 {String(usage.consecutive_days ?? "—")} 天{hasTarget && <> · 距下一場 {String(usage.days_to_next ?? "—")} 天</>}</p>
     <ul className="mt-2 space-y-1 text-xs text-muted">{((usage.appearances ?? []) as { game_key: string; date: string; role_type: string; outs: number | null; pitch_cnt: number | null }[]).map(a => <li key={a.game_key}>{a.date} · {a.role_type ?? "角色未取得"} · {a.outs == null ? "—" : `${Math.floor(a.outs / 3)}.${a.outs % 3}`} 局 · {d(a.pitch_cnt)} 球</li>)}</ul>
   </>;
 }
-export function ReportPlayerDialog({ player, close, season, hasTarget = true }: { player: ReportPlayer; close: () => void; season: number; hasTarget?: boolean }) {
+export function ReportPlayerDialog({ player, close, season, hasTarget = true, usageCutoff = null }: { player: ReportPlayer; close: () => void; season: number; hasTarget?: boolean; usageCutoff?: string | null }) {
   const ref = useRef<HTMLDialogElement>(null);
   const [period, setPeriod] = useState<PlayerPeriod>("series");
   const tabs = player.role === "pitching" ? [...periods, { key: "usage" as const, label: "逐場使用" }] : periods;
@@ -86,7 +87,7 @@ export function ReportPlayerDialog({ player, close, season, hasTarget = true }: 
       </header>
       <section className="mt-5 border-y border-line py-5"><AbilityPanel player={player} /></section>
       <div className="mt-5 flex flex-wrap gap-1" role="group" aria-label="選手資料期間">{tabs.map(t => <button key={t.key} type="button" aria-pressed={period === t.key} onClick={() => setPeriod(t.key)} className={`min-h-11 rounded px-3 text-xs ${period === t.key ? "bg-ink text-paper" : "bg-band text-ink"}`}>{t.label}</button>)}</div>
-      <section className="py-4" aria-label={tabs.find(t => t.key === period)?.label}><ReportPlayerPeriod player={player} period={period} hasTarget={hasTarget} /></section>
+      <section className="py-4" aria-label={tabs.find(t => t.key === period)?.label}><ReportPlayerPeriod player={player} period={period} hasTarget={hasTarget} usageCutoff={usageCutoff} /></section>
       {hasTarget && player.role === "batting" && player.vs_starter.pitcher_id && <section className="border-t border-line py-4"><h3 className="mb-2 font-bold">本季對該場公告先發</h3>{player.vs_starter.counts ? <><CountLine counts={player.vs_starter.counts} role="batting" /><p className="mt-1 text-xs text-muted">{d(player.vs_starter.sample?.pa)} PA · {d(player.vs_starter.sample?.ab)} AB；覆蓋未核實，更新 {player.vs_starter.updated_at?.slice(0, 10) ?? "時點未取得"}</p></> : <p className="text-sm text-muted">本站未取得投打配對</p>}</section>}
       {player.role === "pitching" && <section className="mt-5"><h3 className="font-bold">本季左右打分項</h3>{player.splits.length ? <ul className="mt-2 space-y-2 text-sm text-muted">{player.splits.map(s => <li key={String(s.item_index)}>{String(s.item_name ?? s.item_index)} · {d(s.plate_appearances)} PA · {d(s.hits)} H · {d(s.home_runs)} HR · {d(s.bb)} BB · {d(s.so)} SO</li>)}</ul> : <p className="mt-2 text-sm text-muted">本站未取得可靠左右分項</p>}</section>}
       <p className="mt-5 text-xs text-muted">能力、官方 PR 與特性固定 {season} 年一軍例行賽，不隨期間重算。</p><Link className={`${ENTITY_LINK} mt-4 inline-block min-h-11`} href={`/players/${player.player_id}?year=${season}`}>完整球員頁</Link>
@@ -154,18 +155,39 @@ export default function ReportPage({ view, tab, preview, nextPreview }: { view: 
   const historyGame = report.game;
   const comparison = report.comparison;
   const displayReport: Report = comparison ? {...report, ...comparison, game: historyGame, next_game: comparison.game} : report;
-  const game = comparison?.game ?? historyGame;
-  const titleGame = preview && displayReport.next_game ? displayReport.next_game : game;
-  const teamCodes = [titleGame.away_team_code, titleGame.home_team_code];
   const series = journey?.series[comparison?.kind_code ?? report.kind_code];
   const hasTarget = !!comparison || !!journey?.next;
   const pendingTransition = !!journey?.next && journey.next.kind !== report.kind_code && !comparison;
+  // #273 D1：H1 一律是這份報告所屬的那一場——場間報告＝已完賽的 X、觀戰報告＝下一場 Y（E1–E4 一致）。
+  // 兩隊卡、中央勝場與投野手左右（N35）沿「開賽前背景」所指的下一場；沒有可靠下一場時沿 X。
+  // 跨系列但尚無比較資料（pendingTransition）時，名單仍是 X 系列兩隊，不沿下一場。
+  const nextGame = hasTarget && !pendingTransition ? displayReport.next_game : null;
+  const titleGame = preview && nextGame ? nextGame : historyGame;
+  // 第二讀沒帶下一場時，同系列的旅程 next 已有兩隊就沿它（與 H2 同源），否則才沿 X。
+  const nextSlot = hasTarget && !pendingTransition && journey?.next?.awayCode && journey.next.homeCode ? journey.next : null;
+  const teamCodes = nextGame ? [nextGame.away_team_code, nextGame.home_team_code]
+    : nextSlot ? [nextSlot.awayCode!, nextSlot.homeCode!] : [historyGame.away_team_code, historyGame.home_team_code];
+  // 季後場次名（N31）：場序取自公告歸併或系列完賽場，⛔ 不從場號推；查不到時退回不含場序的說法。
+  const xName = postseasonGameName(journey, report.kind_code, report.game_sno);
+  const xLabel = `${xName ?? "本場"}（${monthDay(historyGame.game_date)}）`;
+  const yName = hasTarget ? nextGameName(journey) : null;
+  const ySeries = comparison ? journey?.series[comparison.kind_code]?.name ?? (comparison.kind_code === "C" ? "台灣大賽" : "季後挑戰賽") : null;
+  // N04（D8）：觀戰報告的返回連結指向下一場自己的單場頁；場間報告返回已完賽那一場。
+  const back = preview ? gameLink(preview.kind, preview.sno, report.season) : original;
+  const backText = preview ? `返回${yName ? `${yName} ` : "該場"}賽況` : `返回${xName ? `${xName} ` : "本場"}賽況`;
   const tabLink = (t: ReportTab) => preview ? previewLink(preview.sno, preview.kind, report.season, t) : reportLink(report.game_sno, report.kind_code, report.season, t);
   return <div className="mx-auto max-w-6xl space-y-6 pb-10">
-    <header><Link href={original} className="inline-block min-h-11 text-sm text-accent underline">返回原賽況</Link><h1 className="text-3xl font-bold tracking-tight">{teamName3(titleGame.away_team_code)}對{teamName3(titleGame.home_team_code)} · {preview ? "下一場觀戰報告" : "場間報告"}</h1><p className="mt-2 text-sm text-muted">{hasTarget && "開賽前背景 · "}{historyGame.game_date} 完賽後 · {report.anchor?.cutoff_label}{comparison && <> · {teamName3(historyGame.away_team_code)}對{teamName3(historyGame.home_team_code)}回顧</>}</p>{!preview && nextPreview && <Link href={nextPreview} className="inline-block min-h-11 py-3 text-sm font-semibold text-accent underline">下一場觀戰報告</Link>}{preview && <Link href={reportLink(report.game_sno, report.kind_code, report.season)} className="inline-block min-h-11 py-3 text-sm text-accent underline">截至場場間報告</Link>}</header>
+    <header><Link href={back} className="inline-block min-h-11 py-3 text-sm text-accent underline">{backText}</Link>
+      <h1 className="text-3xl font-bold tracking-tight">{teamName3(titleGame.away_team_code)}對{teamName3(titleGame.home_team_code)} · {preview ? `${yName ? `${yName} ` : ""}${REPORT_NAMES.preview}` : REPORT_NAMES.between}</h1>
+      <p className="mt-2 text-sm text-muted">{preview
+        ? <>開賽前背景 · 資料截至{xLabel}完賽</>
+        : <>{xLabel}完賽後{hasTarget && <> · 下一場{yName ? `${yName} ` : ""}的開賽前背景</>}</>}</p>
+      {!preview && nextPreview && <Link href={nextPreview} className="inline-block min-h-11 py-3 text-sm font-semibold text-accent underline">下一場：{yName ? `${yName} ` : ""}{REPORT_NAMES.preview}</Link>}
+      {preview && <Link href={reportLink(report.game_sno, report.kind_code, report.season)} className="inline-block min-h-11 py-3 text-sm text-accent underline">上一場：{xName ? `${xName} ` : ""}{REPORT_NAMES.between}</Link>}
+    </header>
     <nav aria-label="場間報告頁籤" className="flex gap-1 rounded-t-md bg-band p-1">{REPORT_TABS.map(t => <Link key={t.value} href={tabLink(t.value)} aria-current={tab === t.value ? "page" : undefined} className={`min-h-11 flex-1 px-4 py-3 text-center text-sm ${tab === t.value ? "bg-paper font-bold text-ink" : "text-muted hover:text-ink"}`}>{t.label}</Link>)}</nav>
-    {comparison && comparison.series_game_keys.length === 0 && <p className="text-sm text-muted">{comparison.kind_code === "C" ? "台灣大賽" : "季後挑戰賽"}本系列尚無完賽資料（截至原完賽場）；近期使用另截至原完賽場，個人缺值仍未取得。</p>}
-    {pendingTransition && <p role="status" className="text-sm text-muted">{journey?.next?.awayLabel}對{journey?.next?.homeLabel}的本站正式場次資料尚未取得；下列保留原系列回顧，不以公告G1猜正式場號。</p>}
+    {comparison && comparison.series_game_keys.length === 0 && <p className="text-sm text-muted">{ySeries}還沒開打，「本系列」尚無紀錄；投手近期使用算到{xName ?? "本場"}。部分球員的個別數字本站尚未取得。</p>}
+    {pendingTransition && <p role="status" className="text-sm text-muted">{journey?.next?.awayLabel}對{journey?.next?.homeLabel}的本站正式場次資料尚未取得；下列保留原系列兩隊資料，不以公告G1猜正式場號。</p>}
     {updating && <p role="status" className="text-sm text-muted">資料更新中，背景稍後重新載入。</p>}
     {tab === "overview" ? <>
       <section><SectionTitle>{journey?.next ? `開賽前背景：${journey.next.awayLabel}對${journey.next.homeLabel}` : series?.tally.decided ? "系列已分勝負" : "下一場安排待核實"}</SectionTitle>
@@ -183,6 +205,6 @@ export default function ReportPage({ view, tab, preview, nextPreview }: { view: 
 
     </> : <div className="grid gap-8 md:grid-cols-2">{teamCodes.map(team => <TeamPlayers key={`${team}-${tab}`} report={displayReport} team={team} role={tab === "pitchers" ? "pitching" : "batting"} open={select} hasTarget={hasTarget} seriesNote={seriesNoteOf(report, journey)} />)}</div>}
     <ReportSources report={report} journey={journey} />
-    {selected && <ReportPlayerDialog key={`${selected.team_code}-${selected.role}-${selected.player_id}`} player={selected} close={() => select(null)} season={report.season} hasTarget={hasTarget} />}
+    {selected && <ReportPlayerDialog key={`${selected.team_code}-${selected.role}-${selected.player_id}`} player={selected} close={() => select(null)} season={report.season} hasTarget={hasTarget} usageCutoff={xName ? `截至${xName}完賽` : null} />}
   </div>;
 }

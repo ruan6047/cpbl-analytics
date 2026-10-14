@@ -8,7 +8,7 @@ import { Card } from "@/components/ui";
 import ReportPage from "../report/report-page";
 
 export const dynamic = "force-dynamic";
-export const metadata: Metadata = { title: "下一場觀戰報告｜CPBL Analytics", description: "季後賽未完賽下一場的開賽前背景與兩隊比較。", robots: { index: false, follow: true } };
+export const metadata: Metadata = { title: "觀戰報告｜CPBL Analytics", description: "季後賽未完賽下一場的開賽前背景與兩隊比較。", robots: { index: false, follow: true } };
 export default async function Page({ params, searchParams }: {
   params: Promise<{ sno: string }>;
   searchParams: Promise<{ kind?: string; year?: string; tab?: string }>;
@@ -16,7 +16,7 @@ export default async function Page({ params, searchParams }: {
   const [{ sno }, query] = await Promise.all([params, searchParams]);
   const id = Number(sno), year = Number(query.year);
   if (!Number.isSafeInteger(id) || id <= 0 || !Number.isInteger(year) || year < 1990 || year > 2100 || !["E", "C"].includes(query.kind ?? "")) {
-    return <Card><h1 className="text-xl font-bold">請指定季後賽年度與場號</h1><p className="mt-3 text-muted">從場間報告的「下一場觀戰報告」進入。</p><Link className="mt-4 inline-block text-accent underline" href="/games">返回賽事</Link></Card>;
+    return <Card><h1 className="text-xl font-bold">請指定季後賽年度與場號</h1><p className="mt-3 text-muted">從場間報告的「觀戰報告」連結進入。</p><Link className="mt-4 inline-block text-accent underline" href="/games">返回賽事</Link></Card>;
   }
   const kind = query.kind as ReportKind;
   try {
