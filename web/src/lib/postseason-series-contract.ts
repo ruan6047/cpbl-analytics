@@ -118,10 +118,14 @@ export type TeamSlotV2 = { code: string } | { placeholder: "E_WINNER" };
 export type VenueV2 = { name: string } | { by_winner: Record<string, string> } | { unknown: true };
 
 export type ArrangedSlotV2 = {
+  /** 公告格＝場序（E1…、C1…）；公告外的真實列（動態加賽 G8 等）＝`C-sno8` 形式，⛔ 不是公告場序。 */
   slot_id: string;
   kind_code: "E" | "C";
+  /** 公告格＝公告場序；公告外的真實列＝該列在系列真實列中的順序。 */
   seq: number;
-  announced_date: string;
+  /** false＝公告沒有、但真實存在的 E／C 列（#283 再審 F1）。 */
+  announced: boolean;
+  announced_date: string | null;
   /** 顯示日期：對到真實列時以列為準。 */
   date: string;
   start: string | null;

@@ -632,6 +632,9 @@ def arrange(rule: SeasonRule, games: list[GameFact], series: dict, *, now: datet
     """公告安排逐格對到真實列並給顯示狀態；原安排欄位保留供追溯。
 
     歸併（沿 #237）：E 以官方場號＋主客一致；C 只認「同一天唯一一場 C 列」。
+    **公告沒有、但真實存在的 E／C 列**（動態官方加賽 G8、主客或日期對不上公告的列）另成一格
+    （``announced=false``，``seq``＝該列在系列真實列中的場序），一樣進下一場與 remaining——
+    ⛔ 不由公告序號發明 sno、⛔ 不把它塞進公告轉錄（#283 再審 F1）。
     顯示狀態：final（canonical 完賽）→ not_needed（系列已 decided 且該格未完賽，§63 剩餘比賽取消）
     → result_pending（已過預定開賽、無完賽）→ scheduled（有列）→ announced（無列）。
     """
@@ -639,7 +642,17 @@ def arrange(rule: SeasonRule, games: list[GameFact], series: dict, *, now: datet
     c_rows = [g for g in games if g.kind_code == "C"]
     announced_c = {s.date for s in rule.arrangement if s.kind == "C"}
     c_moved = any(g.game_date and g.game_date.isoformat() not in announced_c for g in c_rows)
-    slots = []
+
+    def status_of(kind: str, row: GameFact | None, start: datetime) -> str:
+        if row is not None and row.completed:
+            return "final"
+        if series[kind]["series_status"] == "decided":
+            return "not_needed"
+        if now >= start:
+            return "result_pending"
+        return "scheduled" if row else "announced"
+
+    slots, starts, matched = [], {}, set()
     for slot in rule.arrangement:
         row: GameFact | None = None
         change: dict | None = None
@@ -659,18 +672,14 @@ def arrange(rule: SeasonRule, games: list[GameFact], series: dict, *, now: datet
                 row = same_day[0]
             elif len(same_day) > 1 or c_moved:
                 change = {"kind": "changed"}
+        if row is not None:
+            matched.add(row.key)
         display_date = row.game_date.isoformat() if row and row.game_date else slot.date
-        decided = series[slot.kind]["series_status"] == "decided"
-        if row is not None and row.completed:
-            status = "final"
-        elif decided:
-            status = "not_needed"
-        elif now >= slot_start(slot, display_date):
-            status = "result_pending"
-        else:
-            status = "scheduled" if row else "announced"
+        start = slot_start(slot, display_date)
+        status = status_of(slot.kind, row, start)
+        starts[slot.key] = start
         slots.append({
-            "slot_id": slot.key, "kind_code": slot.kind, "seq": slot.seq,
+            "slot_id": slot.key, "kind_code": slot.kind, "seq": slot.seq, "announced": True,
             "announced_date": slot.date, "date": display_date, "start": slot.start,
             "away": slot.away.to_json() if slot.away else None,
             "home": slot.home.to_json() if slot.home else None,
@@ -682,11 +691,32 @@ def arrange(rule: SeasonRule, games: list[GameFact], series: dict, *, now: datet
             "hidden_not_needed": status == "not_needed",
         })
 
+    # 公告外的真實列（真實 DB 列永遠出現在旅程裡）。
+    for kind in ("E", "C"):
+        for seq, row in enumerate(_sorted_games(games, kind), start=1):
+            if row.key in matched or row.game_date is None:
+                continue
+            slot_id = f"{kind}-sno{row.game_sno}"
+            # cpbl.games 沒有開賽時刻：以當天 24:00 才算「已過」（與公告無時刻的格同一規則）。
+            start = datetime.fromisoformat(f"{row.game_date.isoformat()}T00:00:00{_TAIPEI_OFFSET}") + timedelta(days=1)
+            status = status_of(kind, row, start)
+            starts[slot_id] = start
+            slots.append({
+                "slot_id": slot_id, "kind_code": kind, "seq": seq, "announced": False,
+                "announced_date": None, "date": row.game_date.isoformat(), "start": None,
+                "away": {"code": row.away_team_code}, "home": {"code": row.home_team_code},
+                "venue": {"name": row.venue} if row.venue else {"unknown": True}, "conditional": False,
+                "official_sno": row.game_sno if kind == "E" else None,
+                "game_key": playoff_state.key_json(row.key),
+                "change": None,
+                "display_status": status,
+                "hidden_not_needed": status == "not_needed",
+            })
+
     def is_open(s: dict) -> bool:
         return s["display_status"] not in ("final", "not_needed")
 
-    by_id = {s.key: s for s in rule.arrangement}
-    ordered = sorted(slots, key=lambda s: slot_start(by_id[s["slot_id"]], s["date"]))
+    ordered = sorted(slots, key=lambda s: starts[s["slot_id"]])
     nxt = (next((s for s in ordered if is_open(s) and s["display_status"] != "result_pending"), None)
            or next((s for s in ordered if is_open(s)), None))
     return {

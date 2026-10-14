@@ -73,6 +73,7 @@
   "remaining": true,
   "slots": [
    {
+    "announced": true,
     "announced_date": "2026-10-09",
     "away": {
      "code": "ADD011"
@@ -100,6 +101,7 @@
     }
    },
    {
+    "announced": true,
     "announced_date": "2026-10-10",
     "away": {
      "code": "ACN011"
@@ -127,6 +129,7 @@
     }
    },
    {
+    "announced": true,
     "announced_date": "2026-10-11",
     "away": {
      "code": "ADD011"
@@ -154,6 +157,7 @@
     }
    },
    {
+    "announced": true,
     "announced_date": "2026-10-12",
     "away": {
      "code": "ADD011"
@@ -181,6 +185,7 @@
     }
    },
    {
+    "announced": true,
     "announced_date": "2026-10-17",
     "away": {
      "placeholder": "E_WINNER"
@@ -204,6 +209,7 @@
     }
    },
    {
+    "announced": true,
     "announced_date": "2026-10-18",
     "away": {
      "placeholder": "E_WINNER"
@@ -227,6 +233,7 @@
     }
    },
    {
+    "announced": true,
     "announced_date": "2026-10-20",
     "away": {
      "code": "AAA011"
@@ -253,6 +260,7 @@
     }
    },
    {
+    "announced": true,
     "announced_date": "2026-10-21",
     "away": {
      "code": "AAA011"
@@ -279,6 +287,7 @@
     }
    },
    {
+    "announced": true,
     "announced_date": "2026-10-23",
     "away": {
      "placeholder": "E_WINNER"
@@ -302,6 +311,7 @@
     }
    },
    {
+    "announced": true,
     "announced_date": "2026-10-24",
     "away": {
      "placeholder": "E_WINNER"
@@ -325,6 +335,7 @@
     }
    },
    {
+    "announced": true,
     "announced_date": "2026-10-25",
     "away": {
      "placeholder": "E_WINNER"

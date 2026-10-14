@@ -171,7 +171,35 @@ def test_official_g8_beyond_best_of_counts_only_as_real_row():
     row8 = next(g for g in ctx["games"] if g["game_key"] == _key(2026, "C", 8))
     assert row8["series_game_no"] == 8 and c["best_of"] == 7
     assert (c["winner"], c["decided_by_game_key"]) == (DRAGON, _key(2026, "C", 8))
-    assert row8["announced_slot_id"] is None   # 公告沒有 G8，不硬綁
+    # 公告沒有 G8：不綁公告格，另成一格「公告外真實列」（slot_id 不冒充公告場序）
+    assert row8["announced_slot_id"] == "C-sno8"
+    s8 = next(s for s in ctx["arrangement"]["slots"] if s["slot_id"] == "C-sno8")
+    assert (s8["announced"], s8["seq"], s8["display_status"]) == (False, 8, "final")
+
+
+def _g8_pending():
+    """F1（再審）：C1–C7 一和、雙方各三勝，官方新增 C8（真實 key、未完賽）。注入事件，隊碼真實。"""
+    gs = _c_games([(3, 3), (1, 2), (2, 1), (1, 2), (2, 1), (1, 2), (2, 1)])
+    g8 = replace(gs[-1], game_sno=8, game_date=date(2026, 10, 26), away_score=0, home_score=0,
+                 completed=False, official_status="scheduled")
+    return [*gs, g8]
+
+
+G8_NOW = datetime.fromisoformat("2026-10-26T12:00:00+08:00")
+
+
+def test_pending_official_g8_is_next_and_keeps_series_remaining():
+    """F1：公告外的真實 C8 進下一場與 remaining；系列 active、state 目標同一場。"""
+    ctx = _ctx(2026, now=G8_NOW, games_override=_g8_pending())
+    assert ctx["series"]["C"]["series_status"] == "active"
+    assert ctx["state"]["target_game_key"] == _key(2026, "C", 8)
+    arr = ctx["arrangement"]
+    assert (arr["next_slot_id"], arr["remaining"]) == ("C-sno8", True)
+    s8 = next(s for s in arr["slots"] if s["slot_id"] == "C-sno8")
+    assert s8["game_key"] == _key(2026, "C", 8) and s8["display_status"] == "scheduled"
+    assert s8["announced"] is False and s8["announced_date"] is None
+    assert [s["slot_id"] for s in arr["slots"] if s["announced"]] == [
+        "E1", "E2", "E3", "E4", "C1", "C2", "C3", "C4", "C5", "C6", "C7"]   # 公告格原樣保留
 
 
 def test_decided_hides_unneeded_slots_but_keeps_original_arrangement():

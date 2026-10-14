@@ -249,7 +249,7 @@ function teamOf(slot: TeamSlot | null, eWinner: string | null): { code: string |
 
 const VENUE_BY_WINNER = "依挑戰賽勝隊而定：";
 
-function venueOf(slot: AnnouncedSlot, eWinner: string | null): { venue: string | null; note: string | null } {
+function venueOf(slot: Pick<AnnouncedSlot, "venue">, eWinner: string | null): { venue: string | null; note: string | null } {
   const v = slot.venue;
   if ("name" in v) return { venue: v.name, note: null };
   if ("unknown" in v) return { venue: null, note: POSTSEASON_COPY.unknownVenue };
@@ -426,8 +426,9 @@ export function announcementFromContext(ctx: PostseasonSeriesContextV2): Postsea
       C: { name: a.series.C.name, bestOf: 7, winsNeeded: 4, seededTeam: a.series.C.seeded_team, opponentFrom: "E",
         rosterLeads: a.series.C.roster_leads.map(lead) },
     },
-    slots: ctx.arrangement.slots.map((s): AnnouncedSlot => ({
-      key: s.slot_id, kind: s.kind_code, seq: s.seq, date: s.announced_date, start: s.start,
+    // 公告轉錄只放公告格；公告外的真實列（G8 等）只出現在旅程場次，不冒充公告。
+    slots: ctx.arrangement.slots.filter((s) => s.announced && s.announced_date).map((s): AnnouncedSlot => ({
+      key: s.slot_id, kind: s.kind_code, seq: s.seq, date: s.announced_date!, start: s.start,
       away: teamSlotOf(s.away), home: teamSlotOf(s.home), venue: venueSpecOf(s.venue), conditional: s.conditional,
       ...(s.official_sno != null ? { officialSno: s.official_sno } : {}),
     })),
@@ -472,13 +473,12 @@ export function seriesFromContext(ctx: PostseasonSeriesContextV2, kind: "E" | "C
   };
 }
 
-function slotFromContext(s: ArrangedSlotV2, ann: PostseasonAnnouncement, byKey: Map<string, SeriesGameV2>, eWinner: string | null, year: number): JourneySlot {
+function slotFromContext(s: ArrangedSlotV2, byKey: Map<string, SeriesGameV2>, eWinner: string | null, year: number): JourneySlot {
   const g = s.game_key ? byKey.get(`${s.game_key.kind_code}-${s.game_key.game_sno}`) ?? null : null;
   const row = g ? rowOf(g) : null;
-  const announced = ann.slots.find((x) => x.key === s.slot_id)!;
-  const away = row ? { code: row.away_team_code, label: teamName3(row.away_team_code) || row.away_team_code } : teamOf(announced.away, eWinner);
-  const home = row ? { code: row.home_team_code, label: teamName3(row.home_team_code) || row.home_team_code } : teamOf(announced.home, eWinner);
-  const v = row?.venue ? { venue: row.venue, note: null } : venueOf(announced, eWinner);
+  const away = row ? { code: row.away_team_code, label: teamName3(row.away_team_code) || row.away_team_code } : teamOf(teamSlotOf(s.away), eWinner);
+  const home = row ? { code: row.home_team_code, label: teamName3(row.home_team_code) || row.home_team_code } : teamOf(teamSlotOf(s.home), eWinner);
+  const v = row?.venue ? { venue: row.venue, note: null } : venueOf({ venue: venueSpecOf(s.venue) }, eWinner);
   const changeNote = s.change?.kind === "moved" ? `公告原定 ${md(s.change.announced_date)}`
     : s.change?.kind === "changed" ? POSTSEASON_COPY.changed : null;
   return {
@@ -507,7 +507,7 @@ export function postseasonJourneyFromContext(
   };
   const eWinner = ctx.series.E.series_status === "decided" ? ctx.series.E.winner : null;
   const byKey = new Map(ctx.games.map((g) => [`${g.game_key.kind_code}-${g.game_key.game_sno}`, g]));
-  const slots = ctx.arrangement.slots.map((s) => slotFromContext(s, ann, byKey, eWinner, ctx.year));
+  const slots = ctx.arrangement.slots.map((s) => slotFromContext(s, byKey, eWinner, ctx.year));
   return {
     year: ctx.year,
     announcement: ann,
