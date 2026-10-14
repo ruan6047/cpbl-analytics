@@ -1,0 +1,505 @@
+{
+ "algorithm_version": "s02.1",
+ "announcement": null,
+ "arrangement": null,
+ "as_of": {
+  "coverage": "covered",
+  "last_completed_game_date": "2025-10-27",
+  "last_refresh_at": null,
+  "last_refresh_ok": null,
+  "last_refresh_scope": null,
+  "now": "2026-10-15T01:00:00+08:00",
+  "pending_games": [],
+  "taipei_date": "2026-10-15"
+ },
+ "context_version": "74a4921a6963ecae38d4597366bd798c2a9799cf860336dc62961364d71980f0",
+ "contract": "postseason-series-context/v2",
+ "coverage": "covered",
+ "games": [
+  {
+   "analysis": "pending",
+   "announced_slot_id": null,
+   "away_score": 1,
+   "away_team_code": "AJL011",
+   "completed": true,
+   "counted_for_wins": true,
+   "game_date": "2025-10-10",
+   "game_key": {
+    "game_sno": 1,
+    "kind_code": "E",
+    "year": 2025
+   },
+   "home_score": 2,
+   "home_team_code": "ADD011",
+   "official_game_sno": 1,
+   "official_mvp_id": null,
+   "official_status": "final",
+   "result": "home_win",
+   "series_game_no": 1,
+   "target_status": "final",
+   "venue": null
+  },
+  {
+   "analysis": "pending",
+   "announced_slot_id": null,
+   "away_score": 6,
+   "away_team_code": "ADD011",
+   "completed": true,
+   "counted_for_wins": true,
+   "game_date": "2025-10-11",
+   "game_key": {
+    "game_sno": 2,
+    "kind_code": "E",
+    "year": 2025
+   },
+   "home_score": 7,
+   "home_team_code": "AJL011",
+   "official_game_sno": 2,
+   "official_mvp_id": null,
+   "official_status": "final",
+   "result": "home_win",
+   "series_game_no": 2,
+   "target_status": "final",
+   "venue": null
+  },
+  {
+   "analysis": "pending",
+   "announced_slot_id": null,
+   "away_score": 9,
+   "away_team_code": "AJL011",
+   "completed": true,
+   "counted_for_wins": true,
+   "game_date": "2025-10-12",
+   "game_key": {
+    "game_sno": 3,
+    "kind_code": "E",
+    "year": 2025
+   },
+   "home_score": 3,
+   "home_team_code": "ADD011",
+   "official_game_sno": 3,
+   "official_mvp_id": null,
+   "official_status": "final",
+   "result": "away_win",
+   "series_game_no": 3,
+   "target_status": "final",
+   "venue": null
+  },
+  {
+   "analysis": "pending",
+   "announced_slot_id": null,
+   "away_score": 4,
+   "away_team_code": "AJL011",
+   "completed": true,
+   "counted_for_wins": true,
+   "game_date": "2025-10-13",
+   "game_key": {
+    "game_sno": 4,
+    "kind_code": "E",
+    "year": 2025
+   },
+   "home_score": 3,
+   "home_team_code": "ADD011",
+   "official_game_sno": 4,
+   "official_mvp_id": null,
+   "official_status": "final",
+   "result": "away_win",
+   "series_game_no": 4,
+   "target_status": "final",
+   "venue": null
+  },
+  {
+   "analysis": "pending",
+   "announced_slot_id": null,
+   "away_score": 3,
+   "away_team_code": "AJL011",
+   "completed": true,
+   "counted_for_wins": true,
+   "game_date": "2025-10-18",
+   "game_key": {
+    "game_sno": 1,
+    "kind_code": "C",
+    "year": 2025
+   },
+   "home_score": 0,
+   "home_team_code": "ACN011",
+   "official_game_sno": 1,
+   "official_mvp_id": null,
+   "official_status": "final",
+   "result": "away_win",
+   "series_game_no": 1,
+   "target_status": "final",
+   "venue": null
+  },
+  {
+   "analysis": "pending",
+   "announced_slot_id": null,
+   "away_score": 2,
+   "away_team_code": "AJL011",
+   "completed": true,
+   "counted_for_wins": true,
+   "game_date": "2025-10-19",
+   "game_key": {
+    "game_sno": 2,
+    "kind_code": "C",
+    "year": 2025
+   },
+   "home_score": 1,
+   "home_team_code": "ACN011",
+   "official_game_sno": 2,
+   "official_mvp_id": null,
+   "official_status": "final",
+   "result": "away_win",
+   "series_game_no": 2,
+   "target_status": "final",
+   "venue": null
+  },
+  {
+   "analysis": "pending",
+   "announced_slot_id": null,
+   "away_score": 2,
+   "away_team_code": "ACN011",
+   "completed": true,
+   "counted_for_wins": true,
+   "game_date": "2025-10-21",
+   "game_key": {
+    "game_sno": 3,
+    "kind_code": "C",
+    "year": 2025
+   },
+   "home_score": 0,
+   "home_team_code": "AJL011",
+   "official_game_sno": 3,
+   "official_mvp_id": null,
+   "official_status": "final",
+   "result": "away_win",
+   "series_game_no": 3,
+   "target_status": "final",
+   "venue": null
+  },
+  {
+   "analysis": "pending",
+   "announced_slot_id": null,
+   "away_score": 1,
+   "away_team_code": "ACN011",
+   "completed": true,
+   "counted_for_wins": true,
+   "game_date": "2025-10-26",
+   "game_key": {
+    "game_sno": 4,
+    "kind_code": "C",
+    "year": 2025
+   },
+   "home_score": 3,
+   "home_team_code": "AJL011",
+   "official_game_sno": 4,
+   "official_mvp_id": null,
+   "official_status": "final",
+   "result": "home_win",
+   "series_game_no": 4,
+   "target_status": "final",
+   "venue": null
+  },
+  {
+   "analysis": "pending",
+   "announced_slot_id": null,
+   "away_score": 9,
+   "away_team_code": "AJL011",
+   "completed": true,
+   "counted_for_wins": true,
+   "game_date": "2025-10-27",
+   "game_key": {
+    "game_sno": 5,
+    "kind_code": "C",
+    "year": 2025
+   },
+   "home_score": 7,
+   "home_team_code": "ACN011",
+   "official_game_sno": 5,
+   "official_mvp_id": null,
+   "official_status": "final",
+   "result": "away_win",
+   "series_game_no": 5,
+   "target_status": "final",
+   "venue": null
+  }
+ ],
+ "missing_reason": [
+  "roster_store_not_delivered",
+  "registration_source_not_delivered",
+  "ended_at_unavailable"
+ ],
+ "rule_status": "sourced",
+ "rule_version": "cpbl-regs-ch12/§60@110-12-29,§63@106-02-09,§66@106-02-09",
+ "series": {
+  "C": {
+   "analysis_status": "pending",
+   "best_of": 7,
+   "conflict_reason": null,
+   "corrections": [],
+   "counted_game_keys": [
+    {
+     "game_sno": 1,
+     "kind_code": "C",
+     "year": 2025
+    },
+    {
+     "game_sno": 2,
+     "kind_code": "C",
+     "year": 2025
+    },
+    {
+     "game_sno": 3,
+     "kind_code": "C",
+     "year": 2025
+    },
+    {
+     "game_sno": 4,
+     "kind_code": "C",
+     "year": 2025
+    },
+    {
+     "game_sno": 5,
+     "kind_code": "C",
+     "year": 2025
+    }
+   ],
+   "decided_by_game_key": {
+    "game_sno": 5,
+    "kind_code": "C",
+    "year": 2025
+   },
+   "kind_code": "C",
+   "participants_status": "known",
+   "series_id": {
+    "kind_code": "C",
+    "rule_version": "cpbl-regs-ch12/§60@110-12-29,§63@106-02-09,§66@106-02-09",
+    "teams": [
+     "ACN011",
+     "AJL011"
+    ],
+    "year": 2025
+   },
+   "series_status": "decided",
+   "sides": [
+    {
+     "clinch": false,
+     "facing_elimination": false,
+     "game_wins": 1,
+     "initial_wins": 0,
+     "initial_wins_basis": "rule_standings",
+     "remaining": 0,
+     "team_code": "ACN011",
+     "total_wins": 1
+    },
+    {
+     "clinch": false,
+     "facing_elimination": false,
+     "game_wins": 4,
+     "initial_wins": 0,
+     "initial_wins_basis": "rule_standings",
+     "remaining": 0,
+     "team_code": "AJL011",
+     "total_wins": 4
+    }
+   ],
+   "summary_kind": "championship_summary",
+   "ties": 0,
+   "winner": "AJL011",
+   "wins_needed": 4
+  },
+  "E": {
+   "analysis_status": "pending",
+   "best_of": 5,
+   "conflict_reason": null,
+   "corrections": [],
+   "counted_game_keys": [
+    {
+     "game_sno": 1,
+     "kind_code": "E",
+     "year": 2025
+    },
+    {
+     "game_sno": 2,
+     "kind_code": "E",
+     "year": 2025
+    },
+    {
+     "game_sno": 3,
+     "kind_code": "E",
+     "year": 2025
+    },
+    {
+     "game_sno": 4,
+     "kind_code": "E",
+     "year": 2025
+    }
+   ],
+   "decided_by_game_key": {
+    "game_sno": 4,
+    "kind_code": "E",
+    "year": 2025
+   },
+   "kind_code": "E",
+   "participants_status": "known",
+   "series_id": {
+    "kind_code": "E",
+    "rule_version": "cpbl-regs-ch12/§60@110-12-29,§63@106-02-09,§66@106-02-09",
+    "teams": [
+     "ADD011",
+     "AJL011"
+    ],
+    "year": 2025
+   },
+   "series_status": "decided",
+   "sides": [
+    {
+     "clinch": false,
+     "facing_elimination": false,
+     "game_wins": 1,
+     "initial_wins": 1,
+     "initial_wins_basis": "rule_standings",
+     "remaining": 0,
+     "team_code": "ADD011",
+     "total_wins": 2
+    },
+    {
+     "clinch": false,
+     "facing_elimination": false,
+     "game_wins": 3,
+     "initial_wins": 0,
+     "initial_wins_basis": "rule_standings",
+     "remaining": 0,
+     "team_code": "AJL011",
+     "total_wins": 3
+    }
+   ],
+   "summary_kind": "advance_summary",
+   "ties": 0,
+   "winner": "AJL011",
+   "wins_needed": 3
+  }
+ },
+ "source_manifest": [
+  {
+   "observed_at": null,
+   "scope": "2025",
+   "source": "rule_constant",
+   "status": "ok",
+   "version_or_hash": "cpbl-regs-ch12/§60@110-12-29,§63@106-02-09,§66@106-02-09"
+  },
+  {
+   "observed_at": null,
+   "scope": "2025/E,C",
+   "source": "games",
+   "status": "ok",
+   "version_or_hash": "fixture"
+  }
+ ],
+ "state": {
+  "by_series": {
+   "C": {
+    "kind_code": "C",
+    "layout_reason": "series_decided",
+    "layout_state": "T5",
+    "overlays": [],
+    "section_order": [
+     1,
+     3,
+     4,
+     2
+    ],
+    "summary_kind": "championship_summary",
+    "target_game_key": {
+     "game_sno": 5,
+     "kind_code": "C",
+     "year": 2025
+    },
+    "target_status": "final",
+    "window": {
+     "basis": "unknown",
+     "ends_at": null,
+     "started_at": null
+    }
+   },
+   "E": {
+    "kind_code": "E",
+    "layout_reason": "series_decided",
+    "layout_state": "T5",
+    "overlays": [],
+    "section_order": [
+     1,
+     3,
+     4,
+     2
+    ],
+    "summary_kind": "advance_summary",
+    "target_game_key": {
+     "game_sno": 4,
+     "kind_code": "E",
+     "year": 2025
+    },
+    "target_status": "final",
+    "window": {
+     "basis": "unknown",
+     "ends_at": null,
+     "started_at": null
+    }
+   }
+  },
+  "default_series": "C",
+  "kind_code": "C",
+  "layout_reason": "series_decided",
+  "layout_state": "T5",
+  "overlays": [],
+  "section_order": [
+   1,
+   3,
+   4,
+   2
+  ],
+  "summary_kind": "championship_summary",
+  "target_game_key": {
+   "game_sno": 5,
+   "kind_code": "C",
+   "year": 2025
+  },
+  "target_status": "final",
+  "window": {
+   "basis": "unknown",
+   "ends_at": null,
+   "started_at": null
+  }
+ },
+ "teams": [
+  {
+   "registration_status": "unknown",
+   "roster_status": "missing",
+   "series": "E",
+   "starter_status": "missing",
+   "team_code": "ADD011"
+  },
+  {
+   "registration_status": "unknown",
+   "roster_status": "missing",
+   "series": "E",
+   "starter_status": "missing",
+   "team_code": "AJL011"
+  },
+  {
+   "registration_status": "unknown",
+   "roster_status": "missing",
+   "series": "C",
+   "starter_status": "missing",
+   "team_code": "ACN011"
+  },
+  {
+   "registration_status": "unknown",
+   "roster_status": "missing",
+   "series": "C",
+   "starter_status": "missing",
+   "team_code": "AJL011"
+  }
+ ],
+ "year": 2025
+}

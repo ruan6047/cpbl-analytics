@@ -3,6 +3,7 @@ import type { Report, ReportAnchor, ReportKind, ReportRequest } from "./report-t
 import { ApiError } from "./http-error.ts";
 import type { DailySummary, PregameServingMeta } from "./daily-summary";
 import type { LiveEntryStatus } from "./postseason-journey";
+import type { PostseasonSeriesContextV2 } from "./postseason-series-contract";
 import type { PregameResponse } from "./pregame-card";
 import type { TeamStyleResponse } from "./team-style";
 
@@ -367,6 +368,8 @@ export type PostseasonSummaryResponse = {
       away_score: number;
     }[];
   }[];
+  /** #283 S02：`postseason-series-context/v2`（一軍才有；計算失敗時 null）。系列勝場／讓勝／決勝只讀這裡。 */
+  series_context?: PostseasonSeriesContextV2 | null;
 };
 
 // —— 球場數據特色（VENUE-PARK1 契約；方法論見 docs/VENUE_PARK1_CONTRACT.md）——

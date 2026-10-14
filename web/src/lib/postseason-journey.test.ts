@@ -8,7 +8,7 @@ import {
   latestResultDate,
   liveEntryProbes,
   liveEntryResults,
-  postseasonJourneyFor,
+  postseasonJourneyFromContext,
   seriesProgressText,
   slotMayInvolve,
   slotStartMs,
@@ -309,12 +309,13 @@ test("公告 G5–G7（10/08 核對官網）：挑戰賽勝隊為客、味全龍
   assert.equal(check?.on, "2026-10-08");
 });
 
-test("同樣輸入得到同一份場次清單（三入口共用同一函式）", () => {
+test("同樣輸入得到同一份場次清單（舊算法純函式，報告路徑沿用）", () => {
   const rows = [row({}), row({ kind_code: "A", game_sno: 300, game_date: "2026-10-04" })];
-  const a = postseasonJourneyFor(2026, summaryE(LION), rows, AFTER_E2);
-  const b = postseasonJourneyFor(2026, summaryE(LION), rows, AFTER_E2);
+  const a = journey([LION], { rows });
+  const b = journey([LION], { rows });
   assert.deepEqual(a, b);
-  assert.equal(postseasonJourneyFor(2025, null, rows, AFTER_E2), null);
+  // #283：三入口改由 API series_context 建模型；沒有 context（或沒有公告安排）就不建。
+  assert.equal(postseasonJourneyFromContext(null, rows), null);
 });
 
 test("日曆篩隊：未定席位以可能參賽隊判斷", () => {
@@ -445,7 +446,7 @@ test("單場入口：C 場次即使給了快照也不建連結；沒有公告的
   const base = journey([BRO, BRO]);
   const j = withLiveEntries(base, { C1: entryStatus({ game_id: "2026-C-1", kind_code: "C" }, { kind_code: "C" }) });
   assert.ok(j.slots.filter((s) => s.kind === "C").every((s) => s.href === null && !s.liveEntry));
-  assert.equal(postseasonJourneyFor(2025, null, null, DURING_E1), null);
+  assert.equal(postseasonJourneyFromContext(undefined, null), null);
 });
 
 test("單場入口：結果整併只取 fulfilled，rejected 視同無回應", () => {

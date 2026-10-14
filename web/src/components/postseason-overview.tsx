@@ -162,9 +162,11 @@ function SeriesView({ journey, k, nameOf, seedOf }: {
   const s = series[k];
   const slots = journey.slots.filter((x) => x.kind === k);
   const eWinner = series.E.status === "decided" ? series.E.tally.winner : null;
-  const cSeed = ann.series.C.seededTeam;
+  // 種子隊與讓勝一律讀 API 系列（#283）：C 的第一隊是種子隊；有規則勝的一方排前。
+  const cSeed = series.C.tally.a.code;
+  const ruleSide = [s.tally.a, s.tally.b].find((t) => t.ruleWins > 0) ?? null;
   const rows = k === "E"
-    ? (s.tally.a.code === ann.series.E.handicapTeam ? [s.tally.a, s.tally.b] : [s.tally.b, s.tally.a])
+    ? (ruleSide === s.tally.b ? [s.tally.b, s.tally.a] : [s.tally.a, s.tally.b])
         .map((side) => ({ side, seed: seedOf(side.code) }))
     : [
         // #273 N12：「保送」在棒球是四壞球，季後語境一律寫「直接晉級」（同卡下方句同一說法）。
@@ -191,18 +193,21 @@ function SeriesView({ journey, k, nameOf, seedOf }: {
         <ul className="space-y-3">
           {rows.map(({ side, seed }, i) => <ProgressRow key={side.code ?? `tbd-${i}`} s={s} side={side} seed={seed} nameOf={nameOf} />)}
         </ul>
-        {k === "E" && (
+        {ruleSide?.code && (
           <p className="mt-3 text-xs text-muted">
-            ● 實際勝場　■ 規則勝：{teamShortName(ann.series.E.handicapTeam)}依規則先得 1 勝，不是實際比賽。
+            ● 實際勝場　■ 規則勝：{teamShortName(ruleSide.code)}依規則先得 {ruleSide.ruleWins} 勝，不是實際比賽。
           </p>
         )}
         {s.tally.ties > 0 && (
-          <p className="mt-1 text-xs text-down">本站紀錄有 {s.tally.ties} 場比分相同，不計入任何一方勝場（季後賽不應有和局，資料待查）。</p>
+          <p className="mt-1 text-xs text-muted">本系列有 {s.tally.ties} 場正式和局，不計入任何一方勝場。</p>
+        )}
+        {s.status === "unknown" && (
+          <p className="mt-1 text-xs text-down">系列狀態待確認：官方資料互相矛盾或尚未取得，暫不判定勝負。</p>
         )}
         <p className="mt-3 border-t border-line pt-2 text-sm text-ink">
           {k === "E"
-            ? <>{eWinner ? `${teamShortName(eWinner)}晉級台灣大賽` : `先拿 ${s.winsNeeded} 勝晉級台灣大賽`}{cFirst ? `，${slotDay(cFirst)} 起對${teamShortName(cSeed)}` : ""}。</>
-            : <>{teamShortName(cSeed)}直接晉級，對手{eWinner ? `為${teamShortName(eWinner)}` : "由季後挑戰賽決定"}；先拿 {s.winsNeeded} 勝奪得總冠軍。</>}
+            ? <>{eWinner ? `${teamShortName(eWinner)}晉級台灣大賽` : `先拿 ${s.winsNeeded} 勝晉級台灣大賽`}{cFirst && cSeed ? `，${slotDay(cFirst)} 起對${teamShortName(cSeed)}` : ""}。</>
+            : <>{cSeed ? teamShortName(cSeed) : POSTSEASON_COPY.unknownTeam}直接晉級，對手{eWinner ? `為${teamShortName(eWinner)}` : "由季後挑戰賽決定"}；先拿 {s.winsNeeded} 勝奪得總冠軍。</>}
           <Link href={tabHref(k === "E" ? "C" : "E")} scroll={false} className="ml-1 inline-flex min-h-11 items-center text-accent hover:underline">
             {k === "E" ? "看台灣大賽 →" : "看季後挑戰賽 →"}
           </Link>

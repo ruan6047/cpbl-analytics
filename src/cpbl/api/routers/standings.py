@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import logging
+
 from fastapi import APIRouter, Query
 
 from cpbl.api.helpers import DEFAULT_SEASON, _dicts
@@ -11,6 +13,7 @@ from cpbl.db import conn
 from cpbl.models import matchup
 
 router = APIRouter()
+log = logging.getLogger(__name__)
 
 # 完成場判準（證據感知）：0:0 真和局需外部證據才算完成，故不可只看比分和。
 # 戰績計算對此特別敏感——和局場漏算會讓官方和局數對不上（DATA-TIE-REMEDY1）。
@@ -298,7 +301,24 @@ def postseason_summary(season: int = Query(DEFAULT_SEASON), kind_code: str = Que
             "games": s["games"],
         })
     out.sort(key=lambda x: x["kind_code"], reverse=True)  # E 再 C
-    return {"season": season, "series": out}
+    if kind_code == "D":
+        return {"season": season, "series": out}
+    return {"season": season, "series": out, "series_context": _series_context(season)}
+
+
+def _series_context(season: int) -> dict | None:
+    """#283 S02：`postseason-series-context/v2`（新增欄位、向下相容；既有 season／series 不動）。
+
+    系列勝場、讓勝、決勝與 T0–T5 只在 Python 計算（`cpbl.postseason_contract`）；前端只讀這個欄位。
+    計算失敗回 None，不讓既有欄位跟著失敗（前端視同沒有季後旅程）。"""
+    from cpbl.api.live_cache import get_public_live_snapshot
+    from cpbl.postseason_contract import postseason_series_context
+
+    try:
+        return postseason_series_context(season, connect=conn, live_reader=get_public_live_snapshot)
+    except Exception:  # noqa: BLE001 — 既有摘要照常回；錯誤留 log
+        log.exception("series_context failed for %s", season)
+        return None
 def _computed_standings(season: int, kind_code: str, season_code: int = 0) -> list[dict]:
     """歷史年份無官方 team_standings → 由 games 逐場結果即時算戰績（全年/半季）。"""
     from collections import defaultdict
