@@ -2,12 +2,13 @@
 <!-- 季後事件觸發晚間鏈（#268 WP3）的 launchd 樣板。製作不等於啟用：
      安裝／啟用屬 P1 共享操作，須另經需求方核定的具體操作包（備份、排他、錯誤即停、真釋放）。
 
-     為什麼不放 scripts/：scripts/schedule_watch.py 的登記表只認 StartCalendarInterval（daily／weekly），
-     本 job 是 StartInterval（每 5 分鐘喚醒、無鐘點截止）。放進 scripts/ 會讓排程偵測器判
-     REGISTRY_INVALID／REGISTRY_INCOMPLETE 而擋下其他 job 的判定。安裝前須先決定登記方式
-     （例如讓偵測器支援 interval cadence）；未決定前安裝，偵測器會如實報 REGISTRY_INCOMPLETE。
+     登記：scripts/schedule-registry.json 已登記本 job（cadence interval 300 秒），偵測器只對帳 plist、
+     安裝狀態與狀態檔 halted，不做週期缺席判定。未授權前登記為 expected_installed=false，
+     此時被安裝會報 REGISTRY_CONFLICT；啟用時先把該欄改 true 再安裝（同一窗口）。
+     為什麼留在 ops/launchd/ 而不放 scripts/：清冊把 scripts/ 下的 plist 視為已安裝排程的起點，
+     本 job 只在季後期間安裝，不應改變清冊對其他腳本的分類。
 
-     安裝（僅在 P1 核定後由具名本機角色執行）：
+     安裝（僅在 P1 核定後由具名本機角色執行，完整步驟見 Runbook 季後晚間事件鏈一節與啟用操作包）：
        ln -sf "$PWD/ops/launchd/com.cpbl.postseason-evening.plist" ~/Library/LaunchAgents/com.cpbl.postseason-evening.plist
        launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.cpbl.postseason-evening.plist
      停用（系列決定後或任何停止條件）：

@@ -739,9 +739,9 @@ GitHub 會自動標記。判斷是否經 PR 合併要看 `gh api repos/.../commi
 本節是程式已備妥的操作說明；**安裝、啟用、晚間 prod 同步都屬 P1 共享操作，未經需求方核定具體操作包前不得執行**。
 
 - 入口：`bash scripts/postseason-evening.sh --help`（只印用法）；邏輯在 `src/cpbl/ingest/postseason_evening.py`。
-- launchd 樣板：`ops/launchd/com.cpbl.postseason-evening.plist`（`StartInterval` 300 秒）。⚠️ 不在 `scripts/`：
-  `scripts/schedule_watch.py` 的登記表只認 daily／weekly，放進去會讓偵測器判 REGISTRY_INVALID／INCOMPLETE。
-  **安裝前**須先決定登記方式（例如讓偵測器支援 interval cadence，另案核定）；否則安裝後偵測器會如實報 REGISTRY_INCOMPLETE。
+- launchd 樣板：`ops/launchd/com.cpbl.postseason-evening.plist`（`StartInterval` 300 秒；留在 `ops/` 不改變清冊對 `scripts/` 排程的分類）。
+  已登記於 `scripts/schedule-registry.json`（cadence `interval`）：偵測器只對帳 plist、安裝狀態與狀態檔 `halted`，不做週期缺席判定。
+  未授權前登記 `expected_installed=false`（被安裝即報 REGISTRY_CONFLICT）；啟用時先合入改 `true` 的登記、再於同一窗口 bootstrap，系列結束 bootout 後改回 `false`。
 - 每次喚醒：
   1. `plan`：不取鎖；到期才以 httpx **唯讀**讀 `stats.cpbl.com.tw/api/proxy/v1/games/schedule`（E、C × 上月／本月／下月＋未結事件所在月份；跨月界不放掉前月，stats 沒回到的場次不當作已解決），與本機 DB 比對。
      事件只有三類：stats `FINISHED` 但本機未完成、stats 有本機沒有的 `(year, kind, sno)`、日期或主客異動。沒有事件就結束，**不連 www**。
@@ -762,8 +762,8 @@ GitHub 會自動標記。判斷是否經 PR 合併要看 `gh api repos/.../commi
   跨過 24:00 照實記錄實際日期時刻，不改寫成賽事日；由隔日 10:10 補上的事件記 `unreached`（`resolved_outside_evening_chain`），**不算同晚達成**。
 - 錯誤即停：data-only 對帳不等（refresh 回 68）→ 記失敗並**停止當晚**（`sync_blocked_at`，隔日 12:00 後重試未同步的變化）；
   其他同步非零（64–67、psql／schema 錯誤、備份失敗）→ 狀態檔 `halted`，launchd 觸發時另 `launchctl bootout`；之後每次喚醒直接退出，
-  直到人工檢視後把狀態檔的 `halted` 改回 `null`。www 成功但本機 C 列仍為 0 → 只停該項（`needs_owner_decision`），交需求方，不換工具、不繞道。
+  直到人工檢視後把 `logs/postseason-evening-state.json` 與 `logs/last-postseason-evening.json` 兩檔的 `halted` 都改回 `null`（偵測器讀後者，閒置喚醒不重寫它）。www 成功但本機 C 列仍為 0 → 只停該項（`needs_owner_decision`），交需求方，不換工具、不繞道。
 - 晚間跑過後隔日 10:10 若出現挑戰類失敗：具名本機角色 bootout 本 job 並回報（以 `logs/last-launchd-status.json` 核對；本鏈不自動判讀它）。
 - 回復（各自可單獨執行）：排程＝`launchctl bootout gui/$(id -u)/com.cpbl.postseason-evening` 並移除 LaunchAgents 連結；
   程式＝revert 本卡 PR 或回退主站 submodule 指標；資料＝見上方備份範圍。
-- 啟用前提（P1，尚未核定）：Mac 晚間保持喚醒且登入（不改個人電源設定，只記錄）、偵測器登記方式已決定、具體備份／排他／釋放證據。
+- 啟用前提（P1，尚未核定）：Mac 晚間保持喚醒且登入（不改個人電源設定，只記錄）、登記表 `expected_installed` 已改 `true` 且主 checkout 在含它的 main、具體備份／排他／釋放證據；停用前先處置本機未解決的 `official_change_signals`（否則每日鏈會持續把它鏡像成公站「賽程待更新」）。

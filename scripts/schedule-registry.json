@@ -29,7 +29,12 @@
     "   整個立論就是『靠人記得不算數』，對自己的部署程序當然也一樣。錨點把那個宣告換成",
     "   量測：就算 history_from 填早了，部署前的空窗也不會被報成 MISSING。",
     "   因此下方的日期填得保守（早）是安全的，填得晚才會漏判。",
-    "history_from 落在未來一律 REGISTRY_INVALID。"
+    "history_from 落在未來一律 REGISTRY_INVALID。",
+    "",
+    "cadence.kind = interval（{kind, seconds}）對應 plist 的 StartInterval（#268 季後晚間鏈）。",
+    "固定間隔、無事件即退出且不寫歷史、Mac 睡眠時不醒，故**不做週期缺席判定**；",
+    "只做 plist 對帳、安裝狀態（JOB_NOT_INSTALLED／REGISTRY_CONFLICT）與狀態檔 halted（FAILED）。",
+    "plist 可放在 ops/launchd/（不被清冊當成已安裝排程）；該目錄同樣受 REGISTRY_INCOMPLETE 掃描。"
   ],
   "jobs": [
     {
@@ -101,6 +106,22 @@
       "history_path": "logs/schedule-history/com.cpbl.schedule-watchdog.jsonl",
       "history_from": "2026-08-15",
       "history_from_evidence": "偵測器每次執行寫自己一列，供『開機了但偵測器沒跑』的自證不變量使用"
+    },
+    {
+      "label": "com.cpbl.postseason-evening",
+      "plist": "ops/launchd/com.cpbl.postseason-evening.plist",
+      "cadence": {
+        "kind": "interval",
+        "seconds": 300
+      },
+      "effective_from": null,
+      "effective_from_evidence": "尚未啟用。啟用（P1，需求方授權後）時與 expected_installed 一起改為實際 bootstrap 日。",
+      "expected_installed": false,
+      "expected_installed_reason": "#268 WP3 只製作、WP4 啟用屬 P1 共享操作，須另經需求方授權（裁定 6160858879：審核通過前不啟用）。比照 weekly-game-pitches 的 Phase A 寫法：宣告『刻意不安裝』，未授權即被安裝時 watchdog 報 REGISTRY_CONFLICT；啟用時（操作包唯讀檢查通過後、同一窗口內 bootstrap 前）把本欄改 true、填 effective_from，並在本欄引用需求方啟用授權留言 issuecomment-<id>（tests/test_schedule_watch.py 只接受休眠或已授權兩種形狀）；系列結束 bootout 後改回 false、effective_from 回 null。",
+      "status_path": "logs/last-postseason-evening.json",
+      "history_path": "logs/schedule-history/com.cpbl.postseason-evening.jsonl",
+      "history_from": "2026-10-14",
+      "history_from_evidence": "interval job 不做週期判定、不寫歷史；欄位為登記表必填，填交付日。判定只讀 status_path 的 halted（見 _readme）。"
     }
   ]
 }
