@@ -152,6 +152,17 @@ export default async function GamesPage({
   });
   const monthHasPostseason = !!journey && (journey.slots.some((s) => ymOf(s.date) === month) || [...reserveDates].some((d) => ymOf(d) === month));
 
+  // #273 N16：手機列表從月初排起，到今天／下一場要捲很久；列表頂端給一個錨點直接跳過去。
+  // 目標＝今天（有賽程時）或今天之後第一個有賽程的日子；下一場若是季後公告場就帶系列與場序。
+  const mobileDays = cells.filter(c => c.inMonth && (c.games.length > 0 || c.ann.length > 0 || c.reserve));
+  const jumpDay = mobileDays.find((c) => c.key >= todayStr && (c.games.length > 0 || c.ann.length > 0));
+  const jumpSlot = jumpDay && journey?.next && journey.next.date === jumpDay.key ? journey.next : null;
+  const jump = jumpDay && jumpDay !== mobileDays[0] ? {
+    key: jumpDay.key,
+    text: jumpDay.key === todayStr ? "跳到今天"
+      : `跳到下一場：${jumpDay.key.slice(5).replace("-", "/")}${jumpSlot ? ` ${jumpSlot.kind === "C" ? "台灣大賽" : "季後挑戰賽"} ${slotGameLabel(jumpSlot)}` : ""}`,
+  } : null;
+
   const prevM = addMonth(month, -1);
   const nextM = addMonth(month, 1);
   const canPrev = prevM >= monthsAvail[0];
@@ -254,7 +265,7 @@ export default async function GamesPage({
                     const extra = slotExtra(js, done);
                     const body = (
                       <>
-                        {POST_LABEL[g.kind_code] && <div className="mb-0.5 text-center text-[10px] font-bold leading-none text-ink">{POST_LABEL[g.kind_code]}{js ? ` ${slotGameLabel(js)}` : ""}</div>}
+                        {POST_LABEL[g.kind_code] && <div className="mb-0.5 text-center text-xs font-bold leading-none text-ink">{POST_LABEL[g.kind_code]}{js ? ` ${slotGameLabel(js)}` : ""}</div>}
                         {isCurrent && c.key === todayStr ? (
                           <LiveCalendarGame game={g} variant="compact" startsAt={js?.start ? `${js.date}T${js.start}:00+08:00` : null} />
                         ) : <div className="flex items-center justify-between gap-1 leading-none">
@@ -262,7 +273,7 @@ export default async function GamesPage({
                             <TeamLogo code={g.away_team_code} name={g.away_team_name} size={20} />
                             {done && <span className={`font-[family-name:var(--font-wide)] text-[17px] tabular-nums [font-stretch:80%] ${awayWin ? "font-black text-ink" : "text-faint"}`}>{g.away_score}</span>}
                           </span>
-                          <span className="text-center text-[10px] leading-tight">
+                          <span className="text-center text-xs leading-tight">
                             <StatusBadge tone={st.tone} variant="bare">{st.label}</StatusBadge>
                             {done && g.delay_kind && MADEUP_LABEL[g.delay_kind] && <span className="block text-muted">{MADEUP_LABEL[g.delay_kind]}</span>}
                             {makeupNote(g, done) && <span className="block text-muted">{makeupNote(g, done)}</span>}
@@ -272,8 +283,8 @@ export default async function GamesPage({
                             <TeamLogo code={g.home_team_code} name={g.home_team_name} size={20} />
                           </span>
                         </div>}
-                        {extra && <div className="mt-1 truncate text-center text-[10px] font-bold leading-none text-ink">{extra}</div>}
-                        {info && <div className="mt-1 truncate text-center text-[10px] leading-none text-muted">{info}</div>}
+                        {extra && <div className="mt-1 truncate text-center text-xs font-bold leading-none text-ink">{extra}</div>}
+                        {info && <div className="mt-1 truncate text-center text-xs leading-none text-muted">{info}</div>}
                       </>
                     );
                     const cls = "block rounded-sm bg-surface-2 px-1.5 py-1";
@@ -287,7 +298,7 @@ export default async function GamesPage({
                   {c.ann.map((s) => <AnnouncedCompact key={s.key} s={s} />)}
                   {c.reserve && (
                     <div title={POSTSEASON_COPY.reserveDay}
-                      className="rounded-sm border border-dotted border-line-strong px-1.5 py-1 text-center text-[10px] leading-tight text-muted">
+                      className="rounded-sm border border-dotted border-line-strong px-1.5 py-1 text-center text-xs leading-tight text-muted">
                       移動補賽日<span className="block">遇延賽才使用</span>
                     </div>
                   )}
@@ -300,8 +311,14 @@ export default async function GamesPage({
 
       {/* 行動端：直列式列表 */}
       <div className="block md:hidden space-y-4">
-        {cells.filter(c => c.inMonth && (c.games.length > 0 || c.ann.length > 0 || c.reserve)).map(c => (
-          <div key={c.key} className={`rounded-md p-3.5 ${c.key === todayStr ? "bg-stub" : "bg-surface"}`}>
+        {jump && (
+          <a href={`#day-${jump.key}`} data-testid="jump-next-day"
+            className="flex min-h-11 items-center justify-center rounded-md bg-surface-2 px-3 text-sm font-semibold text-accent underline">
+            {jump.text} ↓
+          </a>
+        )}
+        {mobileDays.map(c => (
+          <div key={c.key} id={`day-${c.key}`} className={`scroll-mt-20 rounded-md p-3.5 ${c.key === todayStr ? "bg-stub" : "bg-surface"}`}>
             <div className="mb-2.5 flex items-baseline justify-between">
               <span className="font-[family-name:var(--font-wide)] text-lg font-extrabold leading-none [font-stretch:80%]">{c.key.slice(5).replace("-", "/")}<small className="ml-1 font-sans text-xs font-bold text-muted">（{WD[new Date(`${c.key}T00:00:00Z`).getUTCDay()]}）</small></span>
               {c.key === todayStr && <span className="text-xs font-bold text-ink">今天</span>}

@@ -335,7 +335,7 @@ function PostseasonBracket({ isCurrent, h0, h1, h2, series, journey, activeSerie
             ? (r ? `外卡・全年 #${r}` : "外卡")
             : (r ? `全年 #${r}` : "");
         }
-        return bye ? (base ? `${base}・保送` : "保送") : base;
+        return bye ? (base ? `${base}・直接晉級` : "直接晉級") : base;
       };
       return {
         a: { code: s.team1_code, seed: label(s.team1_code, s.team2_code), handicap: s.team1_code === handicapCode },
@@ -387,7 +387,7 @@ function PostseasonBracket({ isCurrent, h0, h1, h2, series, journey, activeSerie
   }
   const sideChallHome: SeriesSide = { code: challHomeCode, seed: seedLabel(challHomeCode), handicap: handicapSlot === "challenge" };
   const sideChallAway: SeriesSide = { code: challAwayCode, seed: challAwayCode ? `外卡・${seedLabel(challAwayCode)}` : "外卡", handicap: false };
-  const sideBye: SeriesSide = { code: byeCode, seed: `${seedLabel(byeCode)}・保送`, handicap: handicapSlot === "taiwan" };
+  const sideBye: SeriesSide = { code: byeCode, seed: `${seedLabel(byeCode)}・直接晉級`, handicap: handicapSlot === "taiwan" };
   const sideTwOpp: SeriesSide = { code: null, seed: "挑戰賽勝隊", handicap: false };
   return (
     <section>
@@ -401,7 +401,7 @@ function PostseasonBracket({ isCurrent, h0, h1, h2, series, journey, activeSerie
         現行制（2022 起）：
         {sameChamp
           ? "同隊包辦上下半季 → 全年 #2、#3 打挑戰賽，勝隊與雙冠隊爭冠（雙冠隊先勝 1 場）。"
-          : "全年勝率較高的半季冠軍保送台灣大賽；較低者與外卡打挑戰賽並先勝 1 場。"}
+          : "全年勝率較高的半季冠軍直接晉級台灣大賽；較低者與外卡打挑戰賽並先勝 1 場。"}
         （聯盟規章第 60–63 條）
       </p>
     </section>
@@ -660,7 +660,7 @@ export default async function Standings({ searchParams }: { searchParams: Promis
       {(segCode === 1 || segCode === 2) && items.length > 0 && half && (
         <p className="mt-2 text-xs text-muted">
           {half.champion_code
-            ? `${SEGS.find((s) => s.v === segCode)?.label}冠軍${half.finalized ? "已定案" : "勝場數已無人能追平，提前封王"}。半季冠軍取得季後賽資格；兩半季冠軍中全年勝率較高者保送台灣大賽，另一隊與外卡打季後挑戰賽（同隊包辦上下半季則該隊保送、由全年第 2、3 名爭挑戰賽）。`
+            ? `${SEGS.find((s) => s.v === segCode)?.label}冠軍${half.finalized ? "已定案" : "勝場數已無人能追平，提前封王"}。半季冠軍取得季後賽資格；兩半季冠軍中全年勝率較高者直接晉級台灣大賽，另一隊與外卡打季後挑戰賽（同隊包辦上下半季則該隊直接晉級、由全年第 2、3 名爭挑戰賽）。`
             : "半季冠軍取得季後賽資格；本半季冠軍尚未產生（賽程進行中）。"}
         </p>
       )}

@@ -24,7 +24,7 @@ function SlotTeam({ code, label, size, decorative = false }: { code: string | nu
   return code ? (
     <TeamLogo code={code} name={label} size={size} decorative={decorative} />
   ) : (
-    <span className="inline-flex shrink-0 items-center justify-center rounded-full border border-dashed border-line-strong text-[9px] text-muted"
+    <span className="inline-flex shrink-0 items-center justify-center rounded-full border border-dashed border-line-strong text-xs text-muted"
       style={{ width: size, height: size }} title={decorative ? undefined : label} aria-hidden={decorative || undefined}>
       <span aria-hidden="true">待</span>{!decorative && <span className="sr-only">{label}</span>}
     </span>
@@ -64,17 +64,17 @@ export function AnnouncedCompact({ s }: { s: JourneySlot }) {
     <EntryLink s={s}>
     <div data-announced="true" title={`${POSTSEASON_COPY.status[s.status]}：${s.awayLabel}（客）對 ${s.homeLabel}（主）・${slotVenueText(s)}${entry ? `・${POSTSEASON_COPY.liveEntryPending}` : ""}`}
       className="block rounded-sm border border-dashed border-line-strong px-1.5 py-1">
-      <div className="mb-0.5 text-center text-[10px] font-bold leading-none text-ink">{SERIES_LABEL[s.kind]} {slotGameLabel(s)}</div>
+      <div className="mb-0.5 text-center text-xs font-bold leading-none text-ink">{SERIES_LABEL[s.kind]} {slotGameLabel(s)}</div>
       <div className="flex items-center justify-between gap-1 leading-none">
         <SlotTeam code={s.awayCode} label={s.awayLabel} size={20} />
-        <span className="text-center text-[10px] leading-tight">
+        <span className="text-center text-xs leading-tight">
           {s.status !== "announced" && <StatusBadge tone={SLOT_TONE[s.status]} variant="bare">{POSTSEASON_COPY.status[s.status]}</StatusBadge>}
           {s.conditional && open(s) && <span className="block font-bold text-ink">{POSTSEASON_COPY.conditional}</span>}
           {entry && <span className="block text-accent">{POSTSEASON_COPY.liveEntryLink}</span>}
         </span>
         <SlotTeam code={s.homeCode} label={s.homeLabel} size={20} />
       </div>
-      <div className="mt-1 truncate text-center text-[10px] leading-none text-muted">
+      <div className="mt-1 truncate text-center text-xs leading-none text-muted">
         {[s.start, shortVenue(s)].filter(Boolean).join("・")}
       </div>
     </div>
