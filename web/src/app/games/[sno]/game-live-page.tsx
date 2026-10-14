@@ -15,14 +15,17 @@
 // 兩層皆不成立時**停在賽中態**，嚴禁以時間推斷硬切完賽。
 
 import Link from "next/link";
-import { recapReportLink } from "@/lib/between-games";
+import { previewLink, recapReportLink } from "@/lib/between-games";
+import { announcementFor } from "@/lib/postseason-announcement";
+import { slotWhen } from "@/lib/postseason-journey";
+import { REPORT_NAMES, announcedSlotOf, reportEntry } from "@/lib/postseason-game-name";
 import { useParams, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { detail } from "@/lib/client";
 import GameBoard, { type Live } from "@/components/game-board";
 import { Card, Notice, Skeleton, ErrorState, EmptyState, PlayerLink, ENTITY_LINK, StatusBadge } from "@/components/ui";
 import { Postmark, Scoreline, Serial } from "@/components/postmark";
-import { phaseTone } from "@/lib/daily-summary";
+import { phaseTone, taipeiTime } from "@/lib/daily-summary";
 import BoxTabs, { type BoxTab } from "./box-tabs";
 import { WinProbChart, type WpPoint } from "@/components/win-prob-chart";
 import { PregameCard } from "@/components/pregame-card";
@@ -95,7 +98,8 @@ export default function GameLivePage() {
   const [pregame, setPregame] = useState<PregameCardModel | null>(null);
   const [milestones, setMilestones] = useState<{ player: string; text: string }[]>([]);
   const [facts, setFacts] = useState<GameFacts | null>(null);
-  const [previewHref, setPreviewHref] = useState<string | null>(null);
+  // undefined＝下一場目標尚在解析（#273 N38：解析前不畫連結，避免載入中換字換去向）；null＝沒有可靠下一場。
+  const [previewHref, setPreviewHref] = useState<string | null | undefined>(undefined);
 
   useEffect(() => {
     let disposed = false;
@@ -220,13 +224,13 @@ export default function GameLivePage() {
   // 「下一場觀戰報告」只在可靠 Y（既有 journey 正式列且定位回本場）時取代場間報告入口；無 target 不顯示。
   const backendFinal = data?.game ? officialCompletionOf(data.game) === true : false;
   useEffect(() => {
-    setPreviewHref(null);
+    setPreviewHref(undefined);
     if (!backendFinal || !year || !["E", "C"].includes(kind)) return;
     let disposed = false;
     fetch(`/games/${sno}/preview-target?${new URLSearchParams({ kind, year: String(year) })}`, { cache: "no-store" })
       .then((res) => res.ok ? (res.json() as Promise<{ href?: unknown }>) : { href: null })
       .then((body) => { if (!disposed) setPreviewHref(typeof body.href === "string" ? body.href : null); })
-      .catch(() => {});
+      .catch(() => { if (!disposed) setPreviewHref(null); });
     return () => { disposed = true; };
   }, [sno, kind, year, backendFinal]);
 
@@ -308,6 +312,25 @@ export default function GameLivePage() {
   const delayNote = delayNoteOf(g);
   if (delayNote) info.push([String(g.delay_kind), delayNote]);
 
+  // #273 R2／N36：季後未開賽頁講清楚何時、何地、可能不舉行，並給觀戰報告入口（落點由報告頁自己核實是否為下一場）。
+  const gameKind = String(g.kind_code ?? kind);
+  const season = Number(g.year ?? year);
+  const postseasonSlot = (gameKind === "E" || gameKind === "C")
+    ? announcedSlotOf(announcementFor(season), gameKind, Number(sno), String(g.game_date ?? "")) : null;
+  const startText = taipeiTime(liveSnapshot?.starts_at ?? null) ?? postseasonSlot?.start ?? null;
+  const postseasonInfo = (gameKind === "E" || gameKind === "C") && Number.isInteger(season) ? (
+    <div data-testid="postseason-pregame-info" className="space-y-1.5 rounded-md bg-surface px-4 py-3 text-sm text-ink">
+      <p className="font-bold">
+        {KIND_LABEL[gameKind]}{postseasonSlot ? ` G${postseasonSlot.seq}` : ""}
+        <span className="ml-2 font-normal">{g.game_date ? slotWhen({ date: String(g.game_date), start: null }) : "日期未取得"} {startText ? `${startText} 開打` : "開賽時間未取得"}{g.venue ? ` · ${String(g.venue)}` : ""}</span>
+      </p>
+      {postseasonSlot?.conditional && <p className="text-muted"><b className="font-bold text-ink">如有必要</b>：系列若提前分出勝負，這一場就不舉行。</p>}
+      <Link href={previewLink(Number(sno), gameKind, season)} className="inline-flex min-h-11 items-center font-semibold text-accent underline">{REPORT_NAMES.preview}：開賽前兩隊背景 →</Link>
+    </div>
+  ) : null;
+
+  const entry = reportEntry({ recapHref: recapReportLink(completed, sno, kind, g.year), backendFinal, kind, year, previewHref });
+
   const boxTab: BoxTab | null = view === "away" || view === "home" || view === "ana" || view === "umpire" ? view : null;
   const pageTabs: { value: PageTab; label: string }[] = [
     { value: "overview", label: completed ? "賽後戰報" : "比賽總覽" },
@@ -325,7 +348,10 @@ export default function GameLivePage() {
   return (
     <div>
       <GameHead g={g} sno={sno} kind={String(g.kind_code ?? kind)} />
-      {recapReportLink(completed, sno, kind, g.year) && <div className="mb-4 flex justify-end"><Link href={previewHref ?? recapReportLink(completed, sno, kind, g.year)!} className="min-h-11 py-3 text-sm font-semibold text-accent underline">{previewHref ? "下一場觀戰報告" : "場間報告：下一場兩隊背景"}</Link></div>}
+      {/* #273 N38：下一場目標解析完成前只保留同高空位，連結出現後文字與去向一次定案。 */}
+      {entry && <div className="mb-4 flex min-h-11 justify-end">{entry.pending
+        ? <span aria-hidden="true" data-testid="report-link-pending" className="min-h-11" />
+        : <Link href={entry.href} className="min-h-11 py-3 text-sm font-semibold text-accent underline">{entry.text}</Link>}</div>}
       {liveInterrupted && (
         <Notice className="mb-3" label="更新中斷">
           即時更新暫時中斷；畫面保留最後一次成功賽況，恢復連線後會自動續接。
@@ -395,6 +421,7 @@ export default function GameLivePage() {
       ) : (
         /* 未開賽：固定語意的賽前勝率 */
         <div className="mb-8 space-y-4">
+          {postseasonInfo}
           <p className="flex items-center gap-2 text-sm text-muted">
             {liveSnapshot
               ? <StatusBadge tone={phaseTone(liveSnapshot.phase)}>{phaseLabel(liveSnapshot.phase)}</StatusBadge>
