@@ -58,9 +58,13 @@ test("公告仍有未完成場次：首頁左欄改寫全季結束文案，並�
   const t = text(node);
   assert.doesNotMatch(t, /本季賽程已全部結束/);
   assert.match(t, /例行賽已結束，季後賽仍在進行/);
-  // 下一場的日期與對戰只由同頁的季後卡呈現，左欄不重複。
-  assert.doesNotMatch(t, /10\/09/);
-  assert.match(renderToStaticMarkup(node), /href="\/standings\?seg=3"/);
+  // #268（取代 #237 原「左欄不重複下一場」）：「下一批賽事」須清楚呈現共用旅程模型的下一場，
+  // 不只泛用的季後連結。資料庫沒有正式列時只是公告安排：不給單場連結、不造場號。
+  // 日期時刻沿用既有 `slotWhen` 格式（星期與時刻之間一個空格），與季後總覽、日曆同一字串。
+  assert.match(t, /季後挑戰賽 G1 10\/09（五） 17:05 公告安排・正式場次待更新/);
+  const html = renderToStaticMarkup(node);
+  assert.match(html, /href="\/standings\?seg=3"/);
+  assert.doesNotMatch(html, /href="\/games\//);
 });
 
 test("沒有季後公告（或已全部完成）：沿用原文案", () => {

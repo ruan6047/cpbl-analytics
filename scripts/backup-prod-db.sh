@@ -88,6 +88,12 @@ if [ "$#" -gt 0 ]; then
   exit 64
 fi
 
+# 新建的備份檔（含 .partial）與備份目錄一律只給擁有者讀寫：檔 0600、目錄 0700。整庫 dump 含主站
+# public 的使用者資料，呼叫端 umask 022 時原本會得到 0644（重導向建立、mv 保留 mode、全檔無 chmod）。
+# 只作用於本行程與子行程：呼叫端 umask、既有備份檔與既有目錄的權限都不變；內容門檻、保留份數、
+# 離開碼與 stdout 不變（#268，需求方裁定 issuecomment-6138860627）。
+umask 077
+
 VPS="${VPS:-root@45.76.100.29}"
 DEPLOY_PATH="${DEPLOY_PATH:-/opt/personal-website}"
 BACKUP_DIR="${BACKUP_DIR:-$HOME/Library/Application Support/cpbl-analytics/backups}"

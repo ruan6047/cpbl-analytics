@@ -252,3 +252,77 @@ def test_refresh_calls_the_whole_database_backup_script() -> None:
 
     assert "scripts/backup-prod-db.sh" in script
     assert "backup-cpbl-prod.sh" not in script
+
+
+# ---- #268（需求方裁定 issuecomment-6138860627）：新備份建立時即 0600 -------------------
+#
+# 合成回歸，零真實主機：假 ssh、低內容門檻、tmp 目錄。父行程刻意設 umask 022——修補前同一情境
+# 產出 0644（重導向建立、mv 保留 mode、全檔無 chmod），這兩條在修補前必紅。
+
+# 假 ssh：等 .partial 出現（管線兩端並行啟動）後記下它當下的權限，再吐出合成 dump。
+_SSH_RECORDING_PARTIAL_MODE = """#!/bin/sh
+i=0
+while [ "$i" -lt 50 ]; do
+  f="$(ls "$BACKUP_DIR"/*.partial.* 2>/dev/null | head -1)"
+  [ -n "$f" ] && break
+  sleep 0.1; i=$((i + 1))
+done
+m="$(stat -c %a "$f" 2>/dev/null || stat -f %Lp "$f")"
+printf '%s\\n' "$m" > "$PARTIAL_MODE_LOG"
+printf '%s\\n' 'CREATE TABLE cpbl.games(id int);'
+"""
+
+
+def _run_under_caller_umask(env_updates: dict, tmp_path: Path) -> subprocess.CompletedProcess:
+    fake_bin = tmp_path / "bin"
+    fake_bin.mkdir(exist_ok=True)
+    _executable(fake_bin / "ssh", _SSH_RECORDING_PARTIAL_MODE)
+    env = os.environ.copy()
+    env.update({"PATH": f"{fake_bin}:/usr/bin:/bin", **LOW_THRESHOLDS, **env_updates})
+    # 呼叫端 umask 022；腳本結束後再印一次呼叫端 umask，證明修補不外洩到呼叫端。
+    return subprocess.run(
+        ["/bin/bash", "-c", 'umask 022; /bin/bash "$0"; rc=$?; echo "CALLER_UMASK=$(umask)" >&2; exit $rc',
+         SCRIPT],
+        env=env, text=True, capture_output=True, check=False,
+    )
+
+
+def test_new_backup_and_partial_are_owner_only_even_when_caller_umask_is_022(tmp_path: Path) -> None:
+    import stat
+
+    backup_dir = tmp_path / "new-backups"
+    mode_log = tmp_path / "partial-mode.txt"
+    result = _run_under_caller_umask(
+        {"BACKUP_DIR": str(backup_dir), "PARTIAL_MODE_LOG": str(mode_log)}, tmp_path)
+
+    assert result.returncode == 0, result.stderr
+    backup_path = Path(result.stdout.strip())
+    assert result.stdout.strip().splitlines() == [str(backup_path)], "stdout 仍只有備份路徑"
+    assert stat.S_IMODE(backup_path.stat().st_mode) == 0o600
+    assert mode_log.read_text().strip() == "600", ".partial 建立當下就是 0600"
+    assert stat.S_IMODE(backup_dir.stat().st_mode) == 0o700, "新建的備份目錄只給擁有者"
+    assert "CALLER_UMASK=0022" in result.stderr, "umask 只作用於備份行程，不外洩到呼叫端"
+
+
+def test_existing_directory_and_old_backups_keep_their_modes(tmp_path: Path) -> None:
+    """修補不回頭改既有產物：既有 0755 目錄與 0644 舊備份的權限與內容原樣保留（保留份數內）。"""
+    import stat
+
+    backup_dir = tmp_path / "existing"
+    backup_dir.mkdir()
+    backup_dir.chmod(0o755)
+    old = backup_dir / "alphadb-prod-20260101-000000-1.sql.gz"
+    old.write_bytes(gzip.compress(b"CREATE TABLE cpbl.old(id int);\n"))
+    old.chmod(0o644)
+    before = old.read_bytes()
+
+    result = _run_under_caller_umask(
+        {"BACKUP_DIR": str(backup_dir), "BACKUP_KEEP": "7",
+         "PARTIAL_MODE_LOG": str(tmp_path / "partial-mode.txt")}, tmp_path)
+
+    assert result.returncode == 0, result.stderr
+    assert stat.S_IMODE(backup_dir.stat().st_mode) == 0o755
+    assert stat.S_IMODE(old.stat().st_mode) == 0o644
+    assert old.read_bytes() == before
+    new = Path(result.stdout.strip())
+    assert new != old and stat.S_IMODE(new.stat().st_mode) == 0o600

@@ -60,6 +60,7 @@ scripts/refresh-cpbl-prod.sh — 把本機 CPBL 資料同步到 production（四
 
 離開碼
   0 成功 · 64 參數錯 · 65 取不到本機 freshness 基準 · 67 同步 payload 驗證失敗
+  68 POSTSEASON_RESULTS_ONLY 的 data-only 對帳不等（季後晚間鏈：停止當晚）
 
 背景：docs/AI_RUNBOOK.md（本機爬 → 同步生產）
 EOF
@@ -501,6 +502,81 @@ ON CONFLICT (${pk}) DO UPDATE SET $(_excl "$@");"
   echo "    ✓ ${t}"
 }
 
+# 季後賽果三表（#268）：games 與兩張官方狀態軌跡表，加上官方賽程異動訊號表（B1）。完整鏈與
+# POSTSEASON_RESULTS_ONLY 共用**同一份**欄位清單——兩處各寫一份會漂（sync_table 的「只插不更」教訓見上方）。
+sync_postseason_results() {
+  sync_table games "year,kind_code,game_season_code,game_sno" \
+    game_date present_status venue home_team_code home_team_name away_team_code away_team_name \
+    home_score away_score home_starter_id away_starter_id winning_pitcher_id losing_pitcher_id closer_id mvp_id \
+    delay_kind orig_date
+  # 官方狀態觀測軌跡：`/api/v1/games/{sno}/status` 與首頁 unresolved_games 的官方狀態判定
+  # （helpers.official_status）讀的就是 game_schedule_status_revisions；不同步過來，prod
+  # 對每一場都只能 fail closed 回 unknown，延賽／保留賽在線上永遠看不出來。
+  sync_revision_table game_schedule_status_revisions \
+    "year,kind_code,game_season_code,game_sno,payload_hash" \
+    year kind_code game_season_code game_sno raw_present_status raw_game_result \
+    raw_game_date raw_pre_exe_date payload_hash raw_payload fetched_at last_seen_at seen_count
+  sync_revision_table game_source_revisions \
+    "year,kind_code,game_sno,source,source_version" \
+    year kind_code game_sno source source_version outcome row_count error_code detail \
+    fetched_at last_seen_at seen_count
+  # 官方賽程異動訊號（migration 075，#268 B1 需求方裁定 6142744045）：首頁／季後頁／日曆的「賽程待更新」
+  # 讀的就是它；不同步過來，正式站在 www／同步失敗時永遠看不到待更新。自然鍵 PK、無 identity，
+  # 走通用 sync_table（含寫入前欄位守衛）。prod 端無其他 writer；本機只 resolve 不刪列，upsert 足夠。
+  # ⚠️ 表由 075 建立：主站部署含 075 的映像前，這一行會因生產端無此表而失敗（同 073 前例）——先部署再同步。
+  sync_table official_change_signals "year,kind_code,game_sno,field" official_value detected_at resolved_at
+}
+
+# 季後晚間事件鏈（#268 WP3，scripts/postseason-evening.sh 呼叫）：比照 LINEUP_ONLY 早退。
+# 只做「獨立目錄的已驗證備份 → 三表＋異動訊號表同步 → /api/info data-only 對帳」（僅訊號變動時同一路徑）：
+#   ⛔ 不爬（必須 SKIP_SCRAPE=1）、不 build-features、不跑 migration、不訓練、
+#   ⛔ 不寫 prod refresh 標記（那是整鏈成功的標記，晚間只同步三表不得冒用）、不同步 074 公告表。
+# BACKUP_DIR 必須明示且不得是 10:10 的預設目錄：晚間備份不得輪替掉每日鏈的 7 份歷史深度。
+if [ -n "${POSTSEASON_RESULTS_ONLY:-}" ]; then
+  if [ "$POSTSEASON_RESULTS_ONLY" != 1 ] || [ "${SKIP_SCRAPE:-}" != 1 ] || [ -n "${WITH_DETAIL:-}" ]; then
+    echo 'FATAL: POSTSEASON_RESULTS_ONLY=1 必須搭配 SKIP_SCRAPE=1，且不得帶 WITH_DETAIL' >&2
+    exit 64
+  fi
+  if [ -z "${BACKUP_DIR:-}" ] \
+     || [ "$BACKUP_DIR" = "$HOME/Library/Application Support/cpbl-analytics/backups" ]; then
+    echo 'FATAL: POSTSEASON_RESULTS_ONLY 需明示獨立的 BACKUP_DIR（不得與每日鏈共用輪替視窗）' >&2
+    exit 64
+  fi
+  cd "$REPO_DIR"
+  # ⚠️ 與完整鏈下方的 freshness 基準**逐字同源**（tests/test_postseason_evening_sync.py 釘住）：
+  # 同一支 `cpbl.completion --with-evidence`、同一段 SQL。
+  COMPLETED_GAMES_SQL="$(uv run python -m cpbl.completion --with-evidence)"
+  LOCAL_FRESHNESS="$(docker exec "$LOCAL_DB" psql -U cpbl -d cpbl -At -F '|' -c \
+    "SELECT COALESCE(max(game_date) FILTER (WHERE ${COMPLETED_GAMES_SQL})::text, ''), \
+            count(*) FILTER (WHERE year = ${YEAR} AND ${COMPLETED_GAMES_SQL}) \
+     FROM cpbl.games g")"
+  IFS='|' read -r EXPECTED_LAST_GAME_DATE EXPECTED_COMPLETED <<< "$LOCAL_FRESHNESS"
+  if [ -z "$EXPECTED_LAST_GAME_DATE" ] || ! [[ "$EXPECTED_COMPLETED" =~ ^[0-9]+$ ]]; then
+    echo "FATAL: 無法取得本機 freshness 基準：${LOCAL_FRESHNESS}" >&2
+    exit 65
+  fi
+  echo '==> 季後晚間：獨立目錄備份 production（整庫）；驗證不過即中止'
+  # 檔案 0600／目錄 0700 由 backup-prod-db.sh 自身的 umask 077 保證（producer 是唯一責任層，
+  # #268 需求方裁定 6138860627）；這裡不重複設 umask，只指定晚間專用的 BACKUP_DIR／BACKUP_KEEP。
+  BACKUP_PATH="$(VPS="$VPS" DEPLOY_PATH="$DEPLOY_PATH" BACKUP_DIR="$BACKUP_DIR" \
+    BACKUP_KEEP="${BACKUP_KEEP:-3}" "$REPO_DIR/scripts/backup-prod-db.sh")"
+  echo "    ✓ 已驗證備份：${BACKUP_PATH}"
+  echo '==> 季後晚間：三表＋異動訊號表非破壞性 upsert（games／官方狀態軌跡兩表／official_change_signals）'
+  sync_postseason_results
+  echo '==> 季後晚間：對帳 production 真實資料 freshness（data-only；不寫 refresh 標記）'
+  # 對帳不等（或取不到 /api/info）回專屬的 68：核定規劃對它的處置是「記失敗並停止當晚」，
+  # 與 64–67／psql 錯誤的「立即停、bootout、交人工」不同，故不得與其他非零碼混用。
+  if ! curl -fsS --retry 3 --retry-delay 15 --max-time 20 "$API_INFO_URL" \
+    | python3 "$REPO_DIR/scripts/verify_refresh_info.py" --data-only \
+        --expected-last-game-date "$EXPECTED_LAST_GAME_DATE" \
+        --expected-season-games-completed "$EXPECTED_COMPLETED"; then
+    echo 'FATAL: 季後晚間 data-only 對帳不等（停止當晚，三表已寫入；見 Runbook §10）' >&2
+    exit 68
+  fi
+  echo '==> 季後晚間：完成（只代表三表＋異動訊號表同步與對帳，不代表整鏈刷新）'
+  exit 0
+fi
+
 cd "$REPO_DIR"
 # SKIP_SCRAPE=1：本機 DB 已是最新時，跳過重爬、直接把現有資料同步到 prod。
 if [ -n "${SKIP_SCRAPE:-}" ]; then
@@ -579,21 +655,8 @@ finally:
 prepare_lineup_copy
 sync_lineup_announcements
 
-sync_table games "year,kind_code,game_season_code,game_sno" \
-  game_date present_status venue home_team_code home_team_name away_team_code away_team_name \
-  home_score away_score home_starter_id away_starter_id winning_pitcher_id losing_pitcher_id closer_id mvp_id \
-  delay_kind orig_date
-# 官方狀態觀測軌跡：`/api/v1/games/{sno}/status` 與首頁 unresolved_games 的官方狀態判定
-# （helpers.official_status）讀的就是 game_schedule_status_revisions；不同步過來，prod
-# 對每一場都只能 fail closed 回 unknown，延賽／保留賽在線上永遠看不出來。
-sync_revision_table game_schedule_status_revisions \
-  "year,kind_code,game_season_code,game_sno,payload_hash" \
-  year kind_code game_season_code game_sno raw_present_status raw_game_result \
-  raw_game_date raw_pre_exe_date payload_hash raw_payload fetched_at last_seen_at seen_count
-sync_revision_table game_source_revisions \
-  "year,kind_code,game_sno,source,source_version" \
-  year kind_code game_sno source source_version outcome row_count error_code detail \
-  fetched_at last_seen_at seen_count
+# games＋官方狀態軌跡兩表＋異動訊號表（與 POSTSEASON_RESULTS_ONLY 共用同一份清單，見 sync_postseason_results）。
+sync_postseason_results
 sync_table pitching_current "year,player_id" name team_code era ip g gs w l whip k9 fip era_plus sv hld \
   so cg sho pa np h hr bb ibb hbp wp bk r er go ao goao
 sync_table batting_current "year,player_id" name team_code pa avg obp slg ops hr ops_plus k_pct bb_pct \

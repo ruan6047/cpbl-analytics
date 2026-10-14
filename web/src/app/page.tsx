@@ -3,8 +3,9 @@ import { Card, ErrorState } from "@/components/ui";
 import { api } from "@/lib/api";
 import DailyHub from "@/components/daily-hub";
 import MiniStandings from "@/components/mini-standings";
-import { PostseasonNextCard, postseasonPointer } from "@/components/postseason-next";
+import { PostseasonNextCard, postseasonGameLabels, postseasonPointer } from "@/components/postseason-next";
 import { announcementFor } from "@/lib/postseason-announcement";
+import { withGameTeamNames } from "@/lib/teams";
 import { liveEntryProbes, liveEntryResults, postseasonJourneyFor, withLiveEntries } from "@/lib/postseason-journey";
 
 export const metadata = {
@@ -48,7 +49,8 @@ export default async function Home({
   ]);
 
   const standings = standR.status === "fulfilled" ? standR.value.items : [];
-  const calendar = calR.status === "fulfilled" ? calR.value.items : null;
+  // #268：官方空白隊名（台灣大賽 C 列）以現役隊碼補齊顯示名；與日曆同一個 helper。
+  const calendar = calR.status === "fulfilled" ? calR.value.items.map(withGameTeamNames) : null;
   const post = postR.status === "fulfilled" ? postR.value : null;
   // 季後旅程：與季後總覽、日曆同一個模型。年度取 calendar 的 season（失敗時取 summary 的）。
   const season = calR.status === "fulfilled" ? calR.value.season : post?.season ?? null;
@@ -68,7 +70,8 @@ export default async function Home({
           不把錯誤當成「今天沒比賽」（GAME_RECAP §7.1）。hub 是 client island：票券要隨 phase
           自行翻態，而它的前景輪詢打的就是這裡 SSR 用的同一支 dailySummary。 */}
       {dailyR.status === "fulfilled" ? (
-        <DailyHub summary={dailyR.value} calendar={calendar} postseason={postseasonPointer(journey)} />
+        <DailyHub summary={dailyR.value} calendar={calendar} postseason={postseasonPointer(journey)}
+          seriesLabels={postseasonGameLabels(journey)} />
       ) : (
         <Card padding="p-6">
           <h1 className="sr-only">今日賽事</h1>

@@ -10,6 +10,7 @@ import { api } from "@/lib/api";
 import type { OfficialStanding, OfficialStandingsResponse, SpecialRecord, WL } from "@/lib/api";
 import { announcementFor } from "@/lib/postseason-announcement";
 import { postseasonJourneyFor, type PostseasonJourney, type SeriesGame } from "@/lib/postseason-journey";
+import { scheduleChanges, withScheduleChanges, type WithScheduleChanges } from "@/lib/daily-summary";
 import { teamPageCode, teamShort } from "@/lib/teams";
 
 export const dynamic = "force-dynamic";
@@ -254,8 +255,8 @@ function PostseasonBracket({ isCurrent, h0, h1, h2, series, journey, activeSerie
   h1: OfficialStandingsResponse | null;
   h2: OfficialStandingsResponse | null;
   series: PostSeries[];
-  /** 當季且有官方公告時的共用旅程模型（#237）；其他年份為 null，走原路徑。 */
-  journey: PostseasonJourney | null;
+  /** 當季且有官方公告時的共用旅程模型（#237）；其他年份為 null，走原路徑。帶官方賽程異動見 #268 B2。 */
+  journey: WithScheduleChanges<PostseasonJourney> | null;
   /** 當季季後總覽的系列分頁（網址 `ps=E|C`）；其他年份不用。 */
   activeSeries?: string;
 }) {
@@ -473,7 +474,7 @@ export default async function Standings({ searchParams }: { searchParams: Promis
   const announcement = !isMinor && isPostseason && selectedYear === currentYear ? announcementFor(selectedYear) : null;
   // 旅程的兩個輸入不走跨請求快取，避免同一頁組到不同時間的快照（api.ts journeyGet）；歷史與二軍照舊快取。
   const live = { live: announcement !== null };
-  const [{ season, items, half }, derived, special, trend, h1r, h2r, h0r, postseason, calendar] = await Promise.all([
+  const [{ season, items, half }, derived, special, trend, h1r, h2r, h0r, postseason, calendar, daily] = await Promise.all([
     api.officialStandings(effSeg, useOfficial ? undefined : selectedYear, kind),
     !isMinor ? api.standings(selectedYear) : Promise.resolve({ standings: [] }),
     needAdvanced ? api.specialRecords(selectedYear) : Promise.resolve(null),
@@ -484,10 +485,13 @@ export default async function Standings({ searchParams }: { searchParams: Promis
     needPostseasonSummary ? api.postseasonSummary(selectedYear, kind, live) : Promise.resolve(null),
     // calendar 失敗不擋季後總覽：旅程模型退回只用 summary 的完賽場。
     announcement ? api.gamesCalendar(selectedYear, "A", live).catch(() => null) : Promise.resolve(null),
+    // #268 B2：與首頁同一支既有 daily summary（no-store），只取 coverage 的官方賽程異動；失敗＝不顯示，不擋頁。
+    announcement ? api.dailySummary().catch(() => null) : Promise.resolve(null),
   ]);
-  const journey = announcement
+  const baseJourney = announcement
     ? postseasonJourneyFor(selectedYear, postseason?.series ?? null, calendar?.items ?? null, Date.now())
     : null;
+  const journey = baseJourney && withScheduleChanges(baseJourney, scheduleChanges(daily, baseJourney.year));
   const hasPlayoffPanel = !!(h0r?.items?.length && h1r?.items?.length && h2r?.items?.length);
   const half1Champ = h1r?.half?.champion_code ?? null;
   const half2Champ = h2r?.half?.champion_code ?? null;

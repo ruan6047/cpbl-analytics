@@ -732,3 +732,38 @@ GitHub 會自動標記。判斷是否經 PR 合併要看 `gh api repos/.../commi
 - 對戰/分項：`matchups`、`vs_team_splits`、`batting_splits`、`pitching_splits`。
 - 進階：`advanced_stats`、`pitch_tracking`、`team_standings`、`refresh_log`。
 - 慣例：無 ORM、psycopg3 參數化(`%s`)、走 `cpbl.db.conn()`；新 migration `00X_*.sql` 須 `IF NOT EXISTS`（migrate() 每次全跑）；player_id 10 碼字串對齊 opendata。
+
+## 10. 季後晚間事件鏈（#268 WP3；**製作≠啟用**）
+
+官方完賽或公告新賽程後，首頁／季後頁／日曆要在**同一晚**反映（需求方裁定，含 23:30 以後才公布的資料；**沒有鐘點截止**）。
+本節是程式已備妥的操作說明；**安裝、啟用、晚間 prod 同步都屬 P1 共享操作，未經需求方核定具體操作包前不得執行**。
+
+- 入口：`bash scripts/postseason-evening.sh --help`（只印用法）；邏輯在 `src/cpbl/ingest/postseason_evening.py`。
+- launchd 樣板：`ops/launchd/com.cpbl.postseason-evening.plist`（`StartInterval` 300 秒）。⚠️ 不在 `scripts/`：
+  `scripts/schedule_watch.py` 的登記表只認 daily／weekly，放進去會讓偵測器判 REGISTRY_INVALID／INCOMPLETE。
+  **安裝前**須先決定登記方式（例如讓偵測器支援 interval cadence，另案核定）；否則安裝後偵測器會如實報 REGISTRY_INCOMPLETE。
+- 每次喚醒：
+  1. `plan`：不取鎖；到期才以 httpx **唯讀**讀 `stats.cpbl.com.tw/api/proxy/v1/games/schedule`（E、C × 上月／本月／下月＋未結事件所在月份；跨月界不放掉前月，stats 沒回到的場次不當作已解決），與本機 DB 比對。
+     事件只有三類：stats `FINISHED` 但本機未完成、stats 有本機沒有的 `(year, kind, sno)`、日期或主客異動。沒有事件就結束，**不連 www**。
+     stats 資料不寫賽程／狀態表、不作完賽依據（判準仍是 `cpbl.completion`）；唯一例外是 #268 D1 待更新訊號：新場次／異動寫本機 `cpbl.official_change_signals`（migration 075），同步對帳通過或偵測不再成立才寫 `resolved_at`，首頁／季後頁／日曆據此標「賽程待更新」（`official_change_not_ingested`）。此表隨三表一起同步到 prod（每日鏈與晚間鏈共用 `sync_postseason_results`，需求方裁定 6142744045）；本機表變了而三表沒變（www／同步失敗、對帳通過後才解決）時，晚間鏈另走一次**僅訊號變動**的同步（plan／sync-due 回 `signals`；同一條已驗證備份→同步→對帳路徑，同樣受 halted／68 停當晚／讓位 10:10 約束）。⚠️ prod 須先部署含 075 的映像，否則同步在此表失敗（同 073 前例）。
+  2. 有事件：取 refresh lock，跑既有 `_postseason_games_step`（www getgamedatas），只抓冷卻已過的賽別（請求以賽別為單位，冷卻亦以賽別計）。每事件最多 3 次、間隔 ≥20 分鐘；
+     挑戰類失敗第 2 次即停止當晚所有 www（`www_blocked_at`，隔日 12:00 後才解除）；10:10 前後（09:45–10:15）讓位給每日鏈。
+  3. 本機有變化：`POSTSEASON_RESULTS_ONLY=1 SKIP_SCRAPE=1 BACKUP_DIR=<晚間專用> bash scripts/refresh-cpbl-prod.sh`
+     ＝已驗證備份 → 只同步 `games`／`game_schedule_status_revisions`／`game_source_revisions`／`official_change_signals` → `/api/info` data-only 對帳。
+     不訓練、不 build-features、不 migration、不同步 074 公告表、**不寫 prod refresh 標記**。
+- 備份範圍：`backup-prod-db.sh` 備的是**整庫**（cpbl schema＋主站 public）。晚間鏈用獨立的 `POSTSEASON_BACKUP_DIR`（預設
+  `~/Library/Application Support/cpbl-analytics/backups-postseason-evening`，保留 3 份），**不輪替掉 10:10 的 7 份**；
+  備份腳本自身在參數守衛後設 `umask 077`：新建目錄 0700、檔案 0600（每日與晚間共用；既有備份權限不回頭處理）。
+  資料寫錯時只考慮還原 **cpbl schema**，⛔ 不還原主站 public；還原屬破壞性 prod 寫入，發生時交需求方決定。
+- 排他：與每日／每週排程共用 `/private/tmp/cpbl-analytics-refresh.lock`。公告 owner 持有時有界等待；其他一律 exit 75，**不刪、不搶**（即使 pid 已死）。
+- 紀錄：`logs/postseason-evening-state.json`（跨次狀態）、`logs/last-postseason-evening.json`（最終狀態與時點）、`logs/postseason-evening-YYYYMMDD.log`；
+  本機 `refresh_log` 只在嘗試 www／同步時寫一列（scope `postseason-evening`）。
+- 時點：T1＝stats 首次觀測（官方發佈的上界近似）、T2＝本機狀態修訂表首見、T3＝三表（＋訊號表）同步＋對帳完成、T4＝使用者可見（只能以正式 Chrome 抽樣）。
+  跨過 24:00 照實記錄實際日期時刻，不改寫成賽事日；由隔日 10:10 補上的事件記 `unreached`（`resolved_outside_evening_chain`），**不算同晚達成**。
+- 錯誤即停：data-only 對帳不等（refresh 回 68）→ 記失敗並**停止當晚**（`sync_blocked_at`，隔日 12:00 後重試未同步的變化）；
+  其他同步非零（64–67、psql／schema 錯誤、備份失敗）→ 狀態檔 `halted`，launchd 觸發時另 `launchctl bootout`；之後每次喚醒直接退出，
+  直到人工檢視後把狀態檔的 `halted` 改回 `null`。www 成功但本機 C 列仍為 0 → 只停該項（`needs_owner_decision`），交需求方，不換工具、不繞道。
+- 晚間跑過後隔日 10:10 若出現挑戰類失敗：具名本機角色 bootout 本 job 並回報（以 `logs/last-launchd-status.json` 核對；本鏈不自動判讀它）。
+- 回復（各自可單獨執行）：排程＝`launchctl bootout gui/$(id -u)/com.cpbl.postseason-evening` 並移除 LaunchAgents 連結；
+  程式＝revert 本卡 PR 或回退主站 submodule 指標；資料＝見上方備份範圍。
+- 啟用前提（P1，尚未核定）：Mac 晚間保持喚醒且登入（不改個人電源設定，只記錄）、偵測器登記方式已決定、具體備份／排他／釋放證據。

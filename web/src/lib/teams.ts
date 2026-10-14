@@ -159,3 +159,40 @@ export const nameMeta = (name?: string | null): { color: string; letter: string 
   const n = name.replace(/二軍$/, "");  // 二軍沿用母隊色
   return NAME_META[n] ?? { color: "#94a3b8", letter: "?" };
 };
+
+// —— 逐場隊名（#268）——
+// 公開反例：台灣大賽 C 場次在首頁票券與日曆上隊碼正確（隊徽、連結都對）但隊名為空——
+// 票券唸成「No.1 對 ，賽事詳情」，日曆篩選的味全／兄弟 chip 沒有可讀名稱（同一隊的例行賽名稱
+// 被後出現的 C 列空名覆蓋）。季後總覽一直正確，因為它走 `teamName3(code)`。
+// 修法只在顯示層：官方原名優先；原名空白**且**隊碼是現役六隊時，退回本站隊名字典。
+// ⛔ 不猜：不認得的隊碼回空字串；歷史隊碼不套現役名（兄弟象≠中信兄弟），所以只認 TEAMS 直屬鍵。
+
+/** 單場隊名：官方原名（去前後空白）優先，空白時以現役隊碼查本站字典；查無回空字串。 */
+export function gameTeamName(code?: string | null, name?: string | null): string {
+  const raw = (name ?? "").trim();
+  if (raw) return raw;
+  return (code && TEAMS[code]?.name3) || "";
+}
+
+type GameTeams = { away_team_code: string; away_team_name: string; home_team_code: string; home_team_name: string };
+
+/** 一列逐場資料 → 兩隊名稱已補齊的同形狀副本（其餘欄位原樣）。 */
+export function withGameTeamNames<T extends GameTeams>(g: T): T {
+  return {
+    ...g,
+    away_team_name: gameTeamName(g.away_team_code, g.away_team_name),
+    home_team_name: gameTeamName(g.home_team_code, g.home_team_name),
+  };
+}
+
+/** 隊碼 → 顯示名：取該隊**第一個非空**名稱，不讓後出現的空名覆蓋。 */
+export function teamNamesFromGames(games: GameTeams[]): Map<string, string> {
+  const names = new Map<string, string>();
+  for (const g of games) {
+    for (const [code, name] of [[g.home_team_code, g.home_team_name], [g.away_team_code, g.away_team_name]] as const) {
+      const shown = gameTeamName(code, name);
+      if (!names.get(code)) names.set(code, shown);
+    }
+  }
+  return names;
+}

@@ -25,6 +25,9 @@ _GAME_COLS = ["season", "kind_code", "game_sno", "game_date", "venue",
 # description 必須跟著真實投影走，否則這裡餵出來的列會少一個判定用得到的欄位。
 _REVISION_COLS = ["year", "kind_code", "game_sno", "raw_present_status", "raw_game_result",
                   "raw_game_date", "payload_hash", "fetched_at", "last_seen_at"]
+# cpbl.official_change_signals 未解決列（#268 D1，`cpbl.change_signals.UNRESOLVED_SQL` 的投影）。
+_SIGNAL_COLS = ["year", "kind_code", "game_sno", "field", "official_value", "detected_at",
+                "local_game_date"]
 # 測試基準時鐘。**刻意是固定常數，不得取牆鐘**：受測碼有兩個日界——`_today_local()`＝
 # 容器本地日（`as_of` 用）、`taipei_today(_now())`＝台北日（`today` 區塊用）。舊版這裡寫
 # `date.today()`，等於讓假資料綁在「跑測試那台機器的時區」上：本機在台北時兩個日界重合、
@@ -174,7 +177,7 @@ def _run(monkeypatch, script, *, artifact=None, query="", snapshots=None,
 
 def _script(*, latest: date | None, next_day: date | None, scoped: int, games: list[tuple],
             unresolved: list[tuple] | None = None, revisions: list[tuple] | object = None,
-            refresh=("ok",)) -> list:
+            refresh=("ok",), signals: list[tuple] | object = ()) -> list:
     refresh_rows: object
     if refresh == ("ok",):
         # 相對**注入的**基準時刻，不是牆鐘：freshness 由受測碼拿 `_now()` 去減，
@@ -192,6 +195,8 @@ def _script(*, latest: date | None, next_day: date | None, scoped: int, games: l
     if unresolved:
         script.append((_REVISION_COLS, revisions if revisions is not None else []))
     script.append((["refreshed_at", "ok", "scope"], refresh_rows))
+    # #268 D1：範圍含 E／C 時最後一支是官方異動訊號（二軍範圍不查，這一輪留著也不會被讀到）。
+    script.append((_SIGNAL_COLS, signals))
     return script
 
 
@@ -997,14 +1002,25 @@ def test_live_view_reads_bases_from_the_last_event_only_while_live():
 # --- 契約：唯讀與查詢預算 -----------------------------------------------------
 
 def test_summary_is_read_only_and_within_query_budget(monkeypatch):
-    """§8.4：聚合取代十餘組請求；本端點固定 4 次唯讀查詢，且不得出現寫入。"""
+    """§8.4：聚合取代十餘組請求；本端點固定 4 次唯讀查詢，且不得出現寫入。
+
+    #268 D1（需求方裁定 6142259348「daily.py 各多一次查詢」）：範圍含季後 E／C（一軍 A 含 E／C）時
+    多 1 次官方異動訊號查詢＝5 次；二軍範圍維持 4 次。仍全是唯讀。"""
     _, cursor = _run(monkeypatch, _script(
         latest=_TODAY - timedelta(days=1), next_day=_TODAY + timedelta(days=1), scoped=2,
         games=[_game(1, _TODAY - timedelta(days=1), home=1, away=0),
                _game(2, _TODAY + timedelta(days=1))],
     ))
 
-    assert len(cursor.queries) == 4
+    assert len(cursor.queries) == 5
+    assert "official_change_signals" in cursor.queries[-1]
+    _, farm = _run(monkeypatch, _script(
+        latest=_TODAY - timedelta(days=1), next_day=_TODAY + timedelta(days=1), scoped=2,
+        games=[_game(1, _TODAY - timedelta(days=1), home=1, away=0, kind="D"),
+               _game(2, _TODAY + timedelta(days=1), kind="D")],
+    ), query="?kind_code=D")
+    assert len(farm.queries) == 4
+    assert not [q for q in farm.queries if "official_change_signals" in q]
     assert all(q.lstrip().upper().startswith(("SELECT", "WITH")) for q in cursor.queries)
     forbidden = ("INSERT", "UPDATE", "DELETE", "CREATE", "DROP", "ALTER")
     assert not any(word in q.upper() for q in cursor.queries for word in forbidden)
@@ -1252,3 +1268,232 @@ def test_postseason_2026_partial_score_past_date_is_listed_as_unresolved(monkeyp
     assert unresolved[0]["status"] == "scheduled"
     from cpbl.completion import official_completion_scope_sql
     assert official_completion_scope_sql("g") in cursor.queries[2]
+
+
+# --- #268：freshness.coverage（已涵蓋最新完賽）與 last_refresh（刷新成功）分軸 ------------
+#
+# 場景依 #268 反例：10/12 E4 統一 2:8 兄弟（官方 final），首頁卻停在 10/11 E3 並標「資料為最新」。
+# 時鐘一律注入（台北 22:00＝UTC 14:00；台北 00:40＝前一天 UTC 16:40）。場次為合成形狀，
+# 不是正式資料；比分／隊伍只用來辨識列，判準由受測碼自己算。
+
+_E3_DAY = date(2026, 10, 11)
+_E4_DAY = date(2026, 10, 12)
+_C1_DAY = date(2026, 10, 17)
+
+
+def _ps(kind: str, sno: int, day: date, *, away: str = "ADD011", home: str = "ACN011",
+        away_score: int = 0, home_score: int = 0, official_final: bool = False) -> tuple:
+    return (2026, kind, sno, day, "洲際", away, "隊A", away_score, home, "隊B", home_score,
+            False, official_final, None, None)
+
+
+def _ps_script(*, latest, next_day, games, unresolved=(), revisions=None, refresh=None,
+               signals=()) -> list:
+    """季後版腳本：官方狀態查詢是否發生由呼叫端明示（日界缺口也會觸發它）。"""
+    script = [
+        (["latest", "next", "scoped"], [(latest, next_day, 400)]),
+        (_GAME_COLS, list(games)),
+        (_GAME_COLS, list(unresolved)),
+    ]
+    if revisions is not None:
+        script.append((_REVISION_COLS, revisions))
+    script.append((["refreshed_at", "ok", "scope"],
+                   refresh if refresh is not None else [(_NOW, True, "recent-games")]))
+    script.append((_SIGNAL_COLS, list(signals)))
+    return script
+
+
+def test_coverage_live_final_same_night_is_pending_update_not_latest(monkeypatch):
+    """台北 10/12 22:00：即時來源 E4 已 final，正式判準尚未成立 → pending_update。
+    即時 final 只是訊號：比分不得因此入帳，completed 仍為 False。"""
+    now = datetime(2026, 10, 12, 14, 0, tzinfo=UTC)
+    body, cursor = _run(monkeypatch, _ps_script(
+        latest=_E3_DAY, next_day=_E4_DAY,
+        games=[_ps("E", 3, _E3_DAY, away_score=1, home_score=5, official_final=True),
+               _ps("E", 4, _E4_DAY, away_score=2, home_score=8)],
+    ), snapshots={4: _snapshot(4, "final", away=2, home=8, inning=9, events=60)},
+        now=now, today_local=_E4_DAY)
+
+    coverage = body["freshness"]["coverage"]
+    assert coverage["status"] == "pending_update"
+    assert coverage["taipei_date"] == "2026-10-12"
+    assert [(g["kind_code"], g["game_sno"], g["reason"]) for g in coverage["pending_games"]] == [
+        ("E", 4, "live_final_not_ingested")]
+    e4 = body["today"]["games"][0]
+    assert e4["completed"] is False and e4["home_score"] is None
+    # 刷新軸照舊獨立：最後刷新成功，不因 coverage 改寫。
+    assert body["freshness"]["last_refresh"]["ok"] is True
+    assert not [q for q in cursor.queries if q.startswith("INSERT") or q.startswith("UPDATE")]
+
+
+def test_coverage_crosses_midnight_in_a_utc_container(monkeypatch):
+    """台北 10/13 00:40（UTC 容器的 `as_of` 仍是 10/12）：E4 仍未完成 → pending_update。
+    舊版的 unresolved 查詢以 `< as_of` 為界，這一場在日界窗內完全不會被說成落後。"""
+    now = datetime(2026, 10, 12, 16, 40, tzinfo=UTC)
+    body, cursor = _run(monkeypatch, _ps_script(
+        latest=_E3_DAY, next_day=_E4_DAY,
+        games=[_ps("E", 3, _E3_DAY, away_score=1, home_score=5, official_final=True),
+               _ps("E", 4, _E4_DAY, away_score=2, home_score=8)],
+        revisions=[_revision(4, 1, "", _E4_DAY, kind="E")],
+    ), now=now, today_local=_E4_DAY)
+
+    coverage = body["freshness"]["coverage"]
+    assert body["scope"]["as_of"] == "2026-10-12", "as_of 語意不改（REMEDY1 Phase 2）"
+    assert coverage["taipei_date"] == "2026-10-13"
+    assert coverage["status"] == "pending_update"
+    assert [(g["game_sno"], g["official_status"], g["reason"]) for g in coverage["pending_games"]] == [
+        (4, "scheduled", "past_game_without_result")]
+    # 日界缺口與 unresolved 共用一次官方狀態查詢，不另起查詢。
+    assert sum("game_schedule_status_revisions" in q and "unnest" in q for q in cursor.queries) == 1
+
+
+def test_coverage_crosses_midnight_in_a_taipei_container(monkeypatch):
+    """同一刻、容器跑台北：E4 落在 unresolved（`< as_of`），本站官方狀態仍非 final → pending_update。
+    （本站的官方狀態列只隨本站抓取更新；尚未抓到官方 final 正是「待更新」。）"""
+    now = datetime(2026, 10, 12, 16, 40, tzinfo=UTC)
+    body, _ = _run(monkeypatch, _ps_script(
+        latest=_E3_DAY, next_day=None,
+        games=[_ps("E", 3, _E3_DAY, away_score=1, home_score=5, official_final=True)],
+        unresolved=[_ps("E", 4, _E4_DAY, away_score=2, home_score=8)],
+        revisions=[_revision(4, 1, "", _E4_DAY, kind="E")],
+    ), now=now, today_local=date(2026, 10, 13))
+
+    coverage = body["freshness"]["coverage"]
+    assert coverage["status"] == "pending_update"
+    assert coverage["pending_games"][0]["reason"] == "past_game_without_result"
+    assert body["freshness"]["unresolved_games"][0]["game_sno"] == 4
+
+
+def test_coverage_turns_covered_once_official_final_lands_and_next_is_c1(monkeypatch):
+    """官方 final 入帳後：E4 為最近完賽、coverage=covered、下一批是真 C1（2026/C/1）。"""
+    now = datetime(2026, 10, 13, 2, 30, tzinfo=UTC)
+    body, _ = _run(monkeypatch, _ps_script(
+        latest=_E4_DAY, next_day=_C1_DAY,
+        games=[_ps("E", 4, _E4_DAY, away_score=2, home_score=8, official_final=True),
+               _ps("C", 1, _C1_DAY, away="ACN011", home="AAA011")],
+    ), now=now, today_local=date(2026, 10, 13))
+
+    assert body["freshness"]["coverage"] == {
+        "status": "covered", "taipei_date": "2026-10-13", "pending_games": []}
+    assert body["latest_game_day"]["games"][0]["completed"] is True
+    c1 = body["next_slate"]["games"][0]
+    assert (c1["kind_code"], c1["game_sno"], c1["away_team_code"], c1["home_team_code"]) == (
+        "C", 1, "ACN011", "AAA011")
+    assert body["availability"]["schedule"]["status"] == "available"
+
+
+def test_coverage_ignores_officially_postponed_games(monkeypatch):
+    """官方已宣告延賽：資料沒有落後，coverage 不得因此喊待更新。"""
+    body, _, _ = _unresolved_body(monkeypatch, [_revision(3, 1, "1", _TODAY - timedelta(days=3))])
+
+    assert body["freshness"]["coverage"]["status"] == "covered"
+
+
+def test_coverage_is_unknown_when_official_status_cannot_be_read(monkeypatch):
+    """讀不到官方狀態 → unknown（不得說成 covered，也不臆測成待更新）。"""
+    body, _, _ = _unresolved_body(monkeypatch, RuntimeError("relation does not exist"))
+
+    coverage = body["freshness"]["coverage"]
+    assert coverage["status"] == "unknown"
+    assert coverage["pending_games"][0]["reason"] == "official_status_unknown"
+
+
+def test_coverage_never_claims_latest_when_tonight_cannot_be_observed(monkeypatch):
+    """台北 10/12 22:00、E4 未入帳：即時來源取不到（無快照）或已二階中斷時 → unknown，
+    不得在午夜前一直標 covered（＝首頁的「資料為最新」）。"""
+    now = datetime(2026, 10, 12, 14, 0, tzinfo=UTC)
+    script = lambda: _ps_script(  # noqa: E731 — 每次執行要新腳本
+        latest=_E3_DAY, next_day=_E4_DAY,
+        games=[_ps("E", 3, _E3_DAY, away_score=1, home_score=5, official_final=True),
+               _ps("E", 4, _E4_DAY, away_score=2, home_score=8)])
+
+    absent, _ = _run(monkeypatch, script(), snapshots={}, now=now, today_local=_E4_DAY)
+    assert absent["freshness"]["coverage"]["status"] == "unknown"
+    assert absent["freshness"]["coverage"]["pending_games"][0]["reason"] == "live_status_unavailable"
+
+    old = datetime.now(UTC) - timedelta(minutes=10)
+    stale, _ = _run(monkeypatch, script(),
+                    snapshots={4: _snapshot(4, "live", inning=8, events=40, fetched_at=old)},
+                    now=now, today_local=_E4_DAY)
+    assert stale["freshness"]["coverage"]["status"] == "unknown"
+
+    fresh, _ = _run(monkeypatch, script(),
+                    snapshots={4: _snapshot(4, "live", inning=8, events=40)},
+                    now=now, today_local=_E4_DAY)
+    assert fresh["freshness"]["coverage"]["status"] == "covered", "仍在比賽、觀測正常：沒有落後"
+
+
+def test_coverage_ignores_today_games_officially_postponed(monkeypatch):
+    """今天官方延賽（delay_kind，無快照）：不是觀測缺口，不得因此改判 unknown。"""
+    now = datetime(2026, 10, 12, 14, 0, tzinfo=UTC)
+    postponed = (*_ps("E", 4, _E4_DAY)[:13], "延賽", _E4_DAY)
+    body, _ = _run(monkeypatch, _ps_script(latest=_E3_DAY, next_day=_E4_DAY, games=[
+        _ps("E", 3, _E3_DAY, away_score=1, home_score=5, official_final=True), postponed]),
+        snapshots={}, now=now, today_local=_E4_DAY)
+    assert body["freshness"]["coverage"]["status"] == "covered"
+
+
+def test_coverage_still_unknown_for_a_makeup_game_rescheduled_to_today(monkeypatch):
+    """延賽後改期到今天的補賽（delay_kind 仍是延賽、orig_date≠今天）：今天要打，無快照仍是觀測缺口 → unknown。"""
+    now = datetime(2026, 10, 12, 14, 0, tzinfo=UTC)
+    makeup = (*_ps("E", 4, _E4_DAY)[:13], "延賽", _E3_DAY)
+    body, _ = _run(monkeypatch, _ps_script(latest=_E3_DAY, next_day=_E4_DAY, games=[
+        _ps("E", 3, _E3_DAY, away_score=1, home_score=5, official_final=True), makeup]),
+        snapshots={}, now=now, today_local=_E4_DAY)
+    coverage = body["freshness"]["coverage"]
+    assert coverage["status"] == "unknown"
+    assert [(g["game_sno"], g["reason"]) for g in coverage["pending_games"]] == [(4, "live_status_unavailable")]
+
+
+def test_coverage_is_covered_on_an_ordinary_day_without_extra_queries(monkeypatch):
+    """常態（沒有未定案、沒有日界缺口、沒有異動訊號）：covered；查詢＝基本 4 次＋D1 訊號 1 次。"""
+    body, cursor = _run(monkeypatch, _script(
+        latest=_TODAY - timedelta(days=1), next_day=_TODAY + timedelta(days=1), scoped=2,
+        games=[_game(1, _TODAY - timedelta(days=1), home=1, away=0),
+               _game(2, _TODAY + timedelta(days=1))],
+    ))
+
+    assert body["freshness"]["coverage"]["status"] == "covered"
+    assert len(cursor.queries) == 5
+
+
+# --- #268 D1：官方賽程異動訊號（cpbl.official_change_signals）併入 coverage --------------------
+
+def test_official_change_signal_makes_coverage_pending_without_touching_games(monkeypatch):
+    """E4 已入帳、C1 尚未入庫但晚間鏈已偵測到官方新場次（訊號）＋本站 C2 改期未反映：
+    coverage=pending_update、reason official_change_not_ingested；刷新軸照舊；不造 C1 列、不改下一批。"""
+    now = datetime(2026, 10, 13, 12, 0, tzinfo=UTC)   # 台北 10/13 20:00
+    detected = datetime(2026, 10, 13, 11, 50, tzinfo=UTC)
+    body, cursor = _run(monkeypatch, _ps_script(
+        latest=_E4_DAY, next_day=date(2026, 10, 18),
+        games=[_ps("E", 4, _E4_DAY, away_score=2, home_score=8, official_final=True),
+               _ps("C", 2, date(2026, 10, 18), away="ACN011", home="AAA011")],
+        signals=[(2026, "C", 1, "game", "2026-10-17T17:05:00", detected, None),
+                 (2026, "C", 2, "date", "2026-10-19", detected, date(2026, 10, 18)),
+                 (2026, "C", 2, "venue", "大巨蛋", detected, date(2026, 10, 18))],
+    ), now=now, today_local=date(2026, 10, 13))
+
+    coverage = body["freshness"]["coverage"]
+    assert coverage["status"] == "pending_update"
+    assert [(g["kind_code"], g["game_sno"], g["game_date"], g["reason"])
+            for g in coverage["pending_games"]] == [
+        ("C", 1, "2026-10-17", "official_change_not_ingested"),
+        ("C", 2, "2026-10-19", "official_change_not_ingested")], "每場一筆、官方新日期優先"
+    assert body["freshness"]["last_refresh"]["ok"] is True
+    assert [(g["kind_code"], g["game_sno"]) for g in body["next_slate"]["games"]] == [("C", 2)]
+    assert body["next_slate"]["game_date"] == "2026-10-18", "訊號不改正式賽程"
+    signal_sql = cursor.queries[-1]
+    assert "official_change_signals" in signal_sql and "resolved_at IS NULL" in signal_sql
+    assert not [q for q in cursor.queries if q.startswith(("INSERT", "UPDATE", "DELETE"))]
+
+
+def test_change_signal_query_failure_never_breaks_the_homepage(monkeypatch):
+    """訊號表尚未 migrate／權限不足：首頁照常、coverage 不受影響（與 D1 之前同樣的資訊量）。"""
+    body, _ = _run(monkeypatch, _script(
+        latest=_TODAY - timedelta(days=1), next_day=_TODAY + timedelta(days=1), scoped=2,
+        games=[_game(1, _TODAY - timedelta(days=1), home=1, away=0),
+               _game(2, _TODAY + timedelta(days=1))],
+        signals=RuntimeError("relation cpbl.official_change_signals does not exist"),
+    ))
+    assert body["freshness"]["coverage"]["status"] == "covered"
+    assert body["freshness"]["last_refresh"]["ok"] is True

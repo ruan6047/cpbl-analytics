@@ -54,8 +54,10 @@ function TeamRow({ code, name, score, hide, tone }: {
 }
 
 /** 三態共用的票券殼。骨架一致，態切換（賽前 → 賽中 → 賽後）不產生版面跳動。 */
-function Ticket({ g, status, tone, aside, extra, meta, entry, showScore, live, reveal = false }: {
+function Ticket({ g, status, tone, aside, extra, meta, entry, showScore, live, reveal = false, seriesLabel = null }: {
   g: TodayGame;
+  /** 季後系列標籤（「台灣大賽 G1」，#268）；例行賽為 null。 */
+  seriesLabel?: string | null;
   status: string | null;
   tone: StatusTone;
   /** 右格（固定寬）：賽前勝率／局況／勝投 MVP／保留附註。 */
@@ -87,6 +89,7 @@ function Ticket({ g, status, tone, aside, extra, meta, entry, showScore, live, r
     <div className="pm-ticket">
       <div className="pm-ticket-stub">
         <Serial items={[{ text: `No.${g.game_sno}`, kind: "lead" }, start ? { text: start, kind: "time" } : null]} />
+        {seriesLabel && <span data-testid="series-label" className="pm-ticket-note font-bold text-ink">{seriesLabel}</span>}
         {status && <StatusBadge tone={tone}>{status}</StatusBadge>}
         {dateNote && <span className="pm-ticket-note">{dateNote}</span>}
         {meta}
@@ -111,7 +114,9 @@ function Ticket({ g, status, tone, aside, extra, meta, entry, showScore, live, r
   );
 }
 
-function LiveTicket({ g, live, interrupt }: { g: TodayGame; live: TodayLive; interrupt: LiveInterrupt }) {
+function LiveTicket({ g, live, interrupt, seriesLabel }: {
+  g: TodayGame; live: TodayLive; interrupt: LiveInterrupt; seriesLabel: string | null;
+}) {
   const status = todayStatusText(live, interrupt);
   const inningText = todayInningLabel(live, "text");
 
@@ -120,6 +125,7 @@ function LiveTicket({ g, live, interrupt }: { g: TodayGame; live: TodayLive; int
   if (interrupt === "blackout") {
     return (
       <Ticket g={g} status={status} tone="warn" entry={PHASE_ENTRY.live} showScore={false} live={null}
+        seriesLabel={seriesLabel}
         extra={
           <p className="sr-only" aria-live="polite" aria-atomic="true">
             {g.away_team_name} 對 {g.home_team_name}，{TODAY_COPY.inProgress}，{TODAY_COPY.blackout}
@@ -137,6 +143,7 @@ function LiveTicket({ g, live, interrupt }: { g: TodayGame; live: TodayLive; int
   return (
     <Ticket
       g={g}
+      seriesLabel={seriesLabel}
       status={status}
       tone={interrupt === "degraded" ? "warn" : "live"}
       showScore
@@ -165,13 +172,14 @@ function LiveTicket({ g, live, interrupt }: { g: TodayGame; live: TodayLive; int
   );
 }
 
-function FinalTicket({ g, reveal }: { g: TodayGame; reveal: boolean }) {
+function FinalTicket({ g, reveal, seriesLabel }: { g: TodayGame; reveal: boolean; seriesLabel: string | null }) {
   const decisions = g.live?.phase === "final" ? g.live.decisions : null;
   const win = decisions?.winning_pitcher?.name ?? null;
   const mvp = decisions?.mvp?.name ?? null;
   return (
     <Ticket
       g={g}
+      seriesLabel={seriesLabel}
       status={g.live ? todayStatusText(g.live, "none") : "比賽結束"}
       tone="done"
       showScore
@@ -192,10 +200,12 @@ function FinalTicket({ g, reveal }: { g: TodayGame; reveal: boolean }) {
 
 /** 單場票券的三態分派。`nowMs` 一律由呼叫端注入（島持有的 tick），元件內不叫
  *  `Date.now()`——同一份 props 必須畫出同一個畫面，SSR 與 client 首次渲染才會一致。 */
-export function TodayGameCard({ g, trainedThrough, nowMs, reveal = false }: {
+export function TodayGameCard({ g, trainedThrough, nowMs, reveal = false, seriesLabel = null }: {
   g: TodayGame; trainedThrough: number | null; nowMs: number | null;
   /** 這一輪剛轉為終場：郵戳落章一次。 */
   reveal?: boolean;
+  /** 季後系列標籤（「台灣大賽 G1」，#268）；例行賽為 null。 */
+  seriesLabel?: string | null;
 }) {
   const kind = todayCardKind(g);
   // 狀態章文案與最近比賽日共用同一張表（`todayStatusCopy` → `LATEST_STATUS_COPY`），
@@ -204,14 +214,14 @@ export function TodayGameCard({ g, trainedThrough, nowMs, reveal = false }: {
   const statusCopy = todayStatusCopy(g);
 
   if (kind === "live" && g.live) {
-    return <LiveTicket g={g} live={g.live} interrupt={liveInterrupt(g.live, nowMs)} />;
+    return <LiveTicket g={g} live={g.live} interrupt={liveInterrupt(g.live, nowMs)} seriesLabel={seriesLabel} />;
   }
-  if (kind === "final") return <FinalTicket g={g} reveal={reveal} />;
+  if (kind === "final") return <FinalTicket g={g} reveal={reveal} seriesLabel={seriesLabel} />;
   // 延賽：根本沒開打，沒有比分可顯示。**不要求有 live snapshot**：worker 只在開賽時段供
   // snapshot，官方 `delay_kind` 早就在 DB 裡（2026-08-19 A#274 的漏洞，`todayCardKind` 已補 DB 後備）。
   if (kind === "postponed" && statusCopy) {
     return (
-      <Ticket g={g} status={statusCopy.label} tone={statusCopy.tone}
+      <Ticket g={g} status={statusCopy.label} tone={statusCopy.tone} seriesLabel={seriesLabel}
         showScore={false} live={null} entry={PHASE_ENTRY.pregame} />
     );
   }
@@ -220,7 +230,7 @@ export function TodayGameCard({ g, trainedThrough, nowMs, reveal = false }: {
   // 沒有 snapshot 時退回 DB 的 `g.*_score`，兩邊都沒有就照顯破折號——不回填 0。
   if (kind === "reserved" && statusCopy) {
     return (
-      <Ticket g={g} status={statusCopy.label} tone={statusCopy.tone}
+      <Ticket g={g} status={statusCopy.label} tone={statusCopy.tone} seriesLabel={seriesLabel}
         showScore live={g.live} entry={PHASE_ENTRY.pregame}
         aside={<span className="text-right text-[12.5px] text-ink">{TODAY_COPY.reservedNote}</span>} />
     );
@@ -231,6 +241,7 @@ export function TodayGameCard({ g, trainedThrough, nowMs, reveal = false }: {
   return (
     <Ticket
       g={g}
+      seriesLabel={seriesLabel}
       status={g.live ? todayStatusText(g.live, "none") : null}
       tone={g.live ? phaseTone(g.live.phase) : "scheduled"}
       showScore={false}
