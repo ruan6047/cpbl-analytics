@@ -7,58 +7,15 @@ from __future__ import annotations
 
 from datetime import UTC, date, datetime
 
+from postseason_context_inputs import READER_GAME_COLS as _GAME_COLS
+from postseason_context_inputs import READER_GAMES as _GAMES
+from postseason_context_inputs import ScriptedCursor as _Cursor
+from postseason_context_inputs import reader_table as _table
+
 from cpbl import postseason_contract as pc
 from cpbl.api.routers import standings
 
 NOW = datetime(2026, 10, 14, 17, 0, tzinfo=UTC)   # 台北 10/15 01:00
-
-
-class _Cursor:
-    """依 SQL 常數回列；``fail`` 內的 SQL 一律丟例外（模擬缺表／權限）。"""
-
-    def __init__(self, table: dict, fail=()):
-        self.table, self.fail, self.calls = table, set(fail), []
-        self._rows, self.description = [], None
-
-    def execute(self, sql, params=None):
-        self.calls.append(sql)
-        if sql in self.fail:
-            raise RuntimeError("relation does not exist")
-        cols, rows = self.table.get(sql, ([], []))
-        self.description = [(c,) for c in cols]
-        self._rows = list(rows)
-
-    def fetchall(self):
-        return self._rows
-
-    def fetchone(self):
-        return self._rows[0] if self._rows else None
-
-
-_GAME_COLS = ["year", "kind_code", "game_sno", "game_date", "venue", "mvp_id", "away_team_code",
-              "home_team_code", "away_score", "home_score", "completed"]
-# 2026 真實 E1–E4、C1（本機 DB 唯讀，見 tests/fixtures/postseason_real_years.json）
-_GAMES = [
-    (2026, "E", 1, date(2026, 10, 9), "洲際", None, "ADD011", "ACN011", 1, 4, True),
-    (2026, "E", 2, date(2026, 10, 10), "亞太主", None, "ACN011", "ADD011", 0, 1, True),
-    (2026, "E", 3, date(2026, 10, 11), "洲際", None, "ADD011", "ACN011", 4, 2, True),
-    (2026, "E", 4, date(2026, 10, 12), "洲際", None, "ADD011", "ACN011", 2, 8, True),
-    (2026, "C", 1, date(2026, 10, 17), "大巨蛋", None, "ACN011", "AAA011", 0, 0, False),
-]
-_OFFICIAL = [(0, "AAA011", 67, 53, 0), (0, "ADD011", 64, 55, 1), (0, "AEO011", 59, 61, 0),
-             (0, "ACN011", 56, 62, 2), (1, "AAA011", 39, 21, 0), (1, "ACN011", 20, 38, 2),
-             (1, "ADD011", 30, 29, 1), (2, "ACN011", 36, 24, 0), (2, "ADD011", 34, 26, 0),
-             (2, "AAA011", 28, 32, 0)]
-
-
-def _table():
-    return {
-        pc.GAMES_V2_SQL: (_GAME_COLS, _GAMES),
-        pc.OFFICIAL_STANDINGS_SQL: (["season_code", "team_code", "w", "l", "t"], _OFFICIAL),
-        pc.REFRESH_SQL: (["refreshed_at", "ok", "scope"], [(NOW, True, "daily")]),
-        pc.RECAP_BUILDS_SQL: (["year", "kind_code", "game_sno", "state", "built_at"],
-                              [(2026, "E", n, "published", NOW) for n in (1, 2, 3, 4)]),
-    }
 
 
 def test_reader_builds_inputs_and_context_from_one_cursor():
@@ -148,3 +105,57 @@ def test_postseason_summary_context_failure_is_null_not_500(monkeypatch):
 
     monkeypatch.setattr(pc, "postseason_series_context", boom)
     assert standings.postseason_summary(season=2026, kind_code="A")["series_context"] is None
+
+
+def test_later_live_game_is_read_even_when_earlier_game_is_unsynced():
+    """F2（再審）：C1（10/17）尚未同步完賽、C2（10/18）唯一 live ⇒ 讀到 C2 快照、輸出 T4／target C2。"""
+    t = _table()
+    t[pc.GAMES_V2_SQL] = (_GAME_COLS, [*_GAMES, (2026, "C", 2, date(2026, 10, 18), "大巨蛋", None,
+                                                  "ACN011", "AAA011", 0, 0, False)])
+    now = datetime.fromisoformat("2026-10-18T18:00:00+08:00")
+    seen = []
+
+    def live(year, kind, sno, *, now):
+        seen.append((year, kind, sno))
+        return {"phase": "live"} if sno == 2 else None
+
+    ctx = pc.compute_series_context(pc.read_series_inputs(_Cursor(t), 2026, now=now, live_reader=live), now=now)
+    assert seen == [(2026, "C", 1), (2026, "C", 2)]
+    assert (ctx["state"]["layout_state"], ctx["state"]["target_game_key"]) == (
+        "T4", {"year": 2026, "kind_code": "C", "game_sno": 2})
+    assert ctx["state"]["layout_reason"] == "live_observed"
+
+
+def test_future_game_without_signal_is_not_probed_but_signalled_one_is():
+    """日期在未來且無異動訊號的列不會 live；有未決異動訊號（日期可能已改）就要讀。"""
+    t = _table()
+    t[pc.GAMES_V2_SQL] = (_GAME_COLS, [*_GAMES, (2026, "C", 2, date(2026, 10, 18), "大巨蛋", None,
+                                                  "ACN011", "AAA011", 0, 0, False)])
+    seen = []
+
+    def live(year, kind, sno, *, now):
+        seen.append(sno)
+
+    pc.read_series_inputs(_Cursor(t), 2026, now=NOW, live_reader=live)
+    assert seen == [1]
+    t[pc.CHANGE_SIGNALS_SQL] = (["year", "kind_code", "game_sno", "field", "official_value", "detected_at",
+                                 "local_game_date"],
+                                [(2026, "C", 2, "date", "2026-10-15", NOW, date(2026, 10, 18))])
+    seen.clear()
+    pc.read_series_inputs(_Cursor(t), 2026, now=NOW, live_reader=live)
+    assert seen == [1, 2]
+
+
+def test_live_cache_exception_stops_further_probes():
+    t = _table()
+    t[pc.GAMES_V2_SQL] = (_GAME_COLS, [*_GAMES, (2026, "C", 2, date(2026, 10, 15), "大巨蛋", None,
+                                                  "ACN011", "AAA011", 0, 0, False)])
+    calls = []
+
+    def live(year, kind, sno, *, now):
+        calls.append(sno)
+        raise OSError("redis down")
+
+    ctx = pc.compute_series_context(pc.read_series_inputs(_Cursor(t), 2026, now=NOW, live_reader=live), now=NOW)
+    assert len(calls) == 1   # 第一次例外後不再逐場等逾時（候選有 C1、C2 兩場）
+    assert "live_snapshot_unavailable" in ctx["missing_reason"]

@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import replace
-from datetime import date, datetime
+from datetime import UTC, date, datetime
 from pathlib import Path
 
 from cpbl import postseason_contract as pc
@@ -73,3 +73,56 @@ def case_b_rule(year: int) -> pc.SeasonRule:
 
 
 NOW_2026 = datetime.fromisoformat("2026-10-15T01:00:00+08:00")
+
+
+# —— 讀取層腳本化 cursor（reader 測試與跨語言 golden 共用；不連 DB） ——
+
+READER_NOW = datetime(2026, 10, 14, 17, 0, tzinfo=UTC)   # 台北 10/15 01:00
+
+
+class ScriptedCursor:
+    """依 SQL 常數回列；``fail`` 內的 SQL 一律丟例外（模擬缺表／權限）。"""
+
+    def __init__(self, table: dict, fail=()):
+        self.table, self.fail, self.calls = table, set(fail), []
+        self._rows, self.description = [], None
+
+    def execute(self, sql, params=None):
+        self.calls.append(sql)
+        if sql in self.fail:
+            raise RuntimeError("relation does not exist")
+        cols, rows = self.table.get(sql, ([], []))
+        self.description = [(c,) for c in cols]
+        self._rows = list(rows)
+
+    def fetchall(self):
+        return self._rows
+
+    def fetchone(self):
+        return self._rows[0] if self._rows else None
+
+
+READER_GAME_COLS = ["year", "kind_code", "game_sno", "game_date", "venue", "mvp_id", "away_team_code",
+              "home_team_code", "away_score", "home_score", "completed"]
+# 2026 真實 E1–E4、C1（本機 DB 唯讀，見 tests/fixtures/postseason_real_years.json）
+READER_GAMES = [
+    (2026, "E", 1, date(2026, 10, 9), "洲際", None, "ADD011", "ACN011", 1, 4, True),
+    (2026, "E", 2, date(2026, 10, 10), "亞太主", None, "ACN011", "ADD011", 0, 1, True),
+    (2026, "E", 3, date(2026, 10, 11), "洲際", None, "ADD011", "ACN011", 4, 2, True),
+    (2026, "E", 4, date(2026, 10, 12), "洲際", None, "ADD011", "ACN011", 2, 8, True),
+    (2026, "C", 1, date(2026, 10, 17), "大巨蛋", None, "ACN011", "AAA011", 0, 0, False),
+]
+_OFFICIAL = [(0, "AAA011", 67, 53, 0), (0, "ADD011", 64, 55, 1), (0, "AEO011", 59, 61, 0),
+             (0, "ACN011", 56, 62, 2), (1, "AAA011", 39, 21, 0), (1, "ACN011", 20, 38, 2),
+             (1, "ADD011", 30, 29, 1), (2, "ACN011", 36, 24, 0), (2, "ADD011", 34, 26, 0),
+             (2, "AAA011", 28, 32, 0)]
+
+
+def reader_table():
+    return {
+        pc.GAMES_V2_SQL: (READER_GAME_COLS, READER_GAMES),
+        pc.OFFICIAL_STANDINGS_SQL: (["season_code", "team_code", "w", "l", "t"], _OFFICIAL),
+        pc.REFRESH_SQL: (["refreshed_at", "ok", "scope"], [(READER_NOW, True, "daily")]),
+        pc.RECAP_BUILDS_SQL: (["year", "kind_code", "game_sno", "state", "built_at"],
+                              [(2026, "E", n, "published", READER_NOW) for n in (1, 2, 3, 4)]),
+    }

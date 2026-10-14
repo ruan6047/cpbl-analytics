@@ -1059,12 +1059,19 @@ def read_series_inputs(cur, year: int, *, now: datetime, live_reader=None) -> Se
         first_observed_final_at=first_final.get((r["year"], r["kind_code"], r["game_sno"])),
     ) for r in rows]
 
-    # 先發、即時只讀每系列「下一場」候選（最多 2 場），不掃全部。
+    # 先發只讀每系列「最早未完賽」那一場（T1／T3 的目標場）。
     candidates = []
     for kind in ("E", "C"):
         nxt = next((g for g in _sorted_games(games, kind) if not g.completed), None)
         if nxt:
             candidates.append(nxt)
+    # 即時快照（#283 再審 F2）：任何「可能正在比」的未完賽列都要讀，不能只看最早那一場——較早場次
+    # 尚未同步為完賽、或保留未續完時，後一場仍可能是唯一 live。可能＝日期不晚於台北今天、或有未決
+    # 官方異動訊號（日期可能已改到今天），另含每系列最早未完賽列。日期在未來且無異動訊號的列不會 live。
+    signal_keys = {(int(c["year"]), c["kind_code"], int(c["game_sno"])) for c in changes or []}
+    live_candidates = [g for g in sorted(games, key=lambda g: (g.game_date or date.max, g.kind_code, g.game_sno))
+                       if not g.completed and (g in candidates or g.key in signal_keys
+                                               or (g.game_date is not None and g.game_date <= taipei_day))]
 
     def lineup_read():
         cur.execute(LINEUP_SQL, {"year": year, "kinds": [g.kind_code for g in candidates],
@@ -1093,21 +1100,22 @@ def read_series_inputs(cur, year: int, *, now: datetime, live_reader=None) -> Se
     live: dict = {}
     live_ok = True
     if live_reader is not None:
-        for g in candidates:
+        for g in live_candidates:
             try:
                 snap = live_reader(g.year, g.kind_code, g.game_sno, now=now)
-            except Exception:  # noqa: BLE001 — 快取不可用 ⇒ 不宣稱 live
+            except Exception:  # noqa: BLE001 — 快取不可用 ⇒ 不宣稱 live，也不再逐場等逾時
                 live_ok = False
-                continue
+                break
             if snap and snap.get("phase"):
                 live[g.key] = snap["phase"]
     manifest.append({"source": "live_snapshot", "scope": ",".join(f"{g.kind_code}{g.game_sno}"
-                                                                   for g in candidates) or "-",
+                                                                   for g in live_candidates) or "-",
                      "version_or_hash": _hash(sorted((list(k), v) for k, v in live.items())),
                      "observed_at": observed,
                      "status": "ok" if live_ok and live_reader is not None else "unavailable"})
 
-    registrations = {g.key: registration_observations(cur, g.key) for g in candidates}
+    registrations = {g.key: registration_observations(cur, g.key)
+                     for g in [*candidates, *(x for x in live_candidates if x not in candidates)]}
     return SeriesInputs(
         year=year, games=games, standings=standings, statuses_ok=revs is not None,
         change_signals=changes or [], last_refresh=refresh or None, analysis=analysis or {},
