@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { api } from "@/lib/api";
 import { loadReport, previewMatches, reportLink, reportTab } from "@/lib/between-games";
 import type { ReportKind } from "@/lib/report-types";
+import { projectReportView } from "@/lib/report-view-model";
 import { Card } from "@/components/ui";
 import ReportPage from "../report/report-page";
 
@@ -26,7 +27,9 @@ export default async function Page({ params, searchParams }: {
     if (found.status !== "ok" || !anchor) return <Card><h1 className="text-xl font-bold">{found.status === "no_anchor" ? "尚無已完賽季後場可作背景" : "本站尚未取得此場正式場次"}</h1><p className="mt-3 text-muted">不以公告場次猜正式場號或對戰隊伍。</p><Link className="mt-4 inline-block min-h-11 text-accent underline" href="/games">返回賽事</Link></Card>;
     const view = await loadReport(target => api.report(anchor.game_sno, anchor.kind_code, year, target));
     if (!previewMatches(view, kind, id)) return <Card><h1 className="text-xl font-bold">{view.updating ? "資料更新中" : "此場目前不是可核實的下一場"}</h1><p className="mt-3 text-muted">{view.updating ? "背景稍後重新載入。" : "依截至最新完賽場的季後進度，下一場不是此場；不以其他場背景冒充。"}</p><Link className="mt-4 inline-block min-h-11 text-accent underline" href={reportLink(anchor.game_sno, anchor.kind_code, year)}>截至最新完賽場的場間報告</Link></Card>;
-    return <ReportPage view={view} tab={reportTab(query.tab)} preview={{ kind, sno: id }} />;
+    const tab = reportTab(query.tab);
+    // #272：client 元件只收該頁籤畫面讀得到的選手與欄位；Y 判定（previewMatches）已用完整 view 做完。
+    return <ReportPage view={projectReportView(view, tab)} tab={tab} preview={{ kind, sno: id }} />;
   } catch {
     return <Card><h1 className="text-xl font-bold">報告暫時無法讀取</h1><p className="mt-3 text-muted">重新載入，或先回賽事查看已取得資料。</p><Link className="mt-4 inline-block text-accent underline" href="/games">返回賽事</Link></Card>;
   }

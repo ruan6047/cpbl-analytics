@@ -30,7 +30,7 @@ function CountLine({ counts, role, full = false }: { counts: Counts; role: strin
   return <dl className={`grid gap-x-4 gap-y-3 ${full ? "grid-cols-3 sm:grid-cols-4" : "grid-cols-2 text-xs"}`}>{keys.map(k => <div key={k}><dt className="text-xs text-muted">{labels[k]}</dt><dd className={`font-mono tabular-nums text-ink ${full ? "mt-1 text-lg font-bold" : "font-semibold"}`}>{d(counts[k], k)}</dd></div>)}</dl>;
 }
 function PeriodRow({ period, role, full = false }: { period: Period; role: string; full?: boolean }) {
-  return <div className="space-y-3"><CountLine counts={period.counts} role={role} full={full} /><p className="text-xs text-muted">樣本 {d(period.sample.pa)} PA{role === "batting" ? ` · ${d(period.sample.ab)} AB` : ""}。</p><p className="text-xs text-muted">{period.status === "not_appeared" ? "完整登錄名單及使用紀錄：未登場" : period.status === "missing" ? "本站未取得" : period.coverage_status !== "complete" ? "覆蓋未完整，僅列已取得場次" : `${period.covered_game_keys.length} 場有出賽資料`}</p></div>;
+  return <div className="space-y-3"><CountLine counts={period.counts} role={role} full={full} /><p className="text-xs text-muted">樣本 {d(period.sample.pa)} PA{role === "batting" ? ` · ${d(period.sample.ab)} AB` : ""}。</p><p className="text-xs text-muted">{period.status === "not_appeared" ? "完整登錄名單及使用紀錄：未登場" : period.status === "missing" ? "本站未取得" : period.coverage_status !== "complete" ? "覆蓋未完整，僅列已取得場次" : `${period.covered_game_count ?? period.covered_game_keys?.length} 場有出賽資料`}</p></div>;
 }
 function AbilityPanel({ player }: { player: ReportPlayer }) {
   const axes = player.ability.axes ?? [];
