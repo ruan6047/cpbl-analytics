@@ -3,7 +3,7 @@ import test from "node:test";
 import type { ReactElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 
-import { AnnouncedCompact, AnnouncedMobile } from "./postseason-calendar.tsx";
+import { AnnouncedCompact, AnnouncedMobile, PostseasonCalendarLegend } from "./postseason-calendar.tsx";
 import { POSTSEASON_2026 } from "@/lib/postseason-announcement.ts";
 import { buildPostseasonJourney, withLiveEntries, type JourneySlot, type LiveEntryStatus } from "@/lib/postseason-journey.ts";
 
@@ -77,4 +77,39 @@ test("公告格有單場入口：桌面與手機整格各一個連結，待更�
   const plain = byKey(withLiveEntries(base, { E1: null }).slots, "E1");
   assert.doesNotMatch(renderToStaticMarkup(<AnnouncedMobile s={plain} asOf="2026-10-04" />), /<a /);
   assert.doesNotMatch(renderToStaticMarkup(<AnnouncedCompact s={plain} />), /<a /);
+});
+
+// #268 N13（#273 盤點轉入）：舊版日曆上方說明不論本月有沒有虛線公告格，一律寫「虛線框為官方公告安排
+// （本站尚無正式場次，不提供單場連結）」；台灣大賽 G1–G7 入庫後是實線格、連到 /games/1..7?kind=C，
+// 與說明矛盾。舊碼沒有這個元件、也沒有「本月有沒有虛線格」的分支，所以本測試在舊碼下失敗。
+// 下列 E／C 列為合成（形狀同 calendar 端點），不是官方核對結果。
+test("日曆季後說明：本月沒有虛線公告格時不寫「虛線框…不提供單場連結」；有時照寫", () => {
+  const rows = POSTSEASON_2026.slots.map((s) => {
+    const sno = s.kind === "E" ? s.officialSno! : s.seq;
+    const brotherHome = s.kind === "C" && (s.seq === 3 || s.seq === 4);
+    const code = (t: typeof s.away) => (t && "code" in t ? t.code : "ACN011");
+    return {
+      year: 2026, kind_code: s.kind, game_sno: sno, game_date: s.date, venue: "合成球場",
+      away_team_code: s.kind === "C" ? (brotherHome ? "AAA011" : "ACN011") : code(s.away),
+      home_team_code: s.kind === "C" ? (brotherHome ? "ACN011" : "AAA011") : code(s.home),
+      away_score: 0, home_score: 0, completed: false,
+    };
+  });
+  const j = buildPostseasonJourney({
+    announcement: POSTSEASON_2026, summary: [], rows, nowMs: Date.parse("2026-10-14T12:00:00+08:00"), dataAsOf: "2026-10-12",
+  });
+  const announced = j.slots.filter((s) => !s.row);
+  assert.equal(announced.length, 0, "合成輸入：E1–E4、C1–C7 都已對到資料庫列");
+  assert.ok(j.slots.filter((s) => s.kind === "C").every((s) => s.href === `/games/${s.seq}?kind=C&year=2026`));
+  const allRows = text(<PostseasonCalendarLegend journey={j} announced={announced} />);
+  assert.doesNotMatch(allRows, /虛線框|不提供單場連結|尚無正式場次/);
+  assert.match(allRows, /^季後賽 ： ?點線框為 ?移動補賽日/, "其餘說明照舊");
+  assert.match(allRows, /系列進度與晉級條件/);
+
+  const before = buildPostseasonJourney({
+    announcement: POSTSEASON_2026, summary: [], rows: null, nowMs: Date.parse("2026-10-08T12:00:00+08:00"), dataAsOf: "2026-10-04",
+  });
+  const ann = before.slots.filter((s) => !s.row);
+  assert.match(text(<PostseasonCalendarLegend journey={before} announced={ann} />),
+    /虛線框為官方公告安排（本站尚無正式場次， ?不提供單場連結 ?）・/);
 });

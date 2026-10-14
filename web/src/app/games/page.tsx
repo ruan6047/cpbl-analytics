@@ -11,11 +11,11 @@ import { hasFinalResult } from "@/lib/live-game";
 import { teamFullName, teamNamesFromGames, withGameTeamNames } from "@/lib/teams";
 import { LiveCalendarGame } from "@/components/live-calendar-game";
 import { PostseasonExplainer, slotGameLabel } from "@/components/postseason-series";
-import { AnnouncedCompact, AnnouncedMobile } from "@/components/postseason-calendar";
+import { AnnouncedCompact, AnnouncedMobile, PostseasonCalendarLegend } from "@/components/postseason-calendar";
 import { announcementFor } from "@/lib/postseason-announcement";
 import { COVERAGE_COPY, hasScheduleChange, scheduleChangeCopy, scheduleChanges } from "@/lib/daily-summary";
 import {
-  POSTSEASON_COPY, journeyAsOfText, liveEntryProbes, liveEntryResults, postseasonJourneyFor, slotMayInvolve, withLiveEntries,
+  POSTSEASON_COPY, liveEntryProbes, liveEntryResults, postseasonJourneyFor, slotMayInvolve, withLiveEntries,
   type JourneySlot,
 } from "@/lib/postseason-journey";
 
@@ -214,12 +214,7 @@ export default async function GamesPage({
 
       {/* 季後（#237 驗收 3、5）：「公告安排」與資訊截至在月曆上方說一次，格內不再逐格重複。 */}
       {journey && monthHasPostseason && (
-        <p className="mb-3 text-xs leading-relaxed text-muted">
-          <b className="font-bold text-ink">季後賽</b>：虛線框為官方公告安排（本站尚無正式場次，
-          {journey.slots.some((s) => s.liveEntry) ? "標「單場賽況」者可點入查看單場賽況，整體賽果待更新" : "不提供單場連結"}）・
-          點線框為{POSTSEASON_COPY.reserveDay}・「{POSTSEASON_COPY.conditional}」＝{POSTSEASON_COPY.conditionalNote}・{journeyAsOfText(journey)}。
-          <Link href="/standings?seg=3" className="ml-1 inline-flex min-h-11 items-center text-accent hover:underline">系列進度與晉級條件 →</Link>
-        </p>
+        <PostseasonCalendarLegend journey={journey} announced={cells.flatMap((c) => c.ann)} />
       )}
 
       {/* 月曆 (桌機版) */}
@@ -386,9 +381,7 @@ export default async function GamesPage({
 
       {/* 季後未定場次說明（#237 驗收 6）：G3／G4 與未定場次為何未定、何時確定。 */}
       {journey && monthHasPostseason && (
-        <div className="mt-6">
-          <PostseasonExplainer journey={journey} showAsOf={false} />
-        </div>
+        <PostseasonExplainer journey={journey} showAsOf={false} className="mt-6" />
       )}
 
       <p className="mt-4 text-center text-xs text-muted">

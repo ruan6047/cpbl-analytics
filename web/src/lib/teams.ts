@@ -165,6 +165,7 @@ export const nameMeta = (name?: string | null): { color: string; letter: string 
 // 票券唸成「No.1 對 ，賽事詳情」，日曆篩選的味全／兄弟 chip 沒有可讀名稱（同一隊的例行賽名稱
 // 被後出現的 C 列空名覆蓋）。季後總覽一直正確，因為它走 `teamName3(code)`。
 // 修法只在顯示層：官方原名優先；原名空白**且**隊碼是現役六隊時，退回本站隊名字典。
+// 取數入口三處共用這一條：首頁（daily-summary）、日曆（games 頁）、單場頁（live-game 的 applyLiveSnapshot）。
 // ⛔ 不猜：不認得的隊碼回空字串；歷史隊碼不套現役名（兄弟象≠中信兄弟），所以只認 TEAMS 直屬鍵。
 
 /** 單場隊名：官方原名（去前後空白）優先，空白時以現役隊碼查本站字典；查無回空字串。 */

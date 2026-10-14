@@ -832,3 +832,47 @@ test("#237 snapshot=null 時 applyLiveSnapshot 原樣回傳，不寫入日期／
   const original = response(null);
   assert.equal(applyLiveSnapshot(original), original);
 });
+
+// #268 R2／N05（#273 盤點轉入）：正式站 /api/v1/games/calendar 與 daily summary 的 2026 C1 列都是
+// away_team_code=ACN011、home_team_code=AAA011、兩隊名為空字串；單場頁 H1 因此只剩「對」。舊碼在沒有
+// snapshot 時原樣回傳 payload（隊名仍空），有 snapshot 時抄 snapshot 的隊名（空也照抄），所以下面前兩段在
+// 舊碼下失敗。下列 payload 為依上述形狀合成，不是官方原文。
+test("#268 單場頁取數入口：官方空白隊名以現役隊碼補成顯示名；有名稱、不認得或歷史隊碼不動", () => {
+  const blankC1 = { ...response(null), game: {
+    year: 2026, kind_code: "C", game_sno: 1, game_date: "2026-10-17", venue: "大巨蛋",
+    away_team_code: "ACN011", away_team_name: "", home_team_code: "AAA011", home_team_name: "  ",
+    away_score: 0, home_score: 0, completed: false,
+  } };
+  const out = applyLiveSnapshot(blankC1);
+  assert.equal(out.game?.away_team_name, "中信兄弟");
+  assert.equal(out.game?.home_team_name, "味全龍");
+  assert.equal(out.game?.away_team_code, "ACN011", "隊碼不改");
+  assert.equal(blankC1.game.away_team_name, "", "不改呼叫端物件");
+
+  // 有 snapshot 但 snapshot 的隊名也是空的（同一種官方空白）：疊完仍補。
+  const snapBlank = snapshot({
+    game_id: "2026-C-1", game_sno: 1, kind_code: "C", phase: "scheduled", event_count: 0, livelog: [],
+    away: { ...snapshot().away, team: { code: "ACN011", name: "" } },
+    home: { ...snapshot().home, team: { code: "AAA011", name: "" } },
+  });
+  const overlaid = applyLiveSnapshot({ ...blankC1, live_snapshot: snapBlank });
+  assert.equal(overlaid.game?.away_team_name, "中信兄弟");
+  assert.equal(overlaid.game?.home_team_name, "味全龍");
+
+  // 不猜：不認得的隊碼、歷史隊碼（兄弟象≠中信兄弟）維持空白；已有名稱的一側原樣。
+  const odd = applyLiveSnapshot({ ...response(null), game: {
+    away_team_code: "ZZZ999", away_team_name: "", home_team_code: "ACC011", home_team_name: "",
+  } });
+  assert.equal(odd.game?.away_team_name, "");
+  assert.equal(odd.game?.home_team_name, "");
+  const named = { ...response(null), game: {
+    away_team_code: "ACN011", away_team_name: "官方原名", home_team_code: "AAA011", home_team_name: "",
+  } };
+  const kept = applyLiveSnapshot(named);
+  assert.equal(kept.game?.away_team_name, "官方原名");
+  assert.equal(kept.game?.home_team_name, "味全龍");
+  // 沒有可補的空白時原樣回傳同一個物件（既有 snapshot=null 向後相容）。
+  const full = { ...response(null), game: { away_team_code: "ACN011", away_team_name: "中信兄弟",
+    home_team_code: "AAA011", home_team_name: "味全龍" } };
+  assert.equal(applyLiveSnapshot(full), full);
+});

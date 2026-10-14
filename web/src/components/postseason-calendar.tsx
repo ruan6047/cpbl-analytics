@@ -2,7 +2,9 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { StatusBadge, TeamLogo, type StatusTone } from "@/components/ui";
 import { slotGameLabel } from "@/components/postseason-series";
-import { POSTSEASON_COPY, slotAllUnknown, slotVenueText, type JourneySlot } from "@/lib/postseason-journey";
+import {
+  POSTSEASON_COPY, journeyAsOfText, slotAllUnknown, slotVenueText, type JourneySlot, type PostseasonJourney,
+} from "@/lib/postseason-journey";
 
 // 日曆上的季後公告格（#237）：資料庫還沒有正式場次的公告安排。虛線框，與正式場次分開。
 // 原則上不給連結；唯一例外是 E 場次經單場狀態身分比對的單場賽況入口（slot.liveEntry），
@@ -34,6 +36,25 @@ function EntryLink({ s, children }: { s: JourneySlot; children: ReactNode }) {
   return s.liveEntry && s.href ? (
     <Link href={s.href} className="block transition-colors [&>div]:hover:bg-band">{children}</Link>
   ) : children;
+}
+
+/** 月曆上方的季後說明（#237 驗收 3、5）。`announced`＝本月實際畫出的虛線公告格（呼叫端已套月份與隊伍篩選）。
+ *  #268 N13：「虛線框…本站尚無正式場次，不提供單場連結」只在本月真的有虛線格時才說。正式場次是實線格、
+ *  連到真 (year, kind, sno) 單場頁；舊版不論有沒有虛線格都印這句，台灣大賽 G1–G7 入庫後就與畫面矛盾。 */
+export function PostseasonCalendarLegend({ journey, announced }: { journey: PostseasonJourney; announced: JourneySlot[] }) {
+  return (
+    <p className="mb-3 text-xs leading-relaxed text-muted">
+      <b className="font-bold text-ink">季後賽</b>：
+      {announced.length > 0 && (
+        <>
+          虛線框為官方公告安排（本站尚無正式場次，
+          {announced.some((s) => s.liveEntry) ? "標「單場賽況」者可點入查看單場賽況，整體賽果待更新" : "不提供單場連結"}）・
+        </>
+      )}
+      點線框為{POSTSEASON_COPY.reserveDay}・「{POSTSEASON_COPY.conditional}」＝{POSTSEASON_COPY.conditionalNote}・{journeyAsOfText(journey)}。
+      <Link href="/standings?seg=3" className="ml-1 inline-flex min-h-11 items-center text-accent hover:underline">系列進度與晉級條件 →</Link>
+    </p>
+  );
 }
 
 /** 桌面月曆格。 */

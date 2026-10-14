@@ -9,7 +9,6 @@ import {
   journeyAsOfText,
   slotWhen,
   tallySeries,
-  teamShortName,
 } from "@/lib/postseason-journey";
 
 // 季後系列卡與台灣大賽未定說明（#237）。系列卡由戰績頁拆出，歷史年份與二軍總冠軍共用；
@@ -115,28 +114,35 @@ export function slotGameLabel(s: Pick<JourneySlot, "seq">): string {
 }
 
 /** 驗收 6：台灣大賽的未定事項——只寫場次列寫不下的「為何未定、何時確定」，不重抄賽程。
- *  季後總覽的台灣大賽分頁與日曆共用；挑戰賽分出勝負後自動改寫為已確定。
+ *  日曆使用。**只列真的還沒定的事**（#268 N14）：挑戰賽分出勝負後對手已定；G3／G4 球場由公告依
+ *  晉級隊決定、或由資料庫正式場次給出，都不再是未定事項。舊版此時改寫成「已確定：…」「…（○○主場）」，
+ *  與標題「未定事項」矛盾，且「主場」是本站依公告條件推論的字樣、不是官方欄位。沒有未定事項時整塊不畫。
  *  `showAsOf`：所在頁面已在顯眼處標了資訊截至時設 false，避免同頁重複。 */
-export function PostseasonExplainer({ journey, showAsOf = true }: { journey: PostseasonJourney; showAsOf?: boolean }) {
+export function PostseasonExplainer({ journey, showAsOf = true, className = "" }: {
+  journey: PostseasonJourney; showAsOf?: boolean; className?: string;
+}) {
   const { series, slots, announcement: ann } = journey;
-  const eWinner = series.E.status === "decided" ? series.E.tally.winner : null;
-  const opp = eWinner ? teamShortName(eWinner) : null;
+  const opponentPending = series.E.status !== "decided";
   const branch = slots.filter((s) => s.kind === "C" && !s.venue && s.venueNote);
-  const decidedBranch = slots.filter((s) => s.kind === "C" && (s.seq === 3 || s.seq === 4));
+  if (!opponentPending && branch.length === 0) return null;
   const hasCRow = slots.some((s) => s.kind === "C" && s.row);
   const seqs = (xs: JourneySlot[]) => xs.map((s) => `G${s.seq}`).join("、");
   return (
-    <section aria-labelledby="ps-explain-h" className="rounded-md bg-surface p-4 text-[13px] leading-relaxed text-ink">
+    <section aria-labelledby="ps-explain-h" className={`rounded-md bg-surface p-4 text-[13px] leading-relaxed text-ink ${className}`.trim()}>
       <h3 id="ps-explain-h" className="mb-2 text-sm font-bold">台灣大賽未定事項</h3>
       <dl className="grid gap-x-4 gap-y-1.5 sm:grid-cols-[6.5rem_minmax(0,1fr)]">
-        <dt className="font-bold">對手</dt>
-        <dd>{opp ? `已確定：${opp}（挑戰賽勝隊）` : `${POSTSEASON_COPY.eWinner}，挑戰賽分出勝負後確定`}</dd>
-        <dt className="font-bold">{seqs(branch.length ? branch : decidedBranch)} 球場</dt>
-        <dd>
-          {branch.length
-            ? branch[0].venueNote
-            : `${decidedBranch[0]?.venue ?? "—"}（${opp ?? "挑戰賽勝隊"}主場）`}
-        </dd>
+        {opponentPending && (
+          <>
+            <dt className="font-bold">對手</dt>
+            <dd>{`${POSTSEASON_COPY.eWinner}，挑戰賽分出勝負後確定`}</dd>
+          </>
+        )}
+        {branch.length > 0 && (
+          <>
+            <dt className="font-bold">{seqs(branch)} 球場</dt>
+            <dd>{branch[0].venueNote}</dd>
+          </>
+        )}
       </dl>
       {showAsOf && <p className="mt-3 text-xs text-muted">{journeyAsOfText(journey)}。</p>}
       <details className="mt-1 text-xs text-muted">

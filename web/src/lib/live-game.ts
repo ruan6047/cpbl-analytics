@@ -1,3 +1,5 @@
+import { gameTeamName } from "./teams.ts";
+
 export type StatRow = Record<string, number | string | string[] | boolean | null | undefined>;
 export type CanonicalPhase =
   | "scheduled" | "probable_announced" | "lineup_announced" | "live" | "final"
@@ -449,11 +451,32 @@ function preferPersistedPitching(response: LiveApiResponse, snapshot: LiveSnapsh
   });
 }
 
-/** 將 Redis canonical snapshot 疊到既有 DB payload；沒有 snapshot 時保持完全向後相容。 */
+/** #268 R2：單場頁的隊名走與首頁、日曆**同一條**顯示規則（`teams.ts` 的 `gameTeamName`）。
+ *  官方對未開打的台灣大賽 C 列給空白隊名、隊碼正確；首頁與日曆在取數入口補名，單場頁的入口
+ *  （本函式）原本沒有，於是 H1 只剩「對」。只補**空白**的一側：有名稱的一律原樣（不改寫官方名），
+ *  不認得的隊碼仍為空（不猜）；沒有可補時回傳同一個物件。 */
+function withBlankTeamNames(response: LiveApiResponse): LiveApiResponse {
+  const game = response.game;
+  if (!game) return response;
+  const fill = (codeKey: string, nameKey: string): Record<string, string> => {
+    const name = game[nameKey];
+    if (typeof name === "string" ? name.trim() !== "" : name != null) return {};
+    const code = game[codeKey];
+    const shown = gameTeamName(typeof code === "string" ? code : null, "");
+    return shown ? { [nameKey]: shown } : {};
+  };
+  const patch = { ...fill("away_team_code", "away_team_name"), ...fill("home_team_code", "home_team_name") };
+  return Object.keys(patch).length ? { ...response, game: { ...game, ...patch } } : response;
+}
+
+/** 將 Redis canonical snapshot 疊到既有 DB payload；沒有 snapshot 時只補空白隊名（見上），其餘完全向後相容。 */
 export function applyLiveSnapshot(response: LiveApiResponse): LiveApiResponse {
   const snapshot = response.live_snapshot;
-  if (!snapshot) return response;
+  if (!snapshot) return withBlankTeamNames(response);
+  return withBlankTeamNames(overlaySnapshot(response, snapshot));
+}
 
+function overlaySnapshot(response: LiveApiResponse, snapshot: LiveSnapshot): LiveApiResponse {
   const awayBatting = boxRows("1", snapshot.away.hitters, "batter");
   const homeBatting = boxRows("2", snapshot.home.hitters, "batter");
   const batting = [...awayBatting, ...homeBatting];
