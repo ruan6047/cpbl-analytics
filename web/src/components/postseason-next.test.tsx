@@ -79,7 +79,7 @@ test("季後入口卡：一行概況＋唯一連結到季後總覽，不重複�
   const j = journey("2026-10-08T12:00:00+08:00");
   const node = <PostseasonNextCard journey={j} />;
   const t = text(node);
-  assert.equal(t, "季後賽 季後挑戰賽・本站尚無季後賽果紀錄 季後賽總覽 →");
+  assert.equal(t, "季後賽 季後挑戰賽尚未開打 季後賽總覽 →");
   assert.deepEqual(hrefs(renderToStaticMarkup(node)), ['href="/standings?seg=3"']);
   assert.doesNotMatch(t, /10\/09|17:05|洲際|（客）|規則勝|賽果紀錄至|待更新/);
 });
@@ -88,7 +88,7 @@ test("季後入口卡：已過開賽時間仍無賽果 → 照實說部分場次
   const j = journey("2026-10-09T21:00:00+08:00");
   const node = <PostseasonNextCard journey={j} />;
   const t = text(node);
-  assert.equal(t, "季後賽 季後挑戰賽・本站尚無季後賽果紀錄・部分場次賽果待更新 季後賽總覽 →");
+  assert.equal(t, "季後賽 季後挑戰賽・部分場次賽果待更新 季後賽總覽 →");
   assert.deepEqual(hrefs(renderToStaticMarkup(node)), ['href="/standings?seg=3"']);
   assert.doesNotMatch(t, /G\d|10\/09|10\/10/);
 });

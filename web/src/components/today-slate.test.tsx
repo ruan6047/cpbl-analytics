@@ -144,7 +144,17 @@ for (const kind_code of ["E", "C"]) {
     assert.match(out, /中信兄弟/);
     assert.match(out, /賽事詳情/);
     assert.match(markup(node), new RegExp(`/games/274\\?kind=${kind_code}&amp;year=2026`));
-    assert.match(markup(node), /role="note"/);
+    // #273 N09：右格不留空白附註（空 role=note 會讓 :empty 失效、畫成空灰框）。
+    assert.doesNotMatch(markup(node), /role="note"/);
+    assert.match(markup(node), /<div class="pm-ticket-aside"><\/div>/);
+  });
+
+  test(`季後賽 ${kind_code} 下一場：右格是觀戰報告出口（#273 N03）`, () => {
+    const href = `/games/274/preview?kind=${kind_code}&year=2026&tab=overview`;
+    const html = markup(<TodayGameCard g={game({ kind_code })} trainedThrough={2025} nowMs={null} reportHref={href} />);
+    assert.ok(html.includes(`href="/games/274/preview?kind=${kind_code}&amp;year=2026&amp;tab=overview"`));
+    assert.match(html, /觀戰報告：開賽前兩隊背景/);
+    assert.doesNotMatch(html, /role="note"/);
   });
 
   test(`季後賽 ${kind_code} 賽前態：其他模型內容維持原樣`, () => {

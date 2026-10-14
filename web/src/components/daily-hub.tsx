@@ -64,7 +64,7 @@ function TitleDate({ ymd }: { ymd: string }) {
 /** 右欄：前一比賽日的單場。有賽果＝比分元件兩層式（每隊印記＋隊名一組、比分在中軸）＋
  *  場次・球場說明＋MVP（calendar 有值才顯示）；沒有賽果＝狀態章＋原定日（不給連結，
  *  見 `LATEST_FOOTER_COPY.pending`），不畫比分、不回填 0。 */
-function ResultRow({ g }: { g: ResultGame }) {
+function ResultRow({ g, label = null }: { g: ResultGame; label?: string | null }) {
   const status = latestGameStatus(g);
   if (status !== "final") {
     const copy = LATEST_STATUS_COPY[status];
@@ -95,12 +95,13 @@ function ResultRow({ g }: { g: ResultGame }) {
   return (
     <li className="grid">
       <Link href={gameHref(g)}
-        aria-label={`No.${g.game_sno}${g.venue ? ` ${g.venue}` : ""}，終場：${g.away_team_name}（客）${g.away_score} 比 ${g.home_score} ${g.home_team_name}（主），${winner ? `${winner}勝` : "和局"}${g.mvp ? `，單場 MVP ${g.mvp}` : ""}。開啟賽後復盤`}
+        aria-label={`${label ?? `No.${g.game_sno}`}${g.venue ? ` ${g.venue}` : ""}，終場：${g.away_team_name}（客）${g.away_score} 比 ${g.home_score} ${g.home_team_name}（主），${winner ? `${winner}勝` : "和局"}${g.mvp ? `，單場 MVP ${g.mvp}` : ""}。開啟賽後復盤`}
         className="grid content-center gap-1.5 rounded-md bg-surface px-3.5 py-2.5 text-inherit no-underline transition-colors hover:bg-surface-2">
         <Scoreline stack away={{ code: g.away_team_code, name: g.away_team_name, score: g.away_score }}
           home={{ code: g.home_team_code, name: g.home_team_name, score: g.home_score }} />
         <span aria-hidden="true" className="flex flex-wrap justify-center gap-x-3 text-[11.5px] text-muted">
-          <span className="font-mono">No.{g.game_sno}{g.venue ? ` · ${g.venue}` : ""}</span>
+          {label ? <span className="font-bold text-ink">{label}{g.venue ? ` · ${g.venue}` : ""}</span>
+            : <span className="font-mono">No.{g.game_sno}{g.venue ? ` · ${g.venue}` : ""}</span>}
           {g.mvp && <span><b className="font-bold text-ink">MVP</b> {g.mvp}</span>}
         </span>
       </Link>
@@ -240,7 +241,7 @@ function PostseasonNextSlate({ p }: { p: PostseasonPointer }) {
   );
 }
 
-export default function DailyHub({ summary: initial, calendar, postseason = null, seriesLabels = {} }: {
+export default function DailyHub({ summary: initial, calendar, postseason = null, seriesLabels = {}, reportLinks = {}, resultLabels = {} }: {
   summary: DailySummary;
   /** SSR 取一次的本季 calendar（A＋季後 E／C）；失敗時為 null，右欄退回 summary 能給的。 */
   calendar: CalendarGame[] | null;
@@ -250,6 +251,10 @@ export default function DailyHub({ summary: initial, calendar, postseason = null
   /** 季後正式場次的系列標籤（`${year}-${kind}-${sno}` → 「台灣大賽 G1」，#268），由共用旅程
    *  模型推導；查無時票券退回只寫系列名，不猜場序。 */
   seriesLabels?: Record<string, string>;
+  /** 季後下一場的觀戰報告入口（#273 N03；只有旅程 next 那一場）。 */
+  reportLinks?: Record<string, string>;
+  /** 賽果卡的季後標籤，分出系列勝負的那一場附晉級說明（#273 N10）。 */
+  resultLabels?: Record<string, string>;
 }) {
   // #268：SSR 首屏與每次輪詢都經同一個 helper 補齊空白隊名（C 場次官方隊名空白的公開反例）。
   const [summary, setSummary] = useState<DailySummary>(() => summaryWithTeamNames(initial));
@@ -406,7 +411,8 @@ export default function DailyHub({ summary: initial, calendar, postseason = null
               {leftGames.map((g) => (
                 <TodayGameCard key={gameKey(g)} g={g} trainedThrough={trainedThrough} nowMs={nowMs}
                   reveal={revealed.has(gameKey(g))}
-                  seriesLabel={seriesLabels[gameKey(g)] ?? postseasonKindLabel(g.kind_code)} />
+                  seriesLabel={seriesLabels[gameKey(g)] ?? postseasonKindLabel(g.kind_code)}
+                  reportHref={reportLinks[gameKey(g)] ?? null} />
               ))}
             </div>
           ) : (
@@ -442,7 +448,7 @@ export default function DailyHub({ summary: initial, calendar, postseason = null
         </div>
         <section className="pm-split-r" aria-label={prevDay ? `${shortDate(prevDay.game_date)} 賽果，左客右主` : "最近賽果"}>
           <ol className="pm-rows">
-            {prevGames.length > 0 ? prevGames.map((g) => <ResultRow key={gameKey(g)} g={g} />) : (
+            {prevGames.length > 0 ? prevGames.map((g) => <ResultRow key={gameKey(g)} g={g} label={resultLabels[gameKey(g)] ?? null} />) : (
               <li>
                 <EmptyState className="rounded-md bg-surface py-6">
                   {availability.results.status === "not_started"
