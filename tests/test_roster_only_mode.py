@@ -115,3 +115,33 @@ def test_guards_exit_64_without_side_effects(tmp_path, extra):
 def test_default_backup_dir_rejected(tmp_path):
     r, actions = harness(tmp_path, BACKUP_DIR=f"{os.environ['HOME']}/Library/Application Support/cpbl-analytics/backups")
     assert r.returncode == 64 and actions == []
+
+
+DAILY = "Library/Application Support/cpbl-analytics/backups"
+
+
+@pytest.mark.parametrize("variant", ["{d}/", "{d}/.", "{d}//", "{d}/../backups", "{link}", "{link}/"])
+def test_equivalent_daily_backup_paths_rejected(tmp_path, variant):
+    """#284 R1 F1 負控制：字串不同但實際是每日鏈目錄（會被輪替刪檔）一律 64、零副作用。"""
+    home = tmp_path / "home"
+    daily = home / DAILY
+    daily.mkdir(parents=True)
+    link = tmp_path / "alias-of-daily"
+    link.symlink_to(daily)
+    backup_dir = variant.format(d=daily, link=link)
+    r, actions = harness(tmp_path, HOME=str(home), BACKUP_DIR=backup_dir)
+    assert r.returncode == 64, (backup_dir, r.stdout, r.stderr)
+    assert actions == []
+
+
+@pytest.mark.parametrize("backup_dir", ["roster-backups", "./roster-backups"])
+def test_relative_backup_dir_rejected(tmp_path, backup_dir):
+    r, actions = harness(tmp_path, BACKUP_DIR=backup_dir)
+    assert r.returncode == 64 and actions == []
+
+
+def test_backup_receives_canonical_dir(tmp_path):
+    r, actions = harness(tmp_path, BACKUP_DIR=f"{tmp_path}/roster-backups/./")
+    assert r.returncode == 0, r.stderr
+    assert actions[1][0] == "backup"
+    assert actions[1][1] == os.path.realpath(tmp_path / "roster-backups")

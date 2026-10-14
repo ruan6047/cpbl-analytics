@@ -199,9 +199,18 @@ if [ -n "${ROSTER_ONLY:-}" ]; then
     echo 'FATAL: ROSTER_ONLY=1 必須搭配 SKIP_SCRAPE=1，且不得與 WITH_DETAIL／LINEUP_ONLY／POSTSEASON_RESULTS_ONLY 併用' >&2
     exit 64
   fi
-  if [ -z "${BACKUP_DIR:-}" ] \
-     || [ "$BACKUP_DIR" = "$HOME/Library/Application Support/cpbl-analytics/backups" ]; then
-    echo 'FATAL: ROSTER_ONLY 需明示獨立的 BACKUP_DIR（不得與每日鏈共用輪替視窗）' >&2
+  # 比的是「實際目錄」不是字串（#284 R1 F1）：尾端 /、/.、..、symlink 都可能指回每日鏈目錄，
+  # 而 backup-prod-db.sh 會在該目錄輪替刪檔。故只收絕對路徑，雙方以 realpath 正規化後比較，
+  # 並把正規化後的同一個值交給備份腳本（檢查的與使用的是同一個目錄）。
+  if [ -z "${BACKUP_DIR:-}" ] || [ "${BACKUP_DIR#/}" = "$BACKUP_DIR" ]; then
+    echo 'FATAL: ROSTER_ONLY 需明示獨立的 BACKUP_DIR（絕對路徑；不得與每日鏈共用輪替視窗）' >&2
+    exit 64
+  fi
+  ROSTER_BACKUP_DIR="$(python3 -c 'import os,sys; print(os.path.realpath(sys.argv[1]))' "$BACKUP_DIR")"
+  ROSTER_DAILY_BACKUP_DIR="$(python3 -c 'import os,sys; print(os.path.realpath(sys.argv[1]))' \
+    "$HOME/Library/Application Support/cpbl-analytics/backups")"
+  if [ -z "$ROSTER_BACKUP_DIR" ] || [ "$ROSTER_BACKUP_DIR" = "$ROSTER_DAILY_BACKUP_DIR" ]; then
+    echo 'FATAL: ROSTER_ONLY 的 BACKUP_DIR 與每日鏈備份目錄是同一個目錄（不得共用輪替視窗）' >&2
     exit 64
   fi
   cd "$REPO_DIR"
@@ -224,7 +233,7 @@ if [ -n "${ROSTER_ONLY:-}" ]; then
       ;;
   esac
   echo '==> 名單三表：獨立目錄備份 production（整庫）；驗證不過即中止'
-  BACKUP_PATH="$(VPS="$VPS" DEPLOY_PATH="$DEPLOY_PATH" BACKUP_DIR="$BACKUP_DIR" \
+  BACKUP_PATH="$(VPS="$VPS" DEPLOY_PATH="$DEPLOY_PATH" BACKUP_DIR="$ROSTER_BACKUP_DIR" \
     BACKUP_KEEP="${BACKUP_KEEP:-3}" "$REPO_DIR/scripts/backup-prod-db.sh")"
   echo "    ✓ 已驗證備份：${BACKUP_PATH}"
   echo '==> 名單三表：單交易 insert-only 寫入＋事後對帳'
