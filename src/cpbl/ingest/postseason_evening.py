@@ -778,14 +778,26 @@ def boxpa_wants(rec: Mapping) -> list[str]:
     return [s for s in ("box", "pa") if (src.get(s) or {}).get("reason") in _NEEDS_SEND]
 
 
+def boxpa_box_ready(rec: Mapping) -> bool:
+    """本機 box 核心表已到齊（不論是否已送達）；未完賽或缺表都不是。"""
+    reason = str(((rec.get("sources") or {}).get("box") or {}).get("reason") or "")
+    return bool(rec.get("sources")) and not reason.startswith("local_box_incomplete") and reason != "not_final"
+
+
+def boxpa_pa_build_candidates(open_recs: Mapping[str, Mapping]) -> list[str]:
+    """這次喚醒要交給既有 PA builder 的場：今晚開著、box 已到齊的**所有**目標場（#293 再審 G1）。
+
+    ⛔ 不得只挑「尚無 published」的場：已 published 的場在 box 更新（livelog 官方更正、tracking 晚到）後，
+    要由 builder 自己判斷是 republish 還是記 reconciliation_required（``_pa_build_targets`` 的當日窗不論
+    published 一律重選，正是為此）。builder 對來源未變的場冪等略過。不看同步額度：額度用完也要讓分類照實。"""
+    return [k for k, r in sorted(open_recs.items()) if boxpa_box_ready(r)]
+
+
 def boxpa_needs_pa_build(rec: Mapping) -> bool:
-    """box 已到齊（或已送達）而本機還沒有 published PA，且該場仍有同步額度——值得先跑一次 PA build。"""
-    src = rec.get("sources") or {}
-    box = src.get("box") or {}
-    pa = src.get("pa") or {}
-    return (boxpa_game_can_sync(rec) and pa.get("reason") == "no_local_published_build"
-            and not str(box.get("reason") or "").startswith("local_box_incomplete")
-            and box.get("reason") != "not_final")
+    """plan 的 build 動作：box 已到齊而本機還沒有 published PA、且仍有同步額度——沒有來源要送時仍值得喚醒
+    builder。實際交給 builder 的場見 :func:`boxpa_pa_build_candidates`（範圍更大）。"""
+    pa = ((rec.get("sources") or {}).get("pa") or {})
+    return boxpa_game_can_sync(rec) and pa.get("reason") == "no_local_published_build" and boxpa_box_ready(rec)
 
 
 def _final_prod_at(state: Mapping, rec: Mapping) -> str | None:
@@ -861,7 +873,10 @@ def boxpa_plan(state: dict, now: datetime,
             detail.append(key)
             continue
         wants = boxpa_wants(rec)
-        if boxpa_needs_pa_build(rec):
+        # build：(a) box 到齊而 PA 尚未 published；(b) 有來源變了但該場同步額度已用完——不再送，但仍讓
+        # builder 判斷官方更正，分類才照實（#293 fix-3 組合矩陣 m9）。
+        changed = [x for x in ("box", "pa") if (src.get(x) or {}).get("reason") in _NEEDS_SEND]
+        if boxpa_needs_pa_build(rec) or (changed and not wants and boxpa_box_ready(rec)):
             build.append(key)
         if wants:
             sync.append((key, wants))
@@ -1304,7 +1319,7 @@ def _parser():
     bd = sub.add_parser("boxpa-detail", help="#293：目標場明細 www（既有 _postseason_detail_step）")
     bd.add_argument("--games", required=True)
     bb = sub.add_parser("boxpa-prepare", help="#293：目標場 PA build（既有 builder；不連網）")
-    bb.add_argument("--games", default="", help="省略＝今晚 box 已到齊、尚無 published PA 的場")
+    bb.add_argument("--games", default="", help="省略＝今晚開著、box 已到齊的所有場（含已 published）")
     br = sub.add_parser("boxpa-record", help="#293：記錄 POSTSEASON_BOXPA_ONLY 同步結果")
     br.add_argument("--games", required=True)
     br.add_argument("--code", type=int, required=True)
@@ -1428,13 +1443,12 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if args.command == "boxpa-prepare":
-        # 未給 --games：今晚仍開著、box 已到齊而本機尚無 published PA 的場（#293 再審 R1：shell 在決定
-        # 這次送哪些來源之前先跑本步驟）。
+        # 未給 --games：今晚仍開著、box 已到齊的所有場（含已有 published 者；#293 再審 G1）。shell 在決定
+        # 這次送哪些來源之前先跑本步驟（R1）。
         if args.games:
             keys = [k for k in args.games.split(",") if k]
         else:
-            open_recs = _boxpa_prepare_state(state, now, year)
-            keys = [k for k, r in sorted(open_recs.items()) if boxpa_needs_pa_build(r)]
+            keys = boxpa_pa_build_candidates(_boxpa_prepare_state(state, now, year))
         if not keys:
             print(json.dumps({"games": 0, "skipped": "no_pa_build_candidate"}))
             return 0

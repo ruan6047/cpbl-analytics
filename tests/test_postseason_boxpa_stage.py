@@ -183,7 +183,7 @@ def test_f2_same_night_new_published_pa_after_delivery_is_resent_once():
     assert rec["sources"]["pa"]["status"] == "delivered" and rec["sources"]["box"]["status"] == "delivered"
     assert [s["sources"] for s in rec["sends"]] == [["box", "pa"], ["pa"]]
     v3 = dataclasses.replace(v2, published_build="22222222-2222-2222-2222-222222222222")
-    assert step(state, tpe(10, 12, 22, 40), v3) == ("idle", []), "PA 已送 2 次：不再送"
+    assert step(state, tpe(10, 12, 22, 40), v3) == ("build", [KEY]), "已同步 2 次：只 build、不再送"
 
 
 def test_r1_pa_built_in_the_same_wake_goes_out_with_box_in_one_sync():
@@ -227,7 +227,7 @@ def test_quota_is_two_syncs_per_game_and_a_resend_sends_only_undelivered_sources
     rec = state["boxpa"][KEY]
     assert len(pe.boxpa_syncs(rec)) == 2
     grown = dataclasses.replace(full, box_counts={**full.box_counts, "game_livelog": 356})
-    assert step(state, tpe(10, 12, 22, 30), grown) == ("idle", []), "兩次已用完：不再有第 3 次同步"
+    assert step(state, tpe(10, 12, 22, 30), grown) == ("build", [KEY]), "兩次已用完：只 build、不再有第 3 次同步"
     assert len(pe.boxpa_syncs(rec)) == 2
 
 
