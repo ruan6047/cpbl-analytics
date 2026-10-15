@@ -156,6 +156,11 @@ export class PlayoffsPoller<O extends VersionedOverview, W extends VersionedWatc
     });
   }
 
+  /** 標記為已啟用但不立即跑一輪（控制器建立前就接近 viewport 的區；隨 `start` 的第一輪一起取）。 */
+  preactivate(ids: Iterable<string>): void {
+    for (const id of ids) this.active.add(id);
+  }
+
   isActive(id: string): boolean {
     return this.active.has(id);
   }
