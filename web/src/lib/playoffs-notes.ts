@@ -63,12 +63,23 @@ export function shownData<A>(state: WatchState<A> | undefined): A | null {
 
 const OFFICIAL_HOSTS = new Set(["www.cpbl.com.tw", "cpbl.com.tw", "stats.cpbl.com.tw"]);
 
-/** 來源連結只收站內相對路徑或官方站 https 網址；其他一律不渲染成連結。 */
+// 站內判斷用的假想 origin：以它解析相對路徑，解析後 origin 仍是它才算站內。
+const SITE_BASE = "https://site.invalid";
+
+/**
+ * 來源連結只收站內相對路徑或官方站 https 網址；其他一律不渲染成連結。
+ * 判斷看瀏覽器正規化後的結果（審核 F2，review-8）：`/\example.com`、`/<Tab>/example.com` 這類字串
+ * 看似站內，解析後卻是外站。另外直接拒收含反斜線、空白或控制字元的字串，渲染的原字串就與檢查的一致。
+ */
 export function isAllowedSourceUrl(url: string): boolean {
-  if (url.startsWith("/") && !url.startsWith("//")) return true;
+  if (/[\\\s\u0000-\u001f\u007f]/.test(url)) return false;
   try {
+    if (url.startsWith("/")) {
+      const u = new URL(url, SITE_BASE);
+      return u.origin === SITE_BASE && !url.startsWith("//");
+    }
     const u = new URL(url);
-    return u.protocol === "https:" && OFFICIAL_HOSTS.has(u.hostname);
+    return u.protocol === "https:" && OFFICIAL_HOSTS.has(u.hostname) && u.username === "" && u.password === "";
   } catch {
     return false;
   }

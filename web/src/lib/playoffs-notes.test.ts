@@ -65,6 +65,28 @@ test("來源連結只收站內相對路徑或官方站 https", () => {
   for (const bad of ["//evil.com/x", "http://www.cpbl.com.tw/", "https://evil.com/", "javascript:alert(1)", "ftp://cpbl.com.tw"]) assert.equal(isAllowedSourceUrl(bad), false, bad);
 });
 
+test("審核 F2：以正規化後結果判斷站內，反斜線、空白、控制字元與帳密寫法都拒收", () => {
+  const bad = [
+    "/\\example.com/receipt",          // 正斜線＋反斜線：瀏覽器解析成 //example.com
+    "/\t/example.com/receipt",          // Tab 被移除後成 //example.com
+    "/\n/example.com/receipt",
+    "/\r/example.com/receipt",
+    "/ /example.com",
+    "\\\\example.com/x",
+    "/\u0000/example.com",
+    "https://www.cpbl.com.tw\\@evil.com/",
+    "https://www.cpbl.com.tw@evil.com/",
+    "https://user:pw@www.cpbl.com.tw/",
+  ];
+  for (const url of bad) assert.equal(isAllowedSourceUrl(url), false, JSON.stringify(url));
+  const base = "https://site.example";
+  const good = ["/methodology#pregame", "/games/1?kind=C&year=2026", "/%5Cexample.com", "https://www.cpbl.com.tw/xmdoc/cont?SId=1"];
+  for (const url of good) {
+    assert.equal(isAllowedSourceUrl(url), true, url);
+    if (url.startsWith("/")) assert.equal(new URL(url, base).origin, base, url);   // 放行者解析後確為站內
+  }
+});
+
 test("固定說明 key 一致性：已登記區 notes(null)＋PAGE_NOTES 同 key 文字必須相同", async () => {
   const { PLAYOFFS_AREAS } = await import("../components/playoffs/area-registry.ts");
   const groups = [
