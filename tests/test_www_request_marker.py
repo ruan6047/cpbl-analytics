@@ -271,6 +271,22 @@ def test_boxpa_detail_marks_each_game_and_restores_entry_points(monkeypatch):
     assert orig_g is not patched_g
 
 
+def test_results_scrape_marks_each_kind_without_changing_the_call_interface(monkeypatch):
+    from cpbl.ingest import run_refresh_recent as rr
+
+    seen = []
+    monkeypatch.setattr(rr, "scrape_games", lambda y1, y2, kind: seen.append(dict(br._MARKER)) or {y1: 1})
+    patched = rr.scrape_games
+    state = pe.empty_state()
+    state["events"] = {"final_not_ingested:2026-C-2": {"key": "2026-C-2", "state": "open", "attempts": []}}
+    with pe.marking_scrape_games(state, 2026):
+        out = rr._postseason_games_step(2026, ("E", "C"))
+    assert out["errors"] == []
+    assert [(m["kind"], m["src"], m["game"]) for m in seen] == [
+        ("other", "292", "2026/E/-"), ("event", "293", "2026/C/-")]
+    assert rr.scrape_games is patched and br._MARKER is None
+
+
 def test_daily_chain_never_enables_the_marker():
     """§16.3：每日鏈不寫標記——www_marker 只在 postseason_evening 內被使用。"""
     from pathlib import Path

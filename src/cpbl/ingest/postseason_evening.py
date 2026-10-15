@@ -52,7 +52,8 @@ import json
 import logging
 import os
 import sys
-from collections.abc import Callable, Iterable, Mapping
+from collections.abc import Callable, Iterable, Iterator, Mapping
+from contextlib import contextmanager
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime, time, timedelta
 from pathlib import Path
@@ -966,16 +967,30 @@ def scrape_marker_args(state: Mapping, kind: str) -> tuple[str, str]:
     return ("retry" if any(e.get("attempts") for e in evs) else "event"), "293"
 
 
-def marked_scrape_games(state: Mapping, year: int) -> Callable[..., Any]:
-    """包住既有 ``scrape_games``：每個賽別一個 www 標記區塊（``<year>/<kind>/-``）。"""
-    from cpbl.ingest._browser import www_marker
-    from cpbl.ingest.cpbl_site import scrape_games
+@contextmanager
+def marking_scrape_games(state: Mapping, year: int) -> Iterator[None]:
+    """呼叫期間把 ``run_refresh_recent.scrape_games`` 換成「每個賽別一個 www 標記區塊
+    （``<year>/<kind>/-``）」的包裝，結束後原樣還原。模組沒有 ``scrape_games``（測試替身）就不包。"""
+    import importlib
 
-    def call(start_year: int, end_year: int, kind_code: str):
+    from cpbl.ingest._browser import www_marker
+
+    rr = importlib.import_module("cpbl.ingest.run_refresh_recent")
+    original = getattr(rr, "scrape_games", None)
+    if original is None:
+        yield
+        return
+
+    def call(start_year: int, end_year: int, kind_code: str = "A"):
         kind, src = scrape_marker_args(state, kind_code)
         with www_marker(kind, src, f"{year}/{kind_code}/-"):
-            return scrape_games(start_year, end_year, kind_code)
-    return call
+            return original(start_year, end_year, kind_code)
+
+    rr.scrape_games = call
+    try:
+        yield
+    finally:
+        rr.scrape_games = original
 
 
 def boxpa_game_dates(keys: Iterable[str]) -> list[str]:
@@ -1260,8 +1275,10 @@ def main(argv: list[str] | None = None) -> int:
             print("unchanged")
             return 0
         before = local_signature(year)
-        # #293 r3：每個賽別的賽程抓取包一層 www 標記（src／kind 見 scrape_marker_args）。
-        result = _postseason_games_step(year, kinds, scrape=marked_scrape_games(state, year))
+        # #293 r3：每個賽別的賽程抓取包一層 www 標記（src／kind 見 scrape_marker_args）；
+        # 呼叫介面不變，只在這次呼叫期間包住 run_refresh_recent.scrape_games。
+        with marking_scrape_games(state, year):
+            result = _postseason_games_step(year, kinds)
         after = local_signature(year)
         stats_has_c = any(g.get("kind_code") == "C" for g in state.get("schedule") or [])
         local_c = sum(1 for k in load_local_games(year, now) if k.split("-")[1] == "C")
