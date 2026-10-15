@@ -234,7 +234,9 @@ def test_starters_unknown_until_s11():
     assert "announcement" not in w
 
 
-def test_reader_does_not_read_074_or_starter_ids():
+def test_module_does_not_read_074_or_starter_ids_directly():
+    """本模組不讀 074、不讀 starter_id。覆蓋範圍只有本模組的 import 與 *_SQL；經 S02
+    ``read_series_inputs`` 的間接 074 讀取不在此守衛內（需求方裁定 R2 乙，issuecomment-6184818006）。"""
     import ast
     import inspect
 

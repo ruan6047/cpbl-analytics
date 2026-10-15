@@ -14,8 +14,11 @@
 4. 4B：S09 未啟用 ⇒ A、B 兩格 ``not_published``「賽前快照尚未發布」，⛔ 包裝成已鎖定 B。
    指定已完賽場 ⇒ 歷史版本由 S09 提供（尚未發布），⛔ 以現在資料重算冒充當時版本。
 6. 官方先發投手：來源歸 S11（#292），定案前恆 ``unknown``＋固定灰字（需求方裁定 E1／E2，
-   issuecomment-6184481637）。⛔ 讀 074（只有打序、沒有先發投手）、⛔ 讀 ``games.*_starter_id``，
+   issuecomment-6184481637）。本模組 ⛔ 讀 074（只有打序、沒有先發投手）、⛔ 讀 ``games.*_starter_id``，
    ⛔ 自建替代來源；S11 定案後只換 :func:`_starters` 的來源。
+   ⚠️ 間接讀取仍在：:func:`read_watch_inputs` 經 S02 ``postseason_contract.read_series_inputs`` 會讀 074，
+   列入 source manifest 並計入 ``context_version``；畫面不呈現。依需求方裁定 R2 乙（issuecomment-6184818006）
+   暫留，待 S11（#292）定案時處理；⛔ 在本模組攔截（會讓 context_version 與 overview 永遠不一致）。
 5. 當場 28 人登錄：S11 交付前恆 ``unknown``，⛔ 由名單或出賽推算。
 """
 
