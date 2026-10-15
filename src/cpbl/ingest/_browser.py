@@ -77,8 +77,9 @@ CIRCUIT_LIMIT = int(os.environ.get("CPBL_SCRAPE_CIRCUIT", "3") or 3)
 # 每次 ``page.goto`` 寫一行（同頁 fetch POST 不記——總數是導頁次數的**下限**）：
 #   WWW_REQ card=293 kind=<box|event|retry|other> src=<292|293> at=<ISO8601 +08:00>
 #           game=<year>/<kind>/<sno 或 -> status=<HTTP 碼|challenge|error>
-# * kind：同一個 www_marker 區塊內，某頁路徑第一次導頁記區塊的 kind；同一路徑再導頁（重載退避、
-#   換 context 重試）記 retry。呼叫端在「同一場後續喚醒的第二次以後抓取」時直接傳 kind=retry。
+# * kind（PLAN r3.1 §16.1 字面定義）：一個 www_marker 區塊＝一次邏輯抓取；區塊內**第一個**導頁記
+#   區塊的 kind，第二個以後的導頁（不論是否同一頁：重載退避、換 context 重試、同一次抓取的下一頁）
+#   一律記 retry。呼叫端在「同一場後續喚醒的第二次以後抓取」時直接傳 kind=retry。
 # * status：goto 的最終 Response.status；goto 拋錯記 error；page_html 的必要內容檢查不過
 #   （HiNet 挑戰頁常回 200）記 challenge。不含 token、cookie、完整 URL 或 query。
 # * 另以 Playwright ``page.on("request")`` 獨立計數主框架導頁（重定向鏈只計起點），每個請求寫一行
@@ -100,7 +101,7 @@ def www_marker(kind: str, src: str, game: str) -> Iterator[None]:
     if kind not in WWW_KINDS or src not in WWW_SRCS or not re.fullmatch(r"\d{4}/[EC]/(\d+|-)", game):
         raise ValueError(f"www_marker 參數不合法：kind={kind!r} src={src!r} game={game!r}")
     prev = _MARKER
-    _MARKER = {"kind": kind, "src": src, "game": game, "seen": set(), "pending": []}
+    _MARKER = {"kind": kind, "src": src, "game": game, "navigations": 0, "pending": []}
     try:
         yield
     finally:
@@ -112,13 +113,12 @@ def _now_tpe() -> str:
     return datetime.now(TAIPEI).isoformat(timespec="seconds")
 
 
-def _note_goto(page_path: str, status: int | str, at: str) -> None:
+def _note_goto(status: int | str, at: str) -> None:
     m = _MARKER
     if m is None:
         return
-    path = urlsplit(page_path).path
-    kind = "retry" if path in m["seen"] else m["kind"]
-    m["seen"].add(path)
+    kind = m["kind"] if m["navigations"] == 0 else "retry"
+    m["navigations"] += 1
     m["pending"].append({"kind": kind, "at": at, "status": status})
 
 
@@ -203,7 +203,9 @@ class _Session:
             self._page = self._ctx.new_page()
         self._loaded: str | None = None
         self._listening = False
-        self._defer_marks = False
+        # _defer_marks 是呼叫端（page_html）的暫存狀態，換 context 時⛔ 不重設（#293 審核 F4：
+        # 重設會讓換 context 後的那次導頁在必要內容檢查前就寫出，挑戰頁被誤記成 HTTP 碼）。
+        self._defer_marks = getattr(self, "_defer_marks", False)
 
     def _goto(self, page_path: str, wait: str) -> None:
         """單次導航；失敗（如 ERR_TOO_MANY_REDIRECTS = 挑戰 cookie 壞掉）→ 換新 context 重試一次。"""
@@ -227,7 +229,7 @@ class _Session:
         try:
             res = self._page.goto(url, wait_until=wait, timeout=45000)
         except error_type as e:
-            _note_goto(page_path, "error", at)
+            _note_goto("error", at)
             _flush_marks(None)
             log.warning("導航失敗（%s），換乾淨 context 於 5s 後重試：%s", page_path, str(e)[:120])
             self._new_context()
@@ -237,10 +239,10 @@ class _Session:
             try:
                 res = self._page.goto(url, wait_until=wait, timeout=45000)
             except error_type:
-                _note_goto(page_path, "error", at)
+                _note_goto("error", at)
                 _flush_marks(None)
                 raise
-        _note_goto(page_path, res.status if res is not None else "error", at)
+        _note_goto(res.status if res is not None else "error", at)
         if not self._defer_marks:
             _flush_marks(None)
 

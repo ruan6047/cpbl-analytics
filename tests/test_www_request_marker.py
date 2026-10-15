@@ -7,10 +7,12 @@ kind／src／status 寫法、獨立的 Playwright 導頁計數（WWW_NAV），�
 
 from __future__ import annotations
 
+import hashlib
 import inspect
 import logging
 import re
 import textwrap
+from pathlib import Path
 
 import pytest
 
@@ -55,21 +57,33 @@ class FakePage:
         self.listeners.append(fn)
 
 
-def make_session(page):
-    s = object.__new__(br._Session)
-    s._page = page
-    s._loaded = None
-    s._listening = False
-    s._defer_marks = False
-    s.contexts = 0
+class FakeContext:
+    def __init__(self, page):
+        self.page = page
 
-    def new_context():
-        s.contexts += 1
-        s._page = page
-        s._loaded = None
-        s._listening = False
-        s._defer_marks = False
-    s._new_context = new_context
+    def new_page(self):
+        return self.page
+
+    def close(self):
+        self.page.calls.append(("ctx_close",))
+
+
+class FakeBrowser:
+    def __init__(self, page):
+        self.page = page
+
+    def new_context(self, **kw):
+        self.page.calls.append(("new_context",))
+        return FakeContext(self.page)
+
+
+def make_session(page):
+    """真的 _Session._new_context（假 browser）：換 context 的旗標處理要跑到受測碼本身。"""
+    s = object.__new__(br._Session)
+    s._browser = FakeBrowser(page)
+    s._ctx = None
+    s._new_context()
+    page.calls.clear()
     return s
 
 
@@ -111,24 +125,92 @@ def test_unmarked_goto_branch_is_verbatim_the_original_body():
     assert textwrap.dedent(m.group(1)) + "\n" == ORIGINAL_GOTO_BODY
 
 
-@pytest.mark.parametrize(("script", "html", "expected"), [
-    ([200], "<html>token</html>",
-     [("goto", "https://www.cpbl.com.tw/schedule", "networkidle", 45000), ("wait", 1500), ("content",)]),
-    (["raise", 200], "<html>token</html>",
-     [("goto", "https://www.cpbl.com.tw/schedule", "networkidle", 45000), ("wait", 5000),
-      ("goto", "https://www.cpbl.com.tw/schedule", "networkidle", 45000), ("wait", 1500), ("content",)]),
-    ([200, 200], ["<html>no</html>", "<html>token</html>"],
-     [("goto", "https://www.cpbl.com.tw/schedule", "networkidle", 45000), ("wait", 1500), ("content",),
-      ("wait", 2000),
-      ("goto", "https://www.cpbl.com.tw/schedule", "networkidle", 45000), ("wait", 1500), ("content",)]),
-])
-def test_unmarked_page_html_call_sequence_and_zero_lines(caplog, script, html, expected):
-    caplog.set_level(logging.INFO, logger="cpbl.browser.www")
-    page = FakePage(script, html)
-    s = make_session(page)
-    assert "token" in s.page_html("/schedule", require="token")
-    assert page.calls == expected, "未啟用時呼叫序列與原本相同（不註冊監聽、不多任何一步）"
-    assert not page.listeners and lines(caplog) == [] and lines(caplog, "WWW_NAV") == []
+# ------------------------------------------------------------------ 條件 1：與基準原文逐位元比對（#293 審核席 2 F1）
+#
+# 基準＝af4eda62 的 _browser.py 原文（tests/fixtures/browser_baseline_af4eda62.py.txt，sha256
+# 8e48b580…5c05；51c65d1d／a1ca55bc 此檔相同）。同一份假 page 腳本分別跑基準與現行模組，未啟用標記時
+# 回傳值（或例外型別＋訊息）、page 呼叫序列、**全部** cpbl.browser* log 紀錄（logger、等級、訊息）、
+# _loaded 與 context 重建次數都必須逐位元相同。
+
+BASELINE = Path(__file__).parent / "fixtures" / "browser_baseline_af4eda62.py.txt"
+
+
+def _baseline_module():
+    import types
+    src = BASELINE.read_text(encoding="utf-8")
+    assert hashlib.sha256(src.encode()).hexdigest() == (
+        "8e48b580b70fefc610031792f788a05f2d831826a995f9bcda9aa00cea255c05")
+    mod = types.ModuleType("browser_baseline_af4eda62")
+    exec(compile(src, str(BASELINE), "exec"), mod.__dict__)
+    return mod
+
+
+def _plain_session(module, page):
+    s = object.__new__(module._Session)
+    s._page = page
+    s._loaded = None
+    box = {"contexts": 0}
+
+    def new_context():
+        box["contexts"] += 1
+        s._page = page
+        s._loaded = None
+    s._new_context = new_context
+    return s, box
+
+
+def _post_page(script, results):
+    page = FakePage(script)
+    it = iter(results)
+    page.evaluate = lambda js, arg: (page.calls.append(("evaluate", arg["path"])), next(it))[1]
+    return page
+
+
+SCENARIOS = {
+    "page_html_ok": (lambda: FakePage([200]), lambda s: s.page_html("/schedule", require="token")),
+    "page_html_no_require": (lambda: FakePage([200], "<html>x</html>"), lambda s: s.page_html("/x")),
+    "page_html_regex": (lambda: FakePage([200]), lambda s: s.page_html("/x", require=re.compile("tok.n"))),
+    "page_html_dom": (lambda: FakePage([200]), lambda s: s.page_html("/p", wait="domcontentloaded")),
+    "page_html_force": (lambda: FakePage([200, 200]),
+                        lambda s: (s.page_html("/x"), s.page_html("/x", force=True))),
+    "page_html_cached": (lambda: FakePage([200]), lambda s: (s.page_html("/x"), s.page_html("/x"))),
+    "page_html_challenge_then_ok": (lambda: FakePage([200, 200], ["<html>no</html>", "<html>token</html>"]),
+                                    lambda s: s.page_html("/schedule", require="token")),
+    "page_html_challenge_exhausted": (lambda: FakePage([200] * 4, ["<html>no</html>"] * 4),
+                                      lambda s: s.page_html("/schedule", require="token")),
+    "goto_error_then_ok": (lambda: FakePage(["raise", 200]), lambda s: s.page_html("/x", require="token")),
+    "goto_error_twice": (lambda: FakePage(["raise", "raise"]), lambda s: s.page_html("/x")),
+    "goto_error_then_challenge": (lambda: FakePage(["raise", 200, 200], ["<html>no</html>", "<html>token</html>"]),
+                                  lambda s: s.page_html("/x", require="token")),
+    "post_ok": (lambda: _post_page([200], [{"status": 200, "text": "{}"}]),
+                lambda s: s.post("/schedule", "/api", {"a": "1"})),
+    "post_retry": (lambda: _post_page([200, 200], [{"status": -1, "text": "e"}, {"status": 200, "text": "ok"}]),
+                   lambda s: s.post("/schedule", "/api", {"a": "1"}, headers={"X": "1"})),
+    "post_exhausted": (lambda: _post_page([200] * 4, [{"status": 428, "text": "blocked"}] * 4),
+                       lambda s: s.post("/schedule", "/api", {})),
+}
+
+
+def _observe(module, scenario, caplog):
+    make_page, act = SCENARIOS[scenario]
+    page = make_page()
+    s, box = _plain_session(module, page)
+    caplog.clear()
+    try:
+        outcome = ("return", act(s))
+    except Exception as exc:  # noqa: BLE001 — 例外本身也是被比對的行為
+        outcome = ("raise", type(exc).__name__, str(exc))
+    logs = [(r.name, r.levelno, r.getMessage()) for r in caplog.records if r.name.startswith("cpbl.browser")]
+    return {"outcome": outcome, "calls": page.calls, "logs": logs, "loaded": s._loaded,
+            "contexts": box["contexts"]}
+
+
+@pytest.mark.parametrize("scenario", sorted(SCENARIOS))
+def test_unmarked_behaviour_is_bit_identical_to_baseline(caplog, scenario):
+    caplog.set_level(logging.DEBUG)
+    base = _observe(_baseline_module(), scenario, caplog)
+    now = _observe(br, scenario, caplog)
+    assert now == base
 
 
 # ------------------------------------------------------------------ 啟用時
@@ -152,6 +234,30 @@ def test_reload_backoff_is_retry_and_challenge_is_marked(caplog):
     got = lines(caplog)
     assert [re.search(r"kind=(\w+)", x).group(1) for x in got] == ["event", "retry"]
     assert [x.rsplit("status=", 1)[1] for x in got] == ["challenge", "200"]
+
+
+def test_challenge_after_context_switch_is_still_marked_challenge(caplog):
+    """#293 審核席 1 F4：導頁拋錯 → 換 context → 第二次導頁拿到挑戰頁 → 重載通過。
+    換 context 不得清掉延後寫入，第二行必須是 challenge，不是 200。"""
+    caplog.set_level(logging.INFO, logger="cpbl.browser.www")
+    s = make_session(FakePage(["raise", 200, 200], ["<html>挑戰頁</html>", "<html>token</html>"]))
+    with br.www_marker("box", "293", "2026/C/2"):
+        s.page_html("/box", require="token")
+    assert [x.rsplit("status=", 1)[1] for x in lines(caplog)] == ["error", "challenge", "200"]
+
+
+def test_retry_is_every_navigation_after_the_first_in_one_logical_fetch(caplog):
+    """#293 審核席 1 F5：PLAN r3.1 §16.1 字面——同一次邏輯抓取（一個 www_marker 區塊）的第一個導頁記
+    區塊 kind，第二個以後一律 retry，即使是不同頁。"""
+    caplog.set_level(logging.INFO, logger="cpbl.browser.www")
+    s = make_session(FakePage([200, 200]))
+    with br.www_marker("box", "293", "2026/C/2"):
+        s.page_html("/box/index?gameSno=2&year=2026&kindCode=C", require="token")
+        s.page_html("/box?year=2026&KindCode=C&gameSno=2")
+    assert [re.search(r"kind=(\w+)", x).group(1) for x in lines(caplog)] == ["box", "retry"]
+    with br.www_marker("box", "293", "2026/C/3"):
+        s.page_html("/box?year=2026&KindCode=C&gameSno=3", force=True)
+    assert re.search(r"kind=(\w+)", lines(caplog)[-1]).group(1) == "box", "新的邏輯抓取重新起算"
 
 
 def test_goto_error_then_context_retry(caplog):
