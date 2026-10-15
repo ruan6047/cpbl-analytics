@@ -50,6 +50,8 @@ scripts/refresh-cpbl-prod.sh — 把本機 CPBL 資料同步到 production（四
   LINEUP_ONLY=1 SKIP_SCRAPE=1 ./scripts/refresh-cpbl-prod.sh # 有限公告；不爬、不訓練、不檢查整鏈 freshness
   ROSTER_ONLY=1 SKIP_SCRAPE=1 BACKUP_DIR=<獨立目錄> ./scripts/refresh-cpbl-prod.sh
                                                               # 季後 32 人名單三表 insert-only 同步（手動、需授權）
+  POSTSEASON_BOXPA_ONLY=1 SKIP_SCRAPE=1 POSTSEASON_BOXPA_GAMES=2026-C-2 BACKUP_DIR=<獨立目錄> \
+    BOXPA_MANIFEST=<絕對路徑> ./scripts/refresh-cpbl-prod.sh   # 季後目標場 box 七表＋PA 五表 scoped 同步
 
 環境變數
   LOCAL_DB      本機 PostgreSQL 容器名（預設 cpbl-analytics-db-1）
@@ -62,12 +64,17 @@ scripts/refresh-cpbl-prod.sh — 把本機 CPBL 資料同步到 production（四
   ROSTER_ONLY   1＝搭配 SKIP_SCRAPE=1 與獨立 BACKUP_DIR，只做名單三表 insert-only 同步
                 （唯讀比對；無變更不備份不寫；有待插入才備份＋單交易插入＋事後對帳；
                  不 migrate、不爬、不訓練、不寫 refresh 標記、不碰其他表）
+  POSTSEASON_BOXPA_ONLY 1＝搭配 SKIP_SCRAPE=1、POSTSEASON_BOXPA_GAMES、獨立 BACKUP_DIR、BOXPA_MANIFEST：
+                只對目標場鍵 upsert box 七表、單交易替換 PA 五表，逐表逐場對帳
+                （不 TRUNCATE／CASCADE、不 migrate、不訓練、不寫 refresh 標記、不呼叫 prod_cpbl_api）
 
 離開碼
   0 成功 · 64 參數錯 · 65 取不到本機 freshness 基準 · 67 同步 payload 驗證失敗
   68 POSTSEASON_RESULTS_ONLY 的 data-only 對帳不等（季後晚間鏈：停止當晚）
   ROSTER_ONLY：67 本機名單自檢失敗 · 69 production 尚無名單表（待部署窗口）
                70 同 scope 內容不同拒絕（不寫、不重試） · 71 事後對帳不等 · 72 目標 psql／ssh 失敗
+  POSTSEASON_BOXPA_ONLY：67 本機自檢／payload 守衛不過（未送） · 68 對帳不等 · 72 ssh 連線失敗
+               73 production 尚未完賽（等下一次） · 74 production psql 錯誤
 
 背景：docs/AI_RUNBOOK.md（本機爬 → 同步生產）
 EOF
@@ -186,6 +193,16 @@ SQL_END
   echo '    ✓ 公告單表同步完成（不代表完整更新鏈成功）'
 }
 
+# #293 S12 目標場 box／PA 模式的互斥檢查放在所有早退模式之前：任何其他模式旗標同時存在就拒跑，
+# 免得先被下面的 ROSTER／LINEUP／RESULTS 分支接走而沒人發現（實際流程見 POSTSEASON_BOXPA_ONLY 段）。
+if [ -n "${POSTSEASON_BOXPA_ONLY:-}" ]; then
+  if [ "$POSTSEASON_BOXPA_ONLY" != 1 ] || [ "${SKIP_SCRAPE:-}" != 1 ] || [ -n "${WITH_DETAIL:-}" ] \
+     || [ -n "${LINEUP_ONLY:-}" ] || [ -n "${ROSTER_ONLY:-}" ] || [ -n "${POSTSEASON_RESULTS_ONLY:-}" ]; then
+    echo 'FATAL: POSTSEASON_BOXPA_ONLY=1 必須搭配 SKIP_SCRAPE=1，且不得與 WITH_DETAIL／LINEUP_ONLY／ROSTER_ONLY／POSTSEASON_RESULTS_ONLY 併用' >&2
+    exit 64
+  fi
+fi
+
 # 有限公告同步在完整鏈之前退出，不碰 freshness／特徵／訓練。
 # 季後 32 人名單三表（#284 S03；Q3 裁定 A＋T2 裁定 A）：比照 LINEUP_ONLY 早退的獨立 insert-only 步驟。
 # 比對／payload／對帳全在 cpbl.rosters.sync（Python）；本段只做參數守衛、備份與 psql 管道。
@@ -301,6 +318,10 @@ sync_table() {
   # IS DISTINCT FROM 把 NULL 對 NULL 視為相同。⛔ 前提：同步表不可有沒有等號運算子的型別
   # （json、幾何型別）——2026-09-24 查過 45 張同步表皆無；新增這類欄位前先改用 jsonb。
   # 最終資料與改前相同（沒變的列本來就是寫回同值），只是不再產生無效寫入。
+  if [ -n "${SYNC_SCOPE_KEYS_SQL:-}" ]; then
+    _sync_table_scoped "$t" "$pk" "$set_clause" "${tgt_row%,}" "${new_row%,}"
+    return
+  fi
   {
     echo "CREATE TEMP TABLE _stg (LIKE cpbl.${t} INCLUDING DEFAULTS) ON COMMIT DROP;"
     docker exec "$LOCAL_DB" pg_dump -U cpbl -d cpbl --data-only -t "cpbl.${t}" \
@@ -311,6 +332,105 @@ sync_table() {
         "cd ${DEPLOY_PATH} && set -a && . ./.env && docker exec -i prod_pg psql \
           -v ON_ERROR_STOP=1 -q --single-transaction -U \"\$DB_USER\" -d \"\$DB_NAME\""
   echo "    ✓ ${t}"
+}
+
+# sync_table 的目標場鍵版本（#293 S12；只由 POSTSEASON_BOXPA_ONLY 設定 SYNC_SCOPE_KEYS_SQL 時走這裡）。
+# 與上面同一份 SET／比較清單（由 sync_table 產生後傳入），差別只有三處：
+#   1) 資料來源是 `COPY (SELECT * … WHERE <目標鍵>) TO STDOUT`，不是整表 pg_dump（沒有 setval）；
+#   2) payload 先落地成檔、斷言只含一個 COPY＋一個 INSERT 且無 DELETE／TRUNCATE／CASCADE 才送出；
+#   3) ssh 連線失敗（rc 255）回專屬的 72（暫時性，晚間鏈可重送一次），其他非零照原碼結束。
+# 與每日鏈一樣只 upsert、不 DELETE：本機少了的列 production 會留著（同 sync_table 語意）。
+_sync_table_scoped() {  # $1=表 $2=PK $3=SET 子句 $4=tgt 列 $5=new 列
+  local t="$1" pk="$2" set_clause="$3" tgt_row="$4" new_row="$5" payload rc
+  payload="$(mktemp "${TMPDIR:-/tmp}/cpbl-boxpa-${t}.XXXXXX")"
+  {
+    echo "CREATE TEMP TABLE _stg (LIKE cpbl.${t} INCLUDING DEFAULTS) ON COMMIT DROP;"
+    echo "COPY _stg FROM stdin;"
+    printf '%s\n' "\\set QUIET on" "\\set ON_ERROR_STOP on" \
+      "COPY (SELECT * FROM cpbl.${t} WHERE ${SYNC_SCOPE_KEYS_SQL}) TO STDOUT;" \
+      | docker exec -i "$LOCAL_DB" psql -U cpbl -d cpbl -X
+    echo '\.'
+    echo "INSERT INTO cpbl.${t} AS tgt SELECT * FROM _stg ON CONFLICT (${pk}) DO UPDATE SET ${set_clause}" \
+      "WHERE ROW(${tgt_row}) IS DISTINCT FROM ROW(${new_row});"
+  } > "$payload"
+  # 只檢 COPY 資料段以外的行（資料內容可能含任意文字）；形狀必須恰為 1 個 COPY 段＋1 個 INSERT。
+  local why
+  why="$(awk '
+    in_copy { if ($0 == "\\.") in_copy = 0; next }
+    $0 == "COPY _stg FROM stdin;" { copies++; in_copy = 1; next }
+    /^INSERT INTO / { inserts++ }
+    toupper($0) ~ /^(DELETE|TRUNCATE|DROP|ALTER)([^A-Z_]|$)|(^|[^A-Z_])(CASCADE|SETVAL)([^A-Z_]|$)/ { print "禁止語句：" substr($0, 1, 80) }
+    END { if (copies != 1 || inserts != 1 || in_copy) print "形狀不符：COPY=" copies+0 " INSERT=" inserts+0 " 未結束=" in_copy+0 }
+  ' "$payload")"
+  if [ -n "$why" ]; then
+    echo "FATAL: ${t} 的目標場 payload 未通過送出前守衛（未送出；payload 保留於 ${payload}）：${why}" >&2
+    exit 67
+  fi
+  rc=0
+  ssh -o BatchMode=yes "$VPS" \
+      "cd ${DEPLOY_PATH} && set -a && . ./.env && docker exec -i prod_pg psql \
+        -v ON_ERROR_STOP=1 -q --single-transaction -U \"\$DB_USER\" -d \"\$DB_NAME\"" < "$payload" || rc=$?
+  if [ "$rc" -ne 0 ]; then
+    echo "FATAL: ${t} 目標場 upsert 失敗 rc=${rc}" >&2
+    [ "$rc" -eq 255 ] && exit 72
+    exit "$rc"
+  fi
+  rm -f "$payload"
+  echo "    ✓ ${t}（目標場）"
+}
+
+# box 七表的欄位清單（完整鏈 WITH_DETAIL 與 #293 POSTSEASON_BOXPA_ONLY 共用**同一份**；各寫一份會漂，
+# sync_table 的「只插不更」教訓見其註解）。完整鏈照原順序逐一呼叫；目標場模式由 sync_box_tables 依序呼叫。
+sync_box_game_detail() {
+  sync_table game_detail "year,kind_code,game_sno" \
+    attendance game_time head_umpire first_umpire second_umpire third_umpire left_umpire right_umpire \
+    weather_code weather_desc winning_type attendance_backend updated_at
+}
+sync_box_game_scoreboard() {
+  sync_table game_scoreboard "year,kind_code,game_sno,team_no,inning_seq" \
+    visiting_home_type team_name score_cnt hitting_cnt error_cnt
+}
+sync_box_game_livelog() {
+  sync_table game_livelog "year,kind_code,game_sno,main_event_no" \
+    inning_seq visiting_home_type batting_order out_cnt ball_cnt strike_cnt pitch_cnt content \
+    action_name batting_action_name defend_station_code hitter_acnt hitter_name pitcher_acnt \
+    pitcher_name catcher_acnt catcher_name first_base second_base third_base is_strike is_ball \
+    is_score is_change_player is_special_event visiting_score home_score
+}
+sync_box_pitch_tracking() {
+  sync_table pitch_tracking "year,kind_code,game_sno,pitcher_acnt,pitch_cnt" \
+    pitcher_name hitter_acnt hitter_name inning_seq ball_cnt strike_cnt out_cnt batting_order content \
+    pitch_call auto_pitch_type tagged_pitch_type rel_speed spin_rate rel_side rel_height extension \
+    zone_speed plate_loc_side plate_loc_height hit_exit_speed hit_launch_angle hit_direction \
+    hit_distance hit_hang_time \
+    traj_accel_y traj_accel_z zone_time ivb_cm hb_cm pitch_type_pred pitch_type_pred_v2 \
+    hit_landing_bearing hit_landing_confidence hit_spin_rate \
+    traj_x0 traj_x1 traj_x2 traj_y0 traj_y1 traj_y2 traj_z0 traj_z1 traj_z2
+}
+sync_box_pitching_game_flags() {
+  sync_table pitching_game_flags "year,kind_code,game_sno,pitcher_acnt" \
+    is_save_ok is_save_fail role_type relief_point source_fetched_at
+}
+sync_box_batting_gamelog() {
+  sync_table batting_gamelog "year,kind_code,game_sno,hitter_acnt" \
+    hitter_name visiting_home_type uniform_no role_type plate_appearances at_bats hits rbi runs \
+    singles doubles triples home_runs grand_slam total_bases gidp sac_hit sac_fly bb ibb hbp so sb cs \
+    lob errors gw_rbi is_mvp
+}
+sync_box_pitching_gamelog() {
+  sync_table pitching_gamelog "year,kind_code,game_sno,pitcher_acnt" \
+    pitcher_name visiting_home_type uniform_no role_type game_result is_complete_game is_shutout \
+    inning_pitched_cnt inning_pitched_div3 plate_appearances pitch_cnt strike_cnt ball_cnt hits \
+    home_runs sac_hit sac_fly bb ibb hbp so wild_pitch balk runs earned_runs relief_point max_speed is_mvp
+}
+sync_box_tables() {
+  sync_box_game_detail
+  sync_box_game_scoreboard
+  sync_box_game_livelog
+  sync_box_pitch_tracking
+  sync_box_pitching_game_flags
+  sync_box_batting_gamelog
+  sync_box_pitching_gamelog
 }
 
 # 進階快照 5 表原子同步（INGEST-ADV-RECONCILE1 後的父子表 + read gating）。
@@ -640,6 +760,94 @@ if [ -n "${POSTSEASON_RESULTS_ONLY:-}" ]; then
   exit 0
 fi
 
+# 季後目標場 box／PA（#293 S12 WP2；scripts/postseason-evening.sh 的晚間目標場階段呼叫）：比照 ROSTER_ONLY 早退。
+# 只做：唯讀自檢（production 已完賽、本機 FK 閉包、可送 PA 的場）→ 獨立目錄已驗證備份 →
+#       box 七表只對目標場鍵 upsert（sync_box_tables，與完整鏈同一份欄位清單；不 DELETE）→
+#       PA 五表在單一交易內只替換目標場鍵（子→父 DELETE＋父→子 OVERRIDING SYSTEM VALUE 插入）→
+#       逐表逐場對帳，manifest 寫到 BOXPA_MANIFEST。
+#   ⛔ 不爬、不 build-features、不跑 migration、不訓練、⛔ 不寫 refresh 標記、不同步其他表、
+#   ⛔ 不 TRUNCATE、不 CASCADE、⛔ 不呼叫 prod_cpbl_api（新碼只在本機跑；VPS 只收 SQL 文字，PLAN r2 §9.1；
+#   tests/test_boxpa_sync_mode.py 釘住）。
+# 離開碼：0 成功 · 64 參數錯 · 67 本機自檢／payload 守衛不過（未送） · 68 對帳不等
+#        72 ssh 連線失敗（暫時性，晚間鏈可重送一次） · 73 production 尚未完賽（等下一次）
+#        74 production psql 錯誤（不重送） · 其他＝備份或本機錯誤（不重送）
+if [ -n "${POSTSEASON_BOXPA_ONLY:-}" ]; then
+  if [ -z "${POSTSEASON_BOXPA_GAMES:-}" ] \
+     || ! [[ "$POSTSEASON_BOXPA_GAMES" =~ ^[0-9]{4}-[EC]-[0-9]{1,3}(,[0-9]{4}-[EC]-[0-9]{1,3})*$ ]]; then
+    echo 'FATAL: POSTSEASON_BOXPA_GAMES 需為目標場鍵清單（YYYY-E|C-SNO，逗號分隔）' >&2
+    exit 64
+  fi
+  if [ -z "${BOXPA_MANIFEST:-}" ] || [ "${BOXPA_MANIFEST#/}" = "$BOXPA_MANIFEST" ]; then
+    echo 'FATAL: POSTSEASON_BOXPA_ONLY 需明示 BOXPA_MANIFEST（對帳 manifest 的絕對路徑）' >&2
+    exit 64
+  fi
+  # 備份目錄比照 ROSTER_ONLY：只收絕對路徑、以 realpath 與每日鏈目錄比較（不得共用輪替視窗）。
+  if [ -z "${BACKUP_DIR:-}" ] || [ "${BACKUP_DIR#/}" = "$BACKUP_DIR" ]; then
+    echo 'FATAL: POSTSEASON_BOXPA_ONLY 需明示獨立的 BACKUP_DIR（絕對路徑；不得與每日鏈共用輪替視窗）' >&2
+    exit 64
+  fi
+  BOXPA_BACKUP_DIR="$(python3 -c 'import os,sys; print(os.path.realpath(sys.argv[1]))' "$BACKUP_DIR")"
+  BOXPA_DAILY_BACKUP_DIR="$(python3 -c 'import os,sys; print(os.path.realpath(sys.argv[1]))' \
+    "$HOME/Library/Application Support/cpbl-analytics/backups")"
+  if [ -z "$BOXPA_BACKUP_DIR" ] || [ "$BOXPA_BACKUP_DIR" = "$BOXPA_DAILY_BACKUP_DIR" ]; then
+    echo 'FATAL: POSTSEASON_BOXPA_ONLY 的 BACKUP_DIR 與每日鏈備份目錄是同一個目錄（不得共用輪替視窗）' >&2
+    exit 64
+  fi
+  cd "$REPO_DIR"
+  BOXPA_STARTED="$(date +%s)"
+  BOXPA_LOCAL_PSQL="docker exec -i ${LOCAL_DB} psql -X -U cpbl -d cpbl"
+  BOXPA_TARGET_PSQL="ssh -o BatchMode=yes ${VPS} 'cd ${DEPLOY_PATH} && set -a && . ./.env && docker exec -i prod_pg psql -X -U \"\$DB_USER\" -d \"\$DB_NAME\"'"
+  echo "==> 季後目標場 box／PA（${POSTSEASON_BOXPA_GAMES}）：唯讀自檢（production 完賽／本機 FK 閉包／可送 PA 的場）"
+  # 非零（64／67／72／73／74）在 set -e 下原碼結束：未備份、未寫入。
+  BOXPA_PRECHECK="$(uv run python -m cpbl.ingest.boxpa_sync precheck --games "$POSTSEASON_BOXPA_GAMES" \
+    --local-psql "$BOXPA_LOCAL_PSQL" --target-psql "$BOXPA_TARGET_PSQL")"
+  echo "$BOXPA_PRECHECK"
+  BOXPA_PA_GAMES="$(printf '%s\n' "$BOXPA_PRECHECK" | sed -n 's/^BOXPA_PA_GAMES=//p')"
+  SYNC_SCOPE_KEYS_SQL="$(printf '%s\n' "$BOXPA_PRECHECK" | sed -n 's/^BOXPA_KEYS_SQL=//p')"
+  if [ -z "$SYNC_SCOPE_KEYS_SQL" ]; then
+    echo 'FATAL: 自檢未回傳目標場鍵條件（未備份、未寫入）' >&2
+    exit 67
+  fi
+  BOXPA_PA_PAYLOAD="$(mktemp "${TMPDIR:-/tmp}/cpbl-boxpa-pa.XXXXXX")"
+  uv run python -m cpbl.ingest.boxpa_sync pa-payload --games "$POSTSEASON_BOXPA_GAMES" \
+    --pa-games "$BOXPA_PA_GAMES" --local-psql "$BOXPA_LOCAL_PSQL" --out "$BOXPA_PA_PAYLOAD"
+  echo '==> 季後目標場 box／PA：獨立目錄備份 production（整庫）；驗證不過即中止'
+  BACKUP_PATH="$(VPS="$VPS" DEPLOY_PATH="$DEPLOY_PATH" BACKUP_DIR="$BOXPA_BACKUP_DIR" \
+    BACKUP_KEEP="${BACKUP_KEEP:-3}" "$REPO_DIR/scripts/backup-prod-db.sh")"
+  echo "    ✓ 已驗證備份：${BACKUP_PATH}"
+  echo '==> 季後目標場 box／PA：box 七表目標場 upsert（同完整鏈欄位清單；不 DELETE）'
+  sync_box_tables
+  if [ -s "$BOXPA_PA_PAYLOAD" ]; then
+    echo "==> 季後目標場 box／PA：PA 五表目標場單交易替換（${BOXPA_PA_GAMES}；不 TRUNCATE、不 CASCADE）"
+    BOXPA_RC=0
+    ssh -o BatchMode=yes "$VPS" \
+        "cd ${DEPLOY_PATH} && set -a && . ./.env && docker exec -i prod_pg psql \
+          -v ON_ERROR_STOP=1 -q --single-transaction -U \"\$DB_USER\" -d \"\$DB_NAME\"" \
+        < "$BOXPA_PA_PAYLOAD" || BOXPA_RC=$?
+    if [ "$BOXPA_RC" -ne 0 ]; then
+      echo "FATAL: PA 五表目標場替換失敗 rc=${BOXPA_RC}（單交易已回滾；payload 保留於 ${BOXPA_PA_PAYLOAD}）" >&2
+      [ "$BOXPA_RC" -eq 255 ] && exit 72
+      exit 74
+    fi
+    echo '    ✓ PA 五表（目標場）'
+  else
+    echo '    · PA：本次沒有可送的場（本機尚無 published build；production PA 未動）'
+  fi
+  rm -f "$BOXPA_PA_PAYLOAD"
+  echo '==> 季後目標場 box／PA：逐表逐場對帳（本機 vs production）'
+  BOXPA_RC=0
+  uv run python -m cpbl.ingest.boxpa_sync reconcile --games "$POSTSEASON_BOXPA_GAMES" \
+    --pa-games "$BOXPA_PA_GAMES" --local-psql "$BOXPA_LOCAL_PSQL" --target-psql "$BOXPA_TARGET_PSQL" \
+    --out "$BOXPA_MANIFEST" || BOXPA_RC=$?
+  echo "    ⓘ 耗時 $(( $(date +%s) - BOXPA_STARTED )) 秒；manifest：${BOXPA_MANIFEST}"
+  if [ "$BOXPA_RC" -ne 0 ]; then
+    echo "FATAL: 季後目標場對帳未通過 rc=${BOXPA_RC}（已寫入的列保留；見 manifest）" >&2
+    exit "$BOXPA_RC"
+  fi
+  echo '==> 季後目標場 box／PA：完成（只代表目標場 box 七表＋PA 五表同步與對帳，不代表整鏈刷新）'
+  exit 0
+fi
+
 cd "$REPO_DIR"
 # SKIP_SCRAPE=1：本機 DB 已是最新時，跳過重爬、直接把現有資料同步到 prod。
 if [ -n "${SKIP_SCRAPE:-}" ]; then
@@ -794,16 +1002,9 @@ if [ -n "${WITH_DETAIL:-}" ]; then
     item_note wins loses starts complete_games shutouts save_ok inning_pitched_cnt \
     inning_pitched_div3 plate_appearances pitch_cnt strikes balls hits home_runs sac_hit sac_fly bb ibb \
     hbp so wild_pitch balk runs earned_runs updated_at
-  sync_table game_detail "year,kind_code,game_sno" \
-    attendance game_time head_umpire first_umpire second_umpire third_umpire left_umpire right_umpire \
-    weather_code weather_desc winning_type attendance_backend updated_at
-  sync_table game_scoreboard "year,kind_code,game_sno,team_no,inning_seq" \
-    visiting_home_type team_name score_cnt hitting_cnt error_cnt
-  sync_table game_livelog "year,kind_code,game_sno,main_event_no" \
-    inning_seq visiting_home_type batting_order out_cnt ball_cnt strike_cnt pitch_cnt content \
-    action_name batting_action_name defend_station_code hitter_acnt hitter_name pitcher_acnt \
-    pitcher_name catcher_acnt catcher_name first_base second_base third_base is_strike is_ball \
-    is_score is_change_player is_special_event visiting_score home_score
+  sync_box_game_detail
+  sync_box_game_scoreboard
+  sync_box_game_livelog
   # 進階快照：父子表 + gating pointer 原子同步（見檔首 sync_advanced_snapshot）。
   # 取代舊 sync_table advanced_stats（RECONCILE1 後 FK 失敗 + gating 濾除既有列）。
   sync_advanced_snapshot
@@ -811,27 +1012,13 @@ if [ -n "${WITH_DETAIL:-}" ]; then
   # 漏列的欄只在生產端「首次插入」時帶上，之後永不更新。2026-09-23 實測：本清單寫於
   # 2026-06-17（5fe07703），其後 migration 新增的 19 欄（軌跡、球種推算、落點）全漏——
   # 7/08 後插入生產的逐球，pitch_type_pred／_v2 在生產上一律 NULL，本機重跑推算也帶不上去。
-  sync_table pitch_tracking "year,kind_code,game_sno,pitcher_acnt,pitch_cnt" \
-    pitcher_name hitter_acnt hitter_name inning_seq ball_cnt strike_cnt out_cnt batting_order content \
-    pitch_call auto_pitch_type tagged_pitch_type rel_speed spin_rate rel_side rel_height extension \
-    zone_speed plate_loc_side plate_loc_height hit_exit_speed hit_launch_angle hit_direction \
-    hit_distance hit_hang_time \
-    traj_accel_y traj_accel_z zone_time ivb_cm hb_cm pitch_type_pred pitch_type_pred_v2 \
-    hit_landing_bearing hit_landing_confidence hit_spin_rate \
-    traj_x0 traj_x1 traj_x2 traj_y0 traj_y1 traj_y2 traj_z0 traj_z1 traj_z2
+  sync_box_pitch_tracking
   # 逐場逐投手官方旗標（migration 073；救援成功／失敗等，與逐球同一個單場請求寫入）。
   # ⚠️ 表由 073 建立：生產端的 migration 用已部署的 prod_cpbl_api 映像執行，主站未部署
   # 含 073 的映像前，這一行會因生產端無此表而失敗——依 Runbook 先部署再同步。
-  sync_table pitching_game_flags "year,kind_code,game_sno,pitcher_acnt" \
-    is_save_ok is_save_fail role_type relief_point source_fetched_at
-  sync_table batting_gamelog "year,kind_code,game_sno,hitter_acnt" \
-    hitter_name visiting_home_type uniform_no role_type plate_appearances at_bats hits rbi runs \
-    singles doubles triples home_runs grand_slam total_bases gidp sac_hit sac_fly bb ibb hbp so sb cs \
-    lob errors gw_rbi is_mvp
-  sync_table pitching_gamelog "year,kind_code,game_sno,pitcher_acnt" \
-    pitcher_name visiting_home_type uniform_no role_type game_result is_complete_game is_shutout \
-    inning_pitched_cnt inning_pitched_div3 plate_appearances pitch_cnt strike_cnt ball_cnt hits \
-    home_runs sac_hit sac_fly bb ibb hbp so wild_pitch balk runs earned_runs relief_point max_speed is_mvp
+  sync_box_pitching_game_flags
+  sync_box_batting_gamelog
+  sync_box_pitching_gamelog
   # canonical PA build（INGEST-PA-DAILY1）：衍生自上面剛同步的 game_livelog／pitch_tracking／
   # batting_gamelog／pitching_gamelog，故放在其後；父子表 FK 順序見檔首 sync_pa_build。
   sync_pa_build
