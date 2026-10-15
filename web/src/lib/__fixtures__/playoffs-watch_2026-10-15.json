@@ -1,0 +1,259 @@
+{
+ "_provenance": "本機 API 4285（共享 cpbl 5433 唯讀）GET /api/v1/playoffs/watch?season=2026&series=C 原樣回應，2026-10-15 抽取（merge d9c07719 後的 #289 讀取面）；本機尚無 32 人名單，故 pitchers 為空",
+ "contract": "playoffs-watch/v1",
+ "policy_version": "playoffs-policy/v2.0-proposed",
+ "year": 2026,
+ "series": "C",
+ "series_id": {
+  "year": 2026,
+  "kind_code": "C",
+  "rule_version": "cpbl-regs-ch12/§60@110-12-29,§63@106-02-09,§66@106-02-09",
+  "teams": [
+   "AAA011",
+   "ACN011"
+  ]
+ },
+ "context_version": "3a26f9807f90c15ab14ae7783b2d12a20ee9e22a4b0434ea6b673f5ff649fbc3",
+ "target_game_key": {
+  "year": 2026,
+  "kind_code": "C",
+  "game_sno": 1
+ },
+ "requested_game_key": null,
+ "as_of": {
+  "now": "2026-10-15T10:12:13.748353+00:00",
+  "taipei_date": "2026-10-15",
+  "last_refresh_at": "2026-10-15T10:11:21.071350+08:00",
+  "last_completed_game_date": "2026-10-12"
+ },
+ "scope": {
+  "kinds": [
+   "A",
+   "E",
+   "C",
+   "D"
+  ],
+  "note": "近三日含一軍例行賽 A、季後 E／C 與二軍 D 已完賽正式場的投手逐場球數；未觀測熱身球與牛棚練投，不納入"
+ },
+ "publication": {
+  "status": "not_published",
+  "reason": "s09_not_enabled",
+  "slots": [
+   {
+    "slot": "A",
+    "status": "not_published",
+    "text": "賽前快照尚未發布"
+   },
+   {
+    "slot": "B",
+    "status": "not_published",
+    "text": "賽前快照尚未發布"
+   }
+  ]
+ },
+ "registration": {
+  "status": "unknown",
+  "reason": "registration_source_not_delivered",
+  "text": "未知（當場登錄來源尚未接入）"
+ },
+ "status": "ok",
+ "missing_reason": [
+  "s09_not_enabled",
+  "registration_source_not_delivered",
+  "starter_source_not_delivered",
+  "roster_missing:ACN011",
+  "roster_missing:AAA011"
+ ],
+ "source_manifest": [
+  {
+   "source": "rule_constant",
+   "scope": "2026",
+   "version_or_hash": "cpbl-regs-ch12/§60@110-12-29,§63@106-02-09,§66@106-02-09",
+   "observed_at": null,
+   "status": "ok"
+  },
+  {
+   "source": "games",
+   "scope": "2026/E,C",
+   "version_or_hash": "1af3c65f9ca550e07deeaed2b994793d6c600c2dcd159708b950feeb68648fdb",
+   "observed_at": "2026-10-15T10:12:13.748353+00:00",
+   "status": "ok"
+  },
+  {
+   "source": "standings",
+   "scope": "2026/A/official",
+   "version_or_hash": "214510c0a404228a1d8a39b5bfc95d29e5c2de7fab8d450a2184f0c551701578",
+   "observed_at": "2026-10-15T10:12:13.748353+00:00",
+   "status": "ok"
+  },
+  {
+   "source": "schedule_revisions",
+   "scope": "2026/E,C",
+   "version_or_hash": "cd1ead611435367a076513e4e9d543f6e386da149ef446d41c5bc163e0f0ab36",
+   "observed_at": "2026-10-15T10:12:13.748353+00:00",
+   "status": "ok"
+  },
+  {
+   "source": "change_signals",
+   "scope": "2026/E,C",
+   "version_or_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+   "observed_at": "2026-10-15T10:12:13.748353+00:00",
+   "status": "ok"
+  },
+  {
+   "source": "refresh_log",
+   "scope": "latest",
+   "version_or_hash": "9653fff72d0b959bdb9f5e97301b934f1f1c2dbe1460dcbd69830500e6c8d73b",
+   "observed_at": "2026-10-15T10:12:13.748353+00:00",
+   "status": "ok"
+  },
+  {
+   "source": "recap_builds",
+   "scope": "2026/E,C",
+   "version_or_hash": "bd8e8494971e82df0474160dbb78e6e9aea4380d891a8c5d84e66ada3390411c",
+   "observed_at": "2026-10-15T10:12:13.748353+00:00",
+   "status": "ok"
+  },
+  {
+   "source": "lineup_announcements",
+   "scope": "C1",
+   "version_or_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+   "observed_at": "2026-10-15T10:12:13.748353+00:00",
+   "status": "ok"
+  },
+  {
+   "source": "live_snapshot",
+   "scope": "C1",
+   "version_or_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+   "observed_at": "2026-10-15T10:12:13.748353+00:00",
+   "status": "ok"
+  },
+  {
+   "source": "series_roster",
+   "scope": "2026/C/ACN011,AAA011",
+   "version_or_hash": "159213530b1b1c0a2066a077a3921b87a61bce12dfe0615f2787c5eec92e3901",
+   "observed_at": "2026-10-15T10:12:13.748353+00:00",
+   "status": "ok"
+  },
+  {
+   "source": "window_games",
+   "scope": "2026-10-17-3d/ACN011,ACN022,AAA011,AAA022",
+   "version_or_hash": "358bae8156815f9347f2da366cbf65274251f66cacb1d5021b259ea6dcb6f102",
+   "observed_at": "2026-10-15T10:12:13.748353+00:00",
+   "status": "ok"
+  }
+ ],
+ "coverage": "unknown",
+ "target": {
+  "game_key": {
+   "year": 2026,
+   "kind_code": "C",
+   "game_sno": 1
+  },
+  "game_date": "2026-10-17",
+  "target_status": "scheduled",
+  "away_team_code": "ACN011",
+  "home_team_code": "AAA011"
+ },
+ "starters": [
+  {
+   "team_code": "ACN011",
+   "status": "unknown",
+   "reason": "starter_source_not_delivered",
+   "text": "官方先發投手：未知（來源尚未接入，S11）"
+  },
+  {
+   "team_code": "AAA011",
+   "status": "unknown",
+   "reason": "starter_source_not_delivered",
+   "text": "官方先發投手：未知（來源尚未接入，S11）"
+  }
+ ],
+ "teams": [
+  {
+   "side": "away",
+   "team_code": "ACN011",
+   "roster_status": "missing",
+   "roster": null,
+   "roster_text": "32 人名單尚未提交",
+   "days": [
+    {
+     "date": "2026-10-14",
+     "offset": 3,
+     "complete": true,
+     "reasons": [],
+     "text": [],
+     "live": false
+    },
+    {
+     "date": "2026-10-15",
+     "offset": 2,
+     "complete": true,
+     "reasons": [],
+     "text": [],
+     "live": false
+    },
+    {
+     "date": "2026-10-16",
+     "offset": 1,
+     "complete": true,
+     "reasons": [],
+     "text": [],
+     "live": false
+    },
+    {
+     "date": "2026-10-17",
+     "offset": 0,
+     "complete": true,
+     "reasons": [],
+     "text": [],
+     "live": false
+    }
+   ],
+   "pitchers": []
+  },
+  {
+   "side": "home",
+   "team_code": "AAA011",
+   "roster_status": "missing",
+   "roster": null,
+   "roster_text": "32 人名單尚未提交",
+   "days": [
+    {
+     "date": "2026-10-14",
+     "offset": 3,
+     "complete": true,
+     "reasons": [],
+     "text": [],
+     "live": false
+    },
+    {
+     "date": "2026-10-15",
+     "offset": 2,
+     "complete": true,
+     "reasons": [],
+     "text": [],
+     "live": false
+    },
+    {
+     "date": "2026-10-16",
+     "offset": 1,
+     "complete": true,
+     "reasons": [],
+     "text": [],
+     "live": false
+    },
+    {
+     "date": "2026-10-17",
+     "offset": 0,
+     "complete": true,
+     "reasons": [],
+     "text": [],
+     "live": false
+    }
+   ],
+   "pitchers": []
+  }
+ ],
+ "watch_version": "7d945af6c050f23c71bfbfc421be6e688d7a4f432e80f85cb22c92e933ff8e46"
+}

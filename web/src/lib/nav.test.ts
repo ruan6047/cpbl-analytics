@@ -4,11 +4,20 @@ import test from "node:test";
 import { METHODOLOGY_PATH } from "./methodology-anchors.ts";
 import { MORE_NAV, PRIMARY_NAV, isMoreActive, isNavActive } from "./nav.ts";
 
-test("主導覽為方案 B 的今日／賽程／戰績／球員／對戰", () => {
+test("主導覽為方案 B 的今日／賽程／戰績／球員／對戰，第 6 項季後賽（#285 D1）", () => {
   assert.deepEqual(
     PRIMARY_NAV.map((n) => n.label),
-    ["今日", "賽程", "戰績", "球員", "對戰"]
+    ["今日", "賽程", "戰績", "球員", "對戰", "季後賽"]
   );
+  assert.equal(PRIMARY_NAV[5].href, "/playoffs");
+});
+
+test("「季後賽」只在 /playoffs 作用中，不搶「戰績」的季後分頁", () => {
+  const playoffs = PRIMARY_NAV.find((n) => n.label === "季後賽")!;
+  assert.equal(isNavActive(playoffs, "/playoffs"), true);
+  assert.equal(isNavActive(playoffs, "/standings"), false);
+  const standings = PRIMARY_NAV.find((n) => n.label === "戰績")!;
+  assert.equal(isNavActive(standings, "/playoffs"), false);
 });
 
 test("「球員」直達打者排行，不建立 /players landing", () => {
