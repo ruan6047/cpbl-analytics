@@ -848,7 +848,7 @@ if [ -n "${POSTSEASON_BOXPA_ONLY:-}" ]; then
     fi
     echo '    ✓ PA 五表（目標場）'
   else
-    echo '    · PA：本次沒有可送的場（本機尚無 published build；production PA 未動）'
+    echo '    · PA：本次沒有可送的場（POSTSEASON_BOXPA_PARTS 不含 pa，或本機尚無 published build；production PA 未動）'
   fi
   rm -f "$BOXPA_PA_PAYLOAD"
   echo '==> 季後目標場 box／PA：逐表逐場對帳（本機 vs production）'
