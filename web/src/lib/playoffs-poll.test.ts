@@ -23,7 +23,7 @@ function harness(opts: { watch?: boolean; game?: number | null } = {}) {
   const timers: { fn: () => void; ms: number; id: number }[] = [];
   let nextId = 0;
   const calls: { kind: "overview" | "watch"; game?: number; signal: AbortSignal; d: ReturnType<typeof deferred<O | W>> }[] = [];
-  const shown: { overview: string[]; watch: WatchState<W>[] } = { overview: [], watch: [] };
+  const shown: { overview: string[]; watch: WatchState<W>[]; rounds: { ok: boolean; overviewOk: boolean }[] } = { overview: [], watch: [], rounds: [] };
   let visible = true;
   const poller = new PlayoffsPoller<O, W>({
     fetchOverview: (signal) => { const d = deferred<O | W>(); calls.push({ kind: "overview", signal, d }); return d.promise as Promise<O>; },
@@ -33,6 +33,7 @@ function harness(opts: { watch?: boolean; game?: number | null } = {}) {
     clearTimer: (h) => { const i = timers.findIndex((t) => t.id === h); if (i >= 0) timers.splice(i, 1); },
     onOverview: (o) => shown.overview.push(o.tag),
     onWatch: (s) => shown.watch.push(s),
+    onRound: (r) => shown.rounds.push({ ok: r.ok, overviewOk: r.overviewOk }),
   }, opts.game ?? null);
   return {
     poller, calls, shown, timers,
@@ -203,6 +204,12 @@ test("watch 讀取失敗只標第 4 區錯誤、overview 照常上畫面", async
   await flush();
   assert.deepEqual(h.shown.overview, ["v1"]);
   assert.equal(h.shown.watch.at(-1)!.kind, "error");
+  // 本輪算失敗（退避），但 overview 已上畫面：第 1 區不顯示「暫時無法更新」
+  assert.deepEqual(h.shown.rounds.at(-1), { ok: false, overviewOk: true });
+  await h.fire();
+  h.last("overview").d.reject(new Error("503"));
+  await flush();
+  assert.deepEqual(h.shown.rounds.at(-1), { ok: false, overviewOk: false });
 });
 
 test("stop 後不再排程、晚到回應不上畫面", async () => {

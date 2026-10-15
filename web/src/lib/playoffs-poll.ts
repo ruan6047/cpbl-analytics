@@ -20,7 +20,8 @@ export function nextDelay(failures: number): number {
 }
 
 export type VersionedOverview = { context_version: string; sections: { watch: { status: string; series: string; game: number | null } } };
-export type VersionedWatch = { context_version: string; status: string };
+/** `context_version` 為 null（不應發生）時與任何 overview 都不一致，照版本落差處理。 */
+export type VersionedWatch = { context_version: string | null; status: string };
 
 export type WatchDecision = "accept" | "refetch_overview" | "keep_previous";
 
@@ -51,7 +52,8 @@ export type PollDeps<O extends VersionedOverview, W extends VersionedWatch> = {
   onOverview: (o: O) => void;
   onWatch?: (s: WatchState<W>) => void;
   /** 每輪結束回報（測試與除錯用）。 */
-  onRound?: (r: { ok: boolean; failures: number; nextDelayMs: number | null }) => void;
+  /** `overviewOk`＝本輪 overview 已取得並上畫面（watch 失敗不影響第 1 區的「暫時無法更新」提示）。 */
+  onRound?: (r: { ok: boolean; overviewOk: boolean; failures: number; nextDelayMs: number | null }) => void;
 };
 
 export type Trigger = "start" | "timer" | "visible" | "game";
@@ -63,6 +65,7 @@ export class PlayoffsPoller<O extends VersionedOverview, W extends VersionedWatc
   private failures = 0;
   private lastWatch: W | null = null;
   private stopped = false;
+  private overviewOk = false;
   private deps: PollDeps<O, W>;
   private requestedGame: number | null;
 
@@ -137,6 +140,7 @@ export class PlayoffsPoller<O extends VersionedOverview, W extends VersionedWatc
     const ac = new AbortController();
     this.inflight = ac;
     const live = () => token === this.seq && !ac.signal.aborted;
+    this.overviewOk = false;
     try {
       const ok = await this.round(ac.signal, live);
       if (!live()) return;
@@ -145,7 +149,7 @@ export class PlayoffsPoller<O extends VersionedOverview, W extends VersionedWatc
         this.failures += 1;
         this.schedule(nextDelay(this.failures));
       }
-      this.deps.onRound?.({ ok, failures: this.failures, nextDelayMs: nextDelay(this.failures) });
+      this.deps.onRound?.({ ok, overviewOk: this.overviewOk, failures: this.failures, nextDelayMs: nextDelay(this.failures) });
     } finally {
       if (token === this.seq && this.inflight === ac) this.inflight = null;
     }
@@ -161,6 +165,7 @@ export class PlayoffsPoller<O extends VersionedOverview, W extends VersionedWatc
     }
     if (!live()) return false;
     this.deps.onOverview(overview);
+    this.overviewOk = true;
     const fetchWatch = this.deps.fetchWatch;
     if (!fetchWatch) return true;
 
