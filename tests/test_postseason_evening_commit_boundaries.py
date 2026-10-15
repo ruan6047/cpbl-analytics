@@ -1,6 +1,6 @@
 """#292 A1 E4：``POSTSEASON_RESULTS_ONLY`` 的實際提交邊界演練（PLAN plan-3 §1 F11、§9 E4）。
 
-跑**真的** ``scripts/refresh-cpbl-prod.sh``（symlink 進假 repo），沿用
+跑**真的** ``refresh-cpbl-prod.sh``（``SCRIPT``，symlink 進假 repo），沿用
 ``tests/test_prod_sync_revision_seq.py`` 的零 DB／零網路 harness，再把 ``ssh``／``docker``／
 ``backup-prod-db.sh``／``python3`` 換成可在指定邊界注入失敗的樁。``ssh`` 樁對每份 psql payload
 記錄退出碼：回 0 的那份＝該表在 production 端「已提交」（各表各自 ``--single-transaction``）。
@@ -32,6 +32,7 @@ from tests.test_prod_sync_revision_seq import (
     _DOCKER_STUB,
     FAKE_LOCAL_SEQ,
     FAKE_PROD_MAX,
+    SCRIPT,
     _build_harness,
     _write_exec,
 )
@@ -89,7 +90,8 @@ def run_boundary(tmp_path: Path, **inject: str) -> tuple[int, list[str], str]:
     _write_exec(harness["bin"] / "docker",
                 f"#!{sys.executable}\n{_DOCKER_INJECT}\n{_DOCKER_STUB}")
     _write_exec(harness["bin"] / "ssh", f"#!{sys.executable}\n{_SSH_STUB}")
-    backup = harness["repo"] / "scripts" / "backup-prod-db.sh"
+    script = harness["repo"] / SCRIPT.parent.name / SCRIPT.name   # 假 repo 內指回真檔的 symlink
+    backup = script.with_name("backup-prod-db.sh")
     backup.unlink()
     _write_exec(backup, "#!/bin/sh\nexit 1\n" if inject.pop("BACKUP_FAIL", None)
                 else "#!/bin/sh\necho /fixture/evening-backup.sql.gz\n")
@@ -112,7 +114,7 @@ def run_boundary(tmp_path: Path, **inject: str) -> tuple[int, list[str], str]:
     }
     if env.get("BACKUP_DIR") == "":
         del env["BACKUP_DIR"]
-    result = subprocess.run(["/bin/bash", str(harness["repo"] / "scripts" / "refresh-cpbl-prod.sh")],
+    result = subprocess.run(["/bin/bash", str(script)],
                             env=env, text=True, capture_output=True, stdin=subprocess.DEVNULL,
                             check=False)
     ssh_dir = harness["log"] / "ssh"
