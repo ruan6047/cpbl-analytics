@@ -99,13 +99,14 @@ def _latest(*stamps: str | None) -> str | None:
 
 
 def classify(facts: LocalFacts, manifest: Mapping[str, Any] | None, now: datetime, *,
-             retries_exhausted: bool = False, final_prod_at: str | None = None) -> dict[str, SourceStatus]:
+             exhausted: Iterable[str] = (), final_prod_at: str | None = None) -> dict[str, SourceStatus]:
     """單場三來源分類（純函式）。
 
     ``manifest``＝該場最近一次 scoped 同步對帳結果（``boxpa_sync reconcile`` 輸出中 ``games[key]``，
-    加上 ``at``）；``retries_exhausted``＝同來源重送一次也已用掉。``final_prod_at``＝production 端
-    首次確認完賽的時刻（scoped 同步自檢通過或晚間結果鏈 T3），沒有就 ``None``。
+    加上 ``at``）；``exhausted``＝同來源重送一次也已用掉的來源（``"box"``／``"pa"``）。
+    ``final_prod_at``＝production 端首次確認完賽的時刻（scoped 同步自檢通過或晚間結果鏈 T3），沒有就 ``None``。
     """
+    exhausted = set(exhausted)
     sync_at = (manifest or {}).get("at")
     # ---- final
     if not facts.completed:
@@ -124,7 +125,7 @@ def classify(facts: LocalFacts, manifest: Mapping[str, Any] | None, now: datetim
         box = SourceStatus(PENDING, "local_box_incomplete:" + "/".join(missing), None, None,
                            same_night(facts.game_date, None, now))
     else:
-        box = _prod_side(facts, manifest, sync_at, now, retries_exhausted, kind="box",
+        box = _prod_side(facts, manifest, sync_at, now, "box" in exhausted, kind="box",
                          local_at=facts.box_local_at,
                          local_counts={t: facts.box_counts.get(t, 0) for t in BOX_ALL_TABLES})
     # ---- PA（只有真正依賴 PA 的讀取面看這一格）
@@ -134,7 +135,7 @@ def classify(facts: LocalFacts, manifest: Mapping[str, Any] | None, now: datetim
         pa = SourceStatus(PENDING, "no_local_published_build", None, None,
                           same_night(facts.game_date, None, now))
     else:
-        pa = _prod_side(facts, manifest, sync_at, now, retries_exhausted, kind="pa",
+        pa = _prod_side(facts, manifest, sync_at, now, "pa" in exhausted, kind="pa",
                         local_at=facts.published_at,
                         local_counts={t: facts.pa_counts.get(t, 0) for t in PA_TABLES})
         if facts.reconciliation_outstanding and pa.status == DELIVERED:

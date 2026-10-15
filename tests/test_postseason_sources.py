@@ -122,7 +122,7 @@ def test_reconcile_mismatch_retries_once_then_conflict():
     m = _manifest(e4, "2026-10-12T22:40:00+08:00", box_ok=False, pa_ok=False)
     first = ps.classify(e4, m, NOW)
     assert (first["box"].status, first["box"].reason) == (ps.PENDING, "reconcile_mismatch_retrying")
-    final = ps.classify(e4, m, NOW, retries_exhausted=True)
+    final = ps.classify(e4, m, NOW, exhausted={"box", "pa"})
     assert final["box"].status == ps.CONFLICT and final["pa"].status == ps.CONFLICT
 
 
