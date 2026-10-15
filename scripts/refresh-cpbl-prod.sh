@@ -48,6 +48,8 @@ scripts/refresh-cpbl-prod.sh — 把本機 CPBL 資料同步到 production（四
   SKIP_SCRAPE=1 WITH_DETAIL=1 ./scripts/refresh-cpbl-prod.sh  # 本機已最新：只同步不重爬
                                                               # ↑ 每日鏈 scrape-daily.sh 走這條
   LINEUP_ONLY=1 SKIP_SCRAPE=1 ./scripts/refresh-cpbl-prod.sh # 有限公告；不爬、不訓練、不檢查整鏈 freshness
+  ROSTER_ONLY=1 SKIP_SCRAPE=1 BACKUP_DIR=<獨立目錄> ./scripts/refresh-cpbl-prod.sh
+                                                              # 季後 32 人名單三表 insert-only 同步（手動、需授權）
 
 環境變數
   LOCAL_DB      本機 PostgreSQL 容器名（預設 cpbl-analytics-db-1）
@@ -57,10 +59,15 @@ scripts/refresh-cpbl-prod.sh — 把本機 CPBL 資料同步到 production（四
   WITH_DETAIL   非空＝連同選手細項（投打對決 / 對戰各隊 / 分項）
   SKIP_SCRAPE   非空＝跳過爬取，直接同步本機現有資料
   LINEUP_ONLY   1＝搭配 SKIP_SCRAPE=1，只驗證備份、套 schema、同步有限公告表
+  ROSTER_ONLY   1＝搭配 SKIP_SCRAPE=1 與獨立 BACKUP_DIR，只做名單三表 insert-only 同步
+                （唯讀比對；無變更不備份不寫；有待插入才備份＋單交易插入＋事後對帳；
+                 不 migrate、不爬、不訓練、不寫 refresh 標記、不碰其他表）
 
 離開碼
   0 成功 · 64 參數錯 · 65 取不到本機 freshness 基準 · 67 同步 payload 驗證失敗
   68 POSTSEASON_RESULTS_ONLY 的 data-only 對帳不等（季後晚間鏈：停止當晚）
+  ROSTER_ONLY：67 本機名單自檢失敗 · 69 production 尚無名單表（待部署窗口）
+               70 同 scope 內容不同拒絕（不寫、不重試） · 71 事後對帳不等 · 72 目標 psql／ssh 失敗
 
 背景：docs/AI_RUNBOOK.md（本機爬 → 同步生產）
 EOF
@@ -180,6 +187,62 @@ SQL_END
 }
 
 # 有限公告同步在完整鏈之前退出，不碰 freshness／特徵／訓練。
+# 季後 32 人名單三表（#284 S03；Q3 裁定 A＋T2 裁定 A）：比照 LINEUP_ONLY 早退的獨立 insert-only 步驟。
+# 比對／payload／對帳全在 cpbl.rosters.sync（Python）；本段只做參數守衛、備份與 psql 管道。
+#   ⛔ 不爬（必須 SKIP_SCRAPE=1）、不 build-features、不跑 migration（schema 只隨部署窗口）、不訓練、
+#   ⛔ 不寫 refresh 標記、不同步其他表、⛔ 不進 sync_table 清單、⛔ 不在完整鏈與 scrape-daily.sh 呼叫。
+#   ⛔ 無 UPDATE／DELETE：同 scope 內容不同一律 exit 70 拒絕、不重試；無變更時不備份、不寫入。
+# BACKUP_DIR 必須明示且不得是每日鏈預設目錄（不輪替掉 10:10 的 7 份歷史深度）。
+if [ -n "${ROSTER_ONLY:-}" ]; then
+  if [ "$ROSTER_ONLY" != 1 ] || [ "${SKIP_SCRAPE:-}" != 1 ] || [ -n "${WITH_DETAIL:-}" ] \
+     || [ -n "${LINEUP_ONLY:-}" ] || [ -n "${POSTSEASON_RESULTS_ONLY:-}" ]; then
+    echo 'FATAL: ROSTER_ONLY=1 必須搭配 SKIP_SCRAPE=1，且不得與 WITH_DETAIL／LINEUP_ONLY／POSTSEASON_RESULTS_ONLY 併用' >&2
+    exit 64
+  fi
+  # 比的是「實際目錄」不是字串（#284 R1 F1）：尾端 /、/.、..、symlink 都可能指回每日鏈目錄，
+  # 而 backup-prod-db.sh 會在該目錄輪替刪檔。故只收絕對路徑，雙方以 realpath 正規化後比較，
+  # 並把正規化後的同一個值交給備份腳本（檢查的與使用的是同一個目錄）。
+  if [ -z "${BACKUP_DIR:-}" ] || [ "${BACKUP_DIR#/}" = "$BACKUP_DIR" ]; then
+    echo 'FATAL: ROSTER_ONLY 需明示獨立的 BACKUP_DIR（絕對路徑；不得與每日鏈共用輪替視窗）' >&2
+    exit 64
+  fi
+  ROSTER_BACKUP_DIR="$(python3 -c 'import os,sys; print(os.path.realpath(sys.argv[1]))' "$BACKUP_DIR")"
+  ROSTER_DAILY_BACKUP_DIR="$(python3 -c 'import os,sys; print(os.path.realpath(sys.argv[1]))' \
+    "$HOME/Library/Application Support/cpbl-analytics/backups")"
+  if [ -z "$ROSTER_BACKUP_DIR" ] || [ "$ROSTER_BACKUP_DIR" = "$ROSTER_DAILY_BACKUP_DIR" ]; then
+    echo 'FATAL: ROSTER_ONLY 的 BACKUP_DIR 與每日鏈備份目錄是同一個目錄（不得共用輪替視窗）' >&2
+    exit 64
+  fi
+  cd "$REPO_DIR"
+  ROSTER_LOCAL_PSQL="docker exec -i ${LOCAL_DB} psql -U cpbl -d cpbl"
+  ROSTER_TARGET_PSQL="ssh -o BatchMode=yes ${VPS} 'cd ${DEPLOY_PATH} && set -a && . ./.env && docker exec -i prod_pg psql -U \"\$DB_USER\" -d \"\$DB_NAME\"'"
+  echo '==> 名單三表：唯讀比對本機與 production（insert-only）'
+  # 非零（67／69／70／72）在 set -e 下原碼結束：拒絕不重試、不備份、不寫。
+  ROSTER_PLAN="$(uv run python -m cpbl.rosters.sync plan \
+    --local-psql "$ROSTER_LOCAL_PSQL" --target-psql "$ROSTER_TARGET_PSQL")"
+  echo "$ROSTER_PLAN"
+  case "$ROSTER_PLAN" in
+    *ROSTER_SYNC_PLAN=no-change*)
+      echo '==> 名單三表：無變更（未備份、未寫入）'
+      exit 0
+      ;;
+    *ROSTER_SYNC_PLAN=insert-pending*) ;;
+    *)
+      echo 'FATAL: 名單比對結果無法辨識，停止（不備份、不寫入）' >&2
+      exit 67
+      ;;
+  esac
+  echo '==> 名單三表：獨立目錄備份 production（整庫）；驗證不過即中止'
+  BACKUP_PATH="$(VPS="$VPS" DEPLOY_PATH="$DEPLOY_PATH" BACKUP_DIR="$ROSTER_BACKUP_DIR" \
+    BACKUP_KEEP="${BACKUP_KEEP:-3}" "$REPO_DIR/scripts/backup-prod-db.sh")"
+  echo "    ✓ 已驗證備份：${BACKUP_PATH}"
+  echo '==> 名單三表：單交易 insert-only 寫入＋事後對帳'
+  uv run python -m cpbl.rosters.sync apply \
+    --local-psql "$ROSTER_LOCAL_PSQL" --target-psql "$ROSTER_TARGET_PSQL"
+  echo '==> 名單三表：完成（只代表名單三表同步與對帳，不代表整鏈刷新）'
+  exit 0
+fi
+
 if [ -n "${LINEUP_ONLY:-}" ]; then
   if [ "$LINEUP_ONLY" != 1 ] || [ "${SKIP_SCRAPE:-}" != 1 ]; then
     echo 'FATAL: LINEUP_ONLY=1 必須搭配 SKIP_SCRAPE=1' >&2

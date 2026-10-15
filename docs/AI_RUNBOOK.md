@@ -125,6 +125,23 @@ LINEUP_ONLY=1 SKIP_SCRAPE=1 ./scripts/refresh-cpbl-prod.sh
 
 報告 GET 只讀已保存版本；表尚未部署、無正面賽前證據、公告撤回／不完整、來源時間不確定時保持「未核」。已開始後的資料不能倒填先發公告；九人名單與正式完整母體是不同證據。這個模式不會恢復原本未保存的歷史。
 
+### 季後 32 人資格名單（#284 S03；手動、需授權）
+
+官方 32 人名單由需求方整理成 PRD v2「輸入格式」（[`design/PLAYOFFS_PRD_V2.md`](design/PLAYOFFS_PRD_V2.md)「名單解析與不可變提交」）後，在本機以 `cpbl-roster` 提交；它是三表 `series_roster`／`series_roster_member`／`roster_annotation_revision`（migration 076）唯一的會員 writer。正式站不建提交端點。
+
+```bash
+# 寫本機共享 cpbl 前須另登記資源租用；真實名單提交前由需求方人工核對 preview 的 32 人身份與官方來源（P3）。
+uv run cpbl-roster preview roster.txt                       # 唯讀；草稿／規則違反非零退出、不寫 DB
+uv run cpbl-roster submit roster.txt --confirm-hash <preview 的 membership_hash>
+uv run cpbl-roster annotate roster.txt                      # 只改戰術角色，另存新版；會員不動
+uv run cpbl-roster show --year 2026 --series C --team ACN011
+```
+
+- **不可變**：每 (year, series, team) 一份；三表 UPDATE／DELETE／TRUNCATE 由觸發器拒絕，sync_table 式 `ON CONFLICT DO UPDATE` 也會被擋；每份恰 32 人由延遲約束在提交時保證。同內容重送回原 `roster_id`、不重算提交時間；不同內容拒絕並列差異。錯匯⛔ 不 routine 修改：停止對外宣稱已核，交需求方例外裁定、另卡處理。
+- **身分**：`@id=` 或同年同隊（team_roster／一軍出賽／已提交名單）範圍內唯一精確姓名才解析；⛔ 不模糊比對、⛔ 不創假 ID。外籍三態：`players.country` 缺＝身分未知，不猜成本土，摘要標「外籍資格檢查不完整」；已核洋將 > 3 拒絕。參賽隊只驗 team_dim 存在，系列參賽資格需人工確認（S02 契約未核定）。
+- **資格≠可用**：名單與角色不代表先發、當場 28 人登錄或可用；`show` 的本季 A 出賽以 LEFT JOIN 取得，沒有就是「無」，不是 0。
+- **生產同步**：只走獨立 insert-only 路徑 `cpbl.rosters.sync`（先唯讀比對：無變更不備份不寫、內容不同 exit 70 拒絕不重試；有待插入才備份＋單交易插入＋事後雜湊對帳）。⛔ 不進 sync_table 清單、⛔ 不掛每日鏈；schema 只隨部署窗口套用（同步本身不 migrate）。每次同步須另取需求方授權。生產入口只有 `ROSTER_ONLY=1 SKIP_SCRAPE=1 BACKUP_DIR=<非每日預設的獨立目錄，絕對路徑> scripts/refresh-cpbl-prod.sh`（#284 T2；mock 證據 `tests/test_roster_only_mode.py`），⛔ 不得改用其他方式對生產執行。
+
 **每日刷新現況（最後驗證 2026-07-19）**：本機 launchd 10:10 已成功完成爬取與 production 同步（`sync_ok=true`）。仍必須每天以 `refresh_status.py check --scheduled` 檢查；成功同步不等於資料語意正確——目前 `BUG-HELD-GAME-FRESHNESS1` 已證實未完成保留賽會污染 `last_game_date`，修復前不得僅以 freshness gate 判定資料正確。
 
 ### 本機每日爬取（launchd 每日 10:10；手動為 fallback）
@@ -347,6 +364,7 @@ production 映像尚未部署，先停止同步並完成正常 main deploy，不
 | `cpbl-verify-splits [year] [kind]` | 分項重算 vs 官方爬值逐格對照 harness | 只對「新爬的官方值」有意義（寫回後即自比） |
 | `cpbl-build-championships` | 由逐年可追溯的 `championships` canonical dataset 決定冠軍→標該年一軍球員+總教練（物化 `championship_members`，純 DB 不爬） | 改冠軍資料／成員邏輯後（已含於 refresh-recent） |
 | `cpbl-build-features` | 賽果預測特徵表(leakage-safe) | 改賽果特徵後 |
+| `cpbl-roster {preview,submit,annotate,show,import-official-population}` | 季後 32 人資格名單：解析→預覽→帶 `--confirm-hash` 的單交易提交；**insert-only、提交後不可變**（不是 UPSERT） | 需求方貼官方名單後（見 §3「季後 32 人資格名單」） |
 | `cpbl-train` | 成績預測訓練+回測（**需 LightGBM → 容器內跑**） | 改成績模型/特徵後 |
 
 **補多天缺口的正確順序**（`refresh-recent` 只補昨/今，補不了更早）：
