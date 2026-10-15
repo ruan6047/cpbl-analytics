@@ -94,7 +94,8 @@ function NextGame({ overview }: { overview: PlayoffsOverview }) {
   if (!next) return missing ? <p className="text-sm text-muted">{missing}</p> : null;
   return (
     <div className="rounded-md bg-surface-2 p-3" data-next-game>
-      <SectionTitle as="h3" size="sm">下一場：{gameTitle(next)}</SectionTitle>
+      {/* 目標場進行中時不叫「下一場」（狀態由 S02 target_status 給，不自行推導） */}
+      <SectionTitle as="h3" size="sm">{next.target_status === "live" ? "進行中" : "下一場"}：{gameTitle(next)}</SectionTitle>
       <dl className="mt-1 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm">
         <dt className="text-muted">日期</dt>
         <dd className="text-ink">{dateText(next.game_date)}</dd>

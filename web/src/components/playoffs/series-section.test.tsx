@@ -53,6 +53,14 @@ test("C1 完賽後：卡上有比分與 MVP、預告換 C2", () => {
   assert.match(t, /官方 MVP：鄭浩均/);
 });
 
+test("目標場進行中：預告標題改「進行中」，不叫下一場", () => {
+  const o = clone();
+  o.series_section.next_game = { ...o.series_section.next_game!, target_status: "live" };
+  const t = text(html(<SeriesSection overview={o} />));
+  assert.match(t, /進行中：台灣大賽 G1/);
+  assert.doesNotMatch(t, /下一場：/);
+});
+
 test("MVP 缺值：未取得與姓名缺分開，⛔ 寫未公布", () => {
   const base = REAL.series_section.previous!.games[0];
   const missing: OverviewGameCard = { ...base, mvp: null, mvp_missing_reason: "official_mvp_not_ingested" };
