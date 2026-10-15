@@ -121,6 +121,23 @@ def test_challenge_failures_shared_with_results_chain_stop_detail_tonight():
     assert step(state, tpe(10, 12, 22, 0), f) == ("idle", [])
 
 
+def test_c2_detail_shares_kind_cooldown_ledger_with_results_and_starter_checkpoints():
+    """需求方裁定 C2（#293 issuecomment-6186074916）：同賽別任兩次 www 冷啟動間隔 ≥20 分鐘，不論是
+    結果鏈、#292 先發時點或 box 明細發的——三者讀寫同一本 ``www_requests``（``kind_cooled``）。"""
+    state, f = pe.empty_state(), box_missing(real_e4())
+    t0 = tpe(10, 12, 21, 30)
+    pe.record_scrape(state, t0, errors=[], changed=True, stats_has_c=False, local_c_rows=0,
+                     kinds=("E",))                        # 結果鏈剛抓過 E（getgamedatas）
+    assert step(state, tpe(10, 12, 21, 31), f) == ("idle", []), "結果鏈 www 後 20 分鐘內不抓明細"
+    assert step(state, tpe(10, 12, 21, 50), f) == ("detail", [KEY])
+    t1 = tpe(10, 12, 21, 50)
+    pe.boxpa_record_detail(state, t1, [KEY], [])
+    assert state["www_requests"]["E"] == pe._iso(t1), "明細也寫進共用帳本"
+    assert not pe.kind_cooled(state, "E", tpe(10, 12, 22, 9)), "結果鏈／先發時點同樣要等明細後 20 分鐘"
+    assert pe.kind_cooled(state, "E", tpe(10, 12, 22, 10))
+    assert pe.kind_cooled(state, "C", tpe(10, 12, 21, 51)), "不同賽別互不連坐"
+
+
 # ------------------------------------------------------------------ box 到齊 → 同步；PA 晚到
 
 def test_box_then_pa_late_two_syncs_then_delivered_same_night():

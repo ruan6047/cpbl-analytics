@@ -704,6 +704,8 @@ def timeline(state: Mapping) -> list[dict]:
 # production」的目標場做兩步（核定規劃 PLAN r2 §5 WP3）：
 #   1. 明細 www（既有 _postseason_detail_step）：每場每晚 ≤3 次、間隔 ≥20 分鐘；挑戰類失敗與結果鏈共用
 #      「當晚兩次即停」（note_challenge）；讓位 10:10（DAILY_GUARD）。
+#      ⭐ 賽別冷卻也與結果鏈／#292 先發時點共用同一本帳（kind_cooled／www_requests；需求方裁定 C2，
+#      #293 issuecomment-6186074916）：同賽別任兩次 www 冷啟動間隔 ≥20 分鐘，不論是誰發的。
 #   2. 本機明細到齊 → PA build（既有 build_scope）→ scoped 同步（refresh-cpbl-prod.sh POSTSEASON_BOXPA_ONLY）。
 #      同來源最多 1 次＋1 次重送（需求方裁定 Q5）；只有對帳不等（68）或 ssh 連線失敗（72）可重送。
 # 錯誤語意沿操作包 v2：psql／schema／備份／本機自檢失敗 → halted（與結果鏈同一個 halted，bootout 交人工）；
@@ -788,7 +790,8 @@ def boxpa_refresh(state: dict, now: datetime, local: Mapping[str, LocalGame],
 def boxpa_plan(state: dict, now: datetime, open_recs: Mapping[str, dict]) -> tuple[str, list[str]]:
     """回 ``(action, keys)``；action ∈ idle／detail／sync。**不連 www、不寫 DB**。
 
-    * detail：本機 box 核心表仍缺、且該場 www 次數未用盡、冷卻已過、當晚未被挑戰封鎖。
+    * detail：本機 box 核心表仍缺、且該場 www 次數未用盡、該場與該賽別共用帳本的冷卻都已過、
+      當晚未被挑戰封鎖。
     * sync：本機 box 已到齊（或 PA 已 published）而該來源尚未送達、且仍可送（1＋1 重送）。
     * 已用盡 www 次數而 box 仍缺 → 記 unreached（www_detail_incomplete_after_max_attempts）。
     """
@@ -807,6 +810,8 @@ def boxpa_plan(state: dict, now: datetime, open_recs: Mapping[str, dict]) -> tup
             if www_blocked(state, now):
                 continue
             if attempts and now - max(attempts) < BOXPA_WWW_COOLDOWN:
+                continue
+            if not kind_cooled(state, _kind_of(key), now):   # C2：與結果鏈／先發時點共用賽別冷卻
                 continue
             detail.append(key)
             continue
@@ -834,6 +839,10 @@ def _boxpa_done(rec: Mapping) -> bool:
 
 
 def boxpa_record_detail(state: dict, now: datetime, keys: Iterable[str], errors: list[dict]) -> str:
+    keys = list(keys)
+    requests = state.setdefault("www_requests", {})
+    for kind in {_kind_of(k) for k in keys}:
+        requests[kind] = _iso(now)   # C2：寫進共用賽別冷卻帳本，結果鏈與先發時點據此冷卻
     for key in keys:
         state["boxpa"][key].setdefault("detail_attempts", []).append(_iso(now))
     note_challenge(state, now, errors)
