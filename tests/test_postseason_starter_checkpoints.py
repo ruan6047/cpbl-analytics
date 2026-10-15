@@ -313,7 +313,6 @@ def test_final_point_anchors_on_first_local_finished_observation():
     state["last_probe_at"] = None
     wake(state, tpe(10, 17, 20, 12), done, local=local_for(done, completed=True))
     wake(state, tpe(10, 17, 20, 17), done, local=local_for(done, completed=True))
-    assert state["finished_first_seen"]["2026-C-1"] == pe._iso(tpe(10, 17, 20, 12))
     assert wake(state, tpe(10, 17, 21, 11), done, local=local_for(done, completed=True)) == ("idle", "no_events")
     assert wake(state, tpe(10, 17, 21, 12), done, local=local_for(done, completed=True)) == (
         "scrape", "starter_checkpoint")
@@ -322,12 +321,73 @@ def test_final_point_anchors_on_first_local_finished_observation():
     assert f60["deadline_at"] == pe._iso(tpe(10, 17, 21, 42))
 
 
-def test_finished_first_seen_is_recorded_even_when_flag_is_off():
+def test_finished_transition_is_recorded_even_when_flag_is_off():
+    """旗標關時也記錄「未完賽→完賽」轉變；比賽中途才開旗標，F+60 仍以轉變當下為錨。"""
     state = pe.empty_state()
     done = stats(raw_game("C", 1, "FINISHED", "2026-10-17T17:05:00"))
+    started = stats(raw_game("C", 1, "START", "2026-10-17T17:05:00"))
+    wake(state, tpe(10, 17, 19, 0), started, enabled=False, local=C1_LOCAL)
+    state["last_probe_at"] = None
     wake(state, tpe(10, 17, 20, 12), done, enabled=False, local=local_for(done, completed=True))
-    assert state["finished_first_seen"] == {"2026-C-1": pe._iso(tpe(10, 17, 20, 12))}
     assert state["starter_checkpoints"] == {}
+    loc = local_for(done, completed=True)
+    assert wake(state, tpe(10, 17, 20, 30), done, local=loc) == ("idle", "no_events")   # 開旗標
+    assert wake(state, tpe(10, 17, 21, 12), done, local=loc) == ("scrape", "starter_checkpoint")
+    (f60,) = records(state, "F+60")
+    assert f60["anchor_at"] == pe._iso(tpe(10, 17, 20, 12))
+
+
+# —— #292 A1b：首次看到時就已完賽 ⇒ 沒有終場錨點（需求方 6189997794）——
+
+def test_game_already_finished_at_first_sight_never_gets_f60():
+    """新碼第一次喚醒就看到早已完賽的場次：那次喚醒時刻不是終場時刻，⛔ 產生 F+60。"""
+    state = pe.empty_state()
+    done = stats(raw_game("E", 4, "FINISHED", "2026-10-12T18:35:00"))
+    loc = local_for(done, completed=True)
+    assert wake(state, tpe(10, 15, 18, 25), done, local=loc) == ("idle", "no_events")
+    for hh, mm in ((19, 25), (19, 40), (19, 55)):
+        state["last_probe_at"] = None
+        assert wake(state, tpe(10, 15, hh, mm), done, local=loc) == ("idle", "no_events")
+    assert records(state, "F+60") == []
+    assert [r for r in sc.preview(state["schedule"], state["finished_first_seen"], tpe(10, 15, 19, 0))
+            if r["point"] == "F+60"] == []
+    assert state["finished_first_seen"]["2026-E-4"] == {
+        "last_unfinished_at": None, "finished_at": None,
+        "first_seen_finished_at": pe._iso(tpe(10, 15, 18, 25))}, "之後再看到完賽也不補成終場"
+
+
+# 51c65d1d 第一次喚醒（2026-10-15 18:25:28 台北）在真實狀態檔留下的形狀：E-1～E-4 以字串記為「首見完賽」。
+LEGACY_FIRST_SEEN = "2026-10-15T10:25:28.793144+00:00"
+REAL_SHAPE = stats(*[raw_game("E", n, "FINISHED", f"2026-10-{8 + n:02d}T{t}:00")
+                     for n, t in ((1, "17:05"), (2, "17:05"), (3, "17:05"), (4, "18:35"))],
+                   raw_game("C", 1, "SCHEDULED", "2026-10-17T17:05:00"))
+
+
+def _legacy_state():
+    state = pe.empty_state()
+    state["schedule"] = [pe.asdict(g) for g in REAL_SHAPE]
+    state["last_probe_at"] = LEGACY_FIRST_SEEN
+    state["finished_first_seen"] = {f"2026-E-{n}": LEGACY_FIRST_SEEN for n in range(1, 5)}
+    return state
+
+
+def test_legacy_first_seen_values_from_51c65d1d_never_anchor_f60():
+    """真實狀態檔已記的 E-1～E-4 舊值（沒有「曾見未完賽」的證據）不得再產生 F+60；狀態檔不需清理。"""
+    state = _legacy_state()
+    loc = {**local_for(REAL_SHAPE[:4], completed=True), **local_for(REAL_SHAPE[4:])}
+    assert wake(state, tpe(10, 15, 18, 30), REAL_SHAPE, local=loc)[0] == "idle"   # 開旗標（未到 stats 輪詢）
+    for hh, mm in ((19, 25), (19, 30), (19, 55)):
+        state["last_probe_at"] = None
+        assert wake(state, tpe(10, 15, hh, mm), REAL_SHAPE, local=loc) == ("idle", "no_events")
+    assert records(state, "F+60") == []
+    assert {k: v for k, v in state["finished_first_seen"].items() if "-E-" in k} == \
+        _legacy_state()["finished_first_seen"], "舊字串值原樣保留"
+    assert state["finished_first_seen"]["2026-C-1"]["finished_at"] is None   # C-1 只記到「曾見未完賽」
+    rows = sc.preview(_legacy_state()["schedule"], _legacy_state()["finished_first_seen"],
+                      tpe(10, 15, 18, 28))
+    assert [r["key"] for r in rows if r["point"] == "F+60" and "due_at" in r] == []
+    c1 = {r["point"]: r.get("due_at") for r in rows if r["key"] == "2026-C-1"}
+    assert (c1["S-60"], c1["S-30"]) == (tpe(10, 17, 16, 5).isoformat(), tpe(10, 17, 16, 35).isoformat())
 
 
 # —— D2 有界重送 ——

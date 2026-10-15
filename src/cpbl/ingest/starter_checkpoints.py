@@ -16,7 +16,9 @@ getgamedatas，整賽別一次），寫入仍是既有 ``games``＋``game_schedu
 
 S＝狀態檔中最近一次 stats ``PreExeDate``（台北無時區字串）；www ``GameDateTimeS`` 只並列記錄，
 不一致時以 stats 為準（``start_mismatch``）。取不到 S ⇒ ``start_time_unknown``、不觸發。
-F＝**本機首次觀測**到 stats ``FINISHED`` 的時刻（官方結束時刻不可得；最多晚約一個喚醒間隔）。
+F＝本機**觀測到「未完賽→完賽」轉變**的時刻：曾看到該場未完賽、之後第一次看到 stats ``FINISHED``
+（官方結束時刻不可得；最多晚約一個喚醒間隔）。**首次看到時就已完賽**的場次沒有 F、⛔ 產生 F+60——那次
+喚醒時刻不是終場時刻（#292 A1b，需求方 6189997794）。
 S−60／S−30 只對未開打場次；F+60 只對已完賽場次；延賽／保留沒有完賽 ⇒ F+60 記 ``no_final``，
 改期後以新的 S 產生新的時點（紀錄 id 含錨點時刻）。
 
@@ -109,10 +111,32 @@ def _hhmm(raw: object) -> str | None:
 
 
 def note_finished(finished: dict, schedule: Iterable[Mapping], now: datetime) -> None:
-    """F 的近似：每場第一次在 stats 看到 FINISHED 的本機時刻（只記第一次，之後不改）。"""
+    """記錄每場的終場觀測（狀態檔 ``finished_first_seen``），F 只能來自「未完賽→完賽」轉變。
+
+    值形狀：``{"last_unfinished_at", "finished_at"}``——看到未完賽時更新前者；之後第一次看到
+    FINISHED 才填 ``finished_at``（之後不改）。首次看到就已完賽 ⇒ 記 ``first_seen_finished_at``、
+    ``finished_at`` 留空，永不成為錨點。51c65d1d 留下的**字串值**（首見完賽時刻，沒有曾見未完賽的
+    證據）原樣保留、不覆寫，也不當錨點——不需清理狀態檔。"""
     for g in schedule:
-        if g.get("status") == "FINISHED":
-            finished.setdefault(_key(g), _iso(now))
+        key, cur = _key(g), finished.get(_key(g))
+        if isinstance(cur, str):
+            continue
+        if g.get("status") != "FINISHED":
+            if cur is None or cur.get("finished_at") is None:
+                finished[key] = {"last_unfinished_at": _iso(now), "finished_at": None}
+        elif cur is None:
+            finished[key] = {"last_unfinished_at": None, "finished_at": None,
+                             "first_seen_finished_at": _iso(now)}
+        elif cur.get("last_unfinished_at") and cur.get("finished_at") is None:
+            cur["finished_at"] = _iso(now)
+
+
+def final_anchor(finished: Mapping, key: str) -> datetime | None:
+    """F：只有觀測到「未完賽→完賽」轉變的場次才有；其餘（首見已完賽、舊字串值、未完賽）為 None。"""
+    cur = finished.get(key)
+    if not isinstance(cur, Mapping) or not cur.get("last_unfinished_at"):
+        return None
+    return _parse(cur.get("finished_at"))
 
 
 def _new_record(key: str, point: Point, anchor: datetime | None, g: Mapping,
@@ -154,7 +178,7 @@ def _past_deadline(rec: Mapping, now: datetime) -> bool:
     return now > deadline if _BY_NAME[rec["point"]].deadline_inclusive else now >= deadline
 
 
-def materialize(checkpoints: dict, schedule: Iterable[Mapping], finished: Mapping[str, str],
+def materialize(checkpoints: dict, schedule: Iterable[Mapping], finished: Mapping,
                 now: datetime, since: datetime,
                 www_starts: Mapping[str, str | None] | None = None) -> None:
     """依目前已知賽程產生「已到時點」的紀錄（到點才建；旗標開啟前就到點的不補建）。
@@ -188,8 +212,8 @@ def materialize(checkpoints: dict, schedule: Iterable[Mapping], finished: Mappin
                     checkpoints[rid] = _new_record(key, point, start, g, www_starts)
                 continue
             # final 錨點
-            if status == "FINISHED" and finished.get(key):
-                final = _parse(finished[key])
+            final = final_anchor(finished, key)
+            if status == "FINISHED" and final is not None:
                 rid = f"{key}|{point.name}|{_iso(final)}"
                 due_at = final + point.offset
                 if rid not in checkpoints and due_at >= since and now >= due_at:
@@ -292,7 +316,7 @@ def timeline(checkpoints: Mapping[str, Mapping]) -> list[dict]:
     return sorted(rows, key=lambda r: (r["due_at"] or r["anchor_at"] or "", r["key"], r["point"]))
 
 
-def preview(schedule: Iterable[Mapping], finished: Mapping[str, str], now: datetime) -> list[dict]:
+def preview(schedule: Iterable[Mapping], finished: Mapping, now: datetime) -> list[dict]:
     """``plan --dry``：列出尚未逾時的時點（台北時刻）。不連網、不碰 DB、不寫狀態。"""
     def tpe(at: datetime | None) -> str | None:
         return at.astimezone(TAIPEI).isoformat() if at else None
@@ -301,7 +325,7 @@ def preview(schedule: Iterable[Mapping], finished: Mapping[str, str], now: datet
     for g in schedule:
         key, status = _key(g), str(g.get("status") or "")
         start = _starts(g.get("starts_at"))
-        final = _parse(finished.get(key))
+        final = final_anchor(finished, key)
         for point in POINTS:
             anchor = start if point.anchor == "start" else final
             row = {"key": key, "point": point.name, "phase": point.phase, "status": status,
@@ -316,7 +340,7 @@ def preview(schedule: Iterable[Mapping], finished: Mapping[str, str], now: datet
                 if status in NO_FINAL:
                     rows.append({**row, "note": "no_final"})
                 elif status != "FINISHED":
-                    rows.append({**row, "note": "F＝本機首次觀測 stats FINISHED 的時刻；F+60 起、最遲 F+90"})
+                    rows.append({**row, "note": "F＝本機觀測到未完賽→完賽轉變的時刻；F+60 起、最遲 F+90"})
                 continue
             deadline = anchor + point.deadline
             if deadline < now or (deadline == now and not point.deadline_inclusive):
