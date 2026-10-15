@@ -2,10 +2,12 @@
 
 GET 在**單一 REPEATABLE READ READ ONLY 交易**內只做四類查詢（PLAN r2 §5.2，A15）：
 
-1. S02 ``read_series_inputs``／``compute_series_context``：系列隊伍與 ``counted_game_keys``（G09，不自算）。
+1. S02 ``read_series_inputs``／``compute_series_context``：系列隊伍與 ``games``（G09，不自算）。
 2. current 指標＋build 中繼資料＋該年 ``season`` 列＋兩隊 ``head_to_head`` 列。
 3. 該年已完成 A 場清單（只讀 games）重算 ``games_fingerprint`` 判斷是否待更新。
-4. 本系列 counted 場次的 E／C gamelog（``game_sno = ANY(...)`` 一次批次）。
+4. 本系列統計母體（:func:`series_population`；PLAN r4 §4.6，**含正式和局**）的 E／C gamelog
+   （``game_sno = ANY(...)`` 一次批次）。⛔ 不用 ``counted_game_keys``／``counted_for_wins``——那是 S02 的
+   **勝場母體**，正式和局不進去（``tally_series`` 遇和局 ``ties += 1`` 後 ``continue``）。
 
 ⛔ 不讀 A gamelog、⛔ 不寫、⛔ 不呼叫 builder、⛔ 無行程內快取；current 不存在 ⇒ ``summary_missing``，
 ⛔ 不回退全季重建。三 scope 各自 ``status``，一個缺漏不連坐另兩個；頂層 ``status``（ok／partial／
@@ -188,7 +190,7 @@ def build_payload(cur, year: int, kind: str, *, now: datetime) -> dict:
     if not both_known:
         h2h_scope = {"status": "participants_pending", "games": None, "teams": {}, "scales": {}}
 
-    # ---- 2) 本系列：S02 counted 場次＋E/C gamelog 一次批次
+    # ---- 2) 本系列：§4.6 母體（S02 games，含和局）＋E/C gamelog 一次批次
     series_scope = _series_scope(cur, year, kind, ctx, teams, both_known, season_views, league_raw)
 
     scopes = {"season_a": season_scope, "head_to_head_a": h2h_scope, "series": series_scope}
@@ -225,20 +227,43 @@ def overall_status(scopes: dict[str, dict]) -> str:
     return "unavailable"
 
 
+def series_population(ctx: dict, year: int, kind: str, teams: list[str]) -> list[core.GameRow]:
+    """本系列統計母體（PLAN r4 §4.6；審核 F1）：純函式，只讀 S02 ``compute_series_context`` 既有輸出。
+
+    母體＝``ctx["games"]`` 中 ``game_key.kind_code == kind``、``completed`` 為真、且
+    ``{away, home} == set(teams)`` 的**全部**場次，依 (game_date, official_game_sno) 排序。
+    **正式和局與勝負場一樣納入**；決勝後仍有完賽列也照算（統計是比賽事實，系列勝負只讀 S02 ``sides``）。
+    ⛔ 不用 ``counted_for_wins``——那是勝場母體，和局不在裡面，拿來當統計母體會讓首場和局呈現為
+    「尚未開打」、中間和局整場消失。非兩隊的同 kind 完賽場不入母體（S02 會給 ``conflict_reason``）。
+    """
+    pair = set(teams)
+    if len(pair) != 2:
+        return []
+    out = []
+    for g in ctx["games"]:
+        if g["game_key"]["kind_code"] != kind or not g["completed"]:
+            continue
+        if {g["away_team_code"], g["home_team_code"]} != pair:
+            continue
+        out.append(core.GameRow((year, kind, int(g["official_game_sno"])),
+                                datetime.fromisoformat(g["game_date"]).date(),
+                                g["home_team_code"], g["away_team_code"], g["home_score"], g["away_score"]))
+    return core.sort_games(out)
+
+
 def _series_scope(cur, year: int, kind: str, ctx: dict, teams: list[str], both_known: bool,
                   season_views: dict[str, dict], league_raw: dict) -> dict:
+    conflict = ctx["series"][kind].get("conflict_reason")
     if not both_known:
         return {"status": "participants_pending", "label": "本系列", "expected_game_keys": [],
-                "covered_game_keys": [], "missing_game_keys": [], "teams": {}, "scales": {}}
-    counted = [g for g in ctx["games"] if g["game_key"]["kind_code"] == kind and g["counted_for_wins"]]
-    games = [core.GameRow((year, kind, int(g["official_game_sno"])),
-                          datetime.fromisoformat(g["game_date"]).date(),
-                          g["home_team_code"], g["away_team_code"], g["home_score"], g["away_score"])
-             for g in counted]
-    expected = [core.key_str(g.key) for g in core.sort_games(games)]
+                "covered_game_keys": [], "missing_game_keys": [], "conflict_reason": conflict,
+                "teams": {}, "scales": {}}
+    games = series_population(ctx, year, kind, teams)
+    expected = [core.key_str(g.key) for g in games]
     if not games:
         return {"status": "not_started", "label": "本系列", "expected_game_keys": [],
-                "covered_game_keys": [], "missing_game_keys": [], "teams": {}, "scales": {}}
+                "covered_game_keys": [], "missing_game_keys": [], "conflict_reason": conflict,
+                "teams": {}, "scales": {}}
     snos = [g.key[2] for g in games]
     bat = _rows(cur, SERIES_BAT_SQL, (year, kind, snos))
     pit = _rows(cur, SERIES_PIT_SQL, (year, kind, snos))
@@ -258,6 +283,7 @@ def _series_scope(cur, year: int, kind: str, ctx: dict, teams: list[str], both_k
         "expected_game_keys": expected,
         "covered_game_keys": covered_s,
         "missing_game_keys": [k for k in expected if k not in covered_s],
+        "conflict_reason": conflict,
         "teams": _finish(views),
         "scales": _scales(season_views, views) if season_views else
         {k: core.shared_scale([], [v["metrics"][k] for v in views.values()]) for k in core.METRIC_KEYS},

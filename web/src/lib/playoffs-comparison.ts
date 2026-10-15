@@ -72,6 +72,8 @@ export type SeriesScope = {
   expected_game_keys: string[];
   covered_game_keys: string[];
   missing_game_keys: string[];
+  /** S02 系列 conflict_reason 原樣帶入（PLAN r4 §4.6）；統計照母體計算、不改判 S02。 */
+  conflict_reason: string | null;
   teams: Record<string, ComparisonTeamView>;
   scales: Partial<Record<ComparisonMetricKey, ComparisonScale>>;
 };

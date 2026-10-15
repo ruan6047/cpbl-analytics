@@ -691,6 +691,7 @@
    "expected_game_keys": [],
    "covered_game_keys": [],
    "missing_game_keys": [],
+   "conflict_reason": null,
    "teams": {},
    "scales": {}
   }
