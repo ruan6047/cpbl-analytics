@@ -296,3 +296,178 @@ def consecutive_day_era(season_a_appearances: Iterable[Appearance]) -> dict:
 
 def _key_json(key: GameKey) -> dict:
     return {"year": key[0], "kind_code": key[1], "game_sno": key[2]}
+
+
+# —— A06 先發推測（WP4；PRD〈先發推測最低休息門檻〉） ——————————————————————
+#
+# 純函式，供 S09 發布器離線呼叫產生階段 A 固定內容；S09 啟用前不上畫面。休息日、最後投球日、去重
+# 全部重用上方共用規則（休息從「最後一次實際投球」起算，中間後援會重算）。聽牌／淘汰只由呼叫端以
+# S02 ``clinch``／``facing_elimination`` 傳入，⛔ 本模組不讀 DB。⛔ 不是健康判斷、可用性或待命宣稱。
+
+#: PRD 第五節先發推測最低休息門檻（建議值，未校準；版本 :data:`POLICY_VERSION`）。⛔ 執行期不可覆寫。
+#: main＝完整休 ≥4 日進主候選；short＝恰 3 日，只在聽牌／淘汰展開；relief＝≥2 日，只進 4A 殊死戰調度候選。
+STARTER_REST = MappingProxyType({"main": 4, "short": 3, "relief": 2})
+
+#: 近期正式先發證據窗口：目標場台北日期前 30 個日曆日（D−30～D−1，含端點）。
+STARTER_EVIDENCE_DAYS = 30
+
+#: 每隊主候選／短休候選各至多 3 位。
+STARTER_MAX_CANDIDATES = 3
+
+#: ``pitching_gamelog.role_type`` 的官方先發值（GS）。
+START_ROLE_TYPE = "先發"
+
+#: 不進候選的理由碼 → 固定文字（「保留名單與說明」，不自動推為主候選）。
+STARTER_EXCLUDE_TEXT = MappingProxyType({
+    "not_on_roster": "不在已提交名單",
+    "not_rotation": "本站角色不是輪值（先發登板不等於傳統先發，可能是 opener）",
+    "no_recent_start": f"最近 {STARTER_EVIDENCE_DAYS} 日內沒有可靠正式先發紀錄",
+    "official_not_applicable": "有官方不適用證據",
+    "duplicate_conflict": "同一場次出現互相矛盾的登板紀錄",
+    "date_untrusted": "最後實際投球日期無法核實（保留賽）",
+    "no_appearance": "沒有可核對的正式登板紀錄",
+    "insufficient_rest": "完整休息日未達本情境門檻",
+})
+
+STARTER_STATUS_LABEL = MappingProxyType({"single": "單一推測", "undetermined": "候選未定"})
+
+
+@dataclass(frozen=True)
+class StarterPitcher:
+    """一位先發推測受檢投手的事實（由呼叫端組裝；本模組不查名單或 DB）。
+
+    ``appearances`` 是可靠觀測的正式登板（跨 A/E/C，含後援），用於最後投球日與先發證據；
+    ``official_not_applicable`` 只接官方證據，預設 False ＝「沒有官方不適用證據」。
+    """
+
+    player_id: str
+    on_roster: bool
+    tactical_role: str | None
+    appearances: tuple[Appearance, ...]
+    official_not_applicable: bool = False
+
+
+def _median(values: Sequence[int]) -> float | int | None:
+    if not values:
+        return None
+    s = sorted(values)
+    mid = len(s) // 2
+    return s[mid] if len(s) % 2 else (s[mid - 1] + s[mid]) / 2
+
+
+def starter_facts(target_date: date, pitcher: StarterPitcher) -> dict:
+    """單一投手的資格、完整休息日與排序鍵（JSON-able）；不依情境分層。
+
+    ``eligible`` ＝已提交名單＋角色輪值＋30 日內可靠正式先發＋最後投球日可核實＋無官方不適用證據。
+    ``recent_start_outs_median``：最近 3 次正式先發的出局數中位數；任一缺出局數 ⇒ None。
+    """
+    apps, conflicts = dedupe_appearances(pitcher.appearances)
+    reasons: list[str] = []
+    if not pitcher.on_roster:
+        reasons.append("not_on_roster")
+    if pitcher.tactical_role != ROTATION_ROLE:
+        reasons.append("not_rotation")
+    if pitcher.official_not_applicable:
+        reasons.append("official_not_applicable")
+
+    starts = [a for a in apps if a.role_type == START_ROLE_TYPE]
+    window_from = target_date - timedelta(days=STARTER_EVIDENCE_DAYS)
+    if not any(a.date_trusted and a.date is not None and window_from <= a.date < target_date for a in starts):
+        reasons.append("no_recent_start")
+    if conflicts:
+        reasons.append("duplicate_conflict")
+
+    last, last_reason = last_pitch_date(apps, before=target_date)
+    if last_reason is not None:
+        reasons.append(last_reason)
+    elif last is None:
+        reasons.append("no_appearance")
+    rest = full_rest_days(target_date, last) if last is not None and last_reason is None else None
+
+    recent = recent_appearances([a for a in starts if a.date is None or a.date < target_date], n=3)
+    outs = [a.outs for a in recent]
+    median = _median([o for o in outs if o is not None]) if all(o is not None for o in outs) else None
+    return {
+        "player_id": pitcher.player_id,
+        "eligible": not reasons,
+        "reasons": reasons,
+        "last_pitch_date": last.isoformat() if last is not None and last_reason is None else None,
+        "full_rest_days": rest,
+        "recent_starts": [{"game_key": _key_json(a.game_key),
+                           "date": a.date.isoformat() if a.date else None, "outs": a.outs} for a in recent],
+        "recent_start_outs_median": median,
+    }
+
+
+def _rank_key(f: dict):
+    m = f["recent_start_outs_median"]
+    return (-f["full_rest_days"], 0 if m is not None else 1, -(m or 0), f["player_id"])
+
+
+def _strictly_ahead(top: dict, second: dict) -> bool:
+    """前兩鍵（休息日、出局數中位數）能否分出先後；任一中位數未知且休息日相同 ⇒ 不能。"""
+    if top["full_rest_days"] != second["full_rest_days"]:
+        return top["full_rest_days"] > second["full_rest_days"]
+    a, b = top["recent_start_outs_median"], second["recent_start_outs_median"]
+    return a is not None and b is not None and a > b
+
+
+def _public(f: dict, tier: str) -> dict:
+    return {"tier": tier, **{k: f[k] for k in ("player_id", "last_pitch_date", "full_rest_days",
+                                               "recent_starts", "recent_start_outs_median")}}
+
+
+def starter_projection(target_date: date, pitchers: Sequence[StarterPitcher], *,
+                       clinch: bool, facing_elimination: bool) -> dict:
+    """一隊的 A06 階段 A 先發推測（JSON-able）。
+
+    主候選：資格齊備且完整休 ≥4 日。排序 休息日↓ → 最近 3 次正式先發出局數中位數↓ → player_id↑
+    （ID 只作穩定顯示順序）。首位與次位前兩鍵並列、或首位中位數未知 ⇒ ``undetermined``「候選未定」，
+    ``pick`` 為 None；無主候選亦為候選未定。主候選至多 3 位。
+
+    ``clinch``／``facing_elimination`` 為 S02 該隊欄位；任一成立才展開：
+    ``short_rest``（恰 3 日，不升為主推測，至多 3 位）與 ``relief``（≥2 日，只供 4A 殊死戰調度候選，
+    不表示可先發或已待命）。未展開時兩者為空，休 2／3 日的人列入 ``excluded``（insufficient_rest）。
+    """
+    expanded = bool(clinch or facing_elimination)
+    facts = sorted((starter_facts(target_date, p) for p in pitchers), key=lambda f: f["player_id"])
+    eligible = sorted((f for f in facts if f["eligible"]), key=_rank_key)
+
+    main = [f for f in eligible if f["full_rest_days"] >= STARTER_REST["main"]]
+    short = [f for f in eligible if f["full_rest_days"] == STARTER_REST["short"]] if expanded else []
+    relief = [f for f in eligible if f["full_rest_days"] >= STARTER_REST["relief"]] if expanded else []
+
+    pick = None
+    if main and main[0]["recent_start_outs_median"] is not None and (
+            len(main) == 1 or _strictly_ahead(main[0], main[1])):
+        pick = main[0]["player_id"]
+    tied_top = [] if pick or not main else [
+        f["player_id"] for f in main if f is main[0] or not _strictly_ahead(main[0], f)]
+
+    floor = STARTER_REST["relief"] if expanded else STARTER_REST["main"]
+    excluded = [{"player_id": f["player_id"], "reasons": f["reasons"],
+                 "text": [STARTER_EXCLUDE_TEXT[r] for r in f["reasons"]],
+                 "full_rest_days": f["full_rest_days"]}
+                for f in facts if not f["eligible"]]
+    excluded += [{"player_id": f["player_id"], "reasons": ["insufficient_rest"],
+                  "text": [STARTER_EXCLUDE_TEXT["insufficient_rest"]], "full_rest_days": f["full_rest_days"]}
+                 for f in facts if f["eligible"] and f["full_rest_days"] < floor
+                 and not (expanded and f["full_rest_days"] == STARTER_REST["short"])]
+    excluded.sort(key=lambda e: e["player_id"])
+
+    status = "single" if pick else "undetermined"
+    return {
+        "policy_version": POLICY_VERSION,
+        "target_date": target_date.isoformat(),
+        "status": status,
+        "status_label": STARTER_STATUS_LABEL[status],
+        "pick": pick,
+        "candidates": [_public(f, "main") for f in main[:STARTER_MAX_CANDIDATES]],
+        "main_total": len(main),
+        "tied_top": tied_top,
+        "expanded": expanded,
+        "expand_basis": {"clinch": bool(clinch), "facing_elimination": bool(facing_elimination)},
+        "short_rest": [_public(f, "short") for f in short[:STARTER_MAX_CANDIDATES]],
+        "relief": [_public(f, "relief") for f in relief],
+        "excluded": excluded,
+    }
