@@ -200,7 +200,7 @@ if [ "$SYNC_NEEDED" -eq 1 ]; then
 fi
 
 # 5. #293 目標場 box／PA 階段（結果鏈已 halt 時不做；boxpa-plan 也會因 halted 回 idle）。
-#    每次喚醒最多一次明細 www＋一次 scoped 同步；失敗語意見 postseason_evening.boxpa_record_sync。
+#    每次喚醒最多一次明細 www＋一次 PA build＋一次 scoped 同步；失敗語意見 postseason_evening.boxpa_record_sync。
 boxpa_split() {  # "$1"＝boxpa-plan 輸出（"sync 2026-C-2 box,pa"）→ BOXPA_ACT／BOXPA_GAMES／BOXPA_PARTS
   BOXPA_ACT="" BOXPA_GAMES="" BOXPA_PARTS=""
   read -r BOXPA_ACT BOXPA_GAMES BOXPA_PARTS <<< "$1"
@@ -214,15 +214,17 @@ if [ "$EXIT_CODE" -ne 69 ]; then
     BOXPA_OUT="$("$UV" run --group scrape python -m cpbl.ingest.postseason_evening boxpa-detail \
       --games "$BOXPA_GAMES" 2>>"$LOG")" || BOXPA_OUT="failed"
     note "boxpa-detail ${BOXPA_GAMES} → ${BOXPA_OUT}"
-    # 明細到齊就在同一次喚醒接著建 PA 並同步。
+  fi
+  # #293 再審 R1：先 PA build，再決定這次送哪些來源——剛 build 出的 PA 與 box 在同一次同步送出。
+  if [ "$BOXPA_ACT" = "detail" ] || [ "$BOXPA_ACT" = "build" ] || [ "$BOXPA_ACT" = "sync" ]; then
+    BOXPA_OUT="$(py boxpa-prepare)" || BOXPA_OUT="prepare_failed"
+    note "boxpa-prepare → ${BOXPA_OUT}"
     BOXPA_PLAN="$(py boxpa-plan)" || BOXPA_PLAN="error"
     note "boxpa-plan → ${BOXPA_PLAN}"
     boxpa_split "$BOXPA_PLAN"
   fi
-  # BOXPA_PARTS＝這次真的要送的來源（審核席 1 F3：已用完額度的來源不得隨整組同步再送）。
+  # BOXPA_PARTS＝這次真的要送的來源（審核席 1 F3：已送達的來源不隨整組同步再送；額度以場計）。
   if [ "$BOXPA_ACT" = "sync" ] && [ -n "$BOXPA_GAMES" ] && [ -n "$BOXPA_PARTS" ]; then
-    BOXPA_OUT="$(py boxpa-prepare --games "$BOXPA_GAMES")" || BOXPA_OUT="prepare_failed"
-    note "boxpa-prepare ${BOXPA_GAMES} → ${BOXPA_OUT}"
     BOXPA_MANIFEST_PATH="$REPO_DIR/logs/postseason-boxpa-manifest-$(date +%Y%m%d-%H%M%S).json"
     note "boxpa sync → POSTSEASON_BOXPA_ONLY=1 SKIP_SCRAPE=1 POSTSEASON_BOXPA_GAMES=${BOXPA_GAMES} POSTSEASON_BOXPA_PARTS=${BOXPA_PARTS} BACKUP_DIR=${BACKUP_DIR_EVENING}"
     BOXPA_STARTED="$(date +%s)"

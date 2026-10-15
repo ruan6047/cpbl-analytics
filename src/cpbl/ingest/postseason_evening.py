@@ -707,8 +707,10 @@ def timeline(state: Mapping) -> list[dict]:
 #      「當晚兩次即停」（note_challenge）；讓位 10:10（DAILY_GUARD）。
 #      ⭐ 賽別冷卻也與結果鏈／#292 先發時點共用同一本帳（kind_cooled／www_requests；需求方裁定 C2，
 #      #293 issuecomment-6186074916）：同賽別任兩次 www 冷啟動間隔 ≥20 分鐘，不論是誰發的。
-#   2. 本機明細到齊 → PA build（既有 build_scope）→ scoped 同步（refresh-cpbl-prod.sh POSTSEASON_BOXPA_ONLY）。
-#      同來源最多 1 次＋1 次重送（需求方裁定 Q5）；只有對帳不等（68）或 ssh 連線失敗（72）可重送。
+#   2. 本機明細到齊 → PA build（既有 build_scope）→ **之後**才決定這次送哪些來源 → scoped 同步
+#      （refresh-cpbl-prod.sh POSTSEASON_BOXPA_ONLY）。剛 build 出的 PA 與 box 在同一次同步送出
+#      （#293 再審 R1）。額度**以場計**（需求方裁定 6196379928）：每場每晚最多 2 次 production 同步
+#      （1 次同步＋1 次重送），重送只送尚未送達的來源。
 # 錯誤語意沿操作包 v2：psql／schema／備份／本機自檢失敗 → halted（與結果鏈同一個 halted，bootout 交人工）；
 # 對帳不等在重送後仍不等 → 只把該場該來源記 delivered_conflict，不擋結果鏈。
 # 目標場只取「台北今日」的場，以及「昨日、且尚未到 DAILY_GUARD」的場；過了 09:45 仍未終態的場交給
@@ -716,7 +718,7 @@ def timeline(state: Mapping) -> list[dict]:
 
 BOXPA_WWW_MAX_ATTEMPTS = WWW_MAX_ATTEMPTS        # 每場每晚 www 明細 ≤3 次（A2 上限）
 BOXPA_WWW_COOLDOWN = WWW_COOLDOWN                # 間隔 ≥20 分鐘
-BOXPA_MAX_SENDS = 2                              # 同來源 1 次＋1 次重送
+BOXPA_MAX_SENDS = 2                              # 每場每晚 production 同步 1 次＋1 次重送（以場計）
 BOXPA_RESEND_CODES = (68, 72)                    # 對帳不等／ssh 連線失敗
 BOXPA_NOT_FINAL = 73                             # production 尚未完賽：不算一次嘗試
 BOXPA_MAX_SECONDS = 20 * 60                      # scoped 同步超過 20 分鐘即停（PLAN §13 停止條件 4）
@@ -744,24 +746,46 @@ def boxpa_sends(rec: Mapping, source: str) -> list[dict]:
     return [s for s in rec.get("sends") or [] if source in s.get("sources", ()) and s.get("code") != BOXPA_NOT_FINAL]
 
 
+def boxpa_syncs(rec: Mapping) -> list[dict]:
+    """這一場今晚實際發生的 production 同步（73＝production 未完賽、未備份未寫入，不算）。"""
+    return [s for s in rec.get("sends") or [] if s.get("code") != BOXPA_NOT_FINAL]
+
+
 def boxpa_exhausted(rec: Mapping) -> set[str]:
-    return {src for src in ("box", "pa") if len(boxpa_sends(rec, src)) >= BOXPA_MAX_SENDS}
+    """額度以場計：該場兩次同步都用了，仍未送達的來源就不會再送。"""
+    return {"box", "pa"} if len(boxpa_syncs(rec)) >= BOXPA_MAX_SENDS else set()
+
+
+def boxpa_game_can_sync(rec: Mapping) -> bool:
+    syncs = boxpa_syncs(rec)
+    if not syncs:
+        return True
+    if len(syncs) >= BOXPA_MAX_SENDS:
+        return False
+    return syncs[-1].get("code") in (0, *BOXPA_RESEND_CODES)
 
 
 def boxpa_can_send(rec: Mapping, source: str) -> bool:
-    sends = boxpa_sends(rec, source)
-    if not sends:
-        return True
-    if len(sends) >= BOXPA_MAX_SENDS:
-        return False
-    return sends[-1].get("code") in BOXPA_RESEND_CODES or sends[-1].get("code") == 0
+    """相容舊呼叫：額度以場計，與來源無關。"""
+    return boxpa_game_can_sync(rec)
 
 
 def boxpa_wants(rec: Mapping) -> list[str]:
-    """這一場此刻要送、且仍有額度（首送＋1 次重送）的來源。"""
+    """這一場此刻要送的來源（尚未送達者）；該場同步額度（1 次＋1 次重送，以場計）用完就回空。"""
+    if not boxpa_game_can_sync(rec):
+        return []
     src = rec.get("sources") or {}
-    return [s for s in ("box", "pa")
-            if (src.get(s) or {}).get("reason") in _NEEDS_SEND and boxpa_can_send(rec, s)]
+    return [s for s in ("box", "pa") if (src.get(s) or {}).get("reason") in _NEEDS_SEND]
+
+
+def boxpa_needs_pa_build(rec: Mapping) -> bool:
+    """box 已到齊（或已送達）而本機還沒有 published PA，且該場仍有同步額度——值得先跑一次 PA build。"""
+    src = rec.get("sources") or {}
+    box = src.get("box") or {}
+    pa = src.get("pa") or {}
+    return (boxpa_game_can_sync(rec) and pa.get("reason") == "no_local_published_build"
+            and not str(box.get("reason") or "").startswith("local_box_incomplete")
+            and box.get("reason") != "not_final")
 
 
 def _final_prod_at(state: Mapping, rec: Mapping) -> str | None:
@@ -803,8 +827,11 @@ def boxpa_plan(state: dict, now: datetime,
                open_recs: Mapping[str, dict]) -> tuple[str, list[str], list[str]]:
     """回 ``(action, keys, parts)``；action ∈ idle／detail／sync。**不連 www、不寫 DB**。
 
-    ``parts``＝這次 scoped 同步實際要送的來源（``box``／``pa``；#293 審核席 1 F3）：只放仍有額度且待送的
-    來源，shell 照它決定跑不跑 box 七表、PA 五表；同一次只合併「要送的來源相同」的場。
+    ``parts``＝這次 scoped 同步實際要送的來源（``box``／``pa``；#293 審核席 1 F3）：只放尚未送達的來源
+    （該場額度以場計），shell 照它決定跑不跑 box 七表、PA 五表；同一次只合併「要送的來源相同」的場。
+    ``build``＝box 已到齊但本機還沒有 published PA：shell 先跑 PA build 再重新判斷（#293 再審 R1）。
+    shell 的次序是 plan →（detail）→ PA build → plan → sync，所以真正決定 parts 的那次 plan 已看得到剛
+    build 出的 PA。
 
     * detail：本機 box 核心表仍缺、且該場 www 次數未用盡、該場與該賽別共用帳本的冷卻都已過、
       當晚未被挑戰封鎖。
@@ -814,6 +841,7 @@ def boxpa_plan(state: dict, now: datetime,
     if state.get("halted") or in_daily_guard(now):
         return "idle", [], []
     detail: list[str] = []
+    build: list[str] = []
     sync: list[tuple[str, list[str]]] = []
     for key, rec in sorted(open_recs.items()):
         src = rec.get("sources") or {}
@@ -833,16 +861,22 @@ def boxpa_plan(state: dict, now: datetime,
             detail.append(key)
             continue
         wants = boxpa_wants(rec)
+        if boxpa_needs_pa_build(rec):
+            build.append(key)
         if wants:
             sync.append((key, wants))
         elif _boxpa_done(rec):
             rec["state"] = "conflict" if any(
                 (src.get(s) or {}).get("status") == "delivered_conflict" for s in ("box", "pa")) else "delivered"
+    # 次序：detail > sync > build。sync 優先於 build：PA build 沒產出 published 時 box 仍照送；
+    # shell 在任何非 idle 動作後都先跑 PA build 再重新 plan，所以決定 parts 的那次已看得到新 PA（R1）。
     if detail:
         return "detail", detail, []
     if sync:
         parts = sync[0][1]
         return "sync", [k for k, w in sync if w == parts], parts
+    if build:
+        return "build", build, []
     return "idle", [], []
 
 
@@ -897,7 +931,7 @@ def boxpa_record_sync(state: dict, now: datetime, keys: Iterable[str], code: int
             rec["final_prod_at"] = _iso(now)
         if game is not None:
             rec["manifest"] = _merge_manifest(rec.get("manifest"), game, sent, synced_at)
-        if code == 72 and any(len(boxpa_sends(rec, p)) >= BOXPA_MAX_SENDS for p in sent):
+        if code == 72 and len(boxpa_syncs(rec)) >= BOXPA_MAX_SENDS:
             rec["state"], rec["reason"] = "unreached", "sync_transient_failure_after_resend"
     if code == BOXPA_NOT_FINAL:
         return "waiting"
@@ -1270,7 +1304,7 @@ def _parser():
     bd = sub.add_parser("boxpa-detail", help="#293：目標場明細 www（既有 _postseason_detail_step）")
     bd.add_argument("--games", required=True)
     bb = sub.add_parser("boxpa-prepare", help="#293：目標場 PA build（既有 builder；不連網）")
-    bb.add_argument("--games", required=True)
+    bb.add_argument("--games", default="", help="省略＝今晚 box 已到齊、尚無 published PA 的場")
     br = sub.add_parser("boxpa-record", help="#293：記錄 POSTSEASON_BOXPA_ONLY 同步結果")
     br.add_argument("--games", required=True)
     br.add_argument("--code", type=int, required=True)
@@ -1394,7 +1428,16 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if args.command == "boxpa-prepare":
-        keys = [k for k in args.games.split(",") if k]
+        # 未給 --games：今晚仍開著、box 已到齊而本機尚無 published PA 的場（#293 再審 R1：shell 在決定
+        # 這次送哪些來源之前先跑本步驟）。
+        if args.games:
+            keys = [k for k in args.games.split(",") if k]
+        else:
+            open_recs = _boxpa_prepare_state(state, now, year)
+            keys = [k for k, r in sorted(open_recs.items()) if boxpa_needs_pa_build(r)]
+        if not keys:
+            print(json.dumps({"games": 0, "skipped": "no_pa_build_candidate"}))
+            return 0
         try:
             result = boxpa_pa_build(year, keys)
         except Exception as exc:  # noqa: BLE001 — PA build 失敗不擋 box 同步（PA 照實維持 pending）

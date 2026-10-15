@@ -155,7 +155,7 @@ def test_box_then_pa_late_two_syncs_then_delivered_same_night():
     src = state["boxpa"][KEY]["sources"]
     assert src["box"]["status"] == "delivered" and src["box"]["same_night"] is True
     assert (src["pa"]["status"], src["pa"]["reason"]) == ("pending_update", "no_local_published_build")
-    assert step(state, tpe(10, 12, 22, 5), f) == ("idle", []), "PA 未 published 不重送 box"
+    assert step(state, tpe(10, 12, 22, 5), f) == ("build", [KEY]), "PA 未 published：先 build，不重送 box"
     t1 = tpe(10, 12, 22, 30)                       # PA 晚到：本機 published 出現
     assert step(state, t1, full) == ("sync", [KEY])
     assert record_sync(state, t1, full, 0, manifest(full, "2026-10-12T22:31:00+08:00")) == "ok"
@@ -186,25 +186,64 @@ def test_f2_same_night_new_published_pa_after_delivery_is_resent_once():
     assert step(state, tpe(10, 12, 22, 40), v3) == ("idle", []), "PA 已送 2 次：不再送"
 
 
-def test_f3_box_resend_quota_is_not_bypassed_when_pa_arrives_late():
-    """#293 審核席 1 F3：box 已首送（68）＋重送（0）用完額度後，PA 晚到只送 PA，box 不隨整組再送。"""
+def test_r1_pa_built_in_the_same_wake_goes_out_with_box_in_one_sync():
+    """#293 再審 R1：plan 當下本機尚無 published（box 剛到齊）→ shell 先跑 PA build → 再 plan →
+    同一次同步送 box＋pa。正常路徑每場只需 1 次 production 同步。"""
+    state, full = pe.empty_state(), real_e4()
+    nopa = no_pa(full)
+    t0 = tpe(10, 12, 22, 0)
+    assert step(state, t0, nopa) == ("sync", [KEY]) and LAST_PARTS["parts"] == ["box"], "build 前的 plan"
+    # shell：boxpa-prepare（PA build 產出 published）→ 再 plan，這次的 parts 才交給 scoped 同步
+    assert step(state, t0, full) == ("sync", [KEY]) and LAST_PARTS["parts"] == ["box", "pa"]
+    record_sync(state, t0, full, 0, manifest(full, "2026-10-12T22:01:00+08:00"))
+    assert step(state, tpe(10, 12, 22, 5), full) == ("idle", [])
+    rec = state["boxpa"][KEY]
+    assert rec["state"] == "delivered" and len(pe.boxpa_syncs(rec)) == 1
+    assert rec["sources"]["box"]["same_night"] is True and rec["sources"]["pa"]["same_night"] is True
+
+
+def test_build_only_when_nothing_else_needs_sending():
+    """box 已送達、PA 仍未 published：plan 回 build（shell 只跑 PA build，不同步）。"""
+    state, full = pe.empty_state(), real_e4()
+    f = no_pa(full)
+    t0 = tpe(10, 12, 22, 0)
+    step(state, t0, f)
+    record_sync(state, t0, f, 0, manifest(f, "2026-10-12T22:01:00+08:00", pa_ok=None))
+    assert step(state, tpe(10, 12, 22, 5), f) == ("build", [KEY])
+    assert len(pe.boxpa_syncs(state["boxpa"][KEY])) == 1
+
+
+def test_quota_is_two_syncs_per_game_and_a_resend_sends_only_undelivered_sources():
+    """需求方裁定 6196379928（以場計）：每場每晚最多 2 次 production 同步；重送只送未到的來源。"""
     state, full = pe.empty_state(), real_e4()
     f = no_pa(full)
     t0 = tpe(10, 12, 22, 0)
     assert step(state, t0, f) == ("sync", [KEY]) and LAST_PARTS["parts"] == ["box"]
     record_sync(state, t0, f, 68, manifest(f, "2026-10-12T22:01:00+08:00", box_ok=False, pa_ok=None))
     t1 = tpe(10, 12, 22, 5)
-    assert step(state, t1, f) == ("sync", [KEY]) and LAST_PARTS["parts"] == ["box"]
-    record_sync(state, t1, f, 0, manifest(f, "2026-10-12T22:06:00+08:00", pa_ok=None))
-    assert len(pe.boxpa_sends(state["boxpa"][KEY], "box")) == 2
-    t2 = tpe(10, 12, 22, 30)
-    assert step(state, t2, full) == ("sync", [KEY])
-    assert LAST_PARTS["parts"] == ["pa"], "box 額度用完：本次只送 PA"
-    record_sync(state, t2, full, 0, manifest(full, "2026-10-12T22:31:00+08:00"))
+    assert step(state, t1, full) == ("sync", [KEY]), "第 2 次（重送）"
+    assert LAST_PARTS["parts"] == ["box", "pa"], "重送只送未到的來源：box 對帳不等、PA 尚未送"
+    record_sync(state, t1, full, 0, manifest(full, "2026-10-12T22:06:00+08:00"))
     rec = state["boxpa"][KEY]
-    assert len(pe.boxpa_sends(rec, "box")) == 2 and len(pe.boxpa_sends(rec, "pa")) == 1
-    assert rec["state"] == "delivered" or step(state, tpe(10, 12, 22, 35), full) == ("idle", [])
-    assert rec["manifest"]["box_at"] == "2026-10-12T22:06:00+08:00", "沒送 box 的那次不覆寫 box 對帳時刻"
+    assert len(pe.boxpa_syncs(rec)) == 2
+    grown = dataclasses.replace(full, box_counts={**full.box_counts, "game_livelog": 356})
+    assert step(state, tpe(10, 12, 22, 30), grown) == ("idle", []), "兩次已用完：不再有第 3 次同步"
+    assert len(pe.boxpa_syncs(rec)) == 2
+
+
+def test_f3_delivered_source_is_not_resent_with_a_later_source():
+    """#293 審核席 1 F3（以場計之後的形狀）：box 已送達、PA 晚到時，第 2 次同步只送 PA。"""
+    state, full = pe.empty_state(), real_e4()
+    f = no_pa(full)
+    t0 = tpe(10, 12, 22, 0)
+    assert step(state, t0, f) == ("sync", [KEY]) and LAST_PARTS["parts"] == ["box"]
+    record_sync(state, t0, f, 0, manifest(f, "2026-10-12T22:01:00+08:00", pa_ok=None))
+    t1 = tpe(10, 12, 22, 30)
+    assert step(state, t1, full) == ("sync", [KEY]) and LAST_PARTS["parts"] == ["pa"]
+    record_sync(state, t1, full, 0, manifest(full, "2026-10-12T22:31:00+08:00"))
+    rec = state["boxpa"][KEY]
+    assert [x["sources"] for x in rec["sends"]] == [["box"], ["pa"]]
+    assert rec["manifest"]["box_at"] == "2026-10-12T22:01:00+08:00", "沒送 box 的那次不覆寫 box 對帳時刻"
 
 
 def test_delivery_after_midnight_is_recorded_as_not_same_night():
@@ -382,7 +421,12 @@ def test_boxpa_sync_without_results_event_runs_scoped_mode_with_evening_backup_d
     assert re.fullmatch(r".*/logs/postseason-boxpa-manifest-\d{8}-\d{6}\.json", sync["BOXPA_MANIFEST"])
     uv = read("uv.txt")
     assert sync["POSTSEASON_BOXPA_PARTS"] == "box,pa"
-    assert "boxpa-prepare --games 2026-C-2" in uv and "boxpa-record --games 2026-C-2 --code 0" in uv
+    assert "boxpa-record --games 2026-C-2 --code 0" in uv
+    lines_ = uv.splitlines()
+    i_prep = next(i for i, x in enumerate(lines_) if x.endswith("boxpa-prepare"))
+    i_last_plan = max(i for i, x in enumerate(lines_) if x.endswith("boxpa-plan"))
+    i_rec = next(i for i, x in enumerate(lines_) if "boxpa-record" in x)
+    assert i_prep < i_last_plan < i_rec, "R1：PA build 在決定 parts 的那次 plan 之前"
     assert "--parts box,pa" in uv
     assert " plan" in uv and uv.rstrip().endswith("finish")
     assert "--group scrape" not in uv, "box 已到齊時不連 www"
