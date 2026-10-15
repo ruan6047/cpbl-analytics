@@ -9,9 +9,15 @@
    ``games_fingerprint``；與 current 同源同版 ⇒ **no-op exit 0**（冪等）。
 3. 逐場兩側 box 覆蓋檢查（停止條件 §12.1-1）：不全 ⇒ **不寫 build、不切 current**，只在指標列
    標 ``pending_source_hash``／``pending_since``（舊版標待更新），列出缺漏場次，exit 3。
-4. **寫**（單一交易）：不可變 build＋列（``ON CONFLICT DO NOTHING``）→ 指標 CAS（只有 current
-   仍是讀到的那一版才切換）。中途失敗／被殺 ⇒ 交易回滾，指標不動；可攔的失敗再標待更新。
-   兩個 builder 競爭時至多一次切換；輸家若發現 current 已是同一 build 視為成功。
+4. **先標待更新**（獨立、已提交的交易；審核 F2）：已有 current 時，開寫入交易**之前**先把指標列的
+   ``pending_source_hash``／``pending_since`` 設值。如此行程在寫入中途被強制終止（SIGKILL，善後
+   分支不會跑）時，持久標記已在，GET 立即回 ``stale``——即使更正只動 box、``games_fingerprint`` 不變。
+   標記寫不進去 ⇒ 不開寫入交易，exit 5。
+5. **寫**（單一交易）：不可變 build＋列（``ON CONFLICT DO NOTHING``）→ 指標 CAS（只有 current
+   仍是讀到的那一版才切換；切換同交易清除待更新標記）。中途失敗／被殺 ⇒ 交易回滾，指標不動、
+   待更新標記保留；下一次正常建置切換時清除。
+   兩個 builder 競爭時至多一次切換；輸家若發現 current 已是同一 build 視為成功（並清除自己可能
+   在對方切換後才補上的待更新標記）。
 
 ⛔ 只寫 ``team_comparison_*`` 三表（與 ``--record-failure`` 的本機 ``refresh_log`` 一列）；
 ⛔ 不 migrate（schema 只隨 migration 部署）；⛔ GET 不呼叫本模組。
@@ -199,6 +205,12 @@ CLEAR_PENDING_SQL = (
     "WHERE year = %s AND kind_code = 'A' AND build_id = %s AND pending_source_hash IS NOT NULL"
 )
 
+#: CAS 輸家（對方已切到同一 build）只清「自己這個 source」的待更新標記；他人較新的標記不動
+CLEAR_OWN_PENDING_SQL = (
+    "UPDATE cpbl.team_comparison_current SET pending_source_hash = NULL, pending_since = NULL "
+    "WHERE year = %s AND kind_code = 'A' AND build_id = %s AND pending_source_hash = %s"
+)
+
 
 def _row_params(build_id: uuid.UUID, r: dict) -> list:
     return [build_id, *(Jsonb(r[c]) if c == "null_reasons" else r[c] for c in core.ROW_COLUMNS)]
@@ -245,6 +257,17 @@ def mark_pending(connect: Callable, year: int, source_hash: str) -> bool:
             return cur.rowcount == 1
     except Exception:  # noqa: BLE001 — 標記失敗只影響「待更新」提示，原退出碼照實回報
         return False
+
+
+def mark_pending_before_write(connect: Callable, year: int, source_hash: str) -> bool:
+    """寫入交易開始**前**的持久待更新標記（審核 F2）：獨立交易、離開即提交；失敗直接拋出。
+
+    與 :func:`mark_pending` 不同，這裡不吞例外——標記沒落地就不能開寫入交易，否則強制終止後
+    舊摘要會被當成可用。回傳是否有指標列被標（尚無 current ⇒ False，GET 本來就是 ``summary_missing``）。
+    """
+    with connect() as c, c.cursor() as cur:
+        cur.execute(MARK_PENDING_SQL, (source_hash, year))
+        return cur.rowcount == 1
 
 
 def current_build_id(connect: Callable, year: int) -> uuid.UUID | None:
@@ -303,6 +326,12 @@ def run_build(connect: Callable, year: int, *, dry_run: bool = False) -> Outcome
         return Outcome(EXIT_COVERAGE, "coverage_incomplete", msg, p)
     if dry_run:
         return Outcome(EXIT_OK, "dry_run", f"{year} 將建 build {p.build_id}（{len(p.rows)} 列）", p)
+    if p.current_build_id is not None:
+        try:
+            mark_pending_before_write(connect, year, p.source_hash)
+        except Exception as exc:  # noqa: BLE001 — 標記沒落地就不寫：未寫任何列，如實回報
+            return Outcome(EXIT_FAILED, "failed",
+                           f"{year} 寫入前無法標記待更新（未寫入）：{type(exc).__name__}: {exc}", p)
     try:
         with connect() as c:
             with c.transaction():
@@ -313,6 +342,9 @@ def run_build(connect: Callable, year: int, *, dry_run: bool = False) -> Outcome
         if exc.code == EXIT_CAS_LOST:
             now_id = current_build_id(connect, year)
             if now_id == p.build_id:
+                # 對方切換後我們才補上的待更新標記（同一 source）要清掉，否則 GET 會誤報 stale
+                with connect() as c:
+                    c.execute(CLEAR_OWN_PENDING_SQL, (year, p.build_id, p.source_hash))
                 return Outcome(EXIT_OK, "already_current",
                                f"{year} current 已由其他程序切到同一 build {p.build_id}", p)
             return Outcome(EXIT_CAS_LOST, "cas_lost",
@@ -328,14 +360,17 @@ def run_build(connect: Callable, year: int, *, dry_run: bool = False) -> Outcome
                    f"（前一版 {p.current_build_id}）", p)
 
 
-def run_promote_existing(connect: Callable, year: int, build_id: uuid.UUID) -> Outcome:
-    """回指既有 build（回復用；PLAN §12.4／§13）。"""
+def run_promote_existing(connect: Callable, year: int, build_id: uuid.UUID, *,
+                         dry_run: bool = False) -> Outcome:
+    """回指既有 build（回復用；PLAN §12.4／§13）。``dry_run`` ⇒ 只讀檢查並回報將回指的對象，不寫。"""
     with connect() as c:
         row = c.execute("SELECT year FROM cpbl.team_comparison_build WHERE build_id = %s",
                         (build_id,)).fetchone()
     if not row or int(row[0]) != year:
         return Outcome(EXIT_FAILED, "failed", f"build {build_id} 不存在或不屬於 {year}")
     cur_id = current_build_id(connect, year)
+    if dry_run:
+        return Outcome(EXIT_OK, "dry_run", f"{year} 將把 current 回指 build {build_id}（目前 {cur_id}；未寫入）")
     with connect() as c:
         with c.transaction():
             ok = promote(c, year, build_id, cur_id)
