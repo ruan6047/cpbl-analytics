@@ -5,9 +5,11 @@
 // - 系列一句（需求方 D3）只用 S02 的 `sides[].total_wins／initial_wins`、`winner`、`ties`；規則勝分開寫，
 //   不寫成「N 勝 M 敗」（對手的規則勝不是實際敗場）。
 // - 預告不含先發投手（需求方 D7）；MVP 缺值寫「本站尚未取得」，⛔ 寫「未公布」。
-// - 每張完賽卡比分＋官方 MVP＋單場連結；未完賽卡沒有比分（S02 恆 null）。
+// - 每張完賽卡比分＋官方 MVP＋單場連結（整張卡可點即單場連結）；未完賽卡沒有比分（S02 恆 null）。
+// - 需求方 SHA-F2 人工審核（issuecomment-6190739641）：大比分要一眼看到、卡片精簡不重複、整卡可點、
+//   第 1 區桌機與手機都在第一個畫面內看完（不橫捲）。卡片用二字隊名（UI_UX_SYSTEM §9.6 short）。
 
-import { teamName3 } from "./teams.ts";
+import { teamName3, teamShort } from "./teams.ts";
 import type { OverviewGameCard, OverviewSeriesBlock, PlayoffsOverview, PlayoffsSeriesCode } from "./playoffs-types.ts";
 
 export const SERIES_NAME: Record<PlayoffsSeriesCode, string> = { E: "季後挑戰賽", C: "台灣大賽" };
@@ -107,10 +109,54 @@ export function seriesSentence(block: OverviewSeriesBlock): string {
   return `${score}${ruleNote(block)}${need.length ? `・${need.join("、")}` : ""}`;
 }
 
-/** 完賽卡比分列（客左主右）；未完賽回 null。 */
-export function scoreLine(card: OverviewGameCard): { away: string; home: string; awayScore: number; homeScore: number } | null {
-  if (!card.completed || card.away_score == null || card.home_score == null) return null;
-  return { away: teamLabel(card.away_team_code), home: teamLabel(card.home_team_code), awayScore: card.away_score, homeScore: card.home_score };
+/** 大比分：S02 `sides` 順序的兩隊與系列勝場（含規則勝，`total_wins`）。 */
+export function bigScore(block: OverviewSeriesBlock): { code: string | null; name: string; wins: number | null }[] {
+  return block.sides.map((s) => ({ code: s.team_code, name: teamLabel(s.team_code), wins: s.total_wins }));
+}
+
+/** 大比分下的一行狀態（不重複比分）：賽制／尚未開打／還差幾勝／晉級或奪冠，附規則勝與和局。 */
+export function seriesStatusLine(block: OverviewSeriesBlock): string {
+  const [a, b] = block.sides;
+  if (block.series_status === "unknown" || block.conflict_reason || !a || !b) return "系列狀態待確認";
+  if (block.series_status === "decided" && block.winner) {
+    return `${teamLabel(block.winner)}${block.kind_code === "E" ? "晉級台灣大賽" : "奪得總冠軍"}${ruleNote(block)}`;
+  }
+  if (block.series_status === "pending") return `${formatText(block)}・尚未開打${ruleNote(block)}`;
+  const need = block.sides.filter((s) => s.team_code && s.remaining != null)
+    .map((s) => `${teamLabel(s.team_code)}還差 ${s.remaining} 勝`);
+  return `${need.join("、") || formatText(block)}${ruleNote(block)}`;
+}
+
+function short(code: string | null | undefined): string {
+  return (code && teamShort(code)) || teamLabel(code);
+}
+
+export type ChipView = {
+  title: string;                                   // 「G1」（系列名在區塊標題）
+  date: string;                                    // 「10/17」
+  rows: { name: string; value: string; win: boolean }[];  // 客、主各一列：完賽＝分數；未完賽＝「客／主」
+  foot: string;                                    // 完賽＝MVP；未完賽＝狀態／如有必要／球場
+  label: string;                                   // 整張卡連結的完整說明（螢幕閱讀器）
+};
+
+/** 精簡場次卡：每張只放場序、日期、兩隊（分數或客主）、一行補充；不重複系列名與狀態章。 */
+export function chipView(card: OverviewGameCard): ChipView {
+  const done = card.completed && card.away_score != null && card.home_score != null;
+  const a = card.away_score ?? 0, h = card.home_score ?? 0;
+  const rows = done
+    ? [{ name: short(card.away_team_code), value: String(a), win: a > h }, { name: short(card.home_team_code), value: String(h), win: h > a }]
+    : [{ name: short(card.away_team_code), value: "客", win: false }, { name: short(card.home_team_code), value: "主", win: false }];
+  const status = cardStatus(card);
+  const foot = card.completed
+    ? (card.mvp?.name ? `MVP ${card.mvp.name}` : card.mvp_missing_reason === "player_name_unavailable" ? "MVP 姓名未取得" : "MVP 未取得")
+    : status.tone !== "scheduled" ? status.text
+    : card.conditional ? SERIES_COPY.conditional : (card.venue ?? "球場未取得");
+  const match = done
+    ? `${teamLabel(card.away_team_code)} ${a}：${h} ${teamLabel(card.home_team_code)}`
+    : `${teamLabel(card.away_team_code)}（客）對 ${teamLabel(card.home_team_code)}（主）`;
+  const label = [gameTitle(card), dateText(card.game_date), card.venue ?? "", match, card.completed ? (mvpText(card) ?? "") : status.text,
+    card.conditional && !card.completed ? SERIES_COPY.conditional : ""].filter(Boolean).join("，");
+  return { title: `G${card.series_game_no}`, date: md(card.game_date), rows, foot, label };
 }
 
 /** 開賽時刻＋來源（公告常數）。 */

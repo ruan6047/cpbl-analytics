@@ -1,19 +1,18 @@
 import Link from "next/link";
-import { SectionTitle } from "@/components/postmark";
-import { Notice, StatusBadge, TeamLogo } from "@/components/ui";
+import { Notice, TeamLogo } from "@/components/ui";
 import type { OverviewGameCard, OverviewSeriesBlock, PlayoffsOverview } from "@/lib/playoffs-types";
 import {
   SERIES_COPY,
   SERIES_NAME,
-  cardStatus,
+  bigScore,
+  chipView,
   dateText,
   gameHref,
   gameTitle,
-  mvpText,
   nextGameMissingText,
-  scoreLine,
   seriesNotices,
   seriesSentence,
+  seriesStatusLine,
   startText,
   teamLabel,
   visibleCards,
@@ -22,71 +21,83 @@ import {
 // `/playoffs` 第 1 區「系列賽表現」（#285 S04）。無 hooks、純排字：SSR 首屏與 client 輪詢共用同一元件，
 // 輪詢只換 props，⛔ 自行捲動或移焦點。
 //
-// 層級（PLAN r4 §9）：前一系列總結 → 當前系列 → 下一場預告。
-// - 場次卡橫向清單，區內可橫捲，頁面不水平溢出（min-w-0＋overflow-x-auto）。
+// 需求方 SHA-F2 人工審核（issuecomment-6190739641）後的呈現：
+// - 第 1 區桌機與手機都在第一個畫面內看完：當前系列大比分 → 精簡場次卡 → 下一場預告 → 前一系列總結。
+//   大比分放最上面，一眼看到；第 4 區往下捲才看到。
+// - 場次卡改格狀（不橫捲）：手機 4 欄、桌機 7 欄；每張只放場序、日期、兩隊（分數或客主）、一行補充。
+// - 整張卡就是單場連結（D3 的「單場連結」），卡內不再另放連結文字。
 // - 預告只放日期、開賽時刻＋來源、球場、主客；⛔ 先發投手（需求方 D7）。
 // - 第 2／3 區 10/17 整區隱藏（Q3），本元件不留它們的標題或占位。
 
-function GameCard({ card }: { card: OverviewGameCard }) {
-  const status = cardStatus(card);
-  const score = scoreLine(card);
-  const mvp = mvpText(card);
+function GameChip({ card }: { card: OverviewGameCard }) {
+  const v = chipView(card);
   return (
-    <li className="w-[13.5rem] shrink-0 snap-start rounded-md bg-surface p-3" data-game={`${card.game_key.kind_code}${card.game_key.game_sno}`}>
-      <div className="flex items-center justify-between gap-2 text-xs">
-        <span className="font-bold text-ink">{gameTitle(card)}</span>
-        <StatusBadge tone={status.tone}>{status.text}</StatusBadge>
-      </div>
-      <div className="mt-1 text-xs text-muted">
-        {dateText(card.game_date)}・{card.venue ?? "球場本站尚未取得"}
-        {card.conditional && !card.completed ? `・${SERIES_COPY.conditional}` : ""}
-      </div>
-      {score ? (
-        <dl className="mt-2 space-y-1 text-sm">
-          {([["客", card.away_team_code, score.away, score.awayScore, score.homeScore], ["主", card.home_team_code, score.home, score.homeScore, score.awayScore]] as const).map(([side, code, name, mine, theirs]) => (
-            <div key={side} className="flex items-center justify-between gap-2">
-              <dt className="relative flex min-w-0 items-center gap-1.5">
-                <TeamLogo code={code} name={name} size={18} decorative />
-                <span className={`truncate ${mine > theirs ? "font-bold text-ink" : "text-faint"}`}>{name}</span>
-                <span className="sr-only">（{side}）</span>
-              </dt>
-              <dd className={`font-mono text-base tabular-nums ${mine > theirs ? "font-bold text-ink" : "text-faint"}`}>{mine}</dd>
-            </div>
-          ))}
-        </dl>
-      ) : (
-        <p className="mt-2 text-sm text-ink">
-          {teamLabel(card.away_team_code)} <span className="text-faint">@</span> {teamLabel(card.home_team_code)}
-        </p>
-      )}
-      {mvp && <p className="mt-2 text-xs text-muted">{mvp}</p>}
-      <Link href={gameHref(card)} className="mt-2 inline-flex min-h-11 items-center text-sm text-accent underline-offset-2 hover:underline">
-        {card.completed ? "單場賽況 →" : "單場頁 →"}
+    <li className="min-w-0" data-game={`${card.game_key.kind_code}${card.game_key.game_sno}`}>
+      <Link href={gameHref(card)} aria-label={v.label}
+        className="block h-full min-h-11 rounded-md bg-surface px-2 py-1.5 text-xs leading-5 hover:bg-surface-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent">
+        <span className="flex items-baseline justify-between gap-1 text-muted">
+          <span className="font-bold text-ink">{v.title}</span>
+          <span className="tabular-nums">{v.date}</span>
+        </span>
+        {v.rows.map((r, i) => (
+          <span key={i} className={`flex items-baseline justify-between gap-1 ${r.win ? "font-bold text-ink" : "text-muted"}`}>
+            <span className="truncate">{r.name}</span>
+            <span className={/^\d+$/.test(r.value) ? "font-mono text-sm tabular-nums" : "text-[11px] text-faint"}>{r.value}</span>
+          </span>
+        ))}
+        <span className="block truncate text-[11px] text-faint">{v.foot}</span>
       </Link>
     </li>
   );
 }
 
-// relative：卡內的 sr-only（absolute）以清單為包含塊才會被橫捲裁切；少了它，捲出畫面的卡會把
-// 整頁撐寬（375 寬實測 scrollWidth 698）。scroll-px-1 讓 snap 對齊內距，不在首屏偏移 4px。
-function CardList({ block, label }: { block: OverviewSeriesBlock; label: string }) {
+function ChipGrid({ block }: { block: OverviewSeriesBlock }) {
   const cards = visibleCards(block);
+  if (!cards.length) return <p className="text-sm text-muted">{SERIES_NAME[block.kind_code]}{SERIES_COPY.noGames}</p>;
   return (
-    <ul aria-label={label} className="relative -mx-1 flex min-w-0 snap-x scroll-px-1 gap-2 overflow-x-auto px-1 pb-2">
-      {cards.map((c) => <GameCard key={`${c.game_key.kind_code}-${c.game_key.game_sno}`} card={c} />)}
+    <ul aria-label={`${SERIES_NAME[block.kind_code]}場次`} className="grid min-w-0 grid-cols-4 gap-1.5 md:grid-cols-7 md:gap-2">
+      {cards.map((c) => <GameChip key={`${c.game_key.kind_code}-${c.game_key.game_sno}`} card={c} />)}
     </ul>
   );
 }
 
-function SeriesBlockView({ block, heading }: { block: OverviewSeriesBlock; heading: string }) {
-  const hasCards = visibleCards(block).length > 0;
+/** 當前系列：大比分＋一行狀態＋精簡場次卡。 */
+function CurrentSeries({ block }: { block: OverviewSeriesBlock }) {
+  const [a, b] = bigScore(block);
   return (
     <div className="min-w-0 space-y-2" data-series={block.kind_code}>
-      <SectionTitle as="h3" size="sm">{heading}</SectionTitle>
-      <p className="text-sm text-ink" data-series-sentence>{seriesSentence(block)}</p>
-      {hasCards
-        ? <CardList block={block} label={`${SERIES_NAME[block.kind_code]}場次`} />
-        : <p className="text-sm text-muted">{SERIES_NAME[block.kind_code]}{SERIES_COPY.noGames}</p>}
+      <div className="rounded-md bg-surface px-3 py-2.5" data-big-score>
+        <h3 className="text-sm font-bold text-ink">{SERIES_NAME[block.kind_code]}</h3>
+        {a && b ? (
+          <p className="mt-1 flex items-center justify-center gap-2 sm:gap-4" aria-label={`系列大比分 ${a.name} ${a.wins ?? "?"} 比 ${b.wins ?? "?"} ${b.name}`}>
+            <span className="flex min-w-0 flex-1 items-center justify-end gap-1.5 text-right text-base font-bold text-ink">
+              <span className="truncate">{a.name}</span>
+              <TeamLogo code={a.code} name={a.name} size={24} decorative />
+            </span>
+            <span className="shrink-0 font-mono text-3xl font-bold tabular-nums text-ink">
+              {a.wins ?? "?"}<span className="mx-1.5 text-faint">:</span>{b.wins ?? "?"}
+            </span>
+            <span className="flex min-w-0 flex-1 items-center gap-1.5 text-base font-bold text-ink">
+              <TeamLogo code={b.code} name={b.name} size={24} decorative />
+              <span className="truncate">{b.name}</span>
+            </span>
+          </p>
+        ) : null}
+        <p className="mt-1 text-center text-xs text-muted" data-series-sentence>{seriesStatusLine(block)}</p>
+      </div>
+      <ChipGrid block={block} />
+    </div>
+  );
+}
+
+/** 前一系列：一句結果（D3 系列一句）＋精簡場次卡。 */
+function PreviousSeries({ block }: { block: OverviewSeriesBlock }) {
+  return (
+    <div className="min-w-0 space-y-1.5" data-series={block.kind_code}>
+      <p className="text-sm text-ink" data-series-sentence>
+        <span className="mr-2 font-bold">{SERIES_NAME[block.kind_code]}</span>{seriesSentence(block)}
+      </p>
+      <ChipGrid block={block} />
     </div>
   );
 }
@@ -95,28 +106,19 @@ function NextGame({ overview }: { overview: PlayoffsOverview }) {
   const next = overview.series_section.next_game;
   const missing = nextGameMissingText(overview);
   if (!next) return missing ? <p className="text-sm text-muted">{missing}</p> : null;
+  // 目標場進行中時不叫「下一場」（狀態由 S02 target_status 給，不自行推導）
+  const lead = next.target_status === "live" ? "進行中" : "下一場";
   return (
-    <div className="rounded-md bg-surface-2 p-3" data-next-game>
-      {/* 目標場進行中時不叫「下一場」（狀態由 S02 target_status 給，不自行推導） */}
-      <SectionTitle as="h3" size="sm">{next.target_status === "live" ? "進行中" : "下一場"}：{gameTitle(next)}</SectionTitle>
-      <dl className="mt-1 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm">
-        <dt className="text-muted">日期</dt>
-        <dd className="text-ink">{dateText(next.game_date)}</dd>
-        <dt className="text-muted">開賽</dt>
-        <dd className="text-ink">{startText(next, overview)}</dd>
-        <dt className="text-muted">球場</dt>
-        <dd className="text-ink">{next.venue ?? "本站尚未取得"}</dd>
-        <dt className="text-muted">對戰</dt>
-        <dd className="flex flex-wrap items-center gap-x-1.5 text-ink">
-          <span>{teamLabel(next.away_team_code)}（客）</span>
-          <span className="text-faint">@</span>
-          <span>{teamLabel(next.home_team_code)}（主）</span>
-        </dd>
-      </dl>
-      <Link href={gameHref(next)} className="mt-1 inline-flex min-h-11 items-center text-sm text-accent underline-offset-2 hover:underline">
-        單場頁 →
-      </Link>
-    </div>
+    <Link href={gameHref(next)} data-next-game
+      className="block rounded-md bg-surface-2 px-3 py-2 text-sm hover:bg-band focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent">
+      <span className="font-bold text-ink">{lead}：{gameTitle(next)}</span>
+      <span className="mt-0.5 block text-ink">
+        {dateText(next.game_date)} {startText(next, overview)}・{next.venue ?? "球場本站尚未取得"}
+      </span>
+      <span className="block text-ink">
+        {teamLabel(next.away_team_code)}（客）<span className="text-faint"> @ </span>{teamLabel(next.home_team_code)}（主）
+      </span>
+    </Link>
   );
 }
 
@@ -124,17 +126,17 @@ export function SeriesSection({ overview }: { overview: PlayoffsOverview }) {
   const ss = overview.series_section;
   const notices = seriesNotices(overview);
   return (
-    <section id="series" aria-labelledby="series-heading" className="min-w-0 scroll-mt-[70px] space-y-4 md:scroll-mt-[76px]">
-      <SectionTitle as="h2" id="series-heading">系列賽表現</SectionTitle>
+    <section id="series" aria-labelledby="series-heading" className="min-w-0 scroll-mt-[70px] space-y-3 md:scroll-mt-[76px]">
+      <h2 id="series-heading" className="sr-only">系列賽表現</h2>
       {notices.map((n) => <Notice key={n} label="待更新">{n}</Notice>)}
       {/* 整區空態只在整年 E／C 都沒有場次時；當前系列缺列不藏前一系列總結（審核 F1） */}
       {ss.status === "empty" ? (
         <p className="text-sm text-muted">{SERIES_COPY.empty}</p>
       ) : (
         <>
-          {ss.previous && <SeriesBlockView block={ss.previous} heading={`${SERIES_NAME[ss.previous.kind_code]}結果`} />}
-          <SeriesBlockView block={ss.current} heading={SERIES_NAME[ss.current.kind_code]} />
+          <CurrentSeries block={ss.current} />
           <NextGame overview={overview} />
+          {ss.previous && <PreviousSeries block={ss.previous} />}
         </>
       )}
     </section>
