@@ -5,6 +5,7 @@ import { useState } from "react";
 import {
   ROSTER_COPY,
   SORTS,
+  arrowView,
   gText,
   lineText,
   prLabel,
@@ -132,6 +133,7 @@ export function MemberCard({ m }: { m: RosterMember }) {
         <span data-role>{ROSTER_COPY.roleSource}：<span className="text-ink">{m.tactical_role ?? ROSTER_COPY.missing}</span></span>
         <span className="tabular-nums" data-line>{line ?? ROSTER_COPY.missing}</span>
       </div>
+      <ArrowLine m={m} />
       {bg.pr_tags.length ? (
         <ul className="mt-2 flex flex-wrap gap-1" aria-label="官方 PR 90 以上">
           {bg.pr_tags.map((t) => (
@@ -142,6 +144,19 @@ export function MemberCard({ m }: { m: RosterMember }) {
           ))}
         </ul>
       ) : null}
+    </div>
+  );
+}
+
+const DIR_CLASS = { up: "text-up", down: "text-down", flat: "text-muted" } as const;
+
+function ArrowLine({ m }: { m: RosterMember }) {
+  const a = arrowView(m);
+  return (
+    <div className="mt-1 flex flex-wrap items-baseline gap-x-2 text-xs text-muted" data-arrow={a.dir ?? "none"}>
+      <span>{a.label}</span>
+      <span className="font-mono tabular-nums text-ink">{a.value}</span>
+      <span className={`font-semibold ${a.dir ? DIR_CLASS[a.dir] : "text-muted"}`}>{a.text}</span>
     </div>
   );
 }

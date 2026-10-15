@@ -111,7 +111,8 @@ def test_background_a_then_d_then_none():
     p = m["0000000003"]["background"]
     assert p["level"] == "D" and p["line"]["ip"] == "20.0" and p["line"]["era"] == 3.6
     n = m["0000000004"]["background"]
-    assert n == {"level": "none", "g": None, "line": None, "pr_tags": []}
+    assert {k: v for k, v in n.items() if k != "arrow"} == {"level": "none", "g": None, "line": None, "pr_tags": []}
+    assert n["arrow"]["status"] == "insufficient"
     assert "background_none" in out["missing_reason"]
 
 
@@ -171,7 +172,7 @@ class _Cur:
 
     def execute(self, sql, params=None):
         self.calls += 1
-        self._rows = [] if "max(g.game_date)" not in sql else [(None,)]
+        self._rows = ([(None,)] if "max(g.game_date)" in sql else [(0,) * 6] if "sum(ab)" in sql else [])
         self.description = []
 
     def fetchone(self):
@@ -193,4 +194,5 @@ def test_query_count_independent_of_roster_size():
 
     one = calls({AWAY: roster(*_ids(32, "11111")), HOME: None})
     two = calls({AWAY: roster(*_ids(32, "11111")), HOME: roster(*_ids(32, "22222"))})
-    assert one == two == 4      # cutoff＋打擊計數＋投球計數＋官方 PR
+    # cutoff＋打擊計數＋投球計數＋官方 PR＋兩個聯盟基準＋兩個最近出賽批次
+    assert one == two == 8

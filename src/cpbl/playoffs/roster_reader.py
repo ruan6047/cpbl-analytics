@@ -17,6 +17,9 @@
 5. 背景層級：本季一軍 A 有出賽 ⇒ ``A``；沒有但二軍 D 有 ⇒ ``D``（只給傳統計數，⛔ PR／OPS+）；都沒有 ⇒ ``none``。
 6. PR≥90 標籤只採官方進階 ``advanced_stats`` 的一軍 A 列，與球員頁同閘門（``ability._ADV_GATE``）、同一組欄；
    官方沒有就不標，⛔ 自行排名。
+7. 冷熱箭頭（PRD 第五節，proposed）：一軍例行賽 A 最近 15 次個人出賽（W1）對緊接在前的 15 次（W0），
+   出賽定義、窗長、聯盟基準都取自 :mod:`cpbl.api.routers.trend`（球員頁走勢同一份）；先加總原始計數再算、
+   未四捨五入比較。門檻只住 :data:`ARROW_POLICY`，⛔ 私改、⛔ 依單系列結果調整。
 """
 
 from __future__ import annotations
@@ -43,6 +46,17 @@ PR_COLUMNS = ("ev_pr", "max_ev_pr", "brlp_pr", "hardhitp_pr", "woba_pr", "ba_pr"
               "obp_pr", "chasep_pr", "whiffp_pr", "kp_pr", "bbp_pr")
 PR_TAG_MIN = 90
 
+#: PRD v2 第五節建議值（proposed，版本化）。⛔ 私改；⛔ 依單系列結果調整（G12）。
+ARROW_POLICY = {
+    "version": "playoffs-arrow/prd-v2-proposed",
+    "status": "proposed",
+    "window": 15,
+    "bat_min_ab": 30,
+    "pit_min_outs": 30,
+    "ops_plus_delta": 15,
+    "era_plus_delta": 20,
+}
+
 
 def role_of(position: str) -> str:
     """官方守位 → 讀哪一種 box：投手讀投球，其餘讀打擊。"""
@@ -67,6 +81,11 @@ class RosterInputs:
     # (player_id, role) → {pr 欄: 值}（一軍 A、已過閘門）
     advanced: dict[tuple[str, str], dict] = field(default_factory=dict)
     background_cutoff: str | None = None                  # 本季一軍最後一個有 box 的比賽日
+    # player_id → 最近 2×window 次 A 出賽原始計數（新到舊）；角色依官方守位
+    recent: dict[str, list[dict]] = field(default_factory=dict)
+    lg_obp: float | None = None
+    lg_slg: float | None = None
+    lg_era: float | None = None
 
 
 # —— 純計算 ——————————————————————————————————————————————————————————
@@ -108,16 +127,83 @@ def pr_tags(adv: dict | None) -> list[dict]:
     return sorted(tags, key=lambda t: (-t["value"], order[t["key"]]))
 
 
+def arrow_status(v1: float, v0: float, threshold: float) -> str:
+    """W1−W0 ≥ 門檻 ⇒ up；≤ −門檻 ⇒ down；其餘 flat（未四捨五入比較）。"""
+    d = v1 - v0
+    return "up" if d >= threshold else "down" if d <= -threshold else "flat"
+
+
+def _bat_window(rows: list[dict]) -> dict:
+    c = {k: sum(r.get(k) or 0 for r in rows) for k in ("ab", "h", "bb", "hbp", "sf", "tb")}
+    den = c["ab"] + c["bb"] + c["hbp"] + c["sf"]
+    c["obp"] = (c["h"] + c["bb"] + c["hbp"]) / den if den else None
+    c["slg"] = c["tb"] / c["ab"] if c["ab"] else None
+    return c
+
+
+def _pit_window(rows: list[dict]) -> dict:
+    outs = sum((r.get("ipc") or 0) * 3 + (r.get("ip3") or 0) for r in rows)
+    er = sum(r.get("er") or 0 for r in rows)
+    return {"outs": outs, "er": er, "era": er * 27 / outs if outs else None}
+
+
+def arrow_of(rows: list[dict], role: str, *, lg_obp: float | None, lg_slg: float | None, lg_era: float | None,
+             policy: dict = ARROW_POLICY) -> dict:
+    """冷熱箭頭（A08）。``rows``＝最近出賽原始計數，新到舊。
+
+    - 不足 2×window 次出賽 ⇒ ``insufficient``（``appearances``）。
+    - 任一窗打數／出局數未達底線，或率分母無效 ⇒ ``insufficient``（``sample``）。
+    - 聯盟基準缺、或任一窗 ERA=0（ERA+ 不可定義）⇒ ``undefined``；保留 ERA 0.00 與樣本，⛔ ∞／999。
+    """
+    from cpbl.api.routers.trend import era_plus_raw, ops_plus_raw
+
+    n = policy["window"]
+    metric = "ops_plus" if role == "batting" else "era_plus"
+    base = {"metric": metric, "appearances": min(len(rows), 2 * n), "w1": None, "w0": None, "delta": None}
+    if len(rows) < 2 * n:
+        return {**base, "status": "insufficient", "reason": "appearances"}
+    w1_rows, w0_rows = rows[:n], rows[n:2 * n]
+    if role == "batting":
+        w1, w0 = _bat_window(w1_rows), _bat_window(w0_rows)
+        enough = all(w["ab"] >= policy["bat_min_ab"] and w["obp"] is not None and w["slg"] is not None
+                     for w in (w1, w0))
+        v1 = ops_plus_raw(w1["obp"], w1["slg"], lg_obp, lg_slg) if enough else None
+        v0 = ops_plus_raw(w0["obp"], w0["slg"], lg_obp, lg_slg) if enough else None
+        threshold = policy["ops_plus_delta"]
+        out_w = [{"ab": w["ab"], "h": w["h"], "bb": w["bb"], "hbp": w["hbp"], "sf": w["sf"], "tb": w["tb"],
+                  "obp": _r(w["obp"], 3), "slg": _r(w["slg"], 3)} for w in (w1, w0)]
+    else:
+        w1, w0 = _pit_window(w1_rows), _pit_window(w0_rows)
+        enough = all(w["outs"] >= policy["pit_min_outs"] for w in (w1, w0))
+        v1 = era_plus_raw(w1["era"], lg_era) if enough else None
+        v0 = era_plus_raw(w0["era"], lg_era) if enough else None
+        threshold = policy["era_plus_delta"]
+        out_w = [{"outs": w["outs"], "ip": f"{w['outs'] // 3}.{w['outs'] % 3}", "er": w["er"],
+                  "era": _r(w["era"], 2)} for w in (w1, w0)]
+    for w, v in zip(out_w, (v1, v0), strict=True):
+        w["value"] = _r(v, 1)
+    base.update(w1=out_w[0], w0=out_w[1])
+    if not enough:
+        return {**base, "status": "insufficient", "reason": "sample"}
+    if v1 is None or v0 is None:
+        reason = "era_zero" if role == "pitching" and lg_era and 0 in (w1["era"], w0["era"]) else "baseline"
+        return {**base, "status": "undefined", "reason": reason}
+    return {**base, "status": arrow_status(v1, v0, threshold), "reason": None, "delta": _r(v1 - v0, 1)}
+
+
 def background_of(pid: str, role: str, inputs: RosterInputs) -> dict:
     """一名球員的例行賽背景：A 優先；無 A 改 D（只給傳統計數）；都沒有 ⇒ none。"""
     line = batting_line if role == "batting" else pitching_line
+    arrow = arrow_of(inputs.recent.get(pid, []), role, lg_obp=inputs.lg_obp, lg_slg=inputs.lg_slg,
+                     lg_era=inputs.lg_era)
     a = inputs.counts.get((pid, role, "A"))
     if a and a.get("g"):
-        return {"level": "A", "g": a["g"], "line": line(a), "pr_tags": pr_tags(inputs.advanced.get((pid, role)))}
+        return {"level": "A", "g": a["g"], "line": line(a), "pr_tags": pr_tags(inputs.advanced.get((pid, role))),
+                "arrow": arrow}
     d = inputs.counts.get((pid, role, "D"))
     if d and d.get("g"):
-        return {"level": "D", "g": d["g"], "line": line(d), "pr_tags": []}
-    return {"level": "none", "g": None, "line": None, "pr_tags": []}
+        return {"level": "D", "g": d["g"], "line": line(d), "pr_tags": [], "arrow": arrow}
+    return {"level": "none", "g": None, "line": None, "pr_tags": [], "arrow": arrow}
 
 
 def _role(v: str | None) -> str | None:
@@ -144,6 +230,7 @@ def compute_roster(inputs: RosterInputs, *, now: datetime) -> dict:
             "background_cutoff": inputs.background_cutoff,
         },
         "default_scope": "background",
+        "arrow_policy": dict(ARROW_POLICY),
         "scopes": {"background": {"status": "ok"}, "series": {"status": "not_provided"}},
         "registration": {"status": "unknown", "reason": "registration_source_not_delivered"},
         "roster_version": _hash(inputs.rosters),
@@ -291,6 +378,14 @@ def read_background(cur, inputs: RosterInputs) -> None:
     cur.execute(_adv_sql(), {"ids": ids, "year": inputs.year})
     for r in _dicts(cur):
         inputs.advanced[(r.pop("acnt"), r.pop("role"))] = r
+    # 冷熱箭頭：與球員頁走勢同一份聯盟基準與出賽定義（trend.py），各一次批次。
+    from cpbl.api.routers import trend
+
+    inputs.lg_obp, inputs.lg_slg = trend.league_batting_baseline(cur, inputs.year)
+    inputs.lg_era = trend.league_era(cur, inputs.year)
+    n = 2 * ARROW_POLICY["window"]
+    inputs.recent = {**trend.recent_appearances(cur, bat, "batting", inputs.year, n=n),
+                     **trend.recent_appearances(cur, pit, "pitching", inputs.year, n=n)}
 
 
 def read_roster_inputs(cur, year: int, series: str, *, now: datetime, live_reader=None) -> RosterInputs:
