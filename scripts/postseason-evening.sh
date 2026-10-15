@@ -18,6 +18,7 @@ scripts/postseason-evening.sh — 季後事件觸發晚間鏈（#268；launchd �
 在做什麼（每次喚醒）
   1. plan：讀狀態檔；到期才以 httpx 唯讀讀官方 stats 賽程 API（不取鎖；本機 DB 只寫異動訊號表），
      與本機 DB 比對出事件。沒有事件 → 直接結束（不連 www）。
+     #292 先發查核時點（旗標檔存在才開）：開賽前 1h／0.5h、終場後 1h 到點也走第 2 步（同一組閘門）。
   2. 有事件且允許（每事件 ≤3 次、間隔 ≥20 分鐘、挑戰類失敗兩次即停當晚、讓位 10:10）：
      取 refresh lock，跑既有 _postseason_games_step（www getgamedatas，E／C）。
   3. 本機 E／C 有變化（或前次已變化未同步），或只有本機異動訊號表變了（www／同步失敗時亦然）：
@@ -56,6 +57,8 @@ scripts/postseason-evening.sh — 季後事件觸發晚間鏈（#268；launchd �
   POSTSEASON_BACKUP_DIR    晚間鏈專用備份目錄（預設與 10:10 的目錄不同，不輪替掉那 7 份）
   POSTSEASON_BACKUP_KEEP   晚間鏈備份保留份數（預設 3）
   POSTSEASON_LAUNCHD_LABEL bootout 用的 label（預設 com.cpbl.postseason-evening）
+  POSTSEASON_STARTER_FLAG  #292 先發查核時點旗標檔（預設 logs/postseason-starter-checkpoints.enabled；
+                           存在＝開，touch／rm 下次喚醒生效；預覽：uv run python -m cpbl.ingest.postseason_evening plan --dry）
   POSTSEASON_EVENING_STAGE all（預設：結果鏈＋box／PA 階段）或 boxpa（只跑 box／PA 階段）；其他值 exit 64
 
 離開碼

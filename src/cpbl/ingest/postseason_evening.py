@@ -4,6 +4,7 @@
 
     python -m cpbl.ingest.postseason_evening --help
     python -m cpbl.ingest.postseason_evening plan          # 讀狀態檔、必要時唯讀讀 stats、決定下一步
+    python -m cpbl.ingest.postseason_evening plan --dry    # #292 A1：只列先發查核時點（不連網、不寫）
     python -m cpbl.ingest.postseason_evening scrape        # 跑既有 _postseason_games_step（www）
     python -m cpbl.ingest.postseason_evening sync-due      # 三表沒變時，異動訊號表是否仍需同步
     python -m cpbl.ingest.postseason_evening record-sync --code N
@@ -36,6 +37,9 @@
 * **錯誤即停**（核定規劃 §4.3）：data-only 對帳不等（refresh 回 68）→ 記失敗並停止當晚
   （``sync_blocked_at``，隔日 12:00 後才再試）；其他同步非零（64–67、psql／schema 錯誤、備份失敗）
   → ``halted``，之後每次喚醒都直接退出，直到人工清除狀態檔的 ``halted``；不調時段補洞。
+* **先發查核時點**（#292 A1，旗標檔預設不存在＝關）：開啟時另在開賽前 1h／0.5h、終場後 1h 以同一個
+  ``scrape`` 動作抓目標賽別（與事件同賽別合併成一次，共用冷卻／挑戰停／讓位／錯誤即停）。時點規則見
+  :mod:`cpbl.ingest.starter_checkpoints`；旗標關時行為與 #268 基準相同。
 
 狀態檔（預設 ``logs/postseason-evening-state.json``）是唯一的跨次記憶；最終狀態另寫
 ``logs/last-postseason-evening.json``。prod 不寫任何 refresh 標記；本機 ``refresh_log`` 以 scope
@@ -55,6 +59,7 @@ from pathlib import Path
 from typing import Any
 from zoneinfo import ZoneInfo
 
+from cpbl.ingest import starter_checkpoints as sc
 from cpbl.ingest._cli import cli_parser
 
 log = logging.getLogger("cpbl.postseason_evening")
@@ -271,7 +276,10 @@ def empty_state() -> dict[str, Any]:
             "pending_sync": False, "sync_blocked_at": None, "halted": None,
             "needs_owner_decision": None, "last_run": None,
             "detected_changes": [], "signals_dirty": False, "signals_error": None,
-            "signals_unsynced": False, "www_requests": {}, "scrape_kinds": []}
+            "signals_unsynced": False, "www_requests": {}, "scrape_kinds": [],
+            # #292 A1：先發查核時點紀錄、F 近似（本機首見 FINISHED）、旗標開啟起點、本次喚醒要查的紀錄。
+            "starter_checkpoints": {}, "finished_first_seen": {}, "starter_enabled_since": None,
+            "starter_inflight": []}
 
 
 def _starts(g: Mapping) -> datetime | None:
@@ -342,18 +350,24 @@ def www_kinds(state: Mapping, now: datetime) -> tuple[str, ...]:
     不能只抓單場），所以冷卻也以賽別計：某賽別上一次請求（或該賽別任一未結事件的上一次嘗試）未滿
     20 分鐘，整個賽別都不得再抓——否則新事件會讓同賽別仍在冷卻的舊事件被再抓一次。賽別內至少要有
     一個未結且未用盡 3 次的事件。不同賽別互不連坐（E 冷卻中，C 的新公告仍可立即抓 C）。"""
-    requests = state.get("www_requests") or {}
     out = []
     for kind in KINDS:
         evs = [e for e in open_events(state).values() if _kind_of(e["key"]) == kind]
         if not any(len(e.get("attempts") or []) < WWW_MAX_ATTEMPTS for e in evs):
             continue
-        stamps = [_parse(requests.get(kind))] + [_parse(a) for e in evs for a in e.get("attempts") or []]
-        stamps = [s for s in stamps if s is not None]
-        if stamps and now - max(stamps) < WWW_COOLDOWN:
+        if not kind_cooled(state, kind, now):
             continue
         out.append(kind)
     return tuple(out)
+
+
+def kind_cooled(state: Mapping, kind: str, now: datetime) -> bool:
+    """賽別冷卻帳本（事件與 #292 先發時點共用一份）：該賽別上次請求與其未結事件的上次嘗試都已滿 20 分鐘。"""
+    requests = state.get("www_requests") or {}
+    evs = [e for e in open_events(state).values() if _kind_of(e["key"]) == kind]
+    stamps = [_parse(requests.get(kind))] + [_parse(a) for e in evs for a in e.get("attempts") or []]
+    stamps = [s for s in stamps if s is not None]
+    return not stamps or now - max(stamps) >= WWW_COOLDOWN
 
 
 def www_decision(state: Mapping, now: datetime) -> tuple[bool, str]:
@@ -430,11 +444,15 @@ def apply_detection(state: dict, events: list[Event], now: datetime,
 
 def plan(state: dict, now: datetime, *, probe: Callable[[], list[StatsGame]],
          load_local: Callable[[], dict[str, LocalGame]],
-         local_first_seen: Callable[[], dict[str, str | None]] = dict) -> tuple[str, str]:
+         local_first_seen: Callable[[], dict[str, str | None]] = dict,
+         starter_enabled: bool = False,
+         www_starts: Callable[[], Mapping[str, str | None]] = dict) -> tuple[str, str]:
     """一次喚醒的決策。回 (action, reason)；action ∈ idle／halted／scrape／sync。
 
     **沒有事件就不會回 scrape**（＝不連 www）；stats 讀不到時也不回 scrape（fail closed）。
     原本會閒置、但本機異動訊號表待同步時回 ``("sync", "signals_only")``（B1；不連 www）。
+    唯一例外是 #292 A1 先發查核時點（``starter_enabled``，旗標檔）：到點即以同一個 scrape 動作
+    抓該賽別，受同一組閘門約束（見 :func:`starter_kinds`）。
     """
     if state.get("halted"):
         return "halted", state["halted"].get("reason", "halted")
@@ -457,22 +475,79 @@ def plan(state: dict, now: datetime, *, probe: Callable[[], list[StatsGame]],
             state["schedule"] = [asdict(g) for g in stats]
             apply_detection(state, detect_events(stats, load_local()), now, local_first_seen(),
                             observed_keys=[g.key for g in stats])
+            sc.note_finished(state.setdefault("finished_first_seen", {}), state["schedule"], now)
+    starter_due = refresh_starter_checkpoints(state, now, starter_enabled, www_starts)
+    cps = state.get("starter_checkpoints") or {}
     # 對帳不等已停止當晚：只記錄偵測（T1），不再連 www、不再同步。
     if sync_blocked(state, now):
+        sc.note_wait(cps, starter_due, "sync_blocked")
         return "idle", "sync_blocked_tonight"
     # 本機已變、尚未同步：不需要再碰 www，可直接同步（仍讓位 10:10）。
     if state.get("pending_sync") and not in_daily_guard(now):
+        sc.note_wait(cps, starter_due, "pending_sync")
         return "sync", "pending_sync"
     if probe_failed:
+        sc.note_wait(cps, starter_due, "probe_unavailable")
         return with_signal_sync(state, now, "idle", "probe_unavailable")   # 讀不到 stats 就不連 www
+    starter = starter_kinds(state, now, starter_due)
+    ok, reason = www_decision(state, now) if open_events(state) else (False, "no_events")
+    if ok or starter:
+        # 能連 www 就先抓（之後同一次喚醒的同步會一併帶上訊號表）；事件與時點同賽別合併成一次。
+        kinds = set(www_kinds(state, now) if ok else ()) | starter
+        state["scrape_kinds"] = [k for k in KINDS if k in kinds]   # scrape 只抓這些賽別（F2）
+        state["starter_inflight"] = [i for i in starter_due if sc.kind_of(i) in kinds]
+        return "scrape", reason if ok else "starter_checkpoint"
     if open_events(state):
-        ok, reason = www_decision(state, now)
-        # 能連 www 就先抓（之後同一次喚醒的同步會一併帶上訊號表）；不能連時才單獨同步訊號。
-        if ok:
-            state["scrape_kinds"] = list(www_kinds(state, now))   # scrape 只抓這些賽別（F2）
-            return "scrape", reason
         return with_signal_sync(state, now, "idle", reason)
     return with_signal_sync(state, now, "idle", why if not due else "no_events")
+
+
+def refresh_starter_checkpoints(state: dict, now: datetime, enabled: bool,
+                                www_starts: Callable[[], Mapping[str, str | None]] = dict) -> list[str]:
+    """#292 A1：旗標開啟時依狀態檔賽程產生已到點的時點紀錄、結清逾時者，回此刻應查的紀錄 id。
+    旗標關 ⇒ 清掉開啟起點（之後再開只從新起點算，不補打關閉期間的時點），回空。"""
+    state["starter_inflight"] = []
+    if not enabled:
+        state["starter_enabled_since"] = None
+        return []
+    since = _parse(state.get("starter_enabled_since"))
+    if since is None:
+        since = now
+        state["starter_enabled_since"] = _iso(now)
+    cps = state.setdefault("starter_checkpoints", {})
+    try:
+        starts = www_starts()
+    except Exception:  # noqa: BLE001 — www 開賽鐘點只作並列紀錄；讀不到記 None，不擋時點
+        log.exception("讀本機 www GameDateTimeS 失敗（只影響並列紀錄）")
+        starts = {}
+    sc.materialize(cps, state.get("schedule") or [], state.get("finished_first_seen") or {},
+                   now, since, starts)
+    sc.expire(cps, now)
+    return sc.due(cps, now)
+
+
+def starter_kinds(state: dict, now: datetime, due_ids: list[str]) -> set[str]:
+    """到點的先發時點此刻可抓的賽別。閘門與事件相同：讓位 10:10、挑戰停（隔日 12:00）、賽別冷卻
+    20 分鐘（共用帳本）。擋下的只記等待原因、不計次（逾時才結清，見 :func:`starter_checkpoints.expire`）。"""
+    cps = state.get("starter_checkpoints") or {}
+    if not due_ids:
+        return set()
+    if in_daily_guard(now):
+        sc.note_wait(cps, due_ids, "yield_to_daily")
+        return set()
+    if www_blocked(state, now):
+        sc.note_wait(cps, due_ids, "www_blocked")
+        return set()
+    kinds = set()
+    for kind in KINDS:
+        ids = [i for i in due_ids if sc.kind_of(i) == kind]
+        if not ids:
+            continue
+        if kind_cooled(state, kind, now):
+            kinds.add(kind)
+        else:
+            sc.note_wait(cps, ids, "cooldown")
+    return kinds
 
 
 def signals_sync_due(state: Mapping, now: datetime) -> bool:
@@ -494,8 +569,7 @@ def with_signal_sync(state: Mapping, now: datetime, action: str, reason: str) ->
 
 def note_challenge(state: dict, now: datetime, errors: Iterable[Mapping]) -> bool:
     """挑戰類失敗入帳（結果鏈 www 與 #293 box／PA 明細 www 共用同一個「當晚兩次即停」計數）。"""
-    challenge = any(any(m.lower() in str(e.get("error", "")).lower() for m in CHALLENGE_MARKERS)
-                    for e in errors)
+    challenge = any(_is_challenge(e) for e in errors)
     if challenge:
         state.setdefault("challenge_failures", []).append(_iso(now))
         # 「當晚」＝尚未到該次失敗的釋放時刻（隔日中午）的那幾次。
@@ -535,6 +609,23 @@ def record_scrape(state: dict, now: datetime, *, errors: list[dict], changed: bo
     if errors:
         return "failed"
     return "changed" if changed else "unchanged"
+
+
+def _is_challenge(error: Mapping) -> bool:
+    return any(m.lower() in str(error.get("error", "")).lower() for m in CHALLENGE_MARKERS)
+
+
+def scrape_failures(errors: Iterable[Mapping], kinds: Iterable[str]) -> tuple[set[str], set[str]]:
+    """#292 A1：這次抓取失敗的賽別與其中挑戰類失敗的賽別。沒帶賽別的錯誤視同所抓賽別全失敗。"""
+    kinds = tuple(kinds)
+    failed: set[str] = set()
+    challenged: set[str] = set()
+    for e in errors:
+        hit = {str(e["kind"])} if e.get("kind") else set(kinds)
+        failed |= hit
+        if _is_challenge(e):
+            challenged |= hit
+    return failed, challenged
 
 
 SYNC_RECONCILE_MISMATCH = 68   # refresh-cpbl-prod.sh POSTSEASON_RESULTS_ONLY 的 data-only 對帳不等
@@ -899,7 +990,12 @@ def local_first_seen(year: int) -> dict[str, str | None]:
 
 
 def local_signature(year: int) -> str:
-    """本機 E／C 的可同步狀態指紋（games 列＋各場狀態修訂筆數與最新取得時刻）。"""
+    """本機 E／C 的可同步狀態指紋：games 列（含兩隊先發）＋各場狀態修訂筆數、最新取得時刻，
+    以及**目前觀測版本**＝最近一次看到的 payload_hash 集合（依 ``last_seen_at``）。
+
+    #292 A1：回到舊值（A→B→A）不會新增修訂列、只更新舊列 ``last_seen_at``，只看筆數與
+    ``max(fetched_at)`` 會漏掉這種變化而不同步；加入目前觀測版本與先發欄位後，修正、撤回、
+    回復都會改變指紋。``last_seen_at`` 本身不入指紋（同內容重抓每次都會更新它，不是變化）。"""
     import hashlib
 
     from cpbl.db import conn
@@ -907,15 +1003,36 @@ def local_signature(year: int) -> str:
     with conn() as c:
         games = c.execute(
             """SELECT year, kind_code, game_sno, game_date, venue, away_team_code, home_team_code,
-                      away_score, home_score, present_status, delay_kind, orig_date
+                      away_score, home_score, present_status, delay_kind, orig_date,
+                      away_starter_id, home_starter_id
                FROM cpbl.games WHERE year = %s AND kind_code IN ('E', 'C')
                ORDER BY 1, 2, 3""", (year,)).fetchall()
         revs = c.execute(
-            """SELECT year, kind_code, game_sno, count(*), max(fetched_at)
-               FROM cpbl.game_schedule_status_revisions
-               WHERE year = %s AND kind_code IN ('E', 'C') GROUP BY 1, 2, 3 ORDER BY 1, 2, 3""",
+            """SELECT year, kind_code, game_sno, count(*), max(fetched_at),
+                      array_agg(payload_hash ORDER BY payload_hash) FILTER (WHERE is_current)
+               FROM (SELECT year, kind_code, game_sno, payload_hash, fetched_at,
+                            last_seen_at = max(last_seen_at)
+                                OVER (PARTITION BY year, kind_code, game_sno) AS is_current
+                     FROM cpbl.game_schedule_status_revisions
+                     WHERE year = %s AND kind_code IN ('E', 'C')) r
+               GROUP BY 1, 2, 3 ORDER BY 1, 2, 3""",
             (year,)).fetchall()
     return hashlib.sha256(repr((games, revs)).encode()).hexdigest()
+
+
+def local_www_starts(year: int) -> dict[str, str | None]:
+    """#292 A1：每場最近一次 www payload 的 ``GameDateTimeS``（原字串，只作與 stats 開賽時刻並列）。"""
+    from cpbl.db import conn
+
+    with conn() as c:
+        rows = c.execute(
+            """SELECT DISTINCT ON (year, kind_code, game_sno) year, kind_code, game_sno,
+                      NULLIF(raw_payload->>'GameDateTimeS', '')
+               FROM cpbl.game_schedule_status_revisions
+               WHERE year = %s AND kind_code IN ('E', 'C')
+               ORDER BY year, kind_code, game_sno, last_seen_at DESC, fetched_at DESC""",
+            (year,)).fetchall()
+    return {f"{y}-{k}-{s}": start for y, k, s, start in rows}
 
 
 def log_local_refresh(state: Mapping, ok: bool, note: str | None) -> None:
@@ -1006,7 +1123,10 @@ def _months(now: datetime, state: Mapping | None = None) -> list[int]:
 def _parser():
     p = cli_parser("python -m cpbl.ingest.postseason_evening", __doc__)
     sub = p.add_subparsers(dest="command", required=True)
-    sub.add_parser("plan", help="讀狀態、必要時唯讀讀 stats，印出 idle／halted／scrape／sync")
+    pl = sub.add_parser("plan", help="讀狀態、必要時唯讀讀 stats，印出 idle／halted／scrape／sync")
+    pl.add_argument("--dry", action="store_true",
+                    help="#292 A1：只依狀態檔賽程列出先發查核時點（不連網、不碰 DB、不寫狀態）")
+    pl.add_argument("--now", help="只配 --dry：以此時刻（ISO，無時區視為台北）預覽")
     sub.add_parser("scrape", help="既有 _postseason_games_step（www）；印 changed／unchanged／failed／halted")
     sub.add_parser("sync-due", help="印 signals（本機異動訊號表待同步且允許）或 no；唯讀狀態檔")
     rs = sub.add_parser("record-sync", help="記錄 refresh-cpbl-prod.sh 的結果")
@@ -1035,12 +1155,25 @@ def main(argv: list[str] | None = None) -> int:
     path = state_path()
     state = load_state(path)
 
+    if args.command == "plan" and args.dry:
+        at = now
+        if args.now:
+            at = datetime.fromisoformat(args.now)
+            at = at.replace(tzinfo=TAIPEI) if at.tzinfo is None else at
+        print(json.dumps({"now": taipei(at).isoformat(), "starter_enabled": sc.flag_path().exists(),
+                          "points": sc.preview(state.get("schedule") or [],
+                                               state.get("finished_first_seen") or {}, at)},
+                         ensure_ascii=False, indent=2))
+        return 0
     if args.command == "plan":
+        enabled = sc.flag_path().exists()
         action, reason = plan(
             state, now,
             probe=lambda: stats_probe(year, _months(now, state)),
             load_local=lambda: load_local_games(year, now),
             local_first_seen=lambda: local_first_seen(year),
+            starter_enabled=enabled,
+            www_starts=lambda: local_www_starts(year),
         )
         publish_signals(state, year, now)
         # 本次偵測剛改動本機訊號表、而這次本來只會閒置（www 不能連）→ 同一次喚醒就送出（B1）。
@@ -1063,7 +1196,10 @@ def main(argv: list[str] | None = None) -> int:
         configured = parse_postseason_kinds(settings.refresh_postseason_kinds) or KINDS
         # F2：只抓 plan 判定冷卻已過的賽別（既有 helper 的 kinds 參數，helper 本身不改）。
         kinds = tuple(k for k in configured if k in (state.get("scrape_kinds") or ()))
+        cps = state.setdefault("starter_checkpoints", {})
+        inflight = state.get("starter_inflight") or []
         if not kinds:
+            sc.note_wait(cps, inflight, "kind_not_configured")   # #292 A1：沒抓就不計次
             state["last_run"] = {"at": _iso(now), "action": "scrape", "outcome": "unchanged", "errors": []}
             save_json(path, state)
             print("unchanged")
@@ -1073,9 +1209,14 @@ def main(argv: list[str] | None = None) -> int:
         after = local_signature(year)
         stats_has_c = any(g.get("kind_code") == "C" for g in state.get("schedule") or [])
         local_c = sum(1 for k in load_local_games(year, now) if k.split("-")[1] == "C")
-        outcome = record_scrape(state, now, errors=result.get("errors") or [],
+        errors = result.get("errors") or []
+        outcome = record_scrape(state, now, errors=errors,
                                 changed=before != after, stats_has_c=stats_has_c,
                                 local_c_rows=local_c, kinds=kinds)
+        # #292 A1：本次抓取併入的先發時點入帳。
+        failed, challenged = scrape_failures(errors, kinds)
+        sc.record_attempt(cps, [i for i in inflight if sc.kind_of(i) in kinds], now,
+                          changed=before != after, failed_kinds=failed, challenge_kinds=challenged)
         schedule = [StatsGame(**g) for g in state.get("schedule") or []]
         apply_detection(state, detect_events(schedule, load_local_games(year, now)),
                         now, local_first_seen(year), resolved_by_chain=True,
@@ -1142,6 +1283,8 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command == "record-sync":
         outcome = record_sync(state, now, args.code)
+        sc.record_sync(state.setdefault("starter_checkpoints", {}),
+                       state.get("starter_inflight") or [], args.code)   # #292 A1
         state["last_run"] = {"at": _iso(now), "action": "sync", "outcome": outcome, "code": args.code}
         publish_signals(state, year, now)
         save_json(path, state)
@@ -1157,6 +1300,7 @@ def main(argv: list[str] | None = None) -> int:
                "needs_owner_decision": state.get("needs_owner_decision"),
                "signals_error": state.get("signals_error"),
                "pending_sync": state.get("pending_sync"), "timeline": timeline(state),
+               "starter_checkpoints": sc.timeline(state.get("starter_checkpoints") or {}),
                "boxpa": boxpa_timeline(state), "boxpa_last": state.get("boxpa_last")}
     save_json(status_path(), summary)
     if attempted:
