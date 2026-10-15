@@ -10,7 +10,8 @@ import type { Load, LoadLevel, PlayoffsWatch, RecentAppearance, WatchPitcher, Wa
 
 // #289 S08 WP3：第 4 區各態文字（灰／綠／橘／紅／先發不套燈號）、4B 未發布、官方先發投手未知、名單缺。
 // #300 S08c：4A 改懶人包呈現——說明句從常駐改進 `Tooltip`。#289 版的每條斷言都保留，只把「在畫面上」
-// 換成「在畫面上」或「在提示裡」其中一層（`visible()`／`tips()`），內容一字不刪。
+// 換成「在畫面上」或「在提示裡」其中一層（`visible()`／`tips()`）。需求方逐項裁定移除的項目
+// （6191101762，PLAN-r2 §16 的 E14／E16／E19／E20／E22／E24／E25）改為「兩層都不出現」並註明項次。
 
 function text(node: ReactNode): string {
   return renderToStaticMarkup(<>{node}</>).replace(/<[^>]*>/g, " ").replace(/&#x27;/g, "'").replace(/&quot;/g, '"')
@@ -123,10 +124,13 @@ test("灰色：列已知球數與理由，不出觸發理由、不寫可用", ()
   assert.match(v, /資料不完整/); // 可見短標；原因句在燈號提示
   assert.match(t, /資料不完整：10\/15 該隊當日正式場已完賽，但投手逐場紀錄尚未送達/);
   assert.doesNotMatch(v, /該隊當日正式場已完賽/);
-  assert.match(t, /10\/16 20/);
-  assert.match(t, /10\/15 0\+\?/);
+  // 已知球數照列、不完整日不寫成 0：#289 版寫在「近期球數」行（E14 移除），現由日條格承擔。
+  const cells = [...renderToStaticMarkup(<WatchSection data={d} />).matchAll(/data-day="(\d)" data-complete="(\d)"[^>]*><span[^>]*>([^<]+)</g)]
+    .map((m) => `${m[1]}:${m[2]}:${m[3]}`);
+  assert.deepEqual(cells, ["3:1:0", "2:0:?", "1:1:20", "0:1:0"]);
+  assert.doesNotMatch(t, /近期球數/); // E14
   assert.doesNotMatch(`${v} ${t}`.replace("不是健康判斷、可用性或教練調度", ""), /可用|待命/);
-  assert.match(t, /連續登板 無法判定/);
+  assert.doesNotMatch(`${v} ${t}`, /連續登板/); // E16；灰的「連投 ?」見下
   assert.match(t, /完整休息 無法判定（近期資料不完整）/);
   // R1：未知 ⛔ 顯示成不累——不出低負荷、不出綠點、摘要不給數字、不完整日格是「?」不是 0。
   const html = renderToStaticMarkup(<WatchSection data={d} />);
@@ -173,19 +177,19 @@ test("非目前目標與讀取失敗", () => {
   assert.match(visible(null), /第 4 區資料暫時無法讀取/);
 });
 
-test("連投 ERA 並列樣本與口徑；outs=0 不可定義", () => {
+test("連投 ERA 與逐人當場登錄依裁定不呈現（E19／E20）", () => {
+  // #289 版：「3 場 0.0 局 自責 1・ERA 不可定義」＋口徑＋「不代表連投導致此成績」；#300 6191101762 裁定移除。
   const p = pitcher("1", "勝利組", load("medium"));
   p.consecutive_era = { scope: "本季一軍例行賽（A）", appearances: 3, outs: 0, ip: "0.0", er: 1, era: null, complete: true, excluded_untrusted: 0 };
   const d = watch([team("ACN011", [p])]);
-  const t = tips(d);
-  assert.match(t, /3 場 0\.0 局 自責 1・ ERA 不可定義/);
-  assert.match(t, /不代表連投導致此成績/);
-  assert.doesNotMatch(visible(d), /不代表連投導致此成績/);
+  const both = `${visible(d)} ${tips(d)}`;
+  assert.doesNotMatch(both, /ERA|自責|不代表連投導致此成績|連投時成績/);
+  assert.doesNotMatch(both, /當場登錄/);
 });
 
 // —— #300 S08c：可見層 vs 提示層 ——————————————————————————————————————————————
 
-test("平常畫面不出現任何說明句；每句都還在提示裡（只換層、不刪內容）", () => {
+test("平常畫面不出現說明句；裁定保留的都在提示裡、裁定移除的兩層都不出現", () => {
   const p = pitcher("1", "終結", load("medium", { triggers: [{ metric: "S2", value: 26, threshold: 25 }],
     days: days([0, 10, 16, 0]), metrics: { P0: 0, P1: 16, S2: 26, S3: 26, C: 2, Q: 0 },
     unattributed: [{ game_key: { year: 2026, kind_code: "A", game_sno: 9 }, pitches: 12, possible_dates: [] }] }));
@@ -197,25 +201,32 @@ test("平常畫面不出現任何說明句；每句都還在提示裡（只換�
   const t = tips(d);
   const html = renderToStaticMarkup(<WatchSection data={d} />);
   assert.doesNotMatch(html, /role="tooltip"/);
-  // #289 版常駐、#300 改進提示的每一句（逐項對照表的機器版）。
+  // #289 版常駐、#300 改進提示且裁定保留的每一句（逐項對照表的機器版；E 編號＝PLAN-r2 §16）。
   for (const s of [
-    "球數與出賽日的描述，不是健康判斷、可用性或教練調度",
-    d.scope.note,
-    "門檻為本站建議值（playoffs-policy/v2.0-proposed，尚未經歷史資料校準）",
-    "資料最後同步 10/17 10:24（台北）",
-    "當場 28 人登錄：未知（當場登錄來源尚未接入）",
-    "預設列名單中 #終結、#勝利組、#長中繼；角色為本站註記，非官方數據",
-    "10/15（D−2）：投手逐場紀錄尚未送達",
-    "近 2 日共 26 球（≥25）",
-    "近期球數 10/14 0・10/15 10・10/16 16・10/17 0（另有保留賽 12 球日期未定）",
-    "完整休息 4 天（最後投球 10/12）",
-    "連續登板 2 日・今日已登板 0 次",
-    "最近登板 10/12 挑戰賽G4 18 球・1.0 局",
-    "連投時成績 2 場 2.0 局 自責 0・ ERA 0.00",
-    "當場登錄 未知（當場登錄來源尚未接入）",
+    "球數與出賽日的描述，不是健康判斷、可用性或教練調度", // E21（ⓘ）
+    "門檻為本站建議值（playoffs-policy/v2.0-proposed，尚未經歷史資料校準）", // E23（建議門檻籤提示）
+    "預設列名單中 #終結、#勝利組、#長中繼；角色為本站註記，非官方數據", // E26（ⓘ）
+    "10/15（前天）：投手逐場紀錄尚未送達", // E3 隊伍缺資料原因（日標籤同 E8 改白話）
+    "近 2 日共 26 球（≥25）", // E12
+    "完整休息 4 天（最後投球 10/12）", // E15
+    "保留賽 另有保留賽 12 球日期未定", // E14 保留部分
+    "最近登板 10/12 挑戰賽G4 18 球・1.0 局", // E18
+    "連投局數 無法判定：最近登板清單只含 1 筆", // E17
   ]) {
     assert.match(t, re(s), `提示裡找不到：${s}`);
     assert.doesNotMatch(v, re(s), `平常畫面不該出現：${s}`);
+  }
+  // 需求方裁定移除（6191101762）：兩層都不出現。
+  for (const s of [
+    d.scope.note, // E22
+    "資料最後同步", // E24
+    "當場 28 人登錄", // E25
+    "近期球數", // E14 逐日部分
+    "連續登板", // E16
+    "連投時成績", // E19
+    "當場登錄", // E20
+  ]) {
+    assert.doesNotMatch(`${v} | ${t}`, re(s), `已裁定移除卻仍出現：${s}`);
   }
   // 常駐的只有狀態：建議門檻籤、資料更新時間、隊伍缺資料短標、保留賽 +? 記號、連投摘要。
   assert.match(v, /建議門檻/);
@@ -225,13 +236,13 @@ test("平常畫面不出現任何說明句；每句都還在提示裡（只換�
   assert.match(v, /連投 2 天・26 球・\? 局/);
 });
 
-test("日條：4 格固定 D−3→今日、數字常駐、比例尺＝4A 已知單日最大值", () => {
+test("日條：4 格固定 3 天前→今日、數字常駐、比例尺＝4A 已知單日最大值", () => {
   const a = pitcher("1", "終結", load("low", { days: days([5, 0, 20, 0]) }));
   const b = pitcher("2", "勝利組", load("low", { days: days([0, 40, 0, 0]) }));
   const html = renderToStaticMarkup(<WatchSection data={watch([team("ACN011", [a]), team("AAA011", [b])])} />);
   const row = html.slice(html.indexOf("投手1"), html.indexOf("投手2"));
   assert.deepEqual([...row.matchAll(/data-day="(\d)"/g)].map((m) => m[1]), ["3", "2", "1", "0"]);
-  assert.deepEqual([...row.matchAll(/text-\[11px\] text-muted">([^<]+)</g)].map((m) => m[1]), ["D−3", "D−2", "D−1", "今日"]);
+  assert.deepEqual([...row.matchAll(/text-\[11px\] text-muted">([^<]+)</g)].map((m) => m[1]), ["3 天前", "前天", "昨天", "今日"]); // E8
   assert.match(row, /height:50%/); // 20 ÷ 40（另一隊的最大值）
   assert.match(row, /height:13%/); // 5 ÷ 40
   assert.match(html.slice(html.indexOf("投手2")), /height:100%/);

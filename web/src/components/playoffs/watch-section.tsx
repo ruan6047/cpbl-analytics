@@ -4,14 +4,13 @@ import { Tooltip } from "@/components/tooltip";
 import { InfoDot } from "@/components/ui";
 import {
   ROSTER_ROLE_TEXT,
-  offsetLabel,
   shortDate,
   taipeiTime,
   type PlayoffsWatch,
   type WatchTeam,
 } from "@/lib/playoffs-watch";
 import { teamShortName } from "@/lib/postseason-journey";
-import { PitcherLoadRow } from "./watch-load-strip";
+import { PitcherLoadRow, dayLabel } from "./watch-load-strip";
 
 // #289 S08：季後賽第 4 區「觀戰重點」。4A 牛棚近期使用負荷＋4B 先發對決（S09 前占位）＋官方先發投手狀態。
 //
@@ -76,17 +75,15 @@ function Starters({ data }: { data: PlayoffsWatch }) {
 
 // —— 4A：牛棚近期使用負荷 ——————————————————————————————————————————————
 // #300 S08c：懶人包式呈現。常駐的只有狀態（建議門檻籤、資料更新時間、隊伍缺資料短標）；
-// #289 版常駐的說明句全數搬進區塊 ⓘ 提示，內容不刪（原話「說明不用直接顯示 頂多是滑鼠移動時提示就好」）。
+// #289 版常駐的說明句收進提示（原話「說明不用直接顯示 頂多是滑鼠移動時提示就好」），
+// 再依需求方逐項裁定（6191101762，PLAN-r2 §16）移除零資訊／重複項。
 
-function bullpenNote(data: PlayoffsWatch, refreshed: string | null): ReactNode {
+// 區塊 ⓘ：依 §16 裁定只留防誤讀句（E21）與角色註記（E26）；資料範圍（E22）、同步時間（E24，與可見
+// 「資料更新」重複）、28 人登錄（E25，恆未知）移除；門檻建議值說明（E23）改掛「建議門檻」籤自己的提示。
+function bullpenNote(data: PlayoffsWatch): ReactNode {
   return (
     <div className="space-y-1">
-      <p>
-        球數與出賽日的描述，不是健康判斷、可用性或教練調度。{data.scope.note}。
-        門檻為本站建議值（{data.policy_version}，尚未經歷史資料校準）。
-        {refreshed ? `資料最後同步 ${refreshed}（台北）。` : ""}
-      </p>
-      <p>當場 28 人登錄：{data.registration.text}。</p>
+      <p>球數與出賽日的描述，不是健康判斷、可用性或教練調度。</p>
       {data.teams.some((t) => t.roster_status === "submitted") ? (
         <p>預設列名單中 #終結、#勝利組、#長中繼；{ROSTER_ROLE_TEXT}。</p>
       ) : null}
@@ -102,9 +99,14 @@ function Bullpen({ data }: { data: PlayoffsWatch }) {
     <div className="space-y-3">
       <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
         <h3 className="text-base font-bold text-ink">牛棚近期使用負荷</h3>
-        <InfoDot label="牛棚負荷說明" content={bullpenNote(data, refreshed)} />
+        <InfoDot label="牛棚負荷說明" content={bullpenNote(data)} />
         {/proposed/.test(data.policy_version) ? (
-          <span data-proposed className="rounded border border-line-strong px-1 text-xs text-muted">建議門檻</span>
+          <Tooltip suppressUnderline content={<p>門檻為本站建議值（{data.policy_version}，尚未經歷史資料校準）。</p>}>
+            <button type="button" data-proposed aria-label="建議門檻：顯示說明"
+              className="relative inline-flex min-h-6 touch-manipulation items-center rounded border border-line-strong px-1 text-xs text-muted before:absolute before:-inset-y-2.5 before:inset-x-0 before:content-[''] hover:text-ink">
+              建議門檻
+            </button>
+          </Tooltip>
         ) : null}
         {refreshed ? <span className="text-xs text-muted">資料更新 {refreshed}</span> : null}
       </div>
@@ -126,7 +128,7 @@ function TeamLoad({ team, scaleMax }: { team: WatchTeam; scaleMax: number }) {
         {team.roster_status === "submitted" && gaps.length ? (
           <Tooltip suppressUnderline content={
             <ul className="space-y-0.5">
-              {gaps.map((d) => <li key={d.date}>{shortDate(d.date)}（{offsetLabel(d.offset)}）：{d.text.join("；")}</li>)}
+              {gaps.map((d) => <li key={d.date}>{shortDate(d.date)}（{dayLabel(d.offset)}）：{d.text.join("；")}</li>)}
             </ul>
           }>
             <button type="button" data-team-gaps aria-label="部分日期資料不完整：顯示理由"

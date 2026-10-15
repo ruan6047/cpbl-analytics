@@ -20,6 +20,14 @@ import { dayPitchesText, streakOf, streakText } from "./watch-load";
 // - 長條只是輔助編碼，數字一律寫出；比例尺＝整個 4A 已知單日球數最大值，⛔ 不寫門檻常數。
 // - 長條用中性色（`bg-muted`），燈號色只在燈號點，避免暗示「某一天是紅」。
 // - 不完整日：虛線框＋「?」或「N+?」，⛔ 畫成 0 或空白。
+// - 展示項目依需求方逐項裁定（#300 6191101762，PLAN-r2 §16）：日條提示移除逐日球數（E14，保留賽句保留）、
+//   連續登板 C 日・今日 Q 次（E16）、連投時成績 ERA（E19）、逐人當場登錄（E20）；日條標籤改白話（E8）。
+
+/** 日條標籤（E8）：「D−3」是內部術語，畫面改白話；offset 超出 0–3 時退回 `offsetLabel`。 */
+const DAY_LABEL: Record<number, string> = { 3: "3 天前", 2: "前天", 1: "昨天", 0: "今日" };
+export function dayLabel(offset: number): string {
+  return DAY_LABEL[offset] ?? offsetLabel(offset);
+}
 
 /** 燈號提示內容：觸發理由、灰色的缺資料理由；沒有可說明的內容回 null（燈號不成為按鈕）。 */
 export function levelDetail(p: WatchPitcher): ReactNode | null {
@@ -31,27 +39,16 @@ export function levelDetail(p: WatchPitcher): ReactNode | null {
   return null;
 }
 
-/** 日條提示內容：#289 版 `<dl>` 逐行原樣搬入（近期球數／完整休息／連續登板／最近登板／連投時成績／當場登錄）。 */
+/** 日條提示內容：完整休息、連投局數無法判定原因、保留賽球數、最近登板（其餘 #289 項目依 §16 裁定移除）。 */
 export function loadDetail(p: WatchPitcher): ReactNode {
   const { load } = p;
-  const days = [...load.days].sort((a, b) => b.offset - a.offset);
   const streak = streakOf(p);
   return (
     <dl className="grid grid-cols-[auto_1fr] gap-x-2 gap-y-0.5">
-      <dt className="opacity-75">近期球數</dt>
-      <dd>
-        {days.map((d) => `${shortDate(d.date)} ${d.complete ? d.pitches : `${d.pitches}+?`}`).join("・")}
-        {load.unattributed.length ? `（另有保留賽 ${load.unattributed.map((u) => u.pitches ?? "?").join("、")} 球日期未定）` : ""}
-      </dd>
       <dt className="opacity-75">完整休息</dt>
       <dd>
         {load.full_rest_days != null ? `${load.full_rest_days} 天（最後投球 ${shortDate(load.last_pitch_date)}）`
           : load.rest_unknown_reason ? "無法判定（近期資料不完整）" : "本季無投球紀錄"}
-      </dd>
-      <dt className="opacity-75">連續登板</dt>
-      <dd>
-        {load.metrics.C == null ? "無法判定" : `${load.metrics.C}${load.c_at_least ? "+" : ""} 日`}
-        ・今日已登板 {load.metrics.Q ?? "?"} 次
       </dd>
       {streak.kind === "streak" && !streak.innings.known ? (
         <>
@@ -59,20 +56,14 @@ export function loadDetail(p: WatchPitcher): ReactNode {
           <dd>無法判定：{streak.innings.reason}</dd>
         </>
       ) : null}
-      <dt className="opacity-75">最近登板</dt>
-      <dd>{p.recent.length ? p.recent.map(appearanceText).join("；") : "本季無登板紀錄"}</dd>
-      {p.consecutive_era ? (
+      {load.unattributed.length ? (
         <>
-          <dt className="opacity-75">連投時成績</dt>
-          <dd>
-            {p.consecutive_era.appearances} 場 {p.consecutive_era.ip ?? "?"} 局 自責 {p.consecutive_era.er ?? "?"}・
-            ERA {p.consecutive_era.era == null ? "不可定義" : p.consecutive_era.era.toFixed(2)}
-            <span className="block opacity-75">{p.consecutive_era.scope}；不代表連投導致此成績</span>
-          </dd>
+          <dt className="opacity-75">保留賽</dt>
+          <dd>另有保留賽 {load.unattributed.map((u) => u.pitches ?? "?").join("、")} 球日期未定</dd>
         </>
       ) : null}
-      <dt className="opacity-75">當場登錄</dt>
-      <dd>{p.registration.text}</dd>
+      <dt className="opacity-75">最近登板</dt>
+      <dd>{p.recent.length ? p.recent.map(appearanceText).join("；") : "本季無登板紀錄"}</dd>
     </dl>
   );
 }
@@ -108,7 +99,7 @@ export function PitcherLoadRow({ p, scaleMax }: { p: WatchPitcher; scaleMax: num
   const days = [...load.days].sort((a, b) => b.offset - a.offset);
   const streak = streakOf(p);
   const summary = streakText(streak);
-  const spoken = days.map((d) => `${offsetLabel(d.offset)} ${shortDate(d.date)} ${d.complete ? `${d.pitches} 球` : d.pitches > 0 ? `已知 ${d.pitches} 球，另有未知` : "未知"}`);
+  const spoken = days.map((d) => `${dayLabel(d.offset)} ${shortDate(d.date)} ${d.complete ? `${d.pitches} 球` : d.pitches > 0 ? `已知 ${d.pitches} 球，另有未知` : "未知"}`);
   return (
     <li className="py-2 text-sm" data-level={load.level}>
       <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
@@ -132,7 +123,7 @@ export function PitcherLoadRow({ p, scaleMax }: { p: WatchPitcher; scaleMax: num
                   <span className={`relative h-10 w-full overflow-hidden rounded-sm border bg-surface-2 ${d.complete ? "border-line" : "border-dashed border-line-strong"}`}>
                     {pct > 0 ? <span className="absolute inset-x-0 bottom-0 bg-muted" style={{ height: `${pct}%` }} /> : null}
                   </span>
-                  <span className="text-[11px] text-muted">{offsetLabel(d.offset)}</span>
+                  <span className="text-[11px] text-muted">{dayLabel(d.offset)}</span>
                 </span>
               );
             })}
