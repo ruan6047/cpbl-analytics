@@ -202,6 +202,28 @@ def test_roster_pitchers_latest_role_and_appearances(pool):
     assert p["0000000001"]["consecutive_era"] is None
 
 
+def test_dateless_appearance_is_read_and_greys(pool):
+    """審核 R1：有投球紀錄但 games.game_date 缺失、或根本沒有 games 列 ⇒ 仍讀進來並判灰（date_missing）。"""
+    with db.conn() as c:
+        c.execute("INSERT INTO cpbl.games (year, kind_code, game_season_code, game_sno, game_date, away_team_code, "
+                  "home_team_code, away_score, home_score) VALUES (2026,'A','2',400,NULL,'ACN011','AEO011',3,1)")
+        _roster(c, AWAY, {"0000000011": "終結", "0000000012": "勝利組", "0000000013": "長中繼"})
+        _pitching(c, [("A", 400, "0000000011", "1", 30, 1, 0, 0),    # games 列存在但缺日期
+                      ("A", 401, "0000000012", "1", 30, 1, 0, 0),    # 沒有 games 列
+                      ("A", 274, "0000000013", "1", 30, 1, 0, 0)])   # 未完賽（保留、補賽日未到）⇒ 照舊不收
+    inputs, _ = _read()
+    assert [a.game_key for a in inputs.appearances["0000000011"]] == [(2026, "A", 400)]
+    assert [a.game_key for a in inputs.appearances["0000000012"]] == [(2026, "A", 401)]
+    assert "0000000013" not in inputs.appearances
+    w = wrd.compute_watch(inputs, now=NOW)
+    p = {x["player_id"]: x for x in w["teams"][0]["pitchers"]}
+    for pid in ("0000000011", "0000000012"):
+        load = p[pid]["load"]
+        assert load["level"] == "unknown" and load["complete"] is False
+        assert {r for i in load["incomplete"] for r in i["reasons"]} >= {"date_missing"}
+        assert load["unattributed"][0]["pitches"] == 30
+
+
 def test_query_count_independent_of_pitchers(pool):
     with db.conn() as c:
         _roster(c, AWAY, {"0000000001": "終結"})

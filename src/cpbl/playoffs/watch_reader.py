@@ -364,14 +364,17 @@ WINDOW_GAMES_SQL = f"""
      ORDER BY g.game_date, g.kind_code, g.game_sno
 """
 
+# 登板讀取：已完賽場之外，**也收**「有投球紀錄但缺 games 列或缺 game_date」的列——這些列日期不可判定，
+# 交給規則層判灰（date_missing）。⛔ 以 JOIN／日期條件先濾掉它們：濾掉後窗口看起來無投球，負荷會誤綠
+# （#289 審核 R1）。未完賽但有日期的場次照舊不收，其窗口日由 day_coverage 判 game_not_final。
 APPEARANCES_SQL = f"""
     SELECT p.pitcher_acnt, p.year, p.kind_code, p.game_sno, g.game_date, g.orig_date, g.delay_kind,
            p.pitch_cnt, p.inning_pitched_cnt, p.inning_pitched_div3, p.earned_runs, p.role_type
       FROM cpbl.pitching_gamelog p
-      JOIN cpbl.games g ON g.year = p.year AND g.kind_code = p.kind_code AND g.game_sno = p.game_sno
+      LEFT JOIN cpbl.games g ON g.year = p.year AND g.kind_code = p.kind_code AND g.game_sno = p.game_sno
      WHERE p.year = %(year)s AND p.kind_code = ANY(%(kinds)s) AND p.pitcher_acnt = ANY(%(ids)s)
-       AND {_DONE}
-     ORDER BY p.pitcher_acnt, g.game_date, p.kind_code, p.game_sno
+       AND (g.game_sno IS NULL OR g.game_date IS NULL OR {_DONE})
+     ORDER BY p.pitcher_acnt, g.game_date NULLS FIRST, p.kind_code, p.game_sno
 """
 
 def _optional(cur, fn):

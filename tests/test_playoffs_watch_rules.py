@@ -179,6 +179,16 @@ def test_reserve_game_unknown_dates_greys_whole_window():
     assert len(r["incomplete"]) == 4
 
 
+def test_dateless_appearance_greys_whole_window():
+    # 有 30 球登板紀錄但完全沒有日期（缺 games 列或 game_date）⇒ 不得因「看不到」而綠（審核 R1）
+    r = load([app(None, 30, trusted=False)])
+    assert r["level"] == "unknown"
+    assert {i["offset"] for i in r["incomplete"]} == {0, 1, 2, 3}
+    assert all(i["reasons"] == ["date_missing"] for i in r["incomplete"])
+    assert r["unattributed"][0]["pitches"] == 30
+    assert r["rest_unknown_reason"] == "date_missing" and r["full_rest_days"] is None
+
+
 def test_pitch_count_missing_is_unknown():
     r = load([app(1, None)])
     assert r["level"] == "unknown"

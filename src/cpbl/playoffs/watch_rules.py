@@ -50,6 +50,7 @@ REASON_TEXT = MappingProxyType({
     "box_missing": "該隊當日正式場已完賽，但投手逐場紀錄尚未送達",
     "pitch_count_missing": "登板紀錄缺球數",
     "date_untrusted": "保留賽無法拆分實際投球日期",
+    "date_missing": "登板紀錄缺比賽日期，無法歸屬投球日",
     "live_unobserved": "目標場進行中，即時已投未取得",
     "schedule_unavailable": "賽程來源不可用",
     "duplicate_conflict": "同一場次出現互相矛盾的登板紀錄",
@@ -121,7 +122,7 @@ def last_pitch_date(appearances: Iterable[Appearance], *, before: date) -> tuple
     """``before`` 之前（不含）最後一次實際投球的台北日期。
 
     回傳 (日期, 不可判定理由)。保留賽的可能日期晚於或等於最後可信日期（或完全未知）⇒ 無法確定
-    最後投球日 ⇒ (None, "date_untrusted")。沒有任何登板 ⇒ (None, None)。
+    最後投球日 ⇒ (None, "date_untrusted")；登板完全沒有日期 ⇒ (None, "date_missing")。沒有任何登板 ⇒ (None, None)。
     """
     trusted = [a.date for a in appearances if a.date_trusted and a.date is not None and a.date < before]
     last = max(trusted, default=None)
@@ -130,7 +131,7 @@ def last_pitch_date(appearances: Iterable[Appearance], *, before: date) -> tuple
             continue
         cands = [d for d in a.possible_dates if d < before]
         if not a.possible_dates:
-            return None, "date_untrusted"
+            return None, "date_missing"
         if cands and (last is None or max(cands) >= last):
             return None, "date_untrusted"
     return last, None
@@ -201,8 +202,9 @@ def bullpen_load(target_date: date, appearances: Sequence[Appearance],
         hit = [d for d in a.possible_dates if d in in_window] if a.possible_dates else list(window)
         if not hit:
             continue
+        # 有登板紀錄卻沒有任何可歸屬日期（缺 games 列或 game_date）⇒ 整個窗口不可判定（無來源不綠）。
         for d in hit:
-            days[d]["reasons"].append("date_untrusted")
+            days[d]["reasons"].append("date_untrusted" if a.possible_dates else "date_missing")
         unattributed.append({"game_key": _key_json(a.game_key), "pitches": a.pitch_cnt,
                              "possible_dates": [d.isoformat() for d in a.possible_dates]})
 
