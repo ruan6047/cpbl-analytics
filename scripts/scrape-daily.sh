@@ -32,13 +32,13 @@ scripts/scrape-daily.sh — 每日本機自動爬取，成功後同步 productio
 
 在做什麼
   1. 取 refresh lock（同一把鎖與 weekly-* 排程互斥），確認本機 DB 容器在
-  2. 跑 cpbl-refresh-recent 做增量爬取
+  2. 跑 cpbl-refresh-recent 做增量爬取；成功後重建隊伍比較背景摘要（來源未變＝no-op；失敗不擋）
   3. 爬取成功且 SYNC_PROD≠0 時，以 SKIP_SCRAPE=1 WITH_DETAIL=1 呼叫
      scripts/refresh-cpbl-prod.sh 同步到 production
   4. 把分相結果寫進狀態檔，供 AI／人接手診斷
 
 會寫什麼（⚠️ 高後果，且沒有 dry-run）
-  · 本機 PostgreSQL：cpbl-refresh-recent 的增量寫入
+  · 本機 PostgreSQL：cpbl-refresh-recent 的增量寫入、team_comparison_* 摘要三表
   · production PostgreSQL：由步驟 3 的同步鏈寫入（SYNC_PROD=0 可關閉）
   · 本機檔案系統：logs/refresh-YYYYMMDD-HHMMSS.log（只留最近 30 份）、
     logs/last-status.json、logs/last-launchd-status.json
@@ -167,6 +167,18 @@ else
   CODE=$?
 fi
 echo "[$(date '+%F %T')] scrape exit=${CODE}" | tee -a "$LOG"
+
+# 隊伍比較背景摘要 builder（#287 S06 WP4b；PLAN r2 §2.3）：爬取成功（含 69 部分失敗）後、同步前，
+# 以本機已完成 A 場重算 source_hash；同源同版＝no-op exit 0，來源更正才建新 build 並切 current。
+# ⛔ 失敗不擋每日鏈：退出碼只記在 log、不併入 overall；失敗時 --record-failure 在**本機** refresh_log
+#    記一列 scope=team-comparison-build，舊摘要保留並標待更新。摘要表尚未 migrate 時為 exit 6（只記 log）。
+# 寫入對象只有本機 team_comparison_* 三表；同步到 production 在 refresh-cpbl-prod.sh 的 gamelog 之後。
+TC_BUILD_CODE=skip
+if [ "$CODE" -eq 0 ] || [ "$CODE" -eq 69 ]; then
+  "$UV" run cpbl-build-team-comparison --year "$(date +%Y)" --record-failure >>"$LOG" 2>&1
+  TC_BUILD_CODE=$?
+fi
+echo "[$(date '+%F %T')] team-comparison build exit=${TC_BUILD_CODE}（不影響 overall）" | tee -a "$LOG"
 
 # 本機爬成功後自動同步生產（SKIP_SCRAPE：資料已在本機，只 upsert 到 prod + VPS 重建特徵）。
 # 關閉：SYNC_PROD=0 scripts/scrape-daily.sh
