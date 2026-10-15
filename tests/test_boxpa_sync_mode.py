@@ -333,3 +333,19 @@ def test_reconcile_judges_only_the_parts_sent():
     assert g["box_ok"] is None and g["pa_ok"] is True and m["ok"] is True, "沒送 box：box 不等不判 68"
     m2 = bs.reconcile(Db(10), Db(9), keys, ["2026-C-2"], ["box", "pa"])
     assert m2["games"]["2026-C-2"]["box_ok"] is False and m2["ok"] is False
+
+
+def test_o5_external_scope_variable_cannot_shrink_the_full_chain(tmp_path):
+    """#293 審核席 2 O5（需求方裁定 6195565578 追加證據）：外部環境帶入 SYNC_SCOPE_KEYS_SQL 跑整鏈
+    （SKIP_SCRAPE=1 WITH_DETAIL=1，同 scrape-daily.sh），box 七表仍必須整表 pg_dump、不得變成目標鍵 COPY。"""
+    from tests.test_prod_sync_revision_seq import _run_refresh
+
+    result, ssh_calls = _run_refresh(tmp_path, SYNC_SCOPE_KEYS_SQL=TARGET_SQL)
+    assert result.returncode == 0, result.stderr
+    docker = [json.loads(p.read_text(encoding="utf-8")) for p in sorted((tmp_path / "calls" / "docker").glob("*.json"))]
+    dumped = {c["argv"][c["argv"].index("-t") + 1] for c in docker if "pg_dump" in c["argv"]}
+    for t in BOX_TABLES:
+        assert f"cpbl.{t}" in dumped, f"{t} 必須整表 pg_dump"
+    assert "（目標場）" not in result.stdout
+    payloads = [c["stdin"] for c in ssh_calls]
+    assert any("TRUNCATE cpbl.game_recap_source_revisions" in p for p in payloads), "整鏈 PA 仍是 TRUNCATE 全量重灌"

@@ -97,6 +97,10 @@ if [ "$#" -gt 0 ]; then
   exit 64
 fi
 
+# SYNC_SCOPE_KEYS_SQL 是本腳本的內部變數（只由 POSTSEASON_BOXPA_ONLY 段從自檢結果設定）。⛔ 不接受外部
+# 環境帶進來：否則整鏈的 sync_table 會被悄悄縮成目標場鍵（#293 審核席 2 O5）。故在任何模式之前清掉。
+unset SYNC_SCOPE_KEYS_SQL
+
 LOCAL_DB="${LOCAL_DB:-cpbl-analytics-db-1}"
 VPS="${VPS:-root@45.76.100.29}"
 DEPLOY_PATH="${DEPLOY_PATH:-/opt/personal-website}"
