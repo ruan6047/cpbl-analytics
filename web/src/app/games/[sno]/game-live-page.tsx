@@ -16,12 +16,12 @@
 
 import Link from "next/link";
 import { previewLink, recapReportLink } from "@/lib/between-games";
-import { announcementFor } from "@/lib/postseason-announcement";
-import { slotWhen } from "@/lib/postseason-journey";
-import { REPORT_NAMES, announcedSlotOf, reportEntry } from "@/lib/postseason-game-name";
+import { arrangedSlotForGame, slotWhen } from "@/lib/postseason-journey";
+import { REPORT_NAMES, reportEntry } from "@/lib/postseason-game-name";
+import type { PostseasonSummaryResponse } from "@/lib/api";
 import { useParams, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { detail } from "@/lib/client";
+import { clientGet, detail } from "@/lib/client";
 import GameBoard, { type Live } from "@/components/game-board";
 import { Card, Notice, Skeleton, ErrorState, EmptyState, PlayerLink, ENTITY_LINK, StatusBadge } from "@/components/ui";
 import { Postmark, Scoreline, Serial } from "@/components/postmark";
@@ -100,6 +100,8 @@ export default function GameLivePage() {
   const [facts, setFacts] = useState<GameFacts | null>(null);
   // undefined＝下一場目標尚在解析（#273 N38：解析前不畫連結，避免載入中換字換去向）；null＝沒有可靠下一場。
   const [previewHref, setPreviewHref] = useState<string | null | undefined>(undefined);
+  // #283：季後公告安排只讀 API 的 series_context（取不到＝沒有場序與「如有必要」，不猜）。
+  const [seriesContext, setSeriesContext] = useState<PostseasonSummaryResponse["series_context"]>(null);
 
   useEffect(() => {
     let disposed = false;
@@ -221,6 +223,16 @@ export default function GameLivePage() {
     };
   }, [sno, kind, year]);
 
+  useEffect(() => {
+    setSeriesContext(null);
+    if (!year || !["E", "C"].includes(kind)) return;
+    let disposed = false;
+    clientGet<PostseasonSummaryResponse>(`/api/v1/postseason-summary?kind_code=A&season=${year}`)
+      .then((body) => { if (!disposed) setSeriesContext(body.series_context ?? null); })
+      .catch(() => { if (!disposed) setSeriesContext(null); });
+    return () => { disposed = true; };
+  }, [kind, year]);
+
   // 「下一場觀戰報告」只在可靠 Y（既有 journey 正式列且定位回本場）時取代場間報告入口；無 target 不顯示。
   const backendFinal = data?.game ? officialCompletionOf(data.game) === true : false;
   useEffect(() => {
@@ -316,7 +328,7 @@ export default function GameLivePage() {
   const gameKind = String(g.kind_code ?? kind);
   const season = Number(g.year ?? year);
   const postseasonSlot = (gameKind === "E" || gameKind === "C")
-    ? announcedSlotOf(announcementFor(season), gameKind, Number(sno), String(g.game_date ?? "")) : null;
+    ? arrangedSlotForGame(seriesContext, gameKind, Number(sno)) : null;
   const startText = taipeiTime(liveSnapshot?.starts_at ?? null) ?? postseasonSlot?.start ?? null;
   const postseasonInfo = (gameKind === "E" || gameKind === "C") && Number.isInteger(season) ? (
     <div data-testid="postseason-pregame-info" className="space-y-1.5 rounded-md bg-surface px-4 py-3 text-sm text-ink">

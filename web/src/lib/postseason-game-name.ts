@@ -1,12 +1,45 @@
-// #273：季後賽單場頁與報告內容共用的小工具——報告名稱、單場頁的公告安排、完賽單場頁的報告入口、
+// #273：季後賽單場頁與報告內容共用的小工具——季後場次名、報告名稱、單場頁的公告安排、完賽單場頁的報告入口、
 // 頁尾時戳。只處理文案與指向，不定義場間報告／觀戰報告的角色（角色定義屬 #278）。
+//
+// 季後場次的**唯一**叫法（「季後挑戰賽 G4」「台灣大賽 G1」）由本檔提供，避免同一場在各頁各寫一套
+// （N31「同一報告三種叫法」）。場序只從兩個既有事實取得：
+//   1. 共用旅程模型的公告歸併：slot 已對到資料庫正式列（`slot.row`）→ `slot.seq`；
+//   2. 系列完賽場的 `game_no`（postseason-summary，與 game_sno 一起由後端給）。
+// 兩者都沒有就回 null，呼叫端退回不含場序的說法。
 //
 // ⛔ 不從場號（game_sno）推場序：C 場只認「同一天唯一一場 C 公告」，E 場以官方場號＋日期比對。
 
 import type { AnnouncedSlot, PostseasonAnnouncement } from "./postseason-announcement.ts";
+import type { PostseasonJourney } from "./postseason-journey.ts";
 
-/** 報告的兩個名稱：單場頁入口文字用（N38）。 */
+/** 報告的兩個名稱（N31：全站只用這兩個，不再出現「截至場場間報告」「回顧」）；單場頁入口文字也用（N38）。 */
 export const REPORT_NAMES = { between: "場間報告", preview: "觀戰報告" } as const;
+
+/** 「季後挑戰賽 G4」；找不到可核實的場序回 null。 */
+export function postseasonGameName(
+  j: Pick<PostseasonJourney, "series" | "slots"> | null | undefined,
+  kind: string,
+  sno: number,
+): string | null {
+  if (!j || (kind !== "E" && kind !== "C")) return null;
+  const series = j.series[kind];
+  const slot = j.slots.find((s) => s.kind === kind && s.row?.game_sno === sno);
+  if (slot) return `${series.name} G${slot.seq}`;
+  const game = series.games.find((g) => g.game_sno === sno);
+  return game ? `${series.name} G${game.game_no}` : null;
+}
+
+/** 旅程模型的下一場名稱；公告場也有場序，故不要求已入庫。 */
+export function nextGameName(j: Pick<PostseasonJourney, "series" | "next"> | null | undefined): string | null {
+  const s = j?.next;
+  return s ? `${j!.series[s.kind].name} G${s.seq}` : null;
+}
+
+/** `YYYY-MM-DD` → `10/12`。 */
+export function monthDay(ymd: string): string {
+  const m = /^\d{4}-(\d{2})-(\d{2})/.exec(ymd);
+  return m ? `${Number(m[1])}/${m[2]}` : ymd;
+}
 
 /** ISO 時戳 → 「2026-10-14 14:35（台北）」：讀者不需要微秒與 UTC 偏移（N08）。無法解析時原樣回傳。 */
 export function taipeiMinute(iso: string | null | undefined): string | null {

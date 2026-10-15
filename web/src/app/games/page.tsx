@@ -15,7 +15,7 @@ import { AnnouncedCompact, AnnouncedMobile, PostseasonCalendarLegend } from "@/c
 import { announcementFor } from "@/lib/postseason-announcement";
 import { COVERAGE_COPY, hasScheduleChange, scheduleChangeCopy, scheduleChanges } from "@/lib/daily-summary";
 import {
-  POSTSEASON_COPY, liveEntryProbes, liveEntryResults, postseasonJourneyFor, slotMayInvolve, withLiveEntries,
+  POSTSEASON_COPY, liveEntryProbes, liveEntryResults, postseasonJourneyFromContext, slotMayInvolve, withLiveEntries,
   type JourneySlot,
 } from "@/lib/postseason-journey";
 
@@ -75,11 +75,13 @@ export default async function GamesPage({
   const items = calendarRes.items.map(withGameTeamNames);
   const hasDetail = selectedYear >= 2018;
 
-  // 季後摘要取不到時旅程模型只用 calendar 列，不擋日曆本身。
+  // 季後旅程的系列事實只讀 API 的 series_context（#283）；摘要取不到時不畫公告格，不擋日曆本身。
   const postSummary = announced
     ? await api.postseasonSummary(selectedYear, "A", live).catch(() => null)
     : null;
-  const baseJourney = isCurrent ? postseasonJourneyFor(selectedYear, postSummary?.series ?? null, items, Date.now()) : null;
+  const baseJourney = isCurrent && postSummary?.season === selectedYear
+    ? postseasonJourneyFromContext(postSummary.series_context, items)
+    : null;
   // #268 B2：與首頁同一支既有 daily summary（no-store），只取 coverage 的官方賽程異動；失敗＝不顯示，不擋日曆。
   const changes = baseJourney && announced
     ? scheduleChanges(await api.dailySummary().catch(() => null), baseJourney.year)
