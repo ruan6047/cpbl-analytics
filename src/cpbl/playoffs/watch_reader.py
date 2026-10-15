@@ -95,9 +95,12 @@ def day_coverage(team_code: str, day: date, games: list[dict], *, target_key, ta
 
     - 當日無正式場 ⇒ 完整（有證據的 0）。
     - 完賽且有該隊 box ⇒ 完整；完賽但無 box ⇒ ``box_missing``。
-    - 未完賽：目標場在 D 當天且尚未開打（scheduled／postponed）⇒ 以 0 計；進行中 ⇒ ``live_unobserved``
-      （本版不接逐球即時球數）；其餘 ⇒ ``game_not_final``／``schedule_unavailable``。
-    - 保留賽以開賽日 ``orig_date`` 與續賽日 ``game_date`` 都算該場的可能日期。
+    - 未完賽的場次只有一種情況可當「有證據的 0」：它是目標場、在 D 當天、官方仍為 scheduled／postponed，
+      **而且該隊沒有任何投球紀錄**。已有紀錄卻未核定完賽 ⇒ ``target_box_unverified``（灰，已知球數照列；
+      ⛔ 當成完整的賽前數值——#289 審核第 3 輪）。進行中 ⇒ ``live_unobserved``＋即時標記（本版不接逐球
+      即時球數）；狀態未知 ⇒ ``schedule_unavailable``；其餘未完賽 ⇒ ``game_not_final``。
+    - 保留賽以 [開賽日 ``orig_date``, 續賽日 ``game_date``] 整段區間都算該場的可能日期（與
+      :func:`pitch_dates` 同一判準）。
     """
     sides = {team_code, farm_code(team_code)}
     reasons: list[str] = []
@@ -109,10 +112,12 @@ def day_coverage(team_code: str, day: date, games: list[dict], *, target_key, ta
             side = "home"
         else:
             continue
-        dates = {_as_date(g["game_date"])}
-        if g.get("delay_kind") == "保留" and g.get("orig_date") is not None:
-            dates.add(_as_date(g["orig_date"]))
-        if day not in dates:
+        gd, od = _as_date(g["game_date"]), _as_date(g.get("orig_date"))
+        if g.get("delay_kind") == "保留" and od is not None and gd is not None and od <= gd:
+            in_day = od <= day <= gd
+        else:
+            in_day = day in {gd, od} if g.get("delay_kind") == "保留" else day == gd
+        if not in_day:
             continue
         key = (int(g["year"]), g["kind_code"], int(g["game_sno"]))
         if g["completed"]:
@@ -121,6 +126,8 @@ def day_coverage(team_code: str, day: date, games: list[dict], *, target_key, ta
             continue
         if key == target_key and day == target_date:
             if target_status in ("scheduled", "postponed"):
+                if g[f"box_{side}"]:
+                    reasons.append("target_box_unverified")
                 continue
             if target_status == "live":
                 reasons.append("live_unobserved")

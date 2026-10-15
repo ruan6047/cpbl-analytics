@@ -42,8 +42,11 @@ def context(target_status="scheduled", completed=False, starters=None, target: i
     }
 
 
-def wg(kind, sno, day, away=AWAY, home=HOME, completed=True, box_away=True, box_home=True,
+def wg(kind, sno, day, away=AWAY, home=HOME, completed=True, box_away=None, box_home=None,
        delay_kind=None, orig_date=None):
+    """box_* 預設＝完賽與否（未完賽場預設尚無投球紀錄）。"""
+    box_away = completed if box_away is None else box_away
+    box_home = completed if box_home is None else box_home
     return {"year": 2026, "kind_code": kind, "game_sno": sno, "game_date": day, "orig_date": orig_date,
             "delay_kind": delay_kind, "away_team_code": away, "home_team_code": home,
             "completed": completed, "box_away": box_away, "box_home": box_home}

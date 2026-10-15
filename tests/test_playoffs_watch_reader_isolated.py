@@ -153,10 +153,11 @@ def test_window_games_semantics(pool):
     assert keys[("A", 274)]["completed"] is False  # 保留賽補賽日在未來
     w = wrd.compute_watch(inputs, now=NOW)
     days = {t["team_code"]: {d["offset"]: d["reasons"] for d in t["days"]} for t in w["teams"]}
-    assert days[AWAY][1] == ["box_missing"]          # E3 完賽但 ACN011（主隊）無 box
-    assert days[AWAY][2] == ["game_not_final"]       # 保留賽開賽日 10/15
+    assert days[AWAY][1] == ["box_missing", "game_not_final"]  # E3 完賽但 ACN011（主隊）無 box；A274 區間
+    assert days[AWAY][2] == ["game_not_final"]       # 保留賽 [10/15, 10/30] 未完賽：區間內每天都不完整
+    assert days[AWAY][0] == ["game_not_final"]
     assert days[HOME][3] == ["box_missing"]          # 二軍 AAA022 客場、無 box
-    assert days[HOME][0] == [] and days[AWAY][0] == []  # 目標場賽前 ⇒ 有證據的 0
+    assert days[HOME][0] == []                       # 目標場賽前、無投球紀錄 ⇒ 有證據的 0
 
 
 def test_target_without_schedule_revision_is_unknown(pool):
@@ -165,7 +166,7 @@ def test_target_without_schedule_revision_is_unknown(pool):
     w = wrd.compute_watch(_read()[0], now=NOW)
     assert w["target"]["target_status"] == "unknown"
     for t in w["teams"]:
-        assert next(d for d in t["days"] if d["offset"] == 0)["reasons"] == ["schedule_unavailable"]
+        assert "schedule_unavailable" in next(d for d in t["days"] if d["offset"] == 0)["reasons"]
 
 
 def test_box_side_by_visiting_home_type(pool):
@@ -175,7 +176,7 @@ def test_box_side_by_visiting_home_type(pool):
     inputs, _ = _read()
     w = wrd.compute_watch(inputs, now=NOW)
     days = {t["team_code"]: {d["offset"]: d["reasons"] for d in t["days"]} for t in w["teams"]}
-    assert days[AWAY][1] == []        # E3 主隊＝ACN011，有 vht=2 box
+    assert days[AWAY][1] == ["game_not_final"]  # E3 主隊＝ACN011，有 vht=2 box；只剩 A274 保留區間
     assert days[HOME][3] == []        # AAA022 客隊有 vht=1 box
 
 
@@ -239,6 +240,21 @@ def test_date_shapes_through_real_sql(pool):
     s21 = p["0000000028"]
     assert s21["level"] == "unknown" and s21["metrics"]["P1"] == 30   # 已知球數照列
     assert "game_not_final" in next(i for i in s21["incomplete"] if i["offset"] == 1)["reasons"]
+
+
+def test_target_scheduled_with_stored_box_is_grey(pool):
+    """審核第 3 輪探針（真實 SQL）：C1 官方仍 scheduled、未完賽，卻已有 ACN011 投手 30 球紀錄 ⇒ 灰、列已知 30 球。"""
+    with db.conn() as c:
+        _roster(c, AWAY, {"0000000031": "終結"})
+        _pitching(c, [("C", 1, "0000000031", "1", 30, 1, 0, 0)])
+    w = wrd.compute_watch(_read()[0], now=NOW)
+    assert w["target"]["target_status"] == "scheduled"
+    load = w["teams"][0]["pitchers"][0]["load"]
+    assert load["level"] == "unknown" and load["complete"] is False and load["live"] is False
+    assert load["metrics"]["P0"] == 30
+    assert "target_box_unverified" in next(i for i in load["incomplete"] if i["offset"] == 0)["reasons"]
+    home = next(t for t in w["teams"] if t["team_code"] == HOME)
+    assert next(d for d in home["days"] if d["offset"] == 0)["reasons"] == []   # 主隊無紀錄 ⇒ 仍是有證據的 0
 
 
 def test_query_count_independent_of_pitchers(pool):

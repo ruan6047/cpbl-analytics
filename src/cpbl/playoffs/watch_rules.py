@@ -52,6 +52,7 @@ REASON_TEXT = MappingProxyType({
     "date_untrusted": "保留賽無法拆分實際投球日期",
     "date_missing": "實際投球日期不可判定（缺比賽日期或日期資料不一致）",
     "live_unobserved": "目標場進行中，即時已投未取得",
+    "target_box_unverified": "目標場尚未核定完賽，卻已有投球紀錄（未核實，不當作賽前 0 球）",
     "schedule_unavailable": "賽程來源不可用",
     "duplicate_conflict": "同一場次出現互相矛盾的登板紀錄",
 })
