@@ -226,3 +226,29 @@ test("沒有第 4 區（fetchWatch 未給）時區照常；areaDecision 不看�
   assert.equal(areaDecision("v1", { context_version: null }, { retried: false }), "refetch_overview");
   assert.equal(areaDecision("v1", { context_version: "v2" }, { retried: true }), "keep_previous");
 });
+
+test("審核 F1：一區跨輪未回，另一區照常即時上畫面；第 1／4 區不退避、間隔維持 30 秒", async () => {
+  const h = harness([{ id: "roster", refresh: "every_round" }, { id: "teams", refresh: "every_round" }]);
+  h.poller.start(false);
+  h.poller.activate("roster"); h.poller.activate("teams");
+  await flush();
+  const delays: number[] = [];
+  const stuck: Call[] = [];
+  for (let round = 1; round <= 4; round++) {
+    await h.answerRound("v1");
+    stuck.push(h.last("roster"));                     // roster 永遠不回
+    h.last("teams").d.resolve(ar("v1", `t${round}`));
+    await flush();
+    // 正常區不等慢區：本輪 teams 立即上畫面
+    const t = h.shown.area.teams.at(-1)!;
+    assert.equal(t.kind, "data");
+    assert.equal((t as unknown as { data: A }).data.tag, `t${round}`);
+    assert.deepEqual(h.shown.rounds.at(-1), { ok: true, overviewOk: true });
+    delays.push(h.timers[0].ms);
+    await h.fire();                                   // 下一輪：慢區請求被中止、不計失敗
+    assert.equal(stuck.at(-1)!.signal.aborted, true);
+    assert.equal(h.poller.failureCount, 0);
+  }
+  assert.deepEqual(delays, [30_000, 30_000, 30_000, 30_000]);
+  assert.equal(h.shown.area.roster, undefined);       // 慢區從未回應：維持占位，不被標成錯誤
+});

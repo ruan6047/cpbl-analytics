@@ -18,6 +18,9 @@
 //      仍不一致 ⇒ 該區 `stale`（保留上一份）。區不吃 `?game`、不解讀區層級 `status`。
 //    - 區讀取失敗只改該區狀態；⛔ 計入退避（沿用第 4 區時的失敗定義：overview 或 watch 失敗才算），
 //      ⛔ 影響第 1 區「暫時無法更新」提示。新一輪開始時與 overview／watch 一起中止。
+//    - 各區獨立結算（審核 F1，review-8）：一區一回來就上畫面，⛔ 等其他區；本輪的 overview／watch 結束即算
+//      本輪結束（onRound、退避判斷），區請求在背景繼續，⛔ 讓慢區把整輪拖成「被下一輪取代＝失敗」。
+//      跨輪未回的區請求在下一輪開始時中止（不計失敗），版本錯配共用同一次 overview 重取。
 
 export const POLL_INTERVAL_MS = 30_000;
 export const BACKOFF_MS = [30_000, 60_000, 120_000, 240_000] as const;
@@ -107,6 +110,8 @@ export class PlayoffsPoller<O extends VersionedOverview, W extends VersionedWatc
   private active = new Set<string>();
   private areaLast = new Map<string, VersionedArea>();
   private activatePending = false;
+  /** 本輪區請求的中止器（本輪 overview／watch 結束後區請求仍在背景跑，下一輪開始時中止、不計失敗）。 */
+  private areaAc: AbortController | null = null;
 
   constructor(deps: PollDeps<O, W>, requestedGame: number | null = null) {
     this.deps = deps;
@@ -177,6 +182,8 @@ export class PlayoffsPoller<O extends VersionedOverview, W extends VersionedWatc
   private abort(): void {
     this.inflight?.abort();
     this.inflight = null;
+    this.areaAc?.abort();
+    this.areaAc = null;
   }
 
   private schedule(ms: number): void {
@@ -192,6 +199,8 @@ export class PlayoffsPoller<O extends VersionedOverview, W extends VersionedWatc
       this.inflight.abort();
       if (trigger === "timer") this.failures += 1;   // 一整個間隔都沒回來＝慢，退避
     }
+    this.areaAc?.abort();                           // 上一輪仍在背景的區請求：中止、不計失敗
+    this.areaAc = null;
     this.clear();
     this.inflight = null;
     if (this.stopped || !this.deps.isVisible()) return;
@@ -199,6 +208,7 @@ export class PlayoffsPoller<O extends VersionedOverview, W extends VersionedWatc
     const token = ++this.seq;
     const ac = new AbortController();
     this.inflight = ac;
+    this.areaAc = ac;
     const live = () => token === this.seq && !ac.signal.aborted;
     this.overviewOk = false;
     try {
@@ -229,7 +239,7 @@ export class PlayoffsPoller<O extends VersionedOverview, W extends VersionedWatc
     let current = overview;
     const watchOk = await this.roundWatch(overview, signal, live, (o) => { current = o; });
     if (!live()) return false;
-    await this.roundAreas(current, signal, live);
+    this.roundAreas(current, signal, live);         // ⛔ await：區獨立結算，不拖住本輪（審核 F1）
     return watchOk;
   }
 
@@ -283,22 +293,31 @@ export class PlayoffsPoller<O extends VersionedOverview, W extends VersionedWatc
     return attempt(overview, false);
   }
 
-  /** 第 2／3 區：已啟用者並行取；版本不一致者共用一次 overview 重取，再各重取一次。 */
-  private async roundAreas(overview: O, signal: AbortSignal, live: () => boolean): Promise<void> {
+  /** 第 2／3 區：已啟用者並行取、各自結算；版本不一致者共用同一次 overview 重取，再各重取一次。 */
+  private roundAreas(overview: O, signal: AbortSignal, live: () => boolean): void {
     const areas = (this.deps.areas ?? []).filter((a) => this.active.has(a.id));
-    if (!areas.length) return;
     const due = areas.filter((a) => a.refresh === "every_round"
       || this.areaLast.get(a.id)?.context_version !== overview.context_version);
     if (!due.length) return;
+    let fresh: Promise<O | null> | null = null;
+    const freshOverview = () => (fresh ??= this.deps.fetchOverview(signal).then(
+      (o) => { if (live()) this.deps.onOverview(o); return o; },
+      () => null,
+    ));
+    for (const a of due) void this.runArea(a, overview, signal, live, freshOverview);
+  }
+
+  private async runArea(a: PollArea, overview: O, signal: AbortSignal, live: () => boolean,
+    freshOverview: () => Promise<O | null>): Promise<void> {
     const series = (o: O) => o.default_series ?? o.sections.watch.series;
-    const fetchAll = (list: PollArea[], o: O) => Promise.all(list.map(async (a) => {
+    const fetchOne = async (o: O): Promise<VersionedArea | null> => {
       try {
-        return { a, data: await a.fetch(series(o), signal) };
+        return await a.fetch(series(o), signal);
       } catch {
-        return { a, data: null };
+        return null;
       }
-    }));
-    const settle = (a: PollArea, data: VersionedArea | null, o: O, retried: boolean): boolean => {
+    };
+    const settle = (data: VersionedArea | null, o: O, retried: boolean): boolean => {
       const previous = this.areaLast.get(a.id) ?? null;
       if (data === null) {
         this.deps.onArea?.(a.id, { kind: "error", previous });
@@ -316,23 +335,18 @@ export class PlayoffsPoller<O extends VersionedOverview, W extends VersionedWatc
       }
       return false;   // 需要重取 overview
     };
-    const first = await fetchAll(due, overview);
+    const first = await fetchOne(overview);
     if (!live()) return;
-    const drift = first.filter(({ a, data }) => !settle(a, data, overview, false)).map(({ a }) => a);
-    if (!drift.length) return;
-    let fresh: O;
-    try {
-      fresh = await this.deps.fetchOverview(signal);
-    } catch {
-      if (!live()) return;
-      for (const a of drift) this.deps.onArea?.(a.id, { kind: "stale", previous: this.areaLast.get(a.id) ?? null });
+    if (settle(first, overview, false)) return;
+    const o2 = await freshOverview();
+    if (!live()) return;
+    if (!o2) {
+      this.deps.onArea?.(a.id, { kind: "stale", previous: this.areaLast.get(a.id) ?? null });
       return;
     }
+    const second = await fetchOne(o2);
     if (!live()) return;
-    this.deps.onOverview(fresh);
-    const second = await fetchAll(drift, fresh);
-    if (!live()) return;
-    for (const { a, data } of second) settle(a, data, fresh, true);
+    settle(second, o2, true);
   }
 }
 
