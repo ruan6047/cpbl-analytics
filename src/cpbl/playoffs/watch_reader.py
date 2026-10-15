@@ -30,7 +30,6 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import UTC, date, datetime, timedelta
 
-from cpbl.api.between_games import date_trusted
 from cpbl.api.helpers import _dicts
 from cpbl.completion import completed_games_sql_with_evidence
 from cpbl.coverage import taipei_date
@@ -136,16 +135,41 @@ def day_coverage(team_code: str, day: date, games: list[dict], *, target_key, ta
     return DayCoverage(day, not reasons, tuple(reasons), live)
 
 
+#: 實際比賽日＝``game_date`` 的 delay_kind（migration 041：``'延賽' | '保留' | NULL``）。延賽的 ``orig_date``
+#: 是原定日、不是投球日；保留賽跨日。值域外的 delay_kind 語意未知 ⇒ 不可信。
+_ACTUAL_DATE_KINDS = (None, "延賽")
+
+
+def pitch_dates(row: dict) -> tuple[bool, tuple[date, ...]]:
+    """一筆登板的實際投球日證據 → (日期可信, 完整候選日集合)。
+
+    投球日只能由 ``games`` 的 ``game_date``／``delay_kind``／``orig_date`` 推出（``pitching_gamelog``
+    沒有日期欄）。**不變量**：日期不可信時，回傳的候選集合必須是「完整的」，空 tuple 表示無界（任何日期都
+    可能）。規則層只在候選集合完整、且全部落在窗口外時才把它排除（#289 審核 R1／第 2 輪：只放
+    ``orig_date`` 這種不完整的集合會讓缺實際日期的登板被當成窗口外而誤綠）。
+
+    - 可信：``game_date`` 有值，且 delay_kind 為 NULL 或延賽 ⇒ 投球日＝``game_date``。
+    - 保留賽且 ``orig_date <= game_date`` 都有值 ⇒ 候選＝[開賽日, 續賽日] 整段區間（中途可能再中止，
+      中間日期也算候選）。
+    - 其他一律無界：缺 games 列、缺 ``game_date``（不論 orig_date 有無、在不在窗口）、保留賽缺開賽日或
+      開賽日晚於續賽日、值域外 delay_kind。
+    """
+    gd, od, dk = _as_date(row.get("game_date")), _as_date(row.get("orig_date")), row.get("delay_kind")
+    if gd is not None and dk in _ACTUAL_DATE_KINDS:
+        return True, ()
+    if gd is not None and dk == "保留" and od is not None and od <= gd:
+        return False, tuple(od + timedelta(days=i) for i in range((gd - od).days + 1))
+    return False, ()
+
+
 def appearance_of(row: dict) -> Appearance:
-    """pitching_gamelog⋈games 一列 → :class:`Appearance`（保留賽列出兩個可能日期）。"""
-    trusted = date_trusted(row)
-    gd, od = _as_date(row["game_date"]), _as_date(row.get("orig_date"))
-    possible = () if trusted else tuple(sorted({d for d in (od, gd) if d is not None}))
+    """pitching_gamelog⟕games 一列 → :class:`Appearance`（日期證據見 :func:`pitch_dates`）。"""
+    trusted, possible = pitch_dates(row)
     cnt, div3 = row.get("inning_pitched_cnt"), row.get("inning_pitched_div3")
     outs = None if cnt is None and div3 is None else (cnt or 0) * 3 + (div3 or 0)
     return Appearance(
         game_key=(int(row["year"]), row["kind_code"], int(row["game_sno"])),
-        date=gd, date_trusted=trusted, pitch_cnt=row.get("pitch_cnt"), outs=outs,
+        date=_as_date(row.get("game_date")), date_trusted=trusted, pitch_cnt=row.get("pitch_cnt"), outs=outs,
         er=row.get("earned_runs"), role_type=row.get("role_type"), possible_dates=possible,
     )
 
@@ -367,16 +391,15 @@ WINDOW_GAMES_SQL = f"""
      ORDER BY g.game_date, g.kind_code, g.game_sno
 """
 
-# 登板讀取：已完賽場之外，**也收**「有投球紀錄但缺 games 列或缺 game_date」的列——這些列日期不可判定，
-# 交給規則層判灰（date_missing）。⛔ 以 JOIN／日期條件先濾掉它們：濾掉後窗口看起來無投球，負荷會誤綠
-# （#289 審核 R1）。未完賽但有日期的場次照舊不收，其窗口日由 day_coverage 判 game_not_final。
-APPEARANCES_SQL = f"""
+# 登板讀取：名單投手本季**所有**登板列都收，⛔ 以 JOIN、日期或完賽條件先濾掉（#289 審核 R1）。被濾掉的
+# 登板在窗口裡看起來就是「沒投」，負荷會誤綠。日期是否可信交給 :func:`pitch_dates`＋規則層判；
+# 未完賽場次的窗口日另由 :func:`day_coverage` 判 game_not_final（灰，已知球數照列）。
+APPEARANCES_SQL = """
     SELECT p.pitcher_acnt, p.year, p.kind_code, p.game_sno, g.game_date, g.orig_date, g.delay_kind,
            p.pitch_cnt, p.inning_pitched_cnt, p.inning_pitched_div3, p.earned_runs, p.role_type
       FROM cpbl.pitching_gamelog p
       LEFT JOIN cpbl.games g ON g.year = p.year AND g.kind_code = p.kind_code AND g.game_sno = p.game_sno
      WHERE p.year = %(year)s AND p.kind_code = ANY(%(kinds)s) AND p.pitcher_acnt = ANY(%(ids)s)
-       AND (g.game_sno IS NULL OR g.game_date IS NULL OR {_DONE})
      ORDER BY p.pitcher_acnt, g.game_date NULLS FIRST, p.kind_code, p.game_sno
 """
 

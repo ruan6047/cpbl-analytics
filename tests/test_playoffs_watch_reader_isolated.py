@@ -202,26 +202,43 @@ def test_roster_pitchers_latest_role_and_appearances(pool):
     assert p["0000000001"]["consecutive_era"] is None
 
 
-def test_dateless_appearance_is_read_and_greys(pool):
-    """審核 R1：有投球紀錄但 games.game_date 缺失、或根本沒有 games 列 ⇒ 仍讀進來並判灰（date_missing）。"""
+# 真實 SQL 路徑的日期形狀（DATE-SHAPES.md）：(player, kind, sno, game_date, orig_date, delay_kind, 完賽, 有 games 列)
+_SQL_SHAPES = [
+    ("0000000021", "A", 401, None, None, None, True, False),                              # S01 缺 games 列
+    ("0000000022", "A", 402, None, None, None, True, True),                               # S02 缺 game_date
+    ("0000000023", "A", 403, None, date(2026, 9, 1), None, True, True),                   # S04 審核探針（NULL）
+    ("0000000024", "A", 404, None, date(2026, 9, 1), "保留", True, True),                 # S05 審核探針（保留）
+    ("0000000025", "A", 405, None, date(2026, 9, 1), "延賽", True, True),                 # S06 審核探針（延賽）
+    ("0000000026", "A", 406, date(2026, 10, 15), date(2026, 9, 1), "保留", True, True),   # S12 區間跨入窗口
+    ("0000000027", "A", 407, date(2026, 10, 30), date(2026, 10, 15), "保留", False, True),  # S22 未完賽保留
+    ("0000000028", "A", 408, date(2026, 10, 16), None, None, False, True),                # S21 未完賽、日期在窗口
+]
+
+
+def test_date_shapes_through_real_sql(pool):
+    """審核 R1（兩輪）：缺實際日期／保留區間／未完賽的登板，走真實 SQL 後都不得被當成窗口外排除而綠。"""
     with db.conn() as c:
-        c.execute("INSERT INTO cpbl.games (year, kind_code, game_season_code, game_sno, game_date, away_team_code, "
-                  "home_team_code, away_score, home_score) VALUES (2026,'A','2',400,NULL,'ACN011','AEO011',3,1)")
-        _roster(c, AWAY, {"0000000011": "終結", "0000000012": "勝利組", "0000000013": "長中繼"})
-        _pitching(c, [("A", 400, "0000000011", "1", 30, 1, 0, 0),    # games 列存在但缺日期
-                      ("A", 401, "0000000012", "1", 30, 1, 0, 0),    # 沒有 games 列
-                      ("A", 274, "0000000013", "1", 30, 1, 0, 0)])   # 未完賽（保留、補賽日未到）⇒ 照舊不收
+        for _pid, kind, sno, gd, od, dk, done, exists in _SQL_SHAPES:
+            if exists:
+                c.execute("INSERT INTO cpbl.games (year, kind_code, game_season_code, game_sno, game_date, orig_date, "
+                          "delay_kind, away_team_code, home_team_code, away_score, home_score) "
+                          "VALUES (2026,%s,'2',%s,%s,%s,%s,'ACN011','AEO011',%s,%s)",
+                          (kind, sno, gd, od, dk, 3 if done else 0, 1 if done else 0))
+        _roster(c, AWAY, {s[0]: "終結" for s in _SQL_SHAPES})
+        _pitching(c, [(kind, sno, pid, "1", 30, 1, 0, 0) for pid, kind, sno, *_ in _SQL_SHAPES])
     inputs, _ = _read()
-    assert [a.game_key for a in inputs.appearances["0000000011"]] == [(2026, "A", 400)]
-    assert [a.game_key for a in inputs.appearances["0000000012"]] == [(2026, "A", 401)]
-    assert "0000000013" not in inputs.appearances
+    for pid, kind, sno, *_ in _SQL_SHAPES:   # 每一列都被讀進來（⛔ 以 JOIN／日期／完賽條件濾掉）
+        assert [a.game_key for a in inputs.appearances[pid]] == [(2026, kind, sno)], pid
     w = wrd.compute_watch(inputs, now=NOW)
-    p = {x["player_id"]: x for x in w["teams"][0]["pitchers"]}
-    for pid in ("0000000011", "0000000012"):
-        load = p[pid]["load"]
-        assert load["level"] == "unknown" and load["complete"] is False
-        assert {r for i in load["incomplete"] for r in i["reasons"]} >= {"date_missing"}
-        assert load["unattributed"][0]["pitches"] == 30
+    p = {x["player_id"]: x["load"] for x in w["teams"][0]["pitchers"]}
+    for pid in ("0000000021", "0000000022", "0000000023", "0000000024", "0000000025"):
+        assert p[pid]["level"] == "unknown" and p[pid]["complete"] is False, pid
+        assert {i["offset"] for i in p[pid]["incomplete"] if "date_missing" in i["reasons"]} == {0, 1, 2, 3}, pid
+    assert {i["offset"] for i in p["0000000026"]["incomplete"] if "date_untrusted" in i["reasons"]} == {2, 3}
+    assert {i["offset"] for i in p["0000000027"]["incomplete"] if "date_untrusted" in i["reasons"]} == {0, 1, 2}
+    s21 = p["0000000028"]
+    assert s21["level"] == "unknown" and s21["metrics"]["P1"] == 30   # 已知球數照列
+    assert "game_not_final" in next(i for i in s21["incomplete"] if i["offset"] == 1)["reasons"]
 
 
 def test_query_count_independent_of_pitchers(pool):

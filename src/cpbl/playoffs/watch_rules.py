@@ -50,7 +50,7 @@ REASON_TEXT = MappingProxyType({
     "box_missing": "該隊當日正式場已完賽，但投手逐場紀錄尚未送達",
     "pitch_count_missing": "登板紀錄缺球數",
     "date_untrusted": "保留賽無法拆分實際投球日期",
-    "date_missing": "登板紀錄缺比賽日期，無法歸屬投球日",
+    "date_missing": "實際投球日期不可判定（缺比賽日期或日期資料不一致）",
     "live_unobserved": "目標場進行中，即時已投未取得",
     "schedule_unavailable": "賽程來源不可用",
     "duplicate_conflict": "同一場次出現互相矛盾的登板紀錄",
@@ -65,8 +65,10 @@ GameKey = tuple[int, str, int]
 class Appearance:
     """一次正式登板（一位投手、一個 game key）。
 
-    ``date`` 是台北日期；``date_trusted=False``（保留賽）時 ``possible_dates`` 列出可能的投球日
-    （開賽日 ``orig_date`` 與續賽日 ``game_date``），空 tuple ⇒ 完全未知。``live=True`` 表示球數來自
+    ``date`` 是台北日期；``date_trusted=False`` 時 ``possible_dates`` 必須是**完整**候選投球日集合，
+    空 tuple ⇒ 無界（任何日期都可能）。⛔ 給不完整的集合：規則層只在候選全部落在窗口外時才排除這筆登板，
+    集合不完整就會把缺實際日期的登板誤當成窗口外（#289 審核 R1）。產生方式見
+    :func:`cpbl.playoffs.watch_reader.pitch_dates`。``live=True`` 表示球數來自
     目標場即時觀測（標「即時」）。``outs``／``er`` 只供連投 ERA 與最近登板展示。
     """
 
