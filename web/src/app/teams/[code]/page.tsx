@@ -8,6 +8,7 @@ import type { Metadata } from "next";
 import { RosterBoard, type RosterGroup } from "@/components/roster-board";
 import { api } from "@/lib/api";
 import { nameMeta, teamColor, teamName3 } from "@/lib/teams";
+import { streakZh } from "@/lib/team-streak";
 import { CoachGrid, GROUPS, ManagersTable, RetiredNumbers, RosterChips, RosterTable, f2, f3 } from "./parts";
 import { TeamFocusSection } from "./focus-section";
 import { TeamRecordsSection } from "./records-section";
@@ -103,20 +104,6 @@ export default async function TeamPage({ params, searchParams }: {
     const opp = home ? g.away_team_name : g.home_team_name;
     return { r: us > them ? "W" : us === them ? "T" : "L", title: `${g.game_date.slice(5)} ${home ? "主" : "客"} vs ${opp} ${us}-${them}` };
   }).reverse();
-  // 連勝敗：官方 streak 為「勝2／敗3」→ 口語「二連勝／三連敗」；單場不用「連」（避免「一連敗」）
-  const streakZh = (s?: string | null): string => {
-    if (!s) return "—";
-    const m = s.match(/^(勝|敗|負|和)\s*(\d+)$/);
-    if (!m) return s;
-    const n = parseInt(m[2], 10);
-    if (!n) return s;
-    const res = m[1] === "負" ? "敗" : m[1];
-    if (n === 1) return `1${res}`;
-    const cjk = ["零", "一", "二", "三", "四", "五", "六", "七", "八", "九", "十"];
-    const numZh = (x: number): string =>
-      x <= 10 ? cjk[x] : x < 20 ? `十${cjk[x - 10]}` : `${cjk[Math.floor(x / 10)]}十${x % 10 ? cjk[x % 10] : ""}`;
-    return `${numZh(n)}連${res}`;
-  };
 
   // ── 賽季 tab：主力選手（依所選年度該隊名稱過濾逐年排行）──
   const yearName = yearTeam?.team_name ?? team?.team_name;
