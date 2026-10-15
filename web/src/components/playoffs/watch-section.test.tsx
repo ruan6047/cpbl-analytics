@@ -6,7 +6,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { WatchSection } from "./watch-section.tsx";
 import type { Load, LoadLevel, PlayoffsWatch, WatchPitcher, WatchTeam } from "@/lib/playoffs-watch.ts";
 
-// #289 S08 WP3：第 4 區各態文字（灰／綠／橘／紅／先發不套燈號）、4B 未發布、公告事實、名單缺。
+// #289 S08 WP3：第 4 區各態文字（灰／綠／橘／紅／先發不套燈號）、4B 未發布、官方先發投手未知、名單缺。
 
 function text(node: ReactElement): string {
   return renderToStaticMarkup(node).replace(/<[^>]*>/g, " ").replace(/&#x27;/g, "'").replace(/&quot;/g, '"')
@@ -54,8 +54,8 @@ function watch(teams: WatchTeam[], extra: Partial<PlayoffsWatch> = {}): Playoffs
       { slot: "A", status: "not_published", text: "賽前快照尚未發布" },
       { slot: "B", status: "not_published", text: "賽前快照尚未發布" }] },
     registration: { status: "unknown", reason: "registration_source_not_delivered", text: "未知（當場登錄來源尚未接入）" },
-    announcement: { source_type: "stats_datagame", note: "原始官方公告事實；不是賽前快照", status: "missing",
-      text: "先發公告尚未送達", teams: [] },
+    starters: ["ACN011", "AAA011"].map((t) => ({ team_code: t, status: "unknown" as const,
+      reason: "starter_source_not_delivered", text: "官方先發投手：未知（來源尚未接入，S11）" })),
     teams, ...extra,
   };
 }
@@ -102,24 +102,14 @@ test("4B 兩格各自寫賽前快照尚未發布，不出現已鎖定樣式", ()
   assert.match(html, /data-slot="A"/);
   assert.match(html, /data-slot="B"/);
   assert.doesNotMatch(html, /已鎖定|locked/);
-  assert.match(text(<WatchSection data={watch([])} />), /先發公告尚未送達/);
+  assert.doesNotMatch(html, /打序|先發公告/);
 });
 
-test("公告事實：單邊公告各隊獨立、帶來源與台北觀測時間", () => {
-  const data = watch([], { announcement: {
-    source_type: "stats_datagame", note: "原始官方公告事實；不是賽前快照", status: "partial",
-    source_url: "https://stats.cpbl.com.tw/api/proxy/v1/games/2026-C-1", raw_status: "SCHEDULED",
-    observed_at: "2026-10-17T08:30:00+00:00",
-    teams: [
-      { team_code: "ACN011", starter_status: "changed", items: [{ player_id: "0000000001", team_code: "ACN011", order: 1, pos: "CF", name: "甲" }] },
-      { team_code: "AAA011", starter_status: "missing", items: [] },
-    ] } });
-  const t = text(<WatchSection data={data} />);
-  assert.match(t, /已公告（內容有更新）/);
-  assert.match(t, /尚未公告/);
-  assert.match(t, /本站觀測 10\/17 16:30（台北）/);
-  assert.match(t, /1\. 甲（CF）/);
-  assert.match(t, /原始官方公告事實；不是賽前快照/);
+test("官方先發投手：S11 定案前每隊一行灰字未知", () => {
+  const html = renderToStaticMarkup(<WatchSection data={watch([])} />);
+  assert.equal((html.match(/官方先發投手：未知（來源尚未接入，S11）/g) ?? []).length, 2);
+  assert.equal((html.match(/data-starter-status="unknown"/g) ?? []).length, 2);
+  assert.match(text(<WatchSection data={watch([])} />), /兄弟 官方先發投手/);
 });
 
 test("名單未提交：不列投手", () => {

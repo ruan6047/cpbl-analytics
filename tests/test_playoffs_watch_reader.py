@@ -222,39 +222,29 @@ def test_appearance_of_reserve_and_outs():
     assert b.date_trusted is True and b.possible_dates == () and b.outs is None
 
 
-# —— 公告事實：partial／changed、未送達、來源不可用 ———————————————————————
+# —— 官方先發投手：S11 定案前恆未知（E1／E2） ——————————————————————————————
 
 
-def _sel(status, teams_announced):
-    return {"status": status, "source_version": "h1", "source_url": "https://stats.cpbl.com.tw/api/proxy/v1/games/2026-C-1",
-            "raw_status": "SCHEDULED", "observed_at": "2026-10-17T08:00:00+00:00",
-            "team_evidence": {t: {"status": "announced" if t in teams_announced else "unverified",
-                                  "first_content_at": "2026-10-17T07:55:00+00:00"} for t in (AWAY, HOME)},
-            "items": [{"player_id": "0000000009", "team_code": t, "order": 1, "pos": "CF", "name": "甲"}
-                      for t in teams_announced]}
+def test_starters_unknown_until_s11():
+    w = run(context=context(starters={AWAY: "announced", HOME: "changed"}))  # S02 的 074 狀態不得被轉出
+    assert w["starters"] == [
+        {"team_code": t, "status": "unknown", "reason": "starter_source_not_delivered",
+         "text": "官方先發投手：未知（來源尚未接入，S11）"} for t in (AWAY, HOME)]
+    assert "starter_source_not_delivered" in w["missing_reason"]
+    assert "announcement" not in w
 
 
-def test_announcement_partial():
-    w = run(lineup=_sel("partial", [AWAY]), context=context(starters={AWAY: "announced"}))
-    a = w["announcement"]
-    assert a["status"] == "partial" and a["observed_at"] == "2026-10-17T08:00:00+00:00"
-    assert a["source_url"].endswith("2026-C-1")
-    by = {t["team_code"]: t for t in a["teams"]}
-    assert by[AWAY]["starter_status"] == "announced" and len(by[AWAY]["items"]) == 1
-    assert by[HOME]["starter_status"] == "missing" and by[HOME]["items"] == []
-    assert a["note"] == "原始官方公告事實；不是賽前快照"
+def test_reader_does_not_read_074_or_starter_ids():
+    import ast
+    import inspect
 
-
-def test_announcement_changed():
-    w = run(lineup=_sel("announced", [AWAY, HOME]), context=context(starters={AWAY: "changed", HOME: "announced"}))
-    by = {t["team_code"]: t for t in w["announcement"]["teams"]}
-    assert by[AWAY]["starter_status"] == "changed"
-
-
-def test_announcement_missing_and_unavailable():
-    assert run(lineup={"status": "unverified", "items": []})["announcement"]["text"] == "先發公告尚未送達"
-    w = run(lineup=None, lineup_ok=False)
-    assert w["announcement"]["status"] == "unavailable" and "lineup_unavailable" in w["missing_reason"]
+    tree = ast.parse(inspect.getsource(wrd))
+    imported = {n.module for n in ast.walk(tree) if isinstance(n, ast.ImportFrom)} | {
+        a.name for n in ast.walk(tree) if isinstance(n, ast.Import) for a in n.names}
+    assert not {m for m in imported if m and m.startswith("cpbl.reports")}
+    sql = " ".join(v for k, v in vars(wrd).items() if k.endswith("_SQL"))
+    for banned in ("game_lineup_announcement_revisions", "starter_id"):
+        assert banned not in sql
 
 
 # —— 4B 未發布、歷史目標、版本欄 ——————————————————————————————————————

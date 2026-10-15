@@ -46,7 +46,7 @@ _RESET = """
 SET session_replication_role = replica;
 TRUNCATE cpbl.roster_annotation_revision, cpbl.series_roster_member, cpbl.series_roster CASCADE;
 TRUNCATE cpbl.pitching_gamelog, cpbl.games, cpbl.game_schedule_status_revisions,
-         cpbl.game_lineup_announcement_revisions, cpbl.game_completion_evidence;
+         cpbl.game_completion_evidence;
 SET session_replication_role = origin;
 """
 
@@ -220,4 +220,5 @@ def test_query_count_independent_of_pitchers(pool):
 def test_end_to_end_read_only(pool):
     w = wrd.playoffs_watch(2026, "C", now=NOW, connect=db.conn)
     assert w["status"] == "ok" and w["publication"]["status"] == "not_published"
-    assert {m["source"] for m in w["source_manifest"]} >= {"series_roster", "window_games", "lineup_announcement"}
+    assert {m["source"] for m in w["source_manifest"]} >= {"series_roster", "window_games"}
+    assert {s["status"] for s in w["starters"]} == {"unknown"}

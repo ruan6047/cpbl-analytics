@@ -2,26 +2,25 @@ import {
   LEVEL_TEXT,
   LEVEL_TONE,
   ROSTER_ROLE_TEXT,
-  STARTER_STATUS_TEXT,
   appearanceText,
   offsetLabel,
   shortDate,
   taipeiTime,
   triggerText,
   type PlayoffsWatch,
-  type WatchAnnouncement,
   type WatchPitcher,
   type WatchTeam,
 } from "@/lib/playoffs-watch";
 import { teamShortName } from "@/lib/postseason-journey";
 
-// #289 S08：季後賽第 4 區「觀戰重點」。4A 牛棚近期使用負荷＋4B 先發對決（S09 前占位）＋原始官方公告事實。
+// #289 S08：季後賽第 4 區「觀戰重點」。4A 牛棚近期使用負荷＋4B 先發對決（S09 前占位）＋官方先發投手狀態。
 //
 // 紅線：
 // - 燈號、完整性與觸發理由全由後端算（`playoffs-watch/v1`），這裡只排字；灰色照後端給的理由呈現，
 //   ⛔ 不補成任何等級、⛔ 不寫「可用／待命」。
-// - 4B 在 S09 啟用前 A、B 兩格各自寫「賽前快照尚未發布」；公告事實另列來源與觀測時間，
-//   ⛔ 不套已鎖定 B 樣式。S09 上線後同一位置換成已發布版本（版面不跳）。
+// - 4B 在 S09 啟用前 A、B 兩格各自寫「賽前快照尚未發布」，⛔ 不套已鎖定 B 樣式；S09 上線後同一位置
+//   換成已發布版本（版面不跳）。兩格屬本元件，S04 整區隱藏時不含它們（需求方裁定 E3）。
+// - 官方先發投手：S11 來源定案前每隊一行灰字「未知」（裁定 E1）；⛔ 顯示 074 打序或自行推測。
 // - 角色是本站註記，與官方數據分開標示。
 // 本元件不建 `/playoffs` 頁、不設錨點；由 S04 頁面掛在 `#watch` 位置。
 
@@ -62,45 +61,13 @@ function Starters({ data }: { data: PlayoffsWatch }) {
           </div>
         ))}
       </div>
-      {data.announcement ? <Announcement a={data.announcement} /> : null}
-    </div>
-  );
-}
-
-function Announcement({ a }: { a: WatchAnnouncement }) {
-  const seen = taipeiTime(a.observed_at);
-  return (
-    <div className="rounded border border-line bg-surface p-3 text-sm">
-      <p className="font-bold text-ink">官方先發打序公告</p>
-      <p className="text-xs text-muted">{a.note}</p>
-      {a.status === "missing" || a.status === "unavailable" ? (
-        <p className="mt-2 text-muted">{a.text}</p>
-      ) : (
-        <>
-          <p className="mt-1 text-xs text-muted">
-            來源：{a.source_url ? (
-              <a href={a.source_url} className="text-accent underline" rel="noreferrer">官方進階數據站</a>
-            ) : "官方進階數據站"}
-            {seen ? `・本站觀測 ${seen}（台北）` : ""}
-          </p>
-          <div className="mt-2 grid gap-3 sm:grid-cols-2">
-            {a.teams.map((t) => (
-              <div key={t.team_code}>
-                <p className="font-bold text-ink">
-                  {teamShortName(t.team_code)}：{STARTER_STATUS_TEXT[t.starter_status] ?? t.starter_status}
-                </p>
-                {t.items.length ? (
-                  <ol className="mt-1 space-y-0.5 text-muted">
-                    {t.items.map((i) => (
-                      <li key={i.player_id}>{i.order}. {i.name ?? i.player_id}（{i.pos}）</li>
-                    ))}
-                  </ol>
-                ) : <p className="text-muted">尚未取得該隊公告。</p>}
-              </div>
-            ))}
-          </div>
-        </>
-      )}
+      {data.starters?.length ? (
+        <ul className="space-y-1 rounded border border-line bg-surface p-3 text-sm text-faint">
+          {data.starters.map((s) => (
+            <li key={s.team_code} data-starter-status={s.status}>{teamShortName(s.team_code)}　{s.text}</li>
+          ))}
+        </ul>
+      ) : null}
     </div>
   );
 }

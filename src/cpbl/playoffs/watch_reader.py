@@ -1,4 +1,4 @@
-"""第 4 區 watch 讀取面（#289 S08 WP2）：4A 近期使用負荷＋原始官方公告事實＋4B 未發布占位。
+"""第 4 區 watch 讀取面（#289 S08 WP2）：4A 近期使用負荷＋官方先發投手狀態＋4B 未發布占位。
 
 分兩層（沿 :mod:`cpbl.postseason_contract` 慣例）：
 
@@ -11,8 +11,11 @@
 1. GET ⛔ 寫入、⛔ 觸發爬取；⛔ 讀 ``reports/background``／``reports/assembler``（#272 共享區）。
 2. 名單未提交 ⇒ 不列投手，⛔ 以出賽紀錄反推名單（S03 三表是唯一來源）。
 3. 覆蓋先判：該隊 D−3～D 每天的正式場都已完賽且有該隊投手 box，才算有證據；否則灰＋理由。
-4. 4B：S09 未啟用 ⇒ A、B 兩格 ``not_published``「賽前快照尚未發布」；公告事實另列來源與觀測時間，
-   ⛔ 不包裝成已鎖定 B。指定已完賽場 ⇒ 歷史版本由 S09 提供（尚未發布），⛔ 以現在資料重算冒充當時版本。
+4. 4B：S09 未啟用 ⇒ A、B 兩格 ``not_published``「賽前快照尚未發布」，⛔ 包裝成已鎖定 B。
+   指定已完賽場 ⇒ 歷史版本由 S09 提供（尚未發布），⛔ 以現在資料重算冒充當時版本。
+6. 官方先發投手：來源歸 S11（#292），定案前恆 ``unknown``＋固定灰字（需求方裁定 E1／E2，
+   issuecomment-6184481637）。⛔ 讀 074（只有打序、沒有先發投手）、⛔ 讀 ``games.*_starter_id``，
+   ⛔ 自建替代來源；S11 定案後只換 :func:`_starters` 的來源。
 5. 當場 28 人登錄：S11 交付前恆 ``unknown``，⛔ 由名單或出賽推算。
 """
 
@@ -44,7 +47,7 @@ SCOPE_NOTE = ("近三日含一軍例行賽 A、季後 E／C 與二軍 D 已完�
 
 NOT_PUBLISHED_TEXT = "賽前快照尚未發布"
 REGISTRATION_TEXT = "未知（當場登錄來源尚未接入）"
-LINEUP_MISSING_TEXT = "先發公告尚未送達"
+STARTER_UNKNOWN_TEXT = "官方先發投手：未知（來源尚未接入，S11）"
 
 
 def farm_code(team_code: str) -> str | None:
@@ -64,8 +67,6 @@ class WatchInputs:
     window_games: list[dict] | None = None                 # 兩隊（含二軍）窗口內場次；None ⇒ 不可用
     appearances: dict[str, list[Appearance]] = field(default_factory=dict)
     appearances_ok: bool = True
-    lineup: dict | None = None                              # reports.announcements.select 結果
-    lineup_ok: bool = True
     manifest: list[dict] = field(default_factory=list)
 
 
@@ -180,31 +181,10 @@ def _pitcher(member: dict, apps: list[Appearance], cov: dict, target_date: date)
     return out
 
 
-def _announcement(inputs: WatchInputs, teams: list[str], starter_status: dict[str, str]) -> dict:
-    base = {"source_type": "stats_datagame", "note": "原始官方公告事實；不是賽前快照"}
-    if not inputs.lineup_ok:
-        return {**base, "status": "unavailable", "text": "公告來源暫時無法讀取",
-                "teams": [{"team_code": t, "starter_status": "unknown", "items": []} for t in teams]}
-    sel = inputs.lineup or {}
-    if not sel.get("source_version"):
-        return {**base, "status": "missing", "text": LINEUP_MISSING_TEXT,
-                "teams": [{"team_code": t, "starter_status": starter_status.get(t, "missing"), "items": []}
-                          for t in teams]}
-    items = sel.get("items") or []
-    return {
-        **base,
-        "status": sel.get("status"),
-        "source_url": sel.get("source_url"),
-        "raw_status": sel.get("raw_status"),
-        "observed_at": sel.get("observed_at"),
-        "teams": [{
-            "team_code": t,
-            "starter_status": starter_status.get(t, "missing"),
-            "evidence_status": ((sel.get("team_evidence") or {}).get(t) or {}).get("status"),
-            "first_content_at": ((sel.get("team_evidence") or {}).get(t) or {}).get("first_content_at"),
-            "items": [i for i in items if i.get("team_code") == t],
-        } for t in teams],
-    }
+def _starters(teams: list[str]) -> list[dict]:
+    """官方先發投手：S11 來源定案前，每隊固定 unknown（⛔ 推測、⛔ 讀 074 打序或 games.*_starter_id）。"""
+    return [{"team_code": t, "status": "unknown", "reason": "starter_source_not_delivered",
+             "text": STARTER_UNKNOWN_TEXT} for t in teams]
 
 
 def _publication() -> dict:
@@ -280,9 +260,7 @@ def compute_watch(inputs: WatchInputs, *, now: datetime) -> dict:
     target_date = _as_date(tg.get("game_date"))
     target_status = tg.get("target_status")
     teams = [tg["away_team_code"], tg["home_team_code"]]
-    starter_status = {t["team_code"]: t["starter_status"] for t in ctx.get("teams") or []
-                      if t.get("series") == series}
-    missing: list[str] = ["s09_not_enabled", "registration_source_not_delivered"]
+    missing: list[str] = ["s09_not_enabled", "registration_source_not_delivered", "starter_source_not_delivered"]
     if target_date is None:
         missing.append("target_date_unknown")
 
@@ -339,8 +317,6 @@ def compute_watch(inputs: WatchInputs, *, now: datetime) -> dict:
         })
     if not inputs.appearances_ok:
         missing.append("pitching_gamelog_unavailable")
-    if not inputs.lineup_ok:
-        missing.append("lineup_unavailable")
     coverage = ("unknown" if not complete_flags else "complete" if all(complete_flags)
                 else "partial" if any(complete_flags) else "incomplete")
     return finish(
@@ -348,7 +324,7 @@ def compute_watch(inputs: WatchInputs, *, now: datetime) -> dict:
         coverage=coverage,
         target={"game_key": st.get("target_game_key"), "game_date": target_date.isoformat() if target_date else None,
                 "target_status": target_status, "away_team_code": teams[0], "home_team_code": teams[1]},
-        announcement=_announcement(inputs, teams, starter_status),
+        starters=_starters(teams),
         teams=team_out,
     )
 
@@ -398,22 +374,6 @@ APPEARANCES_SQL = f"""
      ORDER BY p.pitcher_acnt, g.game_date, p.kind_code, p.game_sno
 """
 
-LINEUP_TARGET_SQL = """
-    SELECT year, kind_code, game_sno, source_type, source_url, fetched_at,
-           content_hash, raw_status, raw_payload, last_seen_at
-      FROM cpbl.game_lineup_announcement_revisions
-     WHERE year = %(year)s AND kind_code = %(kind)s AND game_sno = %(sno)s AND source_type = 'stats_datagame'
-     ORDER BY fetched_at
-"""
-
-SCHEDULE_TARGET_SQL = """
-    SELECT year, kind_code, game_sno, raw_present_status, raw_game_result, raw_game_date,
-           payload_hash, fetched_at, last_seen_at, raw_payload->>'IsPlayBall' AS is_play_ball
-      FROM cpbl.game_schedule_status_revisions
-     WHERE year = %(year)s AND kind_code = %(kind)s AND game_sno = %(sno)s
-"""
-
-
 def _optional(cur, fn):
     """非核心來源失敗只降級（回 None），以 SAVEPOINT 隔離，不讓交易進入 aborted。"""
     connection = getattr(cur, "connection", None)
@@ -428,11 +388,8 @@ def _optional(cur, fn):
 
 def read_watch_inputs(cur, year: int, series: str, *, now: datetime, requested_game: int | None = None,
                       live_reader=None) -> WatchInputs:
-    """讀 S02 context＋名單＋窗口場次＋投手登板＋074 公告；查詢次數與投手人數無關。"""
+    """讀 S02 context＋名單＋窗口場次＋投手登板；查詢次數與投手人數無關。"""
     from cpbl import postseason_contract as contract
-    from cpbl.reports import (
-        announcements as lineup,  # 只 import 074 選版；⛔ 不碰 background／assembler
-    )
 
     ctx = contract.compute_series_context(
         contract.read_series_inputs(cur, year, now=now, live_reader=live_reader), now=now)
@@ -488,21 +445,6 @@ def read_watch_inputs(cur, year: int, series: str, *, now: datetime, requested_g
                                 "version_or_hash": _hash(rows), "observed_at": observed,
                                 "status": "ok" if rows is not None else "unavailable"})
 
-    def lineup_read():
-        params = {"year": target[0], "kind": target[1], "sno": target[2]}
-        cur.execute(LINEUP_TARGET_SQL, params)
-        revs = _dicts(cur)
-        cur.execute(SCHEDULE_TARGET_SQL, params)
-        sched = _dicts(cur)
-        return lineup.select(revs, sched, {"year": target[0], "kind_code": target[1], "game_sno": target[2],
-                                           "away_team_code": teams[0], "home_team_code": teams[1]})
-
-    sel = _optional(cur, lineup_read)
-    inputs.lineup_ok = sel is not None
-    inputs.lineup = sel
-    inputs.manifest.append({"source": "lineup_announcement", "scope": f"{target[1]}{target[2]}",
-                            "version_or_hash": (sel or {}).get("source_version"), "observed_at": observed,
-                            "status": "ok" if sel is not None else "unavailable"})
     return inputs
 
 

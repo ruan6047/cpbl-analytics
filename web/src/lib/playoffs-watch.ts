@@ -79,24 +79,8 @@ export type WatchTeam = {
   pitchers: WatchPitcher[];
 };
 
-export type AnnouncementTeam = {
-  team_code: string;
-  starter_status: string;
-  evidence_status?: string | null;
-  first_content_at?: string | null;
-  items: { player_id: string; team_code: string; order: number; pos: string; name: string | null }[];
-};
-
-export type WatchAnnouncement = {
-  source_type: string;
-  note: string;
-  status: string | null;
-  text?: string;
-  source_url?: string | null;
-  raw_status?: string | null;
-  observed_at?: string | null;
-  teams: AnnouncementTeam[];
-};
+/** 官方先發投手：S11（#292）來源定案前恆 unknown（需求方裁定 E1／E2）。 */
+export type WatchStarter = { team_code: string; status: "unknown"; reason: string; text: string };
 
 export type PlayoffsWatch = {
   contract: "playoffs-watch/v1";
@@ -119,18 +103,25 @@ export type PlayoffsWatch = {
   source_manifest: { source: string; status: string }[];
   publication: { status: string; reason: string; slots: { slot: "A" | "B"; status: string; text: string }[] };
   registration: { status: string; reason: string; text: string };
-  announcement?: WatchAnnouncement;
+  starters?: WatchStarter[];
   teams: WatchTeam[];
 };
 
 const API_URL = process.env.API_URL ?? "http://localhost:4001";
 
-/** 第 4 區讀取（失敗回 null，由元件顯示錯誤態，不影響其他區）。輪詢由 S04 頁面決定，這裡不自設。 */
-export async function fetchPlayoffsWatch(season: number, series: "E" | "C", game?: number): Promise<PlayoffsWatch | null> {
+/** 第 4 區讀取（失敗回 null，由元件顯示錯誤態，不影響其他區）。
+ *  本元件不自設輪詢：S04 頁面每 30 秒刷新時重新呼叫本函式（或自行 fetch 同一端點）帶動重取。
+ *  `revalidate` 預設 0（不經 Next 資料快取），避免快取疊在 30 秒輪詢上變成兩個間隔的延遲；
+ *  S04 若要跨訪客共用快取，可傳不超過輪詢間隔的秒數。 */
+export async function fetchPlayoffsWatch(
+  season: number, series: "E" | "C", game?: number, opts: { revalidate?: number } = {},
+): Promise<PlayoffsWatch | null> {
   const q = new URLSearchParams({ season: String(season), series });
   if (game != null) q.set("game", String(game));
+  const revalidate = opts.revalidate ?? 0;
   try {
-    const res = await fetch(`${API_URL}/api/v1/playoffs/watch?${q}`, { next: { revalidate: 30 } });
+    const res = await fetch(`${API_URL}/api/v1/playoffs/watch?${q}`,
+      revalidate > 0 ? { next: { revalidate } } : { cache: "no-store" });
     if (!res.ok) return null;
     return (await res.json()) as PlayoffsWatch;
   } catch {
@@ -167,13 +158,6 @@ export function triggerText(t: { metric: LoadMetric; value: number; threshold: n
     case "Q": return `今日已登板 ${t.value} 次（≥${t.threshold}）`;
   }
 }
-
-export const STARTER_STATUS_TEXT: Record<string, string> = {
-  announced: "已公告",
-  changed: "已公告（內容有更新）",
-  missing: "尚未公告",
-  unknown: "未知",
-};
 
 export const ROSTER_ROLE_TEXT = "角色為本站註記，非官方數據";
 
