@@ -156,3 +156,10 @@ test("排序：箭頭方向 上升 → 平穩 → 下降 → 無箭頭", () => {
   const order = sortMembers([...A.members, f], "arrow").map((m) => m.player_id);
   assert.deepEqual(order, ["0000000011", "0000000020", "0000000002", "0000000004", "0000000003"]);
 });
+
+test("每張小卡有開抽屜按鈕（aria-haspopup=dialog、帶 player_id 供焦點歸還）", () => {
+  const html = renderToStaticMarkup(<RosterView data={payload([A])} team="all" sort="position" />);
+  const buttons = [...html.matchAll(/<button[^>]*data-open-player="(\d+)"[^>]*>/g)];
+  assert.equal(buttons.length, A.members.length);
+  assert.ok(buttons.every((b) => /aria-haspopup="dialog"/.test(b[0])));
+});

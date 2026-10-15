@@ -1,8 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useRef, useState } from "react";
 
+import { RosterDrawer } from "./roster-drawer";
 import {
+  DRAWER_COPY,
   ROSTER_COPY,
   SORTS,
   arrowView,
@@ -49,20 +51,38 @@ export function RosterSection({ data }: { data: PlayoffsRoster | null }) {
 
 export default RosterSection;
 
-/** 持有篩選／排序 state；固定位置、不給 key——輪詢換 `data` 時保留使用者選擇。 */
+/** 持有篩選／排序／抽屜 state；固定位置、不給 key——輪詢換 `data` 時保留使用者選擇，抽屜不關、不搶焦點。 */
 function RosterBody({ data }: { data: PlayoffsRoster }) {
   const [team, setTeam] = useState<string>("all");
   const [sort, setSort] = useState<RosterSort>("position");
-  return <RosterView data={data} team={team} sort={sort} onTeam={setTeam} onSort={setSort} />;
+  const [open, setOpen] = useState<RosterMember | null>(null);
+  const root = useRef<HTMLDivElement>(null);
+  const close = useCallback(() => {
+    const id = open?.player_id;
+    setOpen(null);
+    // 焦點回原小卡按鈕（以 player_id 找，輪詢重繪後仍是同一顆）。
+    if (id) requestAnimationFrame(() => root.current?.querySelector<HTMLElement>(`[data-open-player="${id}"]`)?.focus());
+  }, [open]);
+  // 抽屜顯示最新一份資料中的同一人（找不到就沿用開啟時那份）。
+  const current = open ? data.teams.flatMap((t) => t.members).find((m) => m.player_id === open.player_id) ?? open : null;
+  return (
+    <div ref={root}>
+      <RosterView data={data} team={team} sort={sort} onTeam={setTeam} onSort={setSort} onOpen={setOpen} />
+      {current ? (
+        <RosterDrawer member={current} year={data.year} series={data.series} sectionVersion={data.context_version}
+          onClose={close} />
+      ) : null}
+    </div>
+  );
 }
 
 const SEG = "min-h-11 rounded-full px-3 text-sm font-semibold";
 const segClass = (on: boolean) => `${SEG} ${on ? "bg-ink text-paper" : "bg-surface-2 text-muted hover:text-ink"}`;
 
 /** 純呈現（無 hooks，測試可直接以任一篩選／排序渲染）。 */
-export function RosterView({ data, team, sort, onTeam, onSort }: {
+export function RosterView({ data, team, sort, onTeam, onSort, onOpen }: {
   data: PlayoffsRoster; team: string; sort: RosterSort;
-  onTeam?: (t: string) => void; onSort?: (s: RosterSort) => void;
+  onTeam?: (t: string) => void; onSort?: (s: RosterSort) => void; onOpen?: (m: RosterMember) => void;
 }) {
   const shown = data.teams.filter((t) => team === "all" || t.team_code === team);
   return (
@@ -87,12 +107,12 @@ export function RosterView({ data, team, sort, onTeam, onSort }: {
           ))}
         </div>
       </div>
-      {shown.map((t) => <TeamBlock key={t.team_code} team={t} sort={sort} />)}
+      {shown.map((t) => <TeamBlock key={t.team_code} team={t} sort={sort} onOpen={onOpen} />)}
     </div>
   );
 }
 
-function TeamBlock({ team, sort }: { team: RosterTeam; sort: RosterSort }) {
+function TeamBlock({ team, sort, onOpen }: { team: RosterTeam; sort: RosterSort; onOpen?: (m: RosterMember) => void }) {
   const headingId = `roster-team-${team.team_code}`;
   return (
     <div className="space-y-2" data-team={team.team_code} data-roster-status={team.roster_status}>
@@ -108,7 +128,7 @@ function TeamBlock({ team, sort }: { team: RosterTeam; sort: RosterSort }) {
         <ul aria-labelledby={headingId} className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
           {sortMembers(team.members, sort).map((m) => (
             <li key={m.player_id} className="min-w-0">
-              <MemberCard m={m} />
+              <MemberCard m={m} onOpen={onOpen} />
             </li>
           ))}
         </ul>
@@ -117,7 +137,7 @@ function TeamBlock({ team, sort }: { team: RosterTeam; sort: RosterSort }) {
   );
 }
 
-export function MemberCard({ m }: { m: RosterMember }) {
+export function MemberCard({ m, onOpen }: { m: RosterMember; onOpen?: (m: RosterMember) => void }) {
   const bg = m.background;
   const line = lineText(m);
   return (
@@ -144,6 +164,11 @@ export function MemberCard({ m }: { m: RosterMember }) {
           ))}
         </ul>
       ) : null}
+      <button type="button" data-open-player={m.player_id} aria-haspopup="dialog" onClick={() => onOpen?.(m)}
+        aria-label={`${m.name} ${DRAWER_COPY.open}`}
+        className="mt-2 inline-flex min-h-11 items-center rounded-full border border-line-strong px-3 text-sm font-semibold text-ink hover:bg-surface-2 focus-visible:outline-2 focus-visible:outline-accent">
+        {DRAWER_COPY.open}
+      </button>
     </div>
   );
 }

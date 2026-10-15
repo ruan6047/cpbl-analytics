@@ -6,6 +6,8 @@
 // - 頁尾 key 一律 `roster.*`（#285 裁定 6195728927：G1 前不用 `common.*`）。
 
 import { ADV } from "@/app/players/[id]/lib";
+import type { Card as AbilityCardData } from "@/components/ability-card";
+import type { StatRow } from "@/lib/client";
 
 export type RosterRole = "batting" | "pitching";
 export type BackgroundLevel = "A" | "D" | "none";
@@ -206,4 +208,65 @@ export function rosterNotes(data: PlayoffsRoster | null): RosterNote[] {
       text: "本季一軍沒有出賽紀錄的球員仍列在名單，改列二軍成績並標「二軍」，不換算一軍 PR 或 OPS+。" });
   }
   return out;
+}
+
+// —— 按需詳情（抽屜；契約 §2.2） ——————————————————————————————————————————————
+
+export type RosterPlayerDetail = {
+  contract: "playoffs-roster-player/v1";
+  context_version: string | null;
+  roster_version: string;
+  series: "E" | "C";
+  year: number;
+  team_code: string;
+  player: { player_id: string; name: string; official_position: string; tactical_role: string | null;
+    role: RosterRole; level: BackgroundLevel };
+  ability: { season: AbilityCardData; career: AbilityCardData };
+  trend: { player_id: string; role: RosterRole; items: StatRow[]; roll: number } | null;
+};
+
+export const DRAWER_COPY = {
+  close: "關閉",
+  open: "能力與走勢",
+  loading: "載入中…",
+  failed: "球員詳情暫時無法讀取。",
+  stale: "資料已更新，請重開。",
+  deepLink: "完整球員頁",
+  abilitySeason: "本季能力（一軍）",
+  abilityCareer: "生涯能力",
+  abilityNone: "沒有可畫的能力圖。",
+} as const;
+
+export const rosterPlayerPath = (year: number, series: "E" | "C", playerId: string) =>
+  `/api/v1/playoffs/roster/player?season=${year}&series=${series}&player_id=${playerId}`;
+
+export type DrawerState =
+  | { kind: "loading" }
+  | { kind: "error" }
+  | { kind: "stale" }
+  | { kind: "ready"; detail: RosterPlayerDetail };
+
+/** 詳情與目前區資料版本不同 ⇒ stale（⛔ 拼接不同版本的摘要與詳情；契約 §2.2）。 */
+export function drawerState(detail: RosterPlayerDetail | null | undefined, failed: boolean,
+  sectionVersion: string | null): DrawerState {
+  if (failed) return { kind: "error" };
+  if (!detail) return { kind: "loading" };
+  if (detail.context_version !== sectionVersion) return { kind: "stale" };
+  return { kind: "ready", detail };
+}
+
+/** 能力卡：本季可畫就用本季，否則生涯；都不可畫 ⇒ null。 */
+export function pickAbility(d: RosterPlayerDetail): { label: string; card: AbilityCardData } | null {
+  if (d.ability.season?.available && d.ability.season.axes) return { label: DRAWER_COPY.abilitySeason, card: d.ability.season };
+  if (d.ability.career?.available && d.ability.career.axes) return { label: DRAWER_COPY.abilityCareer, card: d.ability.career };
+  return null;
+}
+
+/** 焦點陷阱：Tab 在最後一個 ⇒ 回第一個；Shift+Tab 在第一個 ⇒ 到最後一個；其餘交瀏覽器（回 null）。 */
+export function trapFocus(index: number, count: number, shift: boolean): number | null {
+  if (count === 0) return null;
+  if (index < 0) return shift ? count - 1 : 0;
+  if (shift && index === 0) return count - 1;
+  if (!shift && index === count - 1) return 0;
+  return null;
 }

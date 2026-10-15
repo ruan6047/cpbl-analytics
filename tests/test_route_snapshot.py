@@ -63,6 +63,7 @@ EXPECTED = {
     "/api/v1/postseason-summary",
     "/api/v1/playoffs/overview",
     "/api/v1/playoffs/roster",
+    "/api/v1/playoffs/roster/player",
     "/api/v1/playoffs/watch",
     "/api/v1/projections/batting",
     "/api/v1/projections/pitching",

@@ -415,3 +415,67 @@ def playoffs_roster(year: int, series: str, *, now: datetime | None = None, conn
             cur.execute(READ_ONLY_TXN)
             inputs = read_roster_inputs(cur, year, series, now=now, live_reader=live_reader)
     return compute_roster(inputs, now=now)
+
+
+# —— 按需詳情（抽屜；契約 §2.2） ——————————————————————————————————————————
+
+DETAIL_CONTRACT = "playoffs-roster-player/v1"
+
+
+class NotInRoster(LookupError):
+    """球員不在該系列兩隊已提交的名單內（或名單來源不可用）。"""
+
+
+def player_detail_in_txn(cur, year: int, series: str, player_id: str, *, now: datetime, live_reader=None) -> dict:
+    """單人能力卡＋本季走勢，與摘要同源 ``context_version``（同一交易讀 S02 context）。
+
+    能力卡呼叫既有 ``ability._ability_card``（只 import、不改；⛔ 讀 reports/background）；走勢呼叫
+    ``trend.trend_items``（球員頁同一份）。背景層級 A ⇒ 一軍走勢；D ⇒ 二軍走勢；none ⇒ 無走勢。
+    """
+    from cpbl.api.routers.ability import _ability_card
+    from cpbl.api.routers.trend import trend_items
+
+    ctx = read_context(cur, year, now=now, live_reader=live_reader)
+    s = (ctx.get("series") or {}).get(series)
+    teams = [t for t in (((s or {}).get("series_id") or {}).get("teams") or []) if t]
+    rosters = _optional(cur, lambda: read_rosters(cur, year, series, teams)) if teams else None
+    hit = next(((code, m) for code, r in (rosters or {}).items() if r for m in r["members"]
+                if m["player_id"] == player_id), None)
+    if hit is None:
+        raise NotInRoster(player_id)
+    team_code, m = hit
+    role = role_of(m["official_position"])
+    one = RosterInputs(year=year, series=series, context=ctx, rosters={team_code: {"members": [m]}})
+    cur.execute(BAT_COUNTS_SQL if role == "batting" else PIT_COUNTS_SQL, {"year": year, "ids": [player_id]})
+    for r in _dicts(cur):
+        key = (r.pop("pid"), role, r.pop("kind_code"))
+        one.counts[key] = {k: (int(v) if v is not None else None) for k, v in r.items()}
+    level = ("A" if (one.counts.get((player_id, role, "A")) or {}).get("g")
+             else "D" if (one.counts.get((player_id, role, "D")) or {}).get("g") else "none")
+    trend = trend_items(cur, player_id, role, year, level) if level != "none" else None
+    return {
+        "contract": DETAIL_CONTRACT,
+        "context_version": ctx.get("context_version"),
+        "roster_version": _hash(rosters),
+        "series": series,
+        "year": year,
+        "team_code": team_code,
+        "player": {"player_id": player_id, "name": m["announced_name"], "official_position": m["official_position"],
+                   "tactical_role": _role(m.get("tactical_role")), "role": role, "level": level},
+        "ability": {"season": _ability_card(cur, player_id, role, "season", year),
+                    "career": _ability_card(cur, player_id, role, "career", year)},
+        "trend": trend,
+    }
+
+
+def playoffs_roster_player(year: int, series: str, player_id: str, *, now: datetime | None = None,
+                           connect: Callable | None = None, live_reader=None) -> dict:
+    """``playoffs-roster-player/v1``：單一 REPEATABLE READ READ ONLY 交易。不在名單 ⇒ :class:`NotInRoster`。"""
+    if connect is None:
+        from cpbl.db import conn as connect
+    now = now or datetime.now(UTC)
+    with connect() as c:
+        with c.transaction():
+            cur = c.cursor()
+            cur.execute(READ_ONLY_TXN)
+            return player_detail_in_txn(cur, year, series, player_id, now=now, live_reader=live_reader)
