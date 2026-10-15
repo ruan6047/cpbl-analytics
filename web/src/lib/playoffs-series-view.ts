@@ -18,6 +18,7 @@ export const SERIES_COPY = {
   noNextGame: "下一場賽程本站尚未取得",
   overviewFailed: "季後賽資料暫時無法讀取",
   empty: "本站尚無這一年的季後賽場次",
+  noGames: "場次本站尚未取得",
   pendingUpdate: "最新完賽結果更新中，比分以本站已同步的為準",
   coverageUnknown: "本站資料完整度未知，比分以本站已同步的為準",
   pollFailed: "最新資料暫時無法取得，畫面維持上一次取得的內容",

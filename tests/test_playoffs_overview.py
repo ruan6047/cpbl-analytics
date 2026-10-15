@@ -132,6 +132,28 @@ def test_series_decided_has_no_preview():
     assert o["series_section"]["next_game_missing_reason"] == "series_decided"
 
 
+def test_current_series_rows_missing_keeps_previous_summary():
+    """審核 F1：C 列尚未入庫時，E 總結照常給；區塊不是空態，缺列記在 missing_reason。"""
+    only_e = [g for g in _games() if g.kind_code == "E"]
+    ctx = pc.compute_series_context(inputs(2026, games_override=only_e), now=NOW_2026)
+    o = ov.compute_overview(ov.OverviewInputs(context=ctx, names=NAMES))
+    ss = o["series_section"]
+    assert o["default_series"] == "C"
+    assert ss["status"] == "ok" and o["sections"]["series"]["status"] == "ok"
+    assert "series_games_missing" in ss["missing_reason"]
+    assert [c["mvp"]["name"] for c in ss["previous"]["games"]] == ["勝騎士", "喬登", "獅帝芬", "鄭浩均"]
+    assert ss["previous"]["winner"] == BRO
+    assert ss["current"]["games"] == [] and ss["next_game"] is None
+    assert ss["next_game_missing_reason"] == "no_target"
+
+
+def test_no_postseason_rows_at_all_is_empty():
+    ctx = pc.compute_series_context(inputs(2026, games_override=[]), now=NOW_2026)
+    o = ov.compute_overview(ov.OverviewInputs(context=ctx, names={}))
+    assert o["series_section"]["status"] == "empty"
+    assert o["series_section"]["previous"] is None
+
+
 def test_mvp_ids_only_from_completed_games_deduplicated():
     ctx = _context(mvp={1: "0000005604", 2: "0000005604", 3: "0000007597"})
     assert ov.mvp_ids(ctx) == ["0000005604", "0000007597"]

@@ -43,6 +43,29 @@ test("Q3：第 2／3／4 區整區不渲染（無標題、無占位、無 #watch
   assert.doesNotMatch(text(out), /觀戰重點|名單|待更新/);
 });
 
+test("審核 F1：當前系列（C）缺場次列時，挑戰賽總結照常顯示，不誤稱全年無資料", () => {
+  const o = clone();
+  o.series_section.current.games = [];
+  o.series_section.next_game = null;
+  o.series_section.next_game_missing_reason = "no_target";
+  o.series_section.missing_reason = ["series_games_missing"];
+  const t = text(html(<SeriesSection overview={o} />));
+  assert.doesNotMatch(t, /本站尚無這一年的季後賽場次/);
+  assert.match(t, /季後挑戰賽結果/);
+  assert.match(t, /中信兄弟以 3：2 晉級台灣大賽/);
+  for (const name of ["勝騎士", "喬登", "獅帝芬", "鄭浩均"]) assert.match(t, new RegExp(`官方 MVP：${name}`));
+  assert.match(t, /台灣大賽場次本站尚未取得/);
+  assert.match(t, /下一場賽程本站尚未取得/);
+});
+
+test("整年 E／C 都沒有場次列：整區空態", () => {
+  const o = clone();
+  o.series_section = { ...o.series_section, status: "empty", previous: null, current: { ...o.series_section.current, games: [] }, next_game: null, next_game_missing_reason: "no_target" };
+  const t = text(html(<SeriesSection overview={o} />));
+  assert.match(t, /本站尚無這一年的季後賽場次/);
+  assert.doesNotMatch(t, /季後挑戰賽結果/);
+});
+
 test("C1 完賽後：卡上有比分與 MVP、預告換 C2", () => {
   const o = clone();
   const c1 = o.series_section.current.games[0];

@@ -117,6 +117,9 @@ def compute_overview(inputs: OverviewInputs) -> dict:
     current = ctx["state"]["default_series"]
     target = ctx["state"]["by_series"][current]["target_game_key"]
     has_games = {k: any(g["game_key"]["kind_code"] == k for g in ctx["games"]) for k in SERIES_ORDER}
+    # 區塊空態＝整年 E／C 都沒有場次列；只有當前系列缺列時前一系列總結照常給，缺列記在 missing_reason
+    # （#285 審核 F1：曾以當前系列判空，讓已有的挑戰賽總結被藏起來並誤稱全年無資料）。
+    section_status = "ok" if any(has_games.values()) else "empty"
 
     blocks = {k: _series_block(k, ctx, names) for k in SERIES_ORDER if has_games[k] or k == current}
     prior = [k for k in SERIES_ORDER[:SERIES_ORDER.index(current)] if has_games[k]]
@@ -164,7 +167,7 @@ def compute_overview(inputs: OverviewInputs) -> dict:
         "schedule_source": ({"kind": "official_announcement", "url": ann["url"], "published_on": ann["published_on"]}
                             if ann else None),
         "series_section": {
-            "status": "ok" if has_games[current] else "empty",
+            "status": section_status,
             "missing_reason": series_missing,
             "previous": previous,
             "current": blocks[current],
@@ -172,7 +175,7 @@ def compute_overview(inputs: OverviewInputs) -> dict:
             "next_game_missing_reason": next_reason,
         },
         "sections": {
-            "series": {"status": "ok" if has_games[current] else "empty", "missing_reason": series_missing},
+            "series": {"status": section_status, "missing_reason": series_missing},
             "watch": {"status": "ok" if target else "no_target", "series": current,
                       "game": target["game_sno"] if target else None},
         },

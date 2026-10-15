@@ -79,11 +79,14 @@ function CardList({ block, label }: { block: OverviewSeriesBlock; label: string 
 }
 
 function SeriesBlockView({ block, heading }: { block: OverviewSeriesBlock; heading: string }) {
+  const hasCards = visibleCards(block).length > 0;
   return (
     <div className="min-w-0 space-y-2" data-series={block.kind_code}>
       <SectionTitle as="h3" size="sm">{heading}</SectionTitle>
       <p className="text-sm text-ink" data-series-sentence>{seriesSentence(block)}</p>
-      <CardList block={block} label={`${SERIES_NAME[block.kind_code]}場次`} />
+      {hasCards
+        ? <CardList block={block} label={`${SERIES_NAME[block.kind_code]}場次`} />
+        : <p className="text-sm text-muted">{SERIES_NAME[block.kind_code]}{SERIES_COPY.noGames}</p>}
     </div>
   );
 }
@@ -124,6 +127,7 @@ export function SeriesSection({ overview }: { overview: PlayoffsOverview }) {
     <section id="series" aria-labelledby="series-heading" className="min-w-0 scroll-mt-[70px] space-y-4 md:scroll-mt-[76px]">
       <SectionTitle as="h2" id="series-heading">系列賽表現</SectionTitle>
       {notices.map((n) => <Notice key={n} label="待更新">{n}</Notice>)}
+      {/* 整區空態只在整年 E／C 都沒有場次時；當前系列缺列不藏前一系列總結（審核 F1） */}
       {ss.status === "empty" ? (
         <p className="text-sm text-muted">{SERIES_COPY.empty}</p>
       ) : (

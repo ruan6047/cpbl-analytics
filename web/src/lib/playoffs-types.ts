@@ -84,6 +84,7 @@ export type PlayoffsOverview = {
   source_manifest: { source: string; scope: string; version_or_hash: string | null; observed_at: string | null; status: string }[];
   schedule_source: { kind: "official_announcement"; url: string; published_on: string } | null;
   series_section: {
+    /** `empty`＝整年 E／C 都沒有場次列；只有當前系列缺列時仍是 `ok`，缺列見 `missing_reason`（`series_games_missing`）。 */
     status: "ok" | "empty";
     missing_reason: string[];
     previous: OverviewSeriesBlock | null;
