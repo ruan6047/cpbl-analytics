@@ -1,0 +1,161 @@
+// #286 S05：季後賽第 3 區「系列賽 32 人資格名單」型別、排字與頁尾說明（`playoffs-roster/v1`）。
+//
+// - 統計、層級、PR 標籤全由後端算（PRD「前後端責任」）；這裡只排字、篩選、排序。
+// - 說明性注意事項（28 人登錄、資格≠可用、G 定義、PR 來源、二軍背景）⛔ 在區內就地顯示，一律經
+//   `rosterNotes(data)` 交 S04 頁尾（需求方 Q4、#281 6194693029；#285 掛點契約 §2.4、§2.5）。格內只留「—」「待更新」。
+// - 頁尾 key 一律 `roster.*`（#285 裁定 6195728927：G1 前不用 `common.*`）。
+
+import { ADV } from "@/app/players/[id]/lib";
+
+export type RosterRole = "batting" | "pitching";
+export type BackgroundLevel = "A" | "D" | "none";
+
+export type BattingLine = {
+  pa: number; ab: number; h: number; hr: number; bb: number;
+  avg: number | null; obp: number | null; slg: number | null; ops: number | null;
+};
+export type PitchingLine = { outs: number; ip: string; er: number; so: number; bb: number; era: number | null };
+
+export type PrTag = { key: string; value: number };
+
+export type RosterBackground = {
+  level: BackgroundLevel;
+  g: number | null;
+  line: BattingLine | PitchingLine | null;
+  pr_tags: PrTag[];
+};
+
+export type RosterMember = {
+  player_id: string;
+  name: string;
+  official_position: "投手" | "捕手" | "內野手" | "外野手" | string;
+  tactical_role: string | null;
+  role: RosterRole;
+  background: RosterBackground;
+};
+
+export type RosterTeam = {
+  team_code: string;
+  team_name: string | null;
+  roster_status: "submitted" | "missing" | "unavailable";
+  roster: { roster_id: string; published_date: string | null; source_url: string | null; annotation_version: number | null } | null;
+  members: RosterMember[];
+};
+
+export type PlayoffsRoster = {
+  contract: "playoffs-roster/v1";
+  context_version: string | null;
+  series_id: { year: number; kind_code: string; teams: string[] } | null;
+  series: "E" | "C";
+  year: number;
+  as_of: {
+    now: string; taipei_date: string; last_refresh_at: string | null;
+    last_completed_game_date: string | null; background_cutoff: string | null;
+  };
+  status: "ok" | "partial" | "roster_missing" | "unavailable" | "series_unknown";
+  default_scope: "background" | "series";
+  scopes: { background: { status: string }; series: { status: string } };
+  registration: { status: "unknown"; reason: string };
+  roster_version: string;
+  teams: RosterTeam[];
+  missing_reason: string[];
+};
+
+/** 頁尾說明（結構同 #285 `PlayoffsNote`；S04 型別尚未在 main，故於此宣告同形）。 */
+export type RosterNote = { key: string; text: string; source?: { label: string; url: string } };
+
+export const ROSTER_COPY = {
+  heading: "系列賽 32 人資格名單",
+  loadFailed: "第 3 區資料暫時無法讀取，其他區不受影響。",
+  seriesUnknown: "對戰組合尚未確定。",
+  pending: "待更新",
+  missing: "—",
+  teamFilterLabel: "球隊篩選",
+  sortLabel: "排序",
+  all: "全部",
+  farm: "二軍",
+  roleSource: "本站角色",
+} as const;
+
+export type RosterSort = "position" | "games";
+export const SORTS: { key: RosterSort; label: string }[] = [
+  { key: "position", label: "官方守位" },
+  { key: "games", label: "出賽 G" },
+];
+
+const POSITION_ORDER: Record<string, number> = { 投手: 0, 捕手: 1, 內野手: 2, 外野手: 3 };
+
+/** 排序：守位（官方序、同守位依 player_id）；出賽 G（多到少，無紀錄排最後，同 G 依守位）。不改原陣列。 */
+export function sortMembers(members: readonly RosterMember[], sort: RosterSort): RosterMember[] {
+  const pos = (m: RosterMember) => POSITION_ORDER[m.official_position] ?? 99;
+  const byPos = (a: RosterMember, b: RosterMember) => pos(a) - pos(b) || a.player_id.localeCompare(b.player_id);
+  if (sort === "games") {
+    return [...members].sort((a, b) => (b.background.g ?? -1) - (a.background.g ?? -1) || byPos(a, b));
+  }
+  return [...members].sort(byPos);
+}
+
+const r3 = (v: number | null) => (v == null ? ROSTER_COPY.missing : v.toFixed(3).replace(/^0\./, "."));
+
+/** 出賽 G：無紀錄 ⇒「—」。 */
+export const gText = (bg: RosterBackground) => (bg.g == null ? ROSTER_COPY.missing : `${bg.g}G`);
+
+/** 背景一行（傳統計數，後端已算率）：打者打擊率／OPS、投手防禦率／局數。無紀錄 ⇒ null。 */
+export function lineText(m: RosterMember): string | null {
+  const l = m.background.line;
+  if (!l) return null;
+  if (m.role === "pitching") {
+    const p = l as PitchingLine;
+    return `防禦率 ${p.era == null ? ROSTER_COPY.missing : p.era.toFixed(2)} · ${p.ip} 局`;
+  }
+  const b = l as BattingLine;
+  return `打擊率 ${r3(b.avg)} · OPS ${r3(b.ops)}`;
+}
+
+/** PR 標籤名稱：與球員頁「官方進階・百分位 PR」同一組中文標籤（打者 bl／投手 pl）。 */
+export function prLabel(key: string, role: RosterRole): string {
+  const a = ADV.find((x) => x.pr === key);
+  return a ? (role === "batting" ? a.bl : a.pl) : key;
+}
+
+/** 深讀連結：球員頁本季總覽，帶相同角色與層級（A 一軍／D 二軍）。球員頁目前沒有年度參數（只看本季）。 */
+export function playerHref(m: RosterMember): string {
+  const level = m.background.level === "D" ? "D" : "A";
+  return `/players/${m.player_id}?scope=season&view=overview&role=${m.role}&level=${level}`;
+}
+
+/** 摘要端點相對路徑（S04 以 `CLIENT_API` 前綴、`no-store` 取；契約 §2、§4）。 */
+export const rosterPath = (year: number, series: "E" | "C") => `/api/v1/playoffs/roster?season=${year}&series=${series}`;
+
+export function teamLabel(t: RosterTeam): string {
+  return t.team_name ?? t.team_code;
+}
+
+// —— 頁尾說明（契約 §2.4、§2.5、§9；交 #285 對齊的文字） ——————————————————————————
+
+const FIXED: RosterNote[] = [
+  { key: "roster.registration_unknown", text: "當場 28 人登錄本站尚未取得。" },
+  { key: "roster.eligibility_not_availability",
+    text: "名單是官方公布的系列賽 32 人資格名單，不代表當場登錄、先發或可出賽。" },
+  { key: "roster.appearance_g", text: "出賽 G 依官方逐場紀錄計算，代跑、守備出場也算一場；保留續賽與原比賽算同一場。" },
+  { key: "roster.official_pr_only",
+    text: "PR≥90 標籤只採官方進階數據的百分位（本季一軍例行賽、同角色）；官方沒有提供的球員不標，本站不自行排名。",
+    source: { label: "官方進階數據", url: "https://stats.cpbl.com.tw" } },
+];
+
+/** 純函式、同步、不讀時鐘／window。`notes(null)` 只回固定說明；依資料者隨畫面上那份資料重算。 */
+export function rosterNotes(data: PlayoffsRoster | null): RosterNote[] {
+  const out = [...FIXED];
+  if (!data) return out;
+  for (const t of data.teams) {
+    if (t.roster_status === "missing") {
+      out.push({ key: `roster.roster_missing.${t.team_code}`,
+        text: `${teamLabel(t)} 的系列賽名單尚未提交，暫不列出該隊球員。` });
+    }
+  }
+  if (data.teams.some((t) => t.members.some((m) => m.background.level === "D"))) {
+    out.push({ key: "roster.farm_background",
+      text: "本季一軍沒有出賽紀錄的球員仍列在名單，改列二軍成績並標「二軍」，不換算一軍 PR 或 OPS+。" });
+  }
+  return out;
+}
