@@ -1,17 +1,16 @@
+import type { ReactNode } from "react";
+
+import { Tooltip } from "@/components/tooltip";
+import { InfoDot } from "@/components/ui";
 import {
-  LEVEL_TEXT,
-  LEVEL_TONE,
   ROSTER_ROLE_TEXT,
-  appearanceText,
-  offsetLabel,
   shortDate,
   taipeiTime,
-  triggerText,
   type PlayoffsWatch,
-  type WatchPitcher,
   type WatchTeam,
 } from "@/lib/playoffs-watch";
 import { teamShortName } from "@/lib/postseason-journey";
+import { PitcherLoadRow, dayLabel } from "./watch-load-strip";
 
 // #289 S08：季後賽第 4 區「觀戰重點」。4A 牛棚近期使用負荷＋4B 先發對決（S09 前占位）＋官方先發投手狀態。
 //
@@ -22,6 +21,8 @@ import { teamShortName } from "@/lib/postseason-journey";
 //   換成已發布版本（版面不跳）。兩格屬本元件，S04 整區隱藏時不含它們（需求方裁定 E3）。
 // - 官方先發投手：S11 來源定案前每隊一行灰字「未知」（裁定 E1）；⛔ 顯示 074 打序或自行推測。
 // - 角色是本站註記，與官方數據分開標示。
+// - 4A 呈現（#300 S08c）：燈號＋4 格球數日條＋連投摘要常駐，說明句收進共用 `Tooltip`；見 `watch-load-strip.tsx`。
+//   本檔維持 server-safe（⛔ `"use client"`），互動只來自既有 client 島。
 // 本元件不建 `/playoffs` 頁、不設錨點；由 S04 頁面掛在 `#watch` 位置。
 
 export function WatchSection({ data }: { data: PlayoffsWatch | null }) {
@@ -73,116 +74,88 @@ function Starters({ data }: { data: PlayoffsWatch }) {
 }
 
 // —— 4A：牛棚近期使用負荷 ——————————————————————————————————————————————
+// #300 S08c：懶人包式呈現。常駐的只有狀態（建議門檻籤、資料更新時間、隊伍缺資料短標）；
+// #289 版常駐的說明句收進提示（原話「說明不用直接顯示 頂多是滑鼠移動時提示就好」），
+// 再依需求方逐項裁定（6191101762，PLAN-r2 §16）移除零資訊／重複項。
+
+// 區塊 ⓘ：依 §16 裁定只留防誤讀句（E21）與角色註記（E26）；資料範圍（E22）、同步時間（E24，與可見
+// 「資料更新」重複）、28 人登錄（E25，恆未知）移除；門檻建議值說明（E23）改掛「建議門檻」籤自己的提示。
+function bullpenNote(data: PlayoffsWatch): ReactNode {
+  return (
+    <div className="space-y-1">
+      <p>球數與出賽日的描述，不是健康判斷、可用性或教練調度。</p>
+      {data.teams.some((t) => t.roster_status === "submitted") ? (
+        <p>預設列名單中 #終結、#勝利組、#長中繼；{ROSTER_ROLE_TEXT}。</p>
+      ) : null}
+    </div>
+  );
+}
 
 function Bullpen({ data }: { data: PlayoffsWatch }) {
   const refreshed = taipeiTime(data.as_of.last_refresh_at);
+  // 日條比例尺：整個 4A 已知單日球數最大值（⛔ 不用門檻當刻度）。
+  const scaleMax = Math.max(0, ...data.teams.flatMap((t) => t.pitchers.flatMap((p) => p.load.days.map((d) => d.pitches))));
   return (
     <div className="space-y-3">
-      <h3 className="text-base font-bold text-ink">牛棚近期使用負荷</h3>
-      <p className="text-xs text-muted">
-        球數與出賽日的描述，不是健康判斷、可用性或教練調度。{data.scope.note}。
-        門檻為本站建議值（{data.policy_version}，尚未經歷史資料校準）。
-        {refreshed ? `資料最後同步 ${refreshed}（台北）。` : ""}
-      </p>
-      <p className="text-xs text-muted">當場 28 人登錄：{data.registration.text}。</p>
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+        <h3 className="text-base font-bold text-ink">牛棚近期使用負荷</h3>
+        <InfoDot label="牛棚負荷說明" content={bullpenNote(data)} />
+        {/proposed/.test(data.policy_version) ? (
+          <Tooltip suppressUnderline content={<p>門檻為本站建議值（{data.policy_version}，尚未經歷史資料校準）。</p>}>
+            <button type="button" data-proposed aria-label="建議門檻：顯示說明"
+              className="relative inline-flex min-h-6 touch-manipulation items-center rounded border border-line-strong px-1 text-xs text-muted before:absolute before:-inset-y-2.5 before:inset-x-0 before:content-[''] hover:text-ink">
+              建議門檻
+            </button>
+          </Tooltip>
+        ) : null}
+        {refreshed ? <span className="text-xs text-muted">資料更新 {refreshed}</span> : null}
+      </div>
       <div className="grid gap-4 lg:grid-cols-2">
-        {data.teams.map((t) => <TeamLoad key={t.team_code} team={t} />)}
+        {data.teams.map((t) => <TeamLoad key={t.team_code} team={t} scaleMax={scaleMax} />)}
       </div>
     </div>
   );
 }
 
-function TeamLoad({ team }: { team: WatchTeam }) {
+function TeamLoad({ team, scaleMax }: { team: WatchTeam; scaleMax: number }) {
   const shown = team.pitchers.filter((p) => p.default_visible);
   const others = team.pitchers.filter((p) => !p.default_visible);
   const gaps = team.days.filter((d) => !d.complete);
   return (
     <div className="min-w-0 rounded border border-line bg-surface p-3">
-      <h4 className="font-bold text-ink">{teamShortName(team.team_code)}</h4>
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+        <h4 className="font-bold text-ink">{teamShortName(team.team_code)}</h4>
+        {team.roster_status === "submitted" && gaps.length ? (
+          <Tooltip suppressUnderline content={
+            <ul className="space-y-0.5">
+              {gaps.map((d) => <li key={d.date}>{shortDate(d.date)}（{dayLabel(d.offset)}）：{d.text.join("；")}</li>)}
+            </ul>
+          }>
+            <button type="button" data-team-gaps aria-label="部分日期資料不完整：顯示理由"
+              className="relative inline-flex min-h-6 touch-manipulation items-center rounded border border-dashed border-line-strong px-1 text-xs text-muted before:absolute before:-inset-y-2.5 before:inset-x-0 before:content-[''] hover:text-ink">
+              部分日期資料不完整
+            </button>
+          </Tooltip>
+        ) : null}
+      </div>
       {team.roster_status !== "submitted" ? (
         <p role="status" className="mt-2 text-sm text-muted">{team.roster_text}；不以出賽紀錄代替名單。</p>
       ) : (
         <>
-          <p className="mt-1 text-xs text-muted">預設列名單中 #終結、#勝利組、#長中繼；{ROSTER_ROLE_TEXT}。</p>
-          {gaps.length ? (
-            <ul className="mt-2 space-y-0.5 text-xs text-muted">
-              {gaps.map((d) => <li key={d.date}>{shortDate(d.date)}（{offsetLabel(d.offset)}）：{d.text.join("；")}</li>)}
-            </ul>
-          ) : null}
           {shown.length ? (
-            <ul className="mt-2 divide-y divide-line">{shown.map((p) => <PitcherRow key={p.player_id} p={p} />)}</ul>
+            <ul className="mt-2 divide-y divide-line">{shown.map((p) => <PitcherLoadRow key={p.player_id} p={p} scaleMax={scaleMax} />)}</ul>
           ) : <p className="mt-2 text-sm text-muted">名單中沒有標記為終結、勝利組或長中繼的投手。</p>}
           {others.length ? (
             <details className="mt-2">
               <summary className="flex min-h-11 cursor-pointer items-center text-sm text-accent">
                 其他投手（{others.length}）
               </summary>
-              <ul className="divide-y divide-line">{others.map((p) => <PitcherRow key={p.player_id} p={p} />)}</ul>
+              <ul className="divide-y divide-line">{others.map((p) => <PitcherLoadRow key={p.player_id} p={p} scaleMax={scaleMax} />)}</ul>
             </details>
           ) : null}
         </>
       )}
     </div>
-  );
-}
-
-function PitcherRow({ p }: { p: WatchPitcher }) {
-  const { load } = p;
-  const tone = LEVEL_TONE[load.level];
-  const days = [...load.days].sort((a, b) => b.offset - a.offset);
-  return (
-    <li className="py-2 text-sm" data-level={load.level}>
-      <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-        <span className="font-bold text-ink">{p.name ?? p.player_id}</span>
-        <span className="rounded bg-band px-1.5 text-xs text-muted">
-          {p.tactical_role && p.tactical_role !== "unclassified" ? `#${p.tactical_role}` : "角色未標記"}
-        </span>
-        <span className={`inline-flex items-center gap-1 font-bold ${tone.text}`}>
-          <span aria-hidden className={`inline-block h-2.5 w-2.5 rounded-full ${tone.dot}`} />
-          {LEVEL_TEXT[load.level]}
-        </span>
-        {load.live ? <span className="rounded border border-accent px-1 text-xs text-accent">即時</span> : null}
-      </div>
-      {load.triggers.length ? (
-        <p className="mt-0.5 text-xs text-ink">{load.triggers.map(triggerText).join("、")}</p>
-      ) : null}
-      {load.level === "unknown" && load.incomplete.length ? (
-        <p className="mt-0.5 text-xs text-muted">
-          資料不完整：{load.incomplete.map((i) => `${shortDate(i.date)} ${i.text.join("、")}`).join("；")}
-        </p>
-      ) : null}
-      <dl className="mt-1 grid grid-cols-[auto_1fr] gap-x-2 gap-y-0.5 text-xs text-muted">
-        <dt>近期球數</dt>
-        <dd className="text-ink">
-          {days.map((d) => `${shortDate(d.date)} ${d.complete ? d.pitches : `${d.pitches}+?`}`).join("・")}
-          {load.unattributed.length ? `（另有保留賽 ${load.unattributed.map((u) => u.pitches ?? "?").join("、")} 球日期未定）` : ""}
-        </dd>
-        <dt>完整休息</dt>
-        <dd className="text-ink">
-          {load.full_rest_days != null ? `${load.full_rest_days} 天（最後投球 ${shortDate(load.last_pitch_date)}）`
-            : load.rest_unknown_reason ? "無法判定（近期資料不完整）" : "本季無投球紀錄"}
-        </dd>
-        <dt>連續登板</dt>
-        <dd className="text-ink">
-          {load.metrics.C == null ? "無法判定" : `${load.metrics.C}${load.c_at_least ? "+" : ""} 日`}
-          ・今日已登板 {load.metrics.Q ?? "?"} 次
-        </dd>
-        <dt>最近登板</dt>
-        <dd className="text-ink">{p.recent.length ? p.recent.map(appearanceText).join("；") : "本季無登板紀錄"}</dd>
-        {p.consecutive_era ? (
-          <>
-            <dt>連投時成績</dt>
-            <dd className="text-ink">
-              {p.consecutive_era.appearances} 場 {p.consecutive_era.ip ?? "?"} 局 自責 {p.consecutive_era.er ?? "?"}・
-              ERA {p.consecutive_era.era == null ? "不可定義" : p.consecutive_era.era.toFixed(2)}
-              <span className="block text-muted">{p.consecutive_era.scope}；不代表連投導致此成績</span>
-            </dd>
-          </>
-        ) : null}
-        <dt>當場登錄</dt>
-        <dd>{p.registration.text}</dd>
-      </dl>
-    </li>
   );
 }
 

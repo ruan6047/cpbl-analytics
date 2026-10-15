@@ -13,6 +13,32 @@ export type TooltipProps = {
   decorative?: boolean; // trigger is purely decorative: don't steal focus / don't re-announce
 };
 
+/**
+ * 這次點擊是否算觸控（觸控＝點一下切換；滑鼠由移入／移出控制，點擊不切換）。
+ *
+ * ⛔ 不能只看 `click.pointerType`：iOS Safari（iPhone 16e／iOS 26.3 實測，#300）點擊序列是
+ * `touchstart`→`pointerup(touch)`→`mousedown`→`click(pointerType="mouse")`，只看 click 會讓
+ * iOS 永遠不切換——「點一下出現」只是靠 focus，「再點同一個」收不起來。所以觸發元素先記下
+ * 最近一次 pointer／touch 類型（`recorded`），有記錄就以它為準。
+ * ⛔ 也不得改成「任何 click 都切換」：桌機滑鼠移入已出現，點一下會把它關掉（桌機退化）。
+ * 沒有記錄時沿用原判斷：click 為 touch，或事件根本沒有 pointerType（舊瀏覽器的 MouseEvent）。
+ */
+export function isTouchActivation(recorded: string | null, clickPointerType: string | undefined): boolean {
+  if (recorded != null) return recorded === "touch";
+  return clickPointerType === "touch" || clickPointerType === undefined;
+}
+
+/**
+ * 觸控點擊時要不要收起：只有「這一下觸控開始前就已打開」才收（＝再點同一個）。
+ *
+ * ⛔ 不能只看 click 當下是否打開：同一下觸控裡 hover／focus 會先呼叫 showTooltip，`delayIn=0` 時
+ * （能力值雷達軸名）click 到達前就已打開，只看當下會把「這一下才打開的」立刻收掉（iOS Safari 實測，#300 R7）。
+ * 沒有觸控開始的記錄時沿用原行為（看當下是否打開）。
+ */
+export function shouldCloseOnTouch(openAtTouchStart: boolean | null, visibleNow: boolean): boolean {
+  return openAtTouchStart ?? visibleNow;
+}
+
 export function Tooltip({
   content,
   children,
@@ -34,6 +60,8 @@ export function Tooltip({
   const tooltipRef = useRef<HTMLDivElement>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const hideTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const lastPointerRef = useRef<string | null>(null); // 觸發元素上最近一次 pointer／touch 類型（見 isTouchActivation）
+  const openAtTouchStartRef = useRef<boolean | null>(null); // 觸控開始時是否已打開（見 shouldCloseOnTouch）
 
   useEffect(() => {
     setIsMounted(true);
@@ -192,14 +220,27 @@ export function Tooltip({
   const handleToggle = (e: React.MouseEvent) => {
     // Prevent hover states and touch states from overlapping on mobile
     const nativeEvent = e.nativeEvent as any;
-    if (nativeEvent.pointerType === "touch" || !("pointerType" in nativeEvent)) {
+    const recorded = lastPointerRef.current;
+    const openAtTouchStart = openAtTouchStartRef.current;
+    lastPointerRef.current = null;
+    openAtTouchStartRef.current = null;
+    if (isTouchActivation(recorded, "pointerType" in nativeEvent ? nativeEvent.pointerType : undefined)) {
       e.preventDefault();
-      if (isVisible && !isExiting) {
+      if (shouldCloseOnTouch(openAtTouchStart, isVisible && !isExiting)) {
         startExitTransition();
       } else {
         showTooltip();
       }
     }
+  };
+
+  const noteTouchStart = () => {
+    lastPointerRef.current = "touch";
+    openAtTouchStartRef.current = isVisible && !isExiting;
+  };
+  const recordPointer = (e: React.PointerEvent) => {
+    if (e.type === "pointerdown" && e.pointerType === "touch") noteTouchStart();
+    else lastPointerRef.current = e.pointerType || null;
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -292,6 +333,9 @@ export function Tooltip({
     onMouseLeave: composeEventHandlers(child.props.onMouseLeave, handleTriggerMouseLeave),
     onFocus: composeEventHandlers(child.props.onFocus, showTooltip),
     onBlur: composeEventHandlers(child.props.onBlur, handleBlur),
+    onPointerDown: composeEventHandlers(child.props.onPointerDown, recordPointer),
+    onPointerUp: composeEventHandlers(child.props.onPointerUp, recordPointer),
+    onTouchStart: composeEventHandlers(child.props.onTouchStart, noteTouchStart),
     onClick: composeEventHandlers(child.props.onClick, handleToggle),
     onKeyDown: composeEventHandlers(child.props.onKeyDown, handleKeyDown),
   };
