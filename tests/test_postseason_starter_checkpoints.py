@@ -209,9 +209,70 @@ def test_reschedule_creates_new_points_and_old_ones_expire():
     state["last_probe_at"] = None
     assert wake(state, tpe(10, 17, 16, 30), moved) == ("idle", "no_events")
     old = state["starter_checkpoints"][f"2026-C-1|S-60|{pe._iso(tpe(10, 17, 17, 5))}"]
-    assert (old["outcome"], old["reason"]) == ("missed", "no_wake_in_window")
+    assert (old["outcome"], old["reason"]) == ("missed", "rescheduled")
     assert wake(state, tpe(10, 17, 17, 35), moved)[0] == "scrape"
     assert any(r["anchor_at"] == pe._iso(tpe(10, 17, 18, 35)) for r in records(state, "S-60"))
+
+
+def test_reschedule_inside_the_old_window_never_fetches_for_the_old_start():
+    """審核阻擋 1（#292 6188202030）：16:05 的 S-60 待辦沒執行（鎖），16:10 已讀到新開賽 18:35，
+    就不得再以舊 17:05 錨點抓取（PLAN §5：依最新 PreExeDate 重排）。"""
+    state = enabled_state()
+    assert wake(state, tpe(10, 17, 16, 5)) == ("scrape", "starter_checkpoint")   # 鎖被占，沒抓
+    moved = stats(raw_game("C", 1, "SCHEDULED", "2026-10-17T18:35:00"))
+    state["last_probe_at"] = None
+    assert wake(state, tpe(10, 17, 16, 10), moved) == ("idle", "no_events")
+    assert state["starter_inflight"] == []
+    (old,) = records(state, "S-60")
+    assert (old["anchor_at"], old["outcome"], old["reason"]) == (
+        pe._iso(tpe(10, 17, 17, 5)), "missed", "rescheduled")
+    assert sc.due(state["starter_checkpoints"], tpe(10, 17, 16, 20)) == []
+    # 新錨點照新時程：17:35 才是 S-60
+    assert wake(state, tpe(10, 17, 17, 34), moved) == ("idle", "no_events")
+    assert wake(state, tpe(10, 17, 17, 35), moved) == ("scrape", "starter_checkpoint")
+    assert [sc.kind_of(i) for i in state["starter_inflight"]] == ["C"]
+    assert state["starter_checkpoints"][state["starter_inflight"][0]]["anchor_at"] == pe._iso(
+        tpe(10, 17, 18, 35))
+
+
+def test_reschedule_also_retires_a_pending_retry_of_the_old_start():
+    state = enabled_state()
+    wake(state, tpe(10, 17, 16, 35))
+    fetch(state, tpe(10, 17, 16, 35), errors=[{"kind": "C", "error": "TimeoutError"}])
+    moved = stats(raw_game("C", 1, "SCHEDULED", "2026-10-17T18:35:00"))
+    state["last_probe_at"] = None
+    assert wake(state, tpe(10, 17, 16, 55), moved) == ("idle", "no_events")
+    (s30,) = records(state, "S-30")
+    assert (s30["outcome"], s30["reason"], s30["done"]) == ("failed", "rescheduled", True)
+
+
+def test_s30_never_first_fires_at_the_start_minute():
+    """審核阻擋 2：S-30 須在開賽前（D2／D9）；S＝17:05 時，17:05 喚醒不得首查並標 pregame。"""
+    state = enabled_state()
+    assert wake(state, tpe(10, 17, 17, 5)) == ("idle", "no_events")
+    assert state["starter_inflight"] == []
+    (s30,) = records(state, "S-30")
+    assert (s30["outcome"], s30["attempts"]) == ("missed", [])
+
+
+def test_s30_retry_never_fires_at_the_start_minute():
+    state = enabled_state()
+    wake(state, tpe(10, 17, 16, 45))
+    fetch(state, tpe(10, 17, 16, 45), errors=[{"kind": "C", "error": "TimeoutError"}])
+    assert sc.due(state["starter_checkpoints"], tpe(10, 17, 17, 4)) == []    # 未滿 20 分
+    assert sc.due(state["starter_checkpoints"], tpe(10, 17, 17, 5)) == []    # 滿 20 分但已開賽
+    assert wake(state, tpe(10, 17, 17, 5)) == ("idle", "no_events")
+    (s30,) = records(state, "S-30")
+    assert (s30["outcome"], s30["reason"], len(s30["attempts"])) == ("failed", "retry_window_passed", 1)
+
+
+def test_preview_at_the_start_minute_and_after_reschedule():
+    at_start = sc.preview([pe.asdict(g) for g in C1], {}, tpe(10, 17, 17, 5))
+    assert [r["point"] for r in at_start] == ["F+60"], "開賽整點不再列 S-30"
+    moved = stats(raw_game("C", 1, "SCHEDULED", "2026-10-17T18:35:00"))
+    rows = {r["point"]: r for r in sc.preview([pe.asdict(g) for g in moved], {}, tpe(10, 17, 16, 10))}
+    assert rows["S-60"]["due_at"] == tpe(10, 17, 17, 35).isoformat()
+    assert rows["S-30"]["due_at"] == tpe(10, 17, 18, 5).isoformat()
 
 
 def test_unknown_start_time_never_fires():

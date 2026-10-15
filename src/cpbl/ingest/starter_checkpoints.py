@@ -9,7 +9,7 @@ getgamedatas，整賽別一次），寫入仍是既有 ``games``＋``game_schedu
 時點（需求已鎖，#292 6184111089；容許窗 D9、有界重送 D2，規劃確認 6184976448）：
 
 * ``S-60``：S−60 分起、最遲 S−40 分（保留 S−30 的 20 分冷卻）；失敗不重送（S−30 即下一次）。
-* ``S-30``：S−30 分起、最遲開賽前（S）；失敗於 ≥20 分後重送 1 次，仍須在 S 之前。
+* ``S-30``：S−30 分起、須早於開賽（S 本身不含）；失敗於 ≥20 分後重送 1 次，仍須早於 S。
 * ``F+60``：F+60 分起、最遲 F+90 分；失敗於 ≥20 分後重送 1 次，仍須在 F+90 之前。
 * 挑戰類失敗一律不重送；鎖被占、冷卻、讓位只延後、不計次；超過最遲時刻記 ``missed``
   （或被挑戰停／對帳停擋下時記 ``blocked``），⛔ 事後補打。
@@ -53,11 +53,15 @@ class Point:
     deadline: timedelta     # 容許窗最遲＝錨點＋deadline（D9）
     retry: bool             # D2：失敗後 ≥20 分可再試 1 次
     phase: str              # pregame／postgame
+    # 最遲時刻本身算不算窗內。D9 原話：1h「最遲到開賽前 40 分」、終場後「最遲 90 分」含端點；
+    # 0.5h「最遲開賽前」＝必須早於開賽，開賽整點已不是賽前（#292 審核阻擋 2）。
+    deadline_inclusive: bool = True
 
 
 POINTS: tuple[Point, ...] = (
     Point("S-60", "start", timedelta(minutes=-60), timedelta(minutes=-40), False, "pregame"),
-    Point("S-30", "start", timedelta(minutes=-30), timedelta(0), True, "pregame"),
+    Point("S-30", "start", timedelta(minutes=-30), timedelta(0), True, "pregame",
+          deadline_inclusive=False),
     Point("F+60", "final", timedelta(minutes=60), timedelta(minutes=90), True, "postgame"),
 )
 _BY_NAME = {p.name: p for p in POINTS}
@@ -118,6 +122,7 @@ def _new_record(key: str, point: Point, anchor: datetime | None, g: Mapping,
         "key": key, "point": point.name, "phase": point.phase,
         "anchor": point.anchor, "anchor_at": _iso(anchor),
         "due_at": _iso(due), "deadline_at": _iso(anchor + point.deadline) if anchor else None,
+        "deadline_inclusive": point.deadline_inclusive,
         "fired_at": None, "kinds": [str(g["kind_code"])], "outcome": None, "sync_code": None,
         "reason": None, "wait_reason": None, "done": False, "attempts": [],
         "stats_starts_at": g.get("starts_at"),
@@ -135,17 +140,39 @@ def _finish(rec: dict, outcome: str, reason: str | None) -> None:
     rec.update(done=True, outcome=outcome, reason=reason)
 
 
+def _in_window(rec: Mapping, now: datetime) -> bool:
+    at, deadline = _parse(rec.get("due_at")), _parse(rec.get("deadline_at"))
+    if at is None or deadline is None or now < at:
+        return False
+    return now <= deadline if _BY_NAME[rec["point"]].deadline_inclusive else now < deadline
+
+
+def _past_deadline(rec: Mapping, now: datetime) -> bool:
+    deadline = _parse(rec.get("deadline_at"))
+    if deadline is None:
+        return False
+    return now > deadline if _BY_NAME[rec["point"]].deadline_inclusive else now >= deadline
+
+
 def materialize(checkpoints: dict, schedule: Iterable[Mapping], finished: Mapping[str, str],
                 now: datetime, since: datetime,
                 www_starts: Mapping[str, str | None] | None = None) -> None:
     """依目前已知賽程產生「已到時點」的紀錄（到點才建；旗標開啟前就到點的不補建）。
 
-    同一場改期 ⇒ 錨點不同 ⇒ 新紀錄；舊錨點的待辦紀錄在逾時時記 missed（不刪、不改寫歷史）。
+    同一場改期 ⇒ 錨點不同 ⇒ 新紀錄；舊錨點的待辦紀錄**一看到新時程就結清**（未查過 missed、等重送
+    failed，原因 ``rescheduled``；開賽時刻消失則 ``start_time_unknown``），不刪、不改寫歷史，也⛔ 再以
+    舊錨點抓取（PLAN §5：依最新 PreExeDate 重排；#292 審核阻擋 1）。
     已不在賽前狀態（開打、完賽、延賽、保留）的場次，其賽前待辦紀錄立即結清（未查過 missed、等重送 failed）。"""
     for g in schedule:
         key, status = _key(g), str(g.get("status") or "")
         start = _starts(g.get("starts_at"))
         pregame = status not in NOT_PREGAME
+        current = _iso(start)
+        for rec in checkpoints.values():
+            if (rec["key"] == key and not rec["done"] and rec["anchor"] == "start"
+                    and rec.get("anchor_at") != current):
+                _finish(rec, "failed" if rec["attempts"] else "missed",
+                        "rescheduled" if start is not None else "start_time_unknown")
         for point in POINTS:
             if point.anchor == "start":
                 if start is None:
@@ -184,8 +211,7 @@ def materialize(checkpoints: dict, schedule: Iterable[Mapping], finished: Mappin
 def expire(checkpoints: dict, now: datetime) -> None:
     """超過容許窗最遲時刻仍未完成者結清：未試過 → missed／blocked；試過且等重送 → failed。"""
     for rec in checkpoints.values():
-        deadline = _parse(rec.get("deadline_at"))
-        if rec["done"] or deadline is None or now <= deadline:
+        if rec["done"] or not _past_deadline(rec, now):
             continue
         if rec["attempts"]:
             _finish(rec, "failed", "retry_window_passed")
@@ -201,8 +227,7 @@ def due(checkpoints: Mapping[str, Mapping], now: datetime) -> list[str]:
     for rid, rec in checkpoints.items():
         if rec["done"]:
             continue
-        at, deadline = _parse(rec.get("due_at")), _parse(rec.get("deadline_at"))
-        if at is None or deadline is None or not (at <= now <= deadline):
+        if not _in_window(rec, now):
             continue
         attempts = rec["attempts"]
         if not attempts:
@@ -258,7 +283,8 @@ def record_sync(checkpoints: dict, ids: Iterable[str], code: int) -> None:
 
 def timeline(checkpoints: Mapping[str, Mapping]) -> list[dict]:
     """時點紀錄摘要（寫進 last-postseason-evening.json）。時刻皆為本機時刻。"""
-    keep = ("key", "point", "phase", "anchor_at", "due_at", "deadline_at", "fired_at", "kinds",
+    keep = ("key", "point", "phase", "anchor_at", "due_at", "deadline_at", "deadline_inclusive",
+            "fired_at", "kinds",
             "outcome", "sync_code", "reason", "wait_reason", "stats_starts_at", "www_start_raw",
             "start_mismatch")
     rows = [{**{k: rec.get(k) for k in keep}, "attempts": len(rec.get("attempts") or [])}
@@ -293,7 +319,8 @@ def preview(schedule: Iterable[Mapping], finished: Mapping[str, str], now: datet
                     rows.append({**row, "note": "F＝本機首次觀測 stats FINISHED 的時刻；F+60 起、最遲 F+90"})
                 continue
             deadline = anchor + point.deadline
-            if deadline < now:
+            if deadline < now or (deadline == now and not point.deadline_inclusive):
                 continue
-            rows.append({**row, "due_at": tpe(anchor + point.offset), "deadline_at": tpe(deadline)})
+            rows.append({**row, "due_at": tpe(anchor + point.offset), "deadline_at": tpe(deadline),
+                         "deadline_inclusive": point.deadline_inclusive})
     return rows

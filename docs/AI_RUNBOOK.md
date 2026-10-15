@@ -795,9 +795,9 @@ GitHub 會自動標記。判斷是否經 PR 合併要看 `gh api repos/.../commi
 除每日 10:10 鏈之外，由晚間鏈在下列時點再查一次（需求方裁定 #292 6184111089；容許窗 D9、重送 D2，規劃確認 6184976448）。邏輯在 `src/cpbl/ingest/starter_checkpoints.py`，接線在 `postseason_evening.plan`。
 
 - 時點（S＝狀態檔中最近一次 stats `PreExeDate`；F＝本機首次觀測 stats `FINISHED` 的時刻）：
-  `S-60`（最遲 S−40，失敗不重送）、`S-30`（最遲開賽前，失敗於 ≥20 分後重送 1 次）、`F+60`（最遲 F+90，失敗於 ≥20 分後重送 1 次）。
+  `S-60`（最遲 S−40，失敗不重送）、`S-30`（須早於開賽，開賽整點不算；失敗於 ≥20 分後重送 1 次，同樣須早於開賽）、`F+60`（最遲 F+90，失敗於 ≥20 分後重送 1 次）。
   launchd 每 300 秒喚醒，實際執行通常晚 0–5 分；挑戰類失敗不重送；鎖被占、冷卻、讓位 10:10 只延後不計次；超過最遲時刻記 `missed`（被挑戰停／對帳停擋下記 `blocked`），⛔ 事後補打。
-  S−60／S−30 只對未開打場次（stats 狀態 `START`／`FINISHED`／`POSTPONED`／`RESERVED` 以外）；取不到 S ⇒ `start_time_unknown`；延賽／保留 ⇒ F+60 記 `no_final`，改期後依新 S 產生新時點。www `GameDateTimeS` 只並列記錄（`www_start_raw`／`start_mismatch`），以 stats 為準。
+  S−60／S−30 只對未開打場次（stats 狀態 `START`／`FINISHED`／`POSTPONED`／`RESERVED` 以外）；取不到 S ⇒ `start_time_unknown`；延賽／保留 ⇒ F+60 記 `no_final`，改期後依新 S 產生新時點，舊錨點的待辦一看到新時程即結清（`rescheduled`），⛔ 再以舊時刻抓取。www `GameDateTimeS` 只並列記錄（`www_start_raw`／`start_mismatch`），以 stats 為準。
 - 抓取與送達都沿用既有路徑：plan 回 `scrape`（理由 `starter_checkpoint`；與同賽別事件合併成一次），只抓目標賽別，共用 www 冷卻帳本、挑戰停、`halted`／68 停當晚。
   本機 E／C 指紋（`local_signature`）含兩隊先發欄位與「每場目前觀測版本」（依 `last_seen_at` 的 payload_hash 集合），修正、撤回、**改回舊值（A→B→A）**都會觸發既有 `POSTSEASON_RESULTS_ONLY` 同步；同內容重抓不觸發。
 - 旗標：`logs/postseason-starter-checkpoints.enabled`（可用 `POSTSEASON_STARTER_FLAG` 改路徑）。**存在＝開**：`touch` 開、`rm` 關，下次喚醒生效、不需重新 bootstrap；開啟前已到點的時點不補建。
