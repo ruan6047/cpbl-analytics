@@ -11,6 +11,17 @@ import type { WatchState } from "@/lib/playoffs-poll";
 // - 各卡的 Section 固定為外框第一個子節點、不給 key：輪詢只換 `data`，元件內的篩選、輸入、抽屜不被 remount。
 // - 提示放在 Section 之後；⛔ 在外框設 transform／filter／contain／overflow-hidden（會困住 portal 以外的
 //   position: fixed，契約 §2.3 疊層保證）。
+// - 錨點補正：以 `/playoffs#teams` 等直接進入時，瀏覽器在區資料到之前就捲動，頁面還不夠高、標題會停在畫面外
+//   （P2 桌機實測 #teams 標題頂 1061／視窗 900）。該區第一次取得內容時，若網址錨點正指向它、且使用者自載入後
+//   還沒捲動或操作，就重新對齊一次。只此一次；輪詢更新 ⛔ 捲動。
+
+let userInteracted = false;
+function watchInteraction(): void {
+  if (typeof window === "undefined" || (window as { __playoffsAnchorWatch?: boolean }).__playoffsAnchorWatch) return;
+  (window as { __playoffsAnchorWatch?: boolean }).__playoffsAnchorWatch = true;
+  const mark = () => { userInteracted = true; };
+  for (const ev of ["wheel", "touchstart", "keydown", "pointerdown"]) window.addEventListener(ev, mark, { once: true, passive: true });
+}
 
 export const AREA_COPY = {
   loading: "資料載入中…",
@@ -30,6 +41,14 @@ export function AreaFrame<T>({ id, state, Section, minHeightPx, onNear }: {
   onNear?: (id: RegisteredAreaId) => void;
 }) {
   const ref = useRef<HTMLDivElement>(null);
+  const anchored = useRef(false);
+  useEffect(() => { watchInteraction(); }, []);
+  const hasContent = state.kind === "data" || state.kind === "error" || (state.kind === "stale" && state.previous !== null);
+  useEffect(() => {
+    if (anchored.current || !hasContent) return;
+    anchored.current = true;
+    if (!userInteracted && window.location.hash === `#${id}`) ref.current?.scrollIntoView({ block: "start" });
+  }, [hasContent, id]);
   useEffect(() => {
     const el = ref.current;
     if (!el || !onNear) return;
