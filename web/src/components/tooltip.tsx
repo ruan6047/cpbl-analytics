@@ -13,6 +13,21 @@ export type TooltipProps = {
   decorative?: boolean; // trigger is purely decorative: don't steal focus / don't re-announce
 };
 
+/**
+ * 這次點擊是否算觸控（觸控＝點一下切換；滑鼠由移入／移出控制，點擊不切換）。
+ *
+ * ⛔ 不能只看 `click.pointerType`：iOS Safari（iPhone 16e／iOS 26.3 實測，#300）點擊序列是
+ * `touchstart`→`pointerup(touch)`→`mousedown`→`click(pointerType="mouse")`，只看 click 會讓
+ * iOS 永遠不切換——「點一下出現」只是靠 focus，「再點同一個」收不起來。所以觸發元素先記下
+ * 最近一次 pointer／touch 類型（`recorded`），有記錄就以它為準。
+ * ⛔ 也不得改成「任何 click 都切換」：桌機滑鼠移入已出現，點一下會把它關掉（桌機退化）。
+ * 沒有記錄時沿用原判斷：click 為 touch，或事件根本沒有 pointerType（舊瀏覽器的 MouseEvent）。
+ */
+export function isTouchActivation(recorded: string | null, clickPointerType: string | undefined): boolean {
+  if (recorded != null) return recorded === "touch";
+  return clickPointerType === "touch" || clickPointerType === undefined;
+}
+
 export function Tooltip({
   content,
   children,
@@ -34,6 +49,7 @@ export function Tooltip({
   const tooltipRef = useRef<HTMLDivElement>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const hideTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const lastPointerRef = useRef<string | null>(null); // 觸發元素上最近一次 pointer／touch 類型（見 isTouchActivation）
 
   useEffect(() => {
     setIsMounted(true);
@@ -192,7 +208,9 @@ export function Tooltip({
   const handleToggle = (e: React.MouseEvent) => {
     // Prevent hover states and touch states from overlapping on mobile
     const nativeEvent = e.nativeEvent as any;
-    if (nativeEvent.pointerType === "touch" || !("pointerType" in nativeEvent)) {
+    const recorded = lastPointerRef.current;
+    lastPointerRef.current = null;
+    if (isTouchActivation(recorded, "pointerType" in nativeEvent ? nativeEvent.pointerType : undefined)) {
       e.preventDefault();
       if (isVisible && !isExiting) {
         startExitTransition();
@@ -200,6 +218,13 @@ export function Tooltip({
         showTooltip();
       }
     }
+  };
+
+  const recordPointer = (e: React.PointerEvent) => {
+    lastPointerRef.current = e.pointerType || null;
+  };
+  const recordTouch = () => {
+    lastPointerRef.current = "touch";
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -292,6 +317,9 @@ export function Tooltip({
     onMouseLeave: composeEventHandlers(child.props.onMouseLeave, handleTriggerMouseLeave),
     onFocus: composeEventHandlers(child.props.onFocus, showTooltip),
     onBlur: composeEventHandlers(child.props.onBlur, handleBlur),
+    onPointerDown: composeEventHandlers(child.props.onPointerDown, recordPointer),
+    onPointerUp: composeEventHandlers(child.props.onPointerUp, recordPointer),
+    onTouchStart: composeEventHandlers(child.props.onTouchStart, recordTouch),
     onClick: composeEventHandlers(child.props.onClick, handleToggle),
     onKeyDown: composeEventHandlers(child.props.onKeyDown, handleKeyDown),
   };
