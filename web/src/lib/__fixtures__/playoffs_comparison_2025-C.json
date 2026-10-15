@@ -1,0 +1,958 @@
+{
+ "contract": "playoffs-comparison/v1",
+ "series_id": {
+  "year": 2025,
+  "kind_code": "C",
+  "rule_version": "cpbl-regs-ch12/§60@110-12-29,§63@106-02-09,§66@106-02-09",
+  "teams": [
+   "ACN011",
+   "AJL011"
+  ]
+ },
+ "participants_status": "known",
+ "context_version": "1ab60b1fb0ca522a1feee200d08a58eb83590741b92f1a1fd93e21af2929235e",
+ "as_of": "2026-10-15T04:00:00+00:00",
+ "metric_defs": [
+  {
+   "key": "ops",
+   "label": "OPS",
+   "unit": "",
+   "higher_is_better": true,
+   "decimals": 3
+  },
+  {
+   "key": "rf_pg",
+   "label": "得分／場",
+   "unit": "分",
+   "higher_is_better": true,
+   "decimals": 2
+  },
+  {
+   "key": "ra_pg",
+   "label": "失分／場",
+   "unit": "分",
+   "higher_is_better": false,
+   "decimals": 2
+  },
+  {
+   "key": "era",
+   "label": "ERA",
+   "unit": "",
+   "higher_is_better": false,
+   "decimals": 2
+  },
+  {
+   "key": "whip",
+   "label": "WHIP",
+   "unit": "",
+   "higher_is_better": false,
+   "decimals": 2
+  },
+  {
+   "key": "der",
+   "label": "DER",
+   "unit": "",
+   "higher_is_better": true,
+   "decimals": 3
+  }
+ ],
+ "style_axes": [
+  {
+   "key": "speed",
+   "label": "速度戰",
+   "semantics": "usable",
+   "components": [
+    "sba_rate"
+   ]
+  },
+  {
+   "key": "smallball",
+   "label": "短打戰術",
+   "semantics": "usable",
+   "components": [
+    "sh_rate"
+   ]
+  },
+  {
+   "key": "power",
+   "label": "長打火力",
+   "semantics": "usable",
+   "components": [
+    "iso"
+   ]
+  },
+  {
+   "key": "discipline",
+   "label": "選球紀律",
+   "semantics": "cross_season_stable",
+   "components": [
+    "bb_rate",
+    "k_rate"
+   ]
+  },
+  {
+   "key": "starter_ip",
+   "label": "先發吃局",
+   "semantics": "current_season_only",
+   "components": [
+    "starter_share"
+   ]
+  },
+  {
+   "key": "pitch_k",
+   "label": "三振型投手",
+   "semantics": "current_season_only",
+   "components": [
+    "kpct"
+   ]
+  },
+  {
+   "key": "defense",
+   "label": "守備效率",
+   "semantics": "numbers_only",
+   "components": [
+    "der"
+   ]
+  }
+ ],
+ "scopes": {
+  "season_a": {
+   "status": "available",
+   "source": {
+    "build_id": "7c22060a-f002-5116-b333-cdd901a4d6b9",
+    "builder_version": "team-comparison-1.0.0",
+    "source_hash": "0e949e3044bab51175c2354a9c46feb603700a42a0099769a2ce9fb74f8c1a37",
+    "games_fingerprint": "9d7a020e81b578331bf7dff4b5c0de4e5d7c7ccbead171264dac1a67a81bf889",
+    "built_at": "2026-10-15T12:16:20.648217+08:00",
+    "promoted_at": "2026-10-15T12:16:20.648217+08:00",
+    "pending_since": null,
+    "completed_games": 360,
+    "stale_reason": null
+   },
+   "label": "例行賽結束時",
+   "teams": {
+    "ACN011": {
+     "counts": {
+      "games": 120,
+      "wins": 70,
+      "losses": 50,
+      "ties": 0,
+      "runs_for": 535,
+      "runs_against": 466,
+      "bat_pa": 4562,
+      "bat_ab": 4016,
+      "bat_h": 1032,
+      "bat_1b": 782,
+      "bat_tb": 1415,
+      "bat_bb": 384,
+      "bat_hbp": 64,
+      "bat_sf": 48,
+      "bat_sh": 50,
+      "bat_so": 807,
+      "bat_sb": 83,
+      "bat_cs": 50,
+      "pit_outs": 3224,
+      "pit_starter_outs": 1985,
+      "pit_bf": 4537,
+      "pit_h": 1066,
+      "pit_hr": 69,
+      "pit_bb": 313,
+      "pit_hbp": 55,
+      "pit_so": 752,
+      "pit_er": 401
+     },
+     "metrics": {
+      "ops": 0.6803548218473623,
+      "rf_pg": 4.458333333333333,
+      "ra_pg": 3.8833333333333333,
+      "era": 3.3582506203473947,
+      "whip": 1.2831885856079404,
+      "der": 0.70221027479092
+     },
+     "null_reasons": {},
+     "sample": {
+      "games": 120,
+      "pa": 4562,
+      "bf": 4537,
+      "outs": 3224
+     },
+     "streak": {
+      "result": "L",
+      "len": 1,
+      "through": "2025/A/314"
+     },
+     "style": {
+      "speed": {
+       "raw": {
+        "sba_rate": 0.108130081300813
+       },
+       "league_raw_mean": {
+        "sba_rate": 0.106525526092676
+       },
+       "z": 0.20059362411558873,
+       "rank": 3
+      },
+      "smallball": {
+       "raw": {
+        "sh_rate": 0.010960105217010083
+       },
+       "league_raw_mean": {
+        "sh_rate": 0.010750466680939352
+       },
+       "z": 0.16846658868066106,
+       "rank": 3
+      },
+      "power": {
+       "raw": {
+        "iso": 0.09536852589641434
+       },
+       "league_raw_mean": {
+        "iso": 0.09947303076255111
+       },
+       "z": -0.38006384841099383,
+       "rank": 3
+      },
+      "discipline": {
+       "raw": {
+        "bb_rate": 0.08417360806663744,
+        "k_rate": 0.17689609820254273
+       },
+       "league_raw_mean": {
+        "bb_rate": 0.07279376469904354,
+        "k_rate": 0.16736795384714007
+       },
+       "z": 0.4708246444043672,
+       "rank": 4
+      },
+      "starter_ip": {
+       "raw": {
+        "starter_share": 0.6156947890818859
+       },
+       "league_raw_mean": {
+        "starter_share": 0.6215740128786914
+       },
+       "z": -0.6958340453115988,
+       "rank": 4
+      },
+      "pitch_k": {
+       "raw": {
+        "kpct": 0.16574829182279038
+       },
+       "league_raw_mean": {
+        "kpct": 0.167331223309242
+       },
+       "z": -0.30261688393416314,
+       "rank": 4
+      },
+      "defense": {
+       "raw": {
+        "der": 0.70221027479092
+       },
+       "league_raw_mean": {
+        "der": 0.7034727569414508
+       },
+       "z": -0.14846299849509773,
+       "rank": 4
+      }
+     }
+    },
+    "AJL011": {
+     "counts": {
+      "games": 120,
+      "wins": 62,
+      "losses": 57,
+      "ties": 1,
+      "runs_for": 479,
+      "runs_against": 484,
+      "bat_pa": 4493,
+      "bat_ab": 4099,
+      "bat_h": 1103,
+      "bat_1b": 846,
+      "bat_tb": 1479,
+      "bat_bb": 254,
+      "bat_hbp": 52,
+      "bat_sf": 34,
+      "bat_sh": 53,
+      "bat_so": 701,
+      "bat_sb": 87,
+      "bat_cs": 41,
+      "pit_outs": 3202,
+      "pit_starter_outs": 2008,
+      "pit_bf": 4513,
+      "pit_h": 1040,
+      "pit_hr": 66,
+      "pit_bb": 303,
+      "pit_hbp": 45,
+      "pit_so": 770,
+      "pit_er": 398
+     },
+     "metrics": {
+      "ops": 0.6782335440690401,
+      "rf_pg": 3.9916666666666667,
+      "ra_pg": 4.033333333333333,
+      "era": 3.3560274828232353,
+      "whip": 1.2582760774515926,
+      "der": 0.707419645539201
+     },
+     "null_reasons": {},
+     "sample": {
+      "games": 120,
+      "pa": 4493,
+      "bf": 4513,
+      "outs": 3202
+     },
+     "streak": {
+      "result": "W",
+      "len": 1,
+      "through": "2025/A/343"
+     },
+     "style": {
+      "speed": {
+       "raw": {
+        "sba_rate": 0.1111111111111111
+       },
+       "league_raw_mean": {
+        "sba_rate": 0.106525526092676
+       },
+       "z": 0.5732673533907522,
+       "rank": 2
+      },
+      "smallball": {
+       "raw": {
+        "sh_rate": 0.011796127309147563
+       },
+       "league_raw_mean": {
+        "sh_rate": 0.010750466680939352
+       },
+       "z": 0.8402981734831387,
+       "rank": 2
+      },
+      "power": {
+       "raw": {
+        "iso": 0.09172969016833374
+       },
+       "league_raw_mean": {
+        "iso": 0.09947303076255111
+       },
+       "z": -0.7170082438141424,
+       "rank": 5
+      },
+      "discipline": {
+       "raw": {
+        "bb_rate": 0.05653238370799021,
+        "k_rate": 0.15602047629646115
+       },
+       "league_raw_mean": {
+        "bb_rate": 0.07279376469904354,
+        "k_rate": 0.16736795384714007
+       },
+       "z": -0.8501589167857024,
+       "rank": 5
+      },
+      "starter_ip": {
+       "raw": {
+        "starter_share": 0.6271080574640849
+       },
+       "league_raw_mean": {
+        "starter_share": 0.6215740128786914
+       },
+       "z": 0.6549804470585833,
+       "rank": 2
+      },
+      "pitch_k": {
+       "raw": {
+        "kpct": 0.1706182140483049
+       },
+       "league_raw_mean": {
+        "kpct": 0.167331223309242
+       },
+       "z": 0.628390365274396,
+       "rank": 2
+      },
+      "defense": {
+       "raw": {
+        "der": 0.707419645539201
+       },
+       "league_raw_mean": {
+        "der": 0.7034727569414508
+       },
+       "z": 0.4641387727356994,
+       "rank": 2
+      }
+     }
+    }
+   },
+   "scales": {
+    "ops": {
+     "min": 0.6511293961960916,
+     "max": 0.6947477125655035
+    },
+    "rf_pg": {
+     "min": 3.191666666666667,
+     "max": 4.458333333333333
+    },
+    "ra_pg": {
+     "min": 3.625,
+     "max": 4.508333333333334
+    },
+    "era": {
+     "min": 3.2010749288650016,
+     "max": 3.8878623765530422
+    },
+    "whip": {
+     "min": 1.2339551059121088,
+     "max": 1.388658808537751
+    },
+    "der": {
+     "min": 0.6913069189828505,
+     "max": 0.7187886279357232
+    }
+   },
+   "league": {
+    "n_teams": 6,
+    "style_raw_mean": {
+     "sba_rate": 0.106525526092676,
+     "sh_rate": 0.010750466680939352,
+     "iso": 0.09947303076255111,
+     "bb_rate": 0.07279376469904354,
+     "k_rate": 0.16736795384714007,
+     "starter_share": 0.6215740128786914,
+     "kpct": 0.167331223309242,
+     "der": 0.7034727569414508
+    },
+    "metrics_mean": {
+     "ops": 0.6784281787807828,
+     "rf_pg": 3.988888888888889,
+     "ra_pg": 3.988888888888889,
+     "era": 3.4496904641177792,
+     "whip": 1.2955240354720392,
+     "der": 0.7034727569414508
+    }
+   }
+  },
+  "head_to_head_a": {
+   "status": "available",
+   "games": 24,
+   "teams": {
+    "ACN011": {
+     "counts": {
+      "games": 24,
+      "wins": 14,
+      "losses": 10,
+      "ties": 0,
+      "runs_for": 117,
+      "runs_against": 102,
+      "bat_pa": 920,
+      "bat_ab": 814,
+      "bat_h": 225,
+      "bat_1b": 167,
+      "bat_tb": 315,
+      "bat_bb": 66,
+      "bat_hbp": 13,
+      "bat_sf": 12,
+      "bat_sh": 15,
+      "bat_so": 164,
+      "bat_sb": 17,
+      "bat_cs": 10,
+      "pit_outs": 637,
+      "pit_starter_outs": 387,
+      "pit_bf": 903,
+      "pit_h": 236,
+      "pit_hr": 13,
+      "pit_bb": 48,
+      "pit_hbp": 5,
+      "pit_so": 142,
+      "pit_er": 92
+     },
+     "metrics": {
+      "ops": 0.7228894891878317,
+      "rf_pg": 4.875,
+      "ra_pg": 4.25,
+      "era": 3.899529042386185,
+      "whip": 1.337519623233909,
+      "der": 0.679136690647482
+     },
+     "null_reasons": {},
+     "sample": {
+      "games": 24,
+      "pa": 920,
+      "bf": 903,
+      "outs": 637
+     },
+     "streak": {
+      "result": "W",
+      "len": 2,
+      "through": "2025/A/359"
+     },
+     "style": {
+      "speed": {
+       "raw": {
+        "sba_rate": 0.10975609756097561
+       },
+       "league_raw_mean": {
+        "sba_rate": 0.106525526092676
+       }
+      },
+      "smallball": {
+       "raw": {
+        "sh_rate": 0.016304347826086956
+       },
+       "league_raw_mean": {
+        "sh_rate": 0.010750466680939352
+       }
+      },
+      "power": {
+       "raw": {
+        "iso": 0.11056511056511056
+       },
+       "league_raw_mean": {
+        "iso": 0.09947303076255111
+       }
+      },
+      "discipline": {
+       "raw": {
+        "bb_rate": 0.07173913043478261,
+        "k_rate": 0.1782608695652174
+       },
+       "league_raw_mean": {
+        "bb_rate": 0.07279376469904354,
+        "k_rate": 0.16736795384714007
+       }
+      },
+      "starter_ip": {
+       "raw": {
+        "starter_share": 0.6075353218210361
+       },
+       "league_raw_mean": {
+        "starter_share": 0.6215740128786914
+       }
+      },
+      "pitch_k": {
+       "raw": {
+        "kpct": 0.15725359911406422
+       },
+       "league_raw_mean": {
+        "kpct": 0.167331223309242
+       }
+      },
+      "defense": {
+       "raw": {
+        "der": 0.679136690647482
+       },
+       "league_raw_mean": {
+        "der": 0.7034727569414508
+       }
+      }
+     }
+    },
+    "AJL011": {
+     "counts": {
+      "games": 24,
+      "wins": 10,
+      "losses": 14,
+      "ties": 0,
+      "runs_for": 102,
+      "runs_against": 117,
+      "bat_pa": 903,
+      "bat_ab": 837,
+      "bat_h": 236,
+      "bat_1b": 174,
+      "bat_tb": 325,
+      "bat_bb": 48,
+      "bat_hbp": 5,
+      "bat_sf": 6,
+      "bat_sh": 6,
+      "bat_so": 142,
+      "bat_sb": 15,
+      "bat_cs": 9,
+      "pit_outs": 632,
+      "pit_starter_outs": 372,
+      "pit_bf": 920,
+      "pit_h": 225,
+      "pit_hr": 14,
+      "pit_bb": 66,
+      "pit_hbp": 13,
+      "pit_so": 164,
+      "pit_er": 100
+     },
+     "metrics": {
+      "ops": 0.7108361601809182,
+      "rf_pg": 4.25,
+      "ra_pg": 4.875,
+      "era": 4.272151898734177,
+      "whip": 1.3813291139240507,
+      "der": 0.6817496229260935
+     },
+     "null_reasons": {},
+     "sample": {
+      "games": 24,
+      "pa": 903,
+      "bf": 920,
+      "outs": 632
+     },
+     "streak": {
+      "result": "L",
+      "len": 2,
+      "through": "2025/A/359"
+     },
+     "style": {
+      "speed": {
+       "raw": {
+        "sba_rate": 0.10572687224669604
+       },
+       "league_raw_mean": {
+        "sba_rate": 0.106525526092676
+       }
+      },
+      "smallball": {
+       "raw": {
+        "sh_rate": 0.006644518272425249
+       },
+       "league_raw_mean": {
+        "sh_rate": 0.010750466680939352
+       }
+      },
+      "power": {
+       "raw": {
+        "iso": 0.1063321385902031
+       },
+       "league_raw_mean": {
+        "iso": 0.09947303076255111
+       }
+      },
+      "discipline": {
+       "raw": {
+        "bb_rate": 0.053156146179401995,
+        "k_rate": 0.15725359911406422
+       },
+       "league_raw_mean": {
+        "bb_rate": 0.07279376469904354,
+        "k_rate": 0.16736795384714007
+       }
+      },
+      "starter_ip": {
+       "raw": {
+        "starter_share": 0.5886075949367089
+       },
+       "league_raw_mean": {
+        "starter_share": 0.6215740128786914
+       }
+      },
+      "pitch_k": {
+       "raw": {
+        "kpct": 0.1782608695652174
+       },
+       "league_raw_mean": {
+        "kpct": 0.167331223309242
+       }
+      },
+      "defense": {
+       "raw": {
+        "der": 0.6817496229260935
+       },
+       "league_raw_mean": {
+        "der": 0.7034727569414508
+       }
+      }
+     }
+    }
+   },
+   "scales": {
+    "ops": {
+     "min": 0.6511293961960916,
+     "max": 0.7228894891878317
+    },
+    "rf_pg": {
+     "min": 3.191666666666667,
+     "max": 4.875
+    },
+    "ra_pg": {
+     "min": 3.625,
+     "max": 4.875
+    },
+    "era": {
+     "min": 3.2010749288650016,
+     "max": 4.272151898734177
+    },
+    "whip": {
+     "min": 1.2339551059121088,
+     "max": 1.388658808537751
+    },
+    "der": {
+     "min": 0.679136690647482,
+     "max": 0.7187886279357232
+    }
+   }
+  },
+  "series": {
+   "status": "available",
+   "label": "本系列",
+   "expected_game_keys": [
+    "2025/C/1",
+    "2025/C/2",
+    "2025/C/3",
+    "2025/C/4",
+    "2025/C/5"
+   ],
+   "covered_game_keys": [
+    "2025/C/1",
+    "2025/C/2",
+    "2025/C/3",
+    "2025/C/4",
+    "2025/C/5"
+   ],
+   "missing_game_keys": [],
+   "teams": {
+    "ACN011": {
+     "counts": {
+      "games": 5,
+      "wins": 1,
+      "losses": 4,
+      "ties": 0,
+      "runs_for": 11,
+      "runs_against": 17,
+      "bat_pa": 185,
+      "bat_ab": 168,
+      "bat_h": 35,
+      "bat_1b": 28,
+      "bat_tb": 46,
+      "bat_bb": 11,
+      "bat_hbp": 1,
+      "bat_sf": 1,
+      "bat_sh": 4,
+      "bat_so": 34,
+      "bat_sb": 0,
+      "bat_cs": 1,
+      "pit_outs": 138,
+      "pit_starter_outs": 83,
+      "pit_bf": 197,
+      "pit_h": 49,
+      "pit_hr": 4,
+      "pit_bb": 14,
+      "pit_hbp": 2,
+      "pit_so": 24,
+      "pit_er": 16
+     },
+     "metrics": {
+      "ops": 0.5334780320968167,
+      "rf_pg": 2.2,
+      "ra_pg": 3.4,
+      "era": 3.130434782608696,
+      "whip": 1.3695652173913044,
+      "der": 0.7058823529411764
+     },
+     "null_reasons": {},
+     "sample": {
+      "games": 5,
+      "pa": 185,
+      "bf": 197,
+      "outs": 138
+     },
+     "streak": {
+      "result": "L",
+      "len": 2,
+      "through": "2025/C/5"
+     },
+     "style": {
+      "speed": {
+       "raw": {
+        "sba_rate": 0.025
+       },
+       "league_raw_mean": {
+        "sba_rate": 0.106525526092676
+       }
+      },
+      "smallball": {
+       "raw": {
+        "sh_rate": 0.021621621621621623
+       },
+       "league_raw_mean": {
+        "sh_rate": 0.010750466680939352
+       }
+      },
+      "power": {
+       "raw": {
+        "iso": 0.06547619047619048
+       },
+       "league_raw_mean": {
+        "iso": 0.09947303076255111
+       }
+      },
+      "discipline": {
+       "raw": {
+        "bb_rate": 0.05945945945945946,
+        "k_rate": 0.1837837837837838
+       },
+       "league_raw_mean": {
+        "bb_rate": 0.07279376469904354,
+        "k_rate": 0.16736795384714007
+       }
+      },
+      "starter_ip": {
+       "raw": {
+        "starter_share": 0.6014492753623188
+       },
+       "league_raw_mean": {
+        "starter_share": 0.6215740128786914
+       }
+      },
+      "pitch_k": {
+       "raw": {
+        "kpct": 0.1218274111675127
+       },
+       "league_raw_mean": {
+        "kpct": 0.167331223309242
+       }
+      },
+      "defense": {
+       "raw": {
+        "der": 0.7058823529411764
+       },
+       "league_raw_mean": {
+        "der": 0.7034727569414508
+       }
+      }
+     }
+    },
+    "AJL011": {
+     "counts": {
+      "games": 5,
+      "wins": 4,
+      "losses": 1,
+      "ties": 0,
+      "runs_for": 17,
+      "runs_against": 11,
+      "bat_pa": 197,
+      "bat_ab": 180,
+      "bat_h": 49,
+      "bat_1b": 40,
+      "bat_tb": 66,
+      "bat_bb": 14,
+      "bat_hbp": 2,
+      "bat_sf": 0,
+      "bat_sh": 1,
+      "bat_so": 24,
+      "bat_sb": 4,
+      "bat_cs": 1,
+      "pit_outs": 141,
+      "pit_starter_outs": 89,
+      "pit_bf": 185,
+      "pit_h": 35,
+      "pit_hr": 2,
+      "pit_bb": 11,
+      "pit_hbp": 1,
+      "pit_so": 34,
+      "pit_er": 6
+     },
+     "metrics": {
+      "ops": 0.698299319727891,
+      "rf_pg": 3.4,
+      "ra_pg": 2.2,
+      "era": 1.148936170212766,
+      "whip": 0.9787234042553191,
+      "der": 0.7591240875912408
+     },
+     "null_reasons": {},
+     "sample": {
+      "games": 5,
+      "pa": 197,
+      "bf": 185,
+      "outs": 141
+     },
+     "streak": {
+      "result": "W",
+      "len": 2,
+      "through": "2025/C/5"
+     },
+     "style": {
+      "speed": {
+       "raw": {
+        "sba_rate": 0.08928571428571429
+       },
+       "league_raw_mean": {
+        "sba_rate": 0.106525526092676
+       }
+      },
+      "smallball": {
+       "raw": {
+        "sh_rate": 0.005076142131979695
+       },
+       "league_raw_mean": {
+        "sh_rate": 0.010750466680939352
+       }
+      },
+      "power": {
+       "raw": {
+        "iso": 0.09444444444444444
+       },
+       "league_raw_mean": {
+        "iso": 0.09947303076255111
+       }
+      },
+      "discipline": {
+       "raw": {
+        "bb_rate": 0.07106598984771574,
+        "k_rate": 0.1218274111675127
+       },
+       "league_raw_mean": {
+        "bb_rate": 0.07279376469904354,
+        "k_rate": 0.16736795384714007
+       }
+      },
+      "starter_ip": {
+       "raw": {
+        "starter_share": 0.6312056737588653
+       },
+       "league_raw_mean": {
+        "starter_share": 0.6215740128786914
+       }
+      },
+      "pitch_k": {
+       "raw": {
+        "kpct": 0.1837837837837838
+       },
+       "league_raw_mean": {
+        "kpct": 0.167331223309242
+       }
+      },
+      "defense": {
+       "raw": {
+        "der": 0.7591240875912408
+       },
+       "league_raw_mean": {
+        "der": 0.7034727569414508
+       }
+      }
+     }
+    }
+   },
+   "scales": {
+    "ops": {
+     "min": 0.5334780320968167,
+     "max": 0.698299319727891
+    },
+    "rf_pg": {
+     "min": 2.2,
+     "max": 4.458333333333333
+    },
+    "ra_pg": {
+     "min": 2.2,
+     "max": 4.508333333333334
+    },
+    "era": {
+     "min": 1.148936170212766,
+     "max": 3.8878623765530422
+    },
+    "whip": {
+     "min": 0.9787234042553191,
+     "max": 1.388658808537751
+    },
+    "der": {
+     "min": 0.6913069189828505,
+     "max": 0.7591240875912408
+    }
+   }
+  }
+ },
+ "_fixture_meta": "#287 WP5：卡號隔離庫 cpbl_test_287（本機共享 cpbl 2025/2026 唯讀匯出）以 reader 實際產生；now=2026-10-15T04:00Z"
+}
