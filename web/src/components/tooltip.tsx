@@ -28,6 +28,17 @@ export function isTouchActivation(recorded: string | null, clickPointerType: str
   return clickPointerType === "touch" || clickPointerType === undefined;
 }
 
+/**
+ * 觸控點擊時要不要收起：只有「這一下觸控開始前就已打開」才收（＝再點同一個）。
+ *
+ * ⛔ 不能只看 click 當下是否打開：同一下觸控裡 hover／focus 會先呼叫 showTooltip，`delayIn=0` 時
+ * （能力值雷達軸名）click 到達前就已打開，只看當下會把「這一下才打開的」立刻收掉（iOS Safari 實測，#300 R7）。
+ * 沒有觸控開始的記錄時沿用原行為（看當下是否打開）。
+ */
+export function shouldCloseOnTouch(openAtTouchStart: boolean | null, visibleNow: boolean): boolean {
+  return openAtTouchStart ?? visibleNow;
+}
+
 export function Tooltip({
   content,
   children,
@@ -50,6 +61,7 @@ export function Tooltip({
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const hideTimerRef = useRef<NodeJS.Timeout | null>(null);
   const lastPointerRef = useRef<string | null>(null); // 觸發元素上最近一次 pointer／touch 類型（見 isTouchActivation）
+  const openAtTouchStartRef = useRef<boolean | null>(null); // 觸控開始時是否已打開（見 shouldCloseOnTouch）
 
   useEffect(() => {
     setIsMounted(true);
@@ -209,10 +221,12 @@ export function Tooltip({
     // Prevent hover states and touch states from overlapping on mobile
     const nativeEvent = e.nativeEvent as any;
     const recorded = lastPointerRef.current;
+    const openAtTouchStart = openAtTouchStartRef.current;
     lastPointerRef.current = null;
+    openAtTouchStartRef.current = null;
     if (isTouchActivation(recorded, "pointerType" in nativeEvent ? nativeEvent.pointerType : undefined)) {
       e.preventDefault();
-      if (isVisible && !isExiting) {
+      if (shouldCloseOnTouch(openAtTouchStart, isVisible && !isExiting)) {
         startExitTransition();
       } else {
         showTooltip();
@@ -220,11 +234,13 @@ export function Tooltip({
     }
   };
 
-  const recordPointer = (e: React.PointerEvent) => {
-    lastPointerRef.current = e.pointerType || null;
-  };
-  const recordTouch = () => {
+  const noteTouchStart = () => {
     lastPointerRef.current = "touch";
+    openAtTouchStartRef.current = isVisible && !isExiting;
+  };
+  const recordPointer = (e: React.PointerEvent) => {
+    if (e.type === "pointerdown" && e.pointerType === "touch") noteTouchStart();
+    else lastPointerRef.current = e.pointerType || null;
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -319,7 +335,7 @@ export function Tooltip({
     onBlur: composeEventHandlers(child.props.onBlur, handleBlur),
     onPointerDown: composeEventHandlers(child.props.onPointerDown, recordPointer),
     onPointerUp: composeEventHandlers(child.props.onPointerUp, recordPointer),
-    onTouchStart: composeEventHandlers(child.props.onTouchStart, recordTouch),
+    onTouchStart: composeEventHandlers(child.props.onTouchStart, noteTouchStart),
     onClick: composeEventHandlers(child.props.onClick, handleToggle),
     onKeyDown: composeEventHandlers(child.props.onKeyDown, handleKeyDown),
   };
