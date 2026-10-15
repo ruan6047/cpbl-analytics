@@ -306,10 +306,11 @@ def assert_pa_payload(payload: str, keys: Sequence[GameKey]) -> None:
 
 # =========================================================================== 對帳
 
-def reconcile(local: Psql, target: Psql, keys: Sequence[GameKey], pa_keys: Iterable[str]) -> dict:
+def reconcile(local: Psql, target: Psql, keys: Sequence[GameKey], pa_keys: Iterable[str],
+              parts: Iterable[str] = ("box", "pa")) -> dict:
     """逐表逐場對帳。回傳 manifest；``ok`` 為 False 時 shell 以 68 結束。
 
-    * box：七表逐場列數相等。
+    * box：七表逐場列數相等（本次沒送 box 時 ``box_ok=None``，不參與 ``ok``）。
     * PA：``pa_keys``（本機有 published 的場）五表逐場列數相等，且 published build_id 相同。
     """
     pa_keys = set(pa_keys)
@@ -320,14 +321,14 @@ def reconcile(local: Psql, target: Psql, keys: Sequence[GameKey], pa_keys: Itera
     ok = True
     for k in keys:
         box = {t: {"local": lc[t][k.text], "prod": tc[t][k.text]} for t in BOX_TABLES}
-        box_ok = all(v["local"] == v["prod"] for v in box.values())
+        box_ok = all(v["local"] == v["prod"] for v in box.values()) if "box" in set(parts) else None
         pa = {t: {"local": lc[t][k.text], "prod": tc[t][k.text]} for t in PA_TABLES}
         if k.text in pa_keys:
             pa_ok = (all(v["local"] == v["prod"] for v in pa.values())
                      and lpub.get(k.text) is not None and lpub.get(k.text) == tpub.get(k.text))
         else:
             pa_ok = None   # 本次未送 PA
-        ok = ok and box_ok and pa_ok is not False
+        ok = ok and box_ok is not False and pa_ok is not False
         games[k.text] = {"box": box, "box_ok": box_ok, "pa": pa, "pa_sent": k.text in pa_keys,
                          "pa_ok": pa_ok, "published_build_local": lpub.get(k.text),
                          "published_build_prod": tpub.get(k.text)}
@@ -369,6 +370,8 @@ def _parser():
             s.add_argument("--out", required=True)
         if name in ("pa-payload", "reconcile"):
             s.add_argument("--pa-games", default="", help="precheck 判定可送 PA 的場（逗號分隔；可空）")
+        if name == "reconcile":
+            s.add_argument("--parts", default="box,pa", help="這次送出的來源（box,pa／box／pa）")
     f = sub.add_parser("fingerprint")
     f.add_argument("--games", required=True)
     f.add_argument("--psql", required=True)
@@ -401,7 +404,8 @@ def main(argv: list[str] | None = None) -> int:
             Path(args.out).write_text(payload, encoding="utf-8")
             print(f"BOXPA_PA_PAYLOAD={'empty' if not payload else len(payload)}")
             return 0
-        manifest = reconcile(local, Psql(args.target_psql, label="target"), keys, pa_keys)
+        manifest = reconcile(local, Psql(args.target_psql, label="target"), keys, pa_keys,
+                             [p for p in args.parts.split(",") if p])
         Path(args.out).write_text(json.dumps(manifest, ensure_ascii=False, indent=2, sort_keys=True),
                                   encoding="utf-8")
         print(f"BOXPA_RECONCILE={'ok' if manifest['ok'] else 'mismatch'}")

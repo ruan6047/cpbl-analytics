@@ -65,7 +65,8 @@ scripts/refresh-cpbl-prod.sh — 把本機 CPBL 資料同步到 production（四
                 （唯讀比對；無變更不備份不寫；有待插入才備份＋單交易插入＋事後對帳；
                  不 migrate、不爬、不訓練、不寫 refresh 標記、不碰其他表）
   POSTSEASON_BOXPA_ONLY 1＝搭配 SKIP_SCRAPE=1、POSTSEASON_BOXPA_GAMES、獨立 BACKUP_DIR、BOXPA_MANIFEST：
-                只對目標場鍵 upsert box 七表、單交易替換 PA 五表，逐表逐場對帳
+                只對目標場鍵 upsert box 七表、單交易替換 PA 五表，逐表逐場對帳；
+                POSTSEASON_BOXPA_PARTS＝box／pa／box,pa（預設 box,pa）限定這次送哪些來源
                 （不 TRUNCATE／CASCADE、不 migrate、不訓練、不寫 refresh 標記、不呼叫 prod_cpbl_api）
 
 離開碼
@@ -777,6 +778,12 @@ if [ -n "${POSTSEASON_BOXPA_ONLY:-}" ]; then
     echo 'FATAL: POSTSEASON_BOXPA_GAMES 需為目標場鍵清單（YYYY-E|C-SNO，逗號分隔）' >&2
     exit 64
   fi
+  # 這次要送的來源（#293 審核席 1 F3）：box＝box 七表、pa＝PA 五表；預設兩者。晚間鏈只傳仍有額度的來源。
+  BOXPA_PARTS="${POSTSEASON_BOXPA_PARTS:-box,pa}"
+  if ! [[ "$BOXPA_PARTS" =~ ^(box|pa|box,pa)$ ]]; then
+    echo 'FATAL: POSTSEASON_BOXPA_PARTS 只接受 box、pa 或 box,pa' >&2
+    exit 64
+  fi
   if [ -z "${BOXPA_MANIFEST:-}" ] || [ "${BOXPA_MANIFEST#/}" = "$BOXPA_MANIFEST" ]; then
     echo 'FATAL: POSTSEASON_BOXPA_ONLY 需明示 BOXPA_MANIFEST（對帳 manifest 的絕對路徑）' >&2
     exit 64
@@ -803,6 +810,7 @@ if [ -n "${POSTSEASON_BOXPA_ONLY:-}" ]; then
     --local-psql "$BOXPA_LOCAL_PSQL" --target-psql "$BOXPA_TARGET_PSQL")"
   echo "$BOXPA_PRECHECK"
   BOXPA_PA_GAMES="$(printf '%s\n' "$BOXPA_PRECHECK" | sed -n 's/^BOXPA_PA_GAMES=//p')"
+  case ",${BOXPA_PARTS}," in *,pa,*) ;; *) BOXPA_PA_GAMES="" ;; esac   # 不送 PA：production PA 一列不動
   SYNC_SCOPE_KEYS_SQL="$(printf '%s\n' "$BOXPA_PRECHECK" | sed -n 's/^BOXPA_KEYS_SQL=//p')"
   if [ -z "$SYNC_SCOPE_KEYS_SQL" ]; then
     echo 'FATAL: 自檢未回傳目標場鍵條件（未備份、未寫入）' >&2
@@ -815,8 +823,13 @@ if [ -n "${POSTSEASON_BOXPA_ONLY:-}" ]; then
   BACKUP_PATH="$(VPS="$VPS" DEPLOY_PATH="$DEPLOY_PATH" BACKUP_DIR="$BOXPA_BACKUP_DIR" \
     BACKUP_KEEP="${BACKUP_KEEP:-3}" "$REPO_DIR/scripts/backup-prod-db.sh")"
   echo "    ✓ 已驗證備份：${BACKUP_PATH}"
-  echo '==> 季後目標場 box／PA：box 七表目標場 upsert（同完整鏈欄位清單；不 DELETE）'
-  sync_box_tables
+  case ",${BOXPA_PARTS}," in
+    *,box,*)
+      echo '==> 季後目標場 box／PA：box 七表目標場 upsert（同完整鏈欄位清單；不 DELETE）'
+      sync_box_tables
+      ;;
+    *) echo '    · box：本次不送（POSTSEASON_BOXPA_PARTS 不含 box；production box 未動）' ;;
+  esac
   if [ -s "$BOXPA_PA_PAYLOAD" ]; then
     echo "==> 季後目標場 box／PA：PA 五表目標場單交易替換（${BOXPA_PA_GAMES}；不 TRUNCATE、不 CASCADE）"
     BOXPA_RC=0
@@ -838,7 +851,7 @@ if [ -n "${POSTSEASON_BOXPA_ONLY:-}" ]; then
   BOXPA_RC=0
   uv run python -m cpbl.ingest.boxpa_sync reconcile --games "$POSTSEASON_BOXPA_GAMES" \
     --pa-games "$BOXPA_PA_GAMES" --local-psql "$BOXPA_LOCAL_PSQL" --target-psql "$BOXPA_TARGET_PSQL" \
-    --out "$BOXPA_MANIFEST" || BOXPA_RC=$?
+    --parts "$BOXPA_PARTS" --out "$BOXPA_MANIFEST" || BOXPA_RC=$?
   echo "    ⓘ 耗時 $(( $(date +%s) - BOXPA_STARTED )) 秒；manifest：${BOXPA_MANIFEST}"
   if [ "$BOXPA_RC" -ne 0 ]; then
     echo "FATAL: 季後目標場對帳未通過 rc=${BOXPA_RC}（已寫入的列保留；見 manifest）" >&2

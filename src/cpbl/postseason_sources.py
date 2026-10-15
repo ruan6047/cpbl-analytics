@@ -150,6 +150,7 @@ def _prod_side(facts: LocalFacts, manifest: Mapping[str, Any] | None, sync_at: s
         return SourceStatus(UNKNOWN, "no_prod_evidence", local_at, None,
                             same_night(facts.game_date, None, now)
                             if not _after_deadline(facts.game_date, local_at) else False)
+    sync_at = manifest.get(f"{kind}_at") or sync_at   # 依來源合併的 manifest 各自帶送達時刻
     ok = manifest.get(f"{kind}_ok")
     tables = manifest.get(kind) or {}
     synced_counts = {t: (tables.get(t) or {}).get("local") for t in local_counts}

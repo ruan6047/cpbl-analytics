@@ -285,3 +285,51 @@ def test_no_local_published_build_leaves_prod_pa_untouched(tmp_path):
 def test_reconcile_mismatch_exits_68(tmp_path):
     result, _, _ = _run(tmp_path, STUB_RECONCILE_RC="68")
     assert result.returncode == 68
+
+
+@pytest.mark.parametrize(("parts", "expected"), [
+    ("box", list(BOX_TABLES)),
+    ("pa", list(PA_TABLES)),
+    ("box,pa", [*BOX_TABLES, *PA_TABLES]),
+])
+def test_parts_limit_what_is_actually_sent(tmp_path, parts, expected):
+    """#293 審核席 1 F3：scoped 模式只送 POSTSEASON_BOXPA_PARTS 指定的來源——額度用完的來源不隨整組再送。"""
+    result, calls, _ = _run(tmp_path, POSTSEASON_BOXPA_PARTS=parts)
+    assert result.returncode == 0, result.stderr
+    payloads = [c["stdin"] for c in calls("ssh") if c["stdin"]]
+    inserts = [m for p in payloads for m in re.findall(r"^INSERT INTO cpbl\.(\w+)", p, re.M)]
+    assert inserts == expected
+    reconcile = [c["argv"] for c in calls("uv") if "reconcile" in c["argv"]]
+    assert reconcile and reconcile[0][reconcile[0].index("--parts") + 1] == parts
+
+
+@pytest.mark.parametrize("bad", ["", "pa,box", "box;pa", "all"])
+def test_parts_must_be_box_pa_or_both(tmp_path, bad):
+    result, calls, backup_log = _run(tmp_path, POSTSEASON_BOXPA_PARTS=bad)
+    if bad == "":
+        assert result.returncode == 0, "空值＝預設 box,pa"
+        return
+    assert result.returncode == 64 and calls("ssh") == [] and not backup_log.exists()
+
+
+def test_reconcile_judges_only_the_parts_sent():
+    from cpbl.ingest import boxpa_sync as bs
+
+    class Db:
+        def __init__(self, box_rows):
+            self.box_rows = box_rows
+
+        def read(self, sql):
+            if "build_id::text" in sql:
+                return [["2026-C-2", "b1"]]
+            rows = []
+            for t in (*bs.BOX_TABLES, *bs.PA_TABLES):
+                rows.append([t, "2026-C-2", str(self.box_rows if t in bs.BOX_TABLES else 5)])
+            return rows
+
+    keys = bs.parse_games("2026-C-2")
+    m = bs.reconcile(Db(10), Db(9), keys, ["2026-C-2"], ["pa"])
+    g = m["games"]["2026-C-2"]
+    assert g["box_ok"] is None and g["pa_ok"] is True and m["ok"] is True, "沒送 box：box 不等不判 68"
+    m2 = bs.reconcile(Db(10), Db(9), keys, ["2026-C-2"], ["box", "pa"])
+    assert m2["games"]["2026-C-2"]["box_ok"] is False and m2["ok"] is False

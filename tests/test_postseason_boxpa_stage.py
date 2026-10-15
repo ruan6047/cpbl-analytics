@@ -62,14 +62,20 @@ def manifest(f: ps.LocalFacts, at: str, *, box_ok=True, pa_ok: bool | None = Tru
         "published_build_local": f.published_build, "published_build_prod": f.published_build}}}
 
 
+LAST_PARTS: dict[str, list[str]] = {}
+
+
 def step(state, now, facts):
     recs = pe.boxpa_refresh(state, now, LOCAL, {KEY: facts})
-    return pe.boxpa_plan(state, now, recs)
+    action, keys, parts = pe.boxpa_plan(state, now, recs)
+    LAST_PARTS["parts"] = parts
+    return action, keys
 
 
 def record_sync(state, now, facts, code, m=None, elapsed=30.0):
+    """照上一次 boxpa_plan 給的 parts 入帳（＝shell 真的交給 scoped 同步的來源）。"""
     pe.boxpa_refresh(state, now, LOCAL, {KEY: facts})
-    out = pe.boxpa_record_sync(state, now, [KEY], code, m, elapsed)
+    out = pe.boxpa_record_sync(state, now, [KEY], code, m, elapsed, LAST_PARTS.get("parts") or ["box", "pa"])
     pe.boxpa_refresh(state, now, LOCAL, {KEY: facts})
     return out
 
@@ -157,6 +163,48 @@ def test_box_then_pa_late_two_syncs_then_delivered_same_night():
     rec = state["boxpa"][KEY]
     assert rec["state"] == "delivered"
     assert rec["sources"]["pa"]["same_night"] is True and rec["sources"]["final"]["status"] == "delivered"
+
+
+def test_f2_same_night_new_published_pa_after_delivery_is_resent_once():
+    """#293 審核席 1 F2：已 delivered 的場，同晚出現新的本機 published PA → 重新打開、只送 PA；
+    PA 額度（首送＋1 次）用完後再有新版就不再送（交隔日 10:10）。"""
+    state, f = pe.empty_state(), real_e4()
+    t0 = tpe(10, 12, 22, 0)
+    assert step(state, t0, f) == ("sync", [KEY]) and LAST_PARTS["parts"] == ["box", "pa"]
+    record_sync(state, t0, f, 0, manifest(f, "2026-10-12T22:01:00+08:00"))
+    assert step(state, tpe(10, 12, 22, 5), f) == ("idle", []) and state["boxpa"][KEY]["state"] == "delivered"
+    v2 = dataclasses.replace(f, published_build="11111111-1111-1111-1111-111111111111",
+                             published_at="2026-10-12T22:20:00+08:00")
+    t1 = tpe(10, 12, 22, 30)
+    assert step(state, t1, v2) == ("sync", [KEY]) and LAST_PARTS["parts"] == ["pa"]
+    assert (state["boxpa"][KEY]["state"], state["boxpa"][KEY]["reason"]) == ("open", "reopened_source_changed")
+    record_sync(state, t1, v2, 0, manifest(v2, "2026-10-12T22:31:00+08:00"))
+    rec = state["boxpa"][KEY]
+    assert rec["sources"]["pa"]["status"] == "delivered" and rec["sources"]["box"]["status"] == "delivered"
+    assert [s["sources"] for s in rec["sends"]] == [["box", "pa"], ["pa"]]
+    v3 = dataclasses.replace(v2, published_build="22222222-2222-2222-2222-222222222222")
+    assert step(state, tpe(10, 12, 22, 40), v3) == ("idle", []), "PA 已送 2 次：不再送"
+
+
+def test_f3_box_resend_quota_is_not_bypassed_when_pa_arrives_late():
+    """#293 審核席 1 F3：box 已首送（68）＋重送（0）用完額度後，PA 晚到只送 PA，box 不隨整組再送。"""
+    state, full = pe.empty_state(), real_e4()
+    f = no_pa(full)
+    t0 = tpe(10, 12, 22, 0)
+    assert step(state, t0, f) == ("sync", [KEY]) and LAST_PARTS["parts"] == ["box"]
+    record_sync(state, t0, f, 68, manifest(f, "2026-10-12T22:01:00+08:00", box_ok=False, pa_ok=None))
+    t1 = tpe(10, 12, 22, 5)
+    assert step(state, t1, f) == ("sync", [KEY]) and LAST_PARTS["parts"] == ["box"]
+    record_sync(state, t1, f, 0, manifest(f, "2026-10-12T22:06:00+08:00", pa_ok=None))
+    assert len(pe.boxpa_sends(state["boxpa"][KEY], "box")) == 2
+    t2 = tpe(10, 12, 22, 30)
+    assert step(state, t2, full) == ("sync", [KEY])
+    assert LAST_PARTS["parts"] == ["pa"], "box 額度用完：本次只送 PA"
+    record_sync(state, t2, full, 0, manifest(full, "2026-10-12T22:31:00+08:00"))
+    rec = state["boxpa"][KEY]
+    assert len(pe.boxpa_sends(rec, "box")) == 2 and len(pe.boxpa_sends(rec, "pa")) == 1
+    assert rec["state"] == "delivered" or step(state, tpe(10, 12, 22, 35), full) == ("idle", [])
+    assert rec["manifest"]["box_at"] == "2026-10-12T22:06:00+08:00", "沒送 box 的那次不覆寫 box 對帳時刻"
 
 
 def test_delivery_after_midnight_is_recorded_as_not_same_night():
@@ -277,6 +325,7 @@ _REFRESH = """#!/bin/sh
   printf 'POSTSEASON_BOXPA_ONLY=%s\\n' "${POSTSEASON_BOXPA_ONLY:-}"
   printf 'SKIP_SCRAPE=%s\\n' "${SKIP_SCRAPE:-}"
   printf 'POSTSEASON_BOXPA_GAMES=%s\\n' "${POSTSEASON_BOXPA_GAMES:-}"
+  printf 'POSTSEASON_BOXPA_PARTS=%s\\n' "${POSTSEASON_BOXPA_PARTS:-}"
   printf 'BACKUP_DIR=%s\\n' "${BACKUP_DIR:-}"
   printf 'BOXPA_MANIFEST=%s\\n' "${BOXPA_MANIFEST:-}"
 } >> "$STUB_CALLS/refresh.txt"
@@ -323,7 +372,7 @@ def test_both_idle_takes_no_lock_and_calls_no_refresh(tmp_path):
 
 
 def test_boxpa_sync_without_results_event_runs_scoped_mode_with_evening_backup_dir(tmp_path):
-    result, read, lock = _evening(tmp_path, boxpa="sync 2026-C-2")
+    result, read, lock = _evening(tmp_path, boxpa="sync 2026-C-2 box,pa")
     assert result.returncode == 0, result.stderr
     sync = dict(line.split("=", 1) for line in read("refresh.txt").splitlines())
     assert sync["POSTSEASON_BOXPA_ONLY"] == "1" and sync["SKIP_SCRAPE"] == "1"
@@ -332,10 +381,23 @@ def test_boxpa_sync_without_results_event_runs_scoped_mode_with_evening_backup_d
     assert sync["BACKUP_DIR"] == str(tmp_path / "evening-backups")
     assert re.fullmatch(r".*/logs/postseason-boxpa-manifest-\d{8}-\d{6}\.json", sync["BOXPA_MANIFEST"])
     uv = read("uv.txt")
+    assert sync["POSTSEASON_BOXPA_PARTS"] == "box,pa"
     assert "boxpa-prepare --games 2026-C-2" in uv and "boxpa-record --games 2026-C-2 --code 0" in uv
+    assert "--parts box,pa" in uv
     assert " plan" in uv and uv.rstrip().endswith("finish")
     assert "--group scrape" not in uv, "box 已到齊時不連 www"
     assert not lock.exists()
+
+
+def test_shell_passes_only_planned_parts_to_scoped_sync(tmp_path):
+    """F3：boxpa-plan 說只送 pa，shell 就只把 pa 交給 scoped 同步並以 --parts pa 入帳。"""
+    result, read, _ = _evening(tmp_path, boxpa="sync 2026-C-2 pa")
+    assert result.returncode == 0, result.stderr
+    sync = dict(line.split("=", 1) for line in read("refresh.txt").splitlines())
+    assert sync["POSTSEASON_BOXPA_PARTS"] == "pa"
+    assert "boxpa-record --games 2026-C-2 --code 0" in read("uv.txt") and "--parts pa" in read("uv.txt")
+    no_parts, read2, _ = _evening(tmp_path / "np", boxpa="sync 2026-C-2")
+    assert no_parts.returncode == 0 and not read2("refresh.txt"), "沒有 parts 就不同步"
 
 
 def test_boxpa_detail_uses_scrape_group_then_replans(tmp_path):
@@ -347,14 +409,14 @@ def test_boxpa_detail_uses_scrape_group_then_replans(tmp_path):
 
 
 def test_boxpa_halt_boots_out_under_launchd(tmp_path):
-    result, read, lock = _evening(tmp_path, boxpa="sync 2026-C-2", record="halted", trigger="launchd")
+    result, read, lock = _evening(tmp_path, boxpa="sync 2026-C-2 box,pa", record="halted", trigger="launchd")
     assert result.returncode == 69
     assert re.search(r"^bootout gui/\d+/com\.cpbl\.postseason-evening$", read("launchctl.txt"), re.M)
     assert not lock.exists()
 
 
 def test_stage_boxpa_skips_results_plan(tmp_path):
-    result, read, _ = _evening(tmp_path, plan="scrape", boxpa="sync 2026-C-2", stage="boxpa")
+    result, read, _ = _evening(tmp_path, plan="scrape", boxpa="sync 2026-C-2 box,pa", stage="boxpa")
     assert result.returncode == 0, result.stderr
     uv = read("uv.txt")
     assert not re.search(r"(^| )plan$", uv, re.M) and " scrape" not in uv.replace("--group scrape", "")
@@ -364,5 +426,5 @@ def test_stage_boxpa_skips_results_plan(tmp_path):
 def test_invalid_stage_is_64_and_busy_lock_is_75(tmp_path):
     bad, _, _ = _evening(tmp_path / "a", stage="all-plus")
     assert bad.returncode == 64
-    busy, read, lock = _evening(tmp_path / "b", boxpa="sync 2026-C-2", lock_pid=os.getpid())
+    busy, read, lock = _evening(tmp_path / "b", boxpa="sync 2026-C-2 box,pa", lock_pid=os.getpid())
     assert busy.returncode == 75 and lock.is_dir() and not read("refresh.txt")

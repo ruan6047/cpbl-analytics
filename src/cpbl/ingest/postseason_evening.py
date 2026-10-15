@@ -757,6 +757,13 @@ def boxpa_can_send(rec: Mapping, source: str) -> bool:
     return sends[-1].get("code") in BOXPA_RESEND_CODES or sends[-1].get("code") == 0
 
 
+def boxpa_wants(rec: Mapping) -> list[str]:
+    """這一場此刻要送、且仍有額度（首送＋1 次重送）的來源。"""
+    src = rec.get("sources") or {}
+    return [s for s in ("box", "pa")
+            if (src.get(s) or {}).get("reason") in _NEEDS_SEND and boxpa_can_send(rec, s)]
+
+
 def _final_prod_at(state: Mapping, rec: Mapping) -> str | None:
     """production 完賽時刻：scoped 自檢通過的時刻，或結果鏈對該場的 T3（取較早者）。"""
     stamps = [rec.get("final_prod_at")]
@@ -779,6 +786,10 @@ def boxpa_refresh(state: dict, now: datetime, local: Mapping[str, LocalGame],
             m = rec.get("manifest")
             rec["sources"] = as_dict(classify(facts[key], m, now, exhausted=boxpa_exhausted(rec),
                                               final_prod_at=_final_prod_at(state, rec)))
+        # #293 審核席 1 F2：已送達的場若某來源同晚又有新版本（例：新的 published PA、box 列數變）
+        # 且該來源仍有額度，重新打開；額度用完或衝突／未達的終態不重開。
+        if rec["state"] == "delivered" and boxpa_wants(rec) and boxpa_window(rec.get("game_date"), now):
+            rec["state"], rec["reason"] = "open", "reopened_source_changed"
         if rec["state"] in BOXPA_TERMINAL:
             continue
         if not boxpa_window(rec.get("game_date"), now):
@@ -788,8 +799,12 @@ def boxpa_refresh(state: dict, now: datetime, local: Mapping[str, LocalGame],
     return out
 
 
-def boxpa_plan(state: dict, now: datetime, open_recs: Mapping[str, dict]) -> tuple[str, list[str]]:
-    """回 ``(action, keys)``；action ∈ idle／detail／sync。**不連 www、不寫 DB**。
+def boxpa_plan(state: dict, now: datetime,
+               open_recs: Mapping[str, dict]) -> tuple[str, list[str], list[str]]:
+    """回 ``(action, keys, parts)``；action ∈ idle／detail／sync。**不連 www、不寫 DB**。
+
+    ``parts``＝這次 scoped 同步實際要送的來源（``box``／``pa``；#293 審核席 1 F3）：只放仍有額度且待送的
+    來源，shell 照它決定跑不跑 box 七表、PA 五表；同一次只合併「要送的來源相同」的場。
 
     * detail：本機 box 核心表仍缺、且該場 www 次數未用盡、該場與該賽別共用帳本的冷卻都已過、
       當晚未被挑戰封鎖。
@@ -797,11 +812,12 @@ def boxpa_plan(state: dict, now: datetime, open_recs: Mapping[str, dict]) -> tup
     * 已用盡 www 次數而 box 仍缺 → 記 unreached（www_detail_incomplete_after_max_attempts）。
     """
     if state.get("halted") or in_daily_guard(now):
-        return "idle", []
-    detail, sync = [], []
+        return "idle", [], []
+    detail: list[str] = []
+    sync: list[tuple[str, list[str]]] = []
     for key, rec in sorted(open_recs.items()):
         src = rec.get("sources") or {}
-        box, pa = src.get("box") or {}, src.get("pa") or {}
+        box = src.get("box") or {}
         box_missing = str(box.get("reason") or "").startswith("local_box_incomplete")
         if box_missing:
             attempts = [_parse(a) for a in rec.get("detail_attempts") or []]
@@ -816,18 +832,18 @@ def boxpa_plan(state: dict, now: datetime, open_recs: Mapping[str, dict]) -> tup
                 continue
             detail.append(key)
             continue
-        wants = [s for s, st in (("box", box), ("pa", pa))
-                 if st.get("reason") in _NEEDS_SEND and boxpa_can_send(rec, s)]
+        wants = boxpa_wants(rec)
         if wants:
-            sync.append(key)
+            sync.append((key, wants))
         elif _boxpa_done(rec):
             rec["state"] = "conflict" if any(
                 (src.get(s) or {}).get("status") == "delivered_conflict" for s in ("box", "pa")) else "delivered"
     if detail:
-        return "detail", detail
+        return "detail", detail, []
     if sync:
-        return "sync", sync
-    return "idle", []
+        parts = sync[0][1]
+        return "sync", [k for k, w in sync if w == parts], parts
+    return "idle", [], []
 
 
 def _boxpa_done(rec: Mapping) -> bool:
@@ -851,10 +867,13 @@ def boxpa_record_detail(state: dict, now: datetime, keys: Iterable[str], errors:
 
 
 def boxpa_record_sync(state: dict, now: datetime, keys: Iterable[str], code: int,
-                      manifest: Mapping | None, elapsed: float) -> str:
+                      manifest: Mapping | None, elapsed: float,
+                      parts: Iterable[str] = ("box", "pa")) -> str:
     """scoped 同步結果入帳。回 ``ok``／``retry``／``waiting``／``halted``。
 
-    * 0／68／72：記一次送出（含當時待送的來源）；0／68 代表 production 自檢已通過（已完賽）。
+    * 0／68／72：記一次送出，來源＝這次**實際送出**的 ``parts``（#293 審核席 1 F3；manifest 顯示
+      PA 未送的場不記 PA）；0／68 代表 production 自檢已通過（已完賽）。
+    * manifest 依來源合併：沒送的來源保留上一次的對帳結果與時刻（``box_at``／``pa_at``）。
     * 73：production 尚未完賽，不算嘗試，等下一次喚醒。
     * 其他非零（64／67／74、備份、psql／schema）或耗時超過 20 分鐘 → halted（bootout 交人工）。
     """
@@ -866,21 +885,41 @@ def boxpa_record_sync(state: dict, now: datetime, keys: Iterable[str], code: int
         state["halted"] = {"at": _iso(now), "reason": f"boxpa_sync_exit_{code}"}
         return "halted"
     games = (manifest or {}).get("games") or {}
+    parts = [p for p in ("box", "pa") if p in set(parts)]
+    synced_at = (manifest or {}).get("at") or _iso(now)
     for key in keys:
         rec = state["boxpa"][key]
-        src = rec.get("sources") or {}
-        pending = [s for s in ("box", "pa") if (src.get(s) or {}).get("reason") in _NEEDS_SEND]
+        game = games.get(key)
+        sent = [p for p in parts if not (p == "pa" and game is not None and not game.get("pa_sent"))]
         rec.setdefault("sends", []).append({"at": _iso(now), "code": code, "elapsed": round(elapsed, 1),
-                                            "sources": pending})
+                                            "sources": sent})
         if code in (0, SYNC_RECONCILE_MISMATCH) and not rec.get("final_prod_at"):
             rec["final_prod_at"] = _iso(now)
-        if key in games:
-            rec["manifest"] = {**games[key], "at": (manifest or {}).get("at") or _iso(now)}
-        if code == 72 and len(boxpa_sends(rec, "box")) >= BOXPA_MAX_SENDS:
+        if game is not None:
+            rec["manifest"] = _merge_manifest(rec.get("manifest"), game, sent, synced_at)
+        if code == 72 and any(len(boxpa_sends(rec, p)) >= BOXPA_MAX_SENDS for p in sent):
             rec["state"], rec["reason"] = "unreached", "sync_transient_failure_after_resend"
     if code == BOXPA_NOT_FINAL:
         return "waiting"
     return "ok" if code == 0 else "retry"
+
+
+_BOX_MANIFEST_KEYS = ("box", "box_ok")
+_PA_MANIFEST_KEYS = ("pa", "pa_ok", "pa_sent", "published_build_local", "published_build_prod")
+
+
+def _merge_manifest(old: Mapping | None, game: Mapping, sent: list[str], at: str) -> dict:
+    """依來源合併 manifest：這次送的來源取新結果與時刻，沒送的保留舊的（沒有舊的就照新結果，不帶時刻）。"""
+    out = dict(old or {})
+    for part, keys in (("box", _BOX_MANIFEST_KEYS), ("pa", _PA_MANIFEST_KEYS)):
+        if part in sent or not old:
+            out.update({k: game.get(k) for k in keys})
+            if part in sent:
+                out[f"{part}_at"] = at
+            else:
+                out[f"{part}_ok"] = None     # 本次沒送這個來源：不得把對帳結果當成已送達
+    out["at"] = at
+    return out
 
 
 def boxpa_timeline(state: Mapping) -> list[dict]:
@@ -1237,6 +1276,7 @@ def _parser():
     br.add_argument("--code", type=int, required=True)
     br.add_argument("--manifest", required=True)
     br.add_argument("--elapsed", type=float, required=True)
+    br.add_argument("--parts", required=True, help="這次實際交給 scoped 同步的來源（box,pa／box／pa）")
     sub.add_parser("boxpa-status", help="#293：印目標場 box／PA 時間線（唯讀狀態檔）")
     return p
 
@@ -1331,11 +1371,11 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command == "boxpa-plan":
         open_recs = _boxpa_prepare_state(state, now, year)
-        action, keys = boxpa_plan(state, now, open_recs)
+        action, keys, parts = boxpa_plan(state, now, open_recs)
         if not args.dry:
-            state["boxpa_last"] = {"at": _iso(now), "action": action, "games": keys}
+            state["boxpa_last"] = {"at": _iso(now), "action": action, "games": keys, "parts": parts}
             save_json(path, state)
-        print(f"{action} {','.join(keys)}".strip())
+        print(" ".join(x for x in (action, ",".join(keys), ",".join(parts)) if x))
         return 0
 
     if args.command == "boxpa-detail":
@@ -1370,7 +1410,8 @@ def main(argv: list[str] | None = None) -> int:
         mpath = Path(args.manifest)
         manifest = json.loads(mpath.read_text(encoding="utf-8")) if mpath.exists() else None
         _boxpa_prepare_state(state, now, year)          # 先以送出前的分類決定「這次送了哪些來源」
-        outcome = boxpa_record_sync(state, now, keys, args.code, manifest, args.elapsed)
+        parts = [p for p in args.parts.split(",") if p]
+        outcome = boxpa_record_sync(state, now, keys, args.code, manifest, args.elapsed, parts)
         _boxpa_prepare_state(state, now, year)          # 再以新 manifest 重算分類
         state["boxpa_last"] = {"at": _iso(now), "action": "sync", "games": keys, "code": args.code,
                                "outcome": outcome, "elapsed": args.elapsed, "manifest": str(mpath)}

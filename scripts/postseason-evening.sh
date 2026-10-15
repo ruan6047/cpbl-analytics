@@ -201,10 +201,9 @@ fi
 
 # 5. #293 目標場 box／PA 階段（結果鏈已 halt 時不做；boxpa-plan 也會因 halted 回 idle）。
 #    每次喚醒最多一次明細 www＋一次 scoped 同步；失敗語意見 postseason_evening.boxpa_record_sync。
-boxpa_split() {  # "$1"＝boxpa-plan 輸出（"sync 2026-C-2"）→ BOXPA_ACT／BOXPA_GAMES
-  BOXPA_ACT="${1%% *}"
-  BOXPA_GAMES=""
-  [ "$1" != "$BOXPA_ACT" ] && BOXPA_GAMES="${1#* }"
+boxpa_split() {  # "$1"＝boxpa-plan 輸出（"sync 2026-C-2 box,pa"）→ BOXPA_ACT／BOXPA_GAMES／BOXPA_PARTS
+  BOXPA_ACT="" BOXPA_GAMES="" BOXPA_PARTS=""
+  read -r BOXPA_ACT BOXPA_GAMES BOXPA_PARTS <<< "$1"
   return 0
 }
 if [ "$EXIT_CODE" -ne 69 ]; then
@@ -220,20 +219,21 @@ if [ "$EXIT_CODE" -ne 69 ]; then
     note "boxpa-plan → ${BOXPA_PLAN}"
     boxpa_split "$BOXPA_PLAN"
   fi
-  if [ "$BOXPA_ACT" = "sync" ] && [ -n "$BOXPA_GAMES" ]; then
+  # BOXPA_PARTS＝這次真的要送的來源（審核席 1 F3：已用完額度的來源不得隨整組同步再送）。
+  if [ "$BOXPA_ACT" = "sync" ] && [ -n "$BOXPA_GAMES" ] && [ -n "$BOXPA_PARTS" ]; then
     BOXPA_OUT="$(py boxpa-prepare --games "$BOXPA_GAMES")" || BOXPA_OUT="prepare_failed"
     note "boxpa-prepare ${BOXPA_GAMES} → ${BOXPA_OUT}"
     BOXPA_MANIFEST_PATH="$REPO_DIR/logs/postseason-boxpa-manifest-$(date +%Y%m%d-%H%M%S).json"
-    note "boxpa sync → POSTSEASON_BOXPA_ONLY=1 SKIP_SCRAPE=1 POSTSEASON_BOXPA_GAMES=${BOXPA_GAMES} BACKUP_DIR=${BACKUP_DIR_EVENING}"
+    note "boxpa sync → POSTSEASON_BOXPA_ONLY=1 SKIP_SCRAPE=1 POSTSEASON_BOXPA_GAMES=${BOXPA_GAMES} POSTSEASON_BOXPA_PARTS=${BOXPA_PARTS} BACKUP_DIR=${BACKUP_DIR_EVENING}"
     BOXPA_STARTED="$(date +%s)"
-    POSTSEASON_BOXPA_ONLY=1 SKIP_SCRAPE=1 POSTSEASON_BOXPA_GAMES="$BOXPA_GAMES" \
+    POSTSEASON_BOXPA_ONLY=1 SKIP_SCRAPE=1 POSTSEASON_BOXPA_GAMES="$BOXPA_GAMES" POSTSEASON_BOXPA_PARTS="$BOXPA_PARTS" \
       BACKUP_DIR="$BACKUP_DIR_EVENING" BACKUP_KEEP="$BACKUP_KEEP_EVENING" BOXPA_MANIFEST="$BOXPA_MANIFEST_PATH" \
       bash "$REPO_DIR/scripts/refresh-cpbl-prod.sh" >>"$LOG" 2>&1
     BOXPA_CODE=$?
     BOXPA_ELAPSED=$(( $(date +%s) - BOXPA_STARTED ))
     note "boxpa sync exit=${BOXPA_CODE} elapsed=${BOXPA_ELAPSED}s"
     BOXPA_RECORDED="$(py boxpa-record --games "$BOXPA_GAMES" --code "$BOXPA_CODE" \
-      --manifest "$BOXPA_MANIFEST_PATH" --elapsed "$BOXPA_ELAPSED")" || BOXPA_RECORDED="halted"
+      --manifest "$BOXPA_MANIFEST_PATH" --elapsed "$BOXPA_ELAPSED" --parts "$BOXPA_PARTS")" || BOXPA_RECORDED="halted"
     note "boxpa-record → ${BOXPA_RECORDED}"
     [ "$BOXPA_RECORDED" = "halted" ] && EXIT_CODE=69
   fi
