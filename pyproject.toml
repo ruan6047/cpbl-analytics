@@ -21,6 +21,7 @@ dependencies = [
 [project.scripts]
 cpbl-backfill = "cpbl.ingest.run_backfill:main"
 cpbl-build-pa = "cpbl.ingest.run_build_pa:main"
+cpbl-build-team-comparison = "cpbl.ingest.run_build_team_comparison:main"
 cpbl-scrape-games = "cpbl.ingest.run_scrape:main"
 cpbl-scrape-stats = "cpbl.ingest.run_scrape_stats:main"
 cpbl-scrape-home-runs = "cpbl.ingest.run_scrape_home_runs:main"

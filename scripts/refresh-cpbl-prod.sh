@@ -34,6 +34,7 @@ scripts/refresh-cpbl-prod.sh — 把本機 CPBL 資料同步到 production（四
   1/4  本機（台灣 IP）爬官網最新資料，然後重建賽事預測特徵 game_features
   2/4  備份 production 整庫（cpbl schema ＋ 主站 public）；備份驗證不過即中止
   3/4  對 production 套 migration，再逐表非破壞性 upsert 同步
+       （WITH_DETAIL 時於 gamelog 之後另做隊伍比較摘要 insert-only 同步；失敗只記錄、不擋其他同步）
   4/4  VPS 重跑賽事預測回測與 serving 模型，最後驗證線上 /api/info freshness
 
 會寫什麼（⚠️ 高後果，且沒有 dry-run）
@@ -50,6 +51,8 @@ scripts/refresh-cpbl-prod.sh — 把本機 CPBL 資料同步到 production（四
   LINEUP_ONLY=1 SKIP_SCRAPE=1 ./scripts/refresh-cpbl-prod.sh # 有限公告；不爬、不訓練、不檢查整鏈 freshness
   ROSTER_ONLY=1 SKIP_SCRAPE=1 BACKUP_DIR=<獨立目錄> ./scripts/refresh-cpbl-prod.sh
                                                               # 季後 32 人名單三表 insert-only 同步（手動、需授權）
+  TEAM_COMPARISON_ONLY=1 SKIP_SCRAPE=1 BACKUP_DIR=<獨立目錄> ./scripts/refresh-cpbl-prod.sh
+                                                              # 隊伍比較摘要三表 insert-only 同步（手動、需授權）
 
 環境變數
   LOCAL_DB      本機 PostgreSQL 容器名（預設 cpbl-analytics-db-1）
@@ -62,12 +65,18 @@ scripts/refresh-cpbl-prod.sh — 把本機 CPBL 資料同步到 production（四
   ROSTER_ONLY   1＝搭配 SKIP_SCRAPE=1 與獨立 BACKUP_DIR，只做名單三表 insert-only 同步
                 （唯讀比對；無變更不備份不寫；有待插入才備份＋單交易插入＋事後對帳；
                  不 migrate、不爬、不訓練、不寫 refresh 標記、不碰其他表）
+  TEAM_COMPARISON_ONLY
+                1＝搭配 SKIP_SCRAPE=1 與獨立 BACKUP_DIR，只做隊伍比較摘要三表 insert-only 同步
+                （與 ROSTER_ONLY 同形：唯讀比對；無變更不備份不寫；有待寫才備份＋單交易寫入＋事後對帳）
 
 離開碼
   0 成功 · 64 參數錯 · 65 取不到本機 freshness 基準 · 67 同步 payload 驗證失敗
   68 POSTSEASON_RESULTS_ONLY 的 data-only 對帳不等（季後晚間鏈：停止當晚）
   ROSTER_ONLY：67 本機名單自檢失敗 · 69 production 尚無名單表（待部署窗口）
                70 同 scope 內容不同拒絕（不寫、不重試） · 71 事後對帳不等 · 72 目標 psql／ssh 失敗
+  TEAM_COMPARISON_ONLY：67 本機自檢／欄位漂移 · 69 production 尚無摘要表（待部署窗口）
+               70 同 build_id 內容不同或目標有本機沒有的 build（不寫、不重試） · 71 事後對帳不等
+               72 目標 psql／ssh 失敗
 
 背景：docs/AI_RUNBOOK.md（本機爬 → 同步生產）
 EOF
@@ -185,6 +194,61 @@ SQL_END
       -v ON_ERROR_STOP=1 -q --single-transaction -U \"\$DB_USER\" -d \"\$DB_NAME\"" < "$LINEUP_TMP/payload.sql"
   echo '    ✓ 公告單表同步完成（不代表完整更新鏈成功）'
 }
+
+# 隊伍比較摘要三表（#287 S06 WP4b；PLAN r2 §7）：比照 ROSTER_ONLY 早退的獨立 insert-only 步驟。
+# 比對／payload／對帳全在 cpbl.playoffs.team_comparison.sync（Python）；本段只做參數守衛、備份與 psql 管道。
+#   ⛔ 不爬（必須 SKIP_SCRAPE=1）、不 build-features、不跑 migration（schema 只隨部署窗口）、不訓練、
+#   ⛔ 不寫 refresh 標記、不同步其他表、⛔ 不進 sync_table 清單（三表有不可變觸發器）。
+#   ⛔ build／列無 UPDATE／DELETE：同 build_id 內容不同一律 exit 70 拒絕、不重試；無變更時不備份、不寫入。
+#   放在 ROSTER_ONLY 之前：兩個早退模式同時設定時由本段拒絕，不讓任一個被靜默略過。
+# BACKUP_DIR 規則與 ROSTER_ONLY 相同（絕對路徑、realpath 不得等於每日鏈輪替目錄）。
+team_comparison_sync() {  # $1=action（plan／apply）；本機唯讀、目標＝production
+  uv run python -m cpbl.playoffs.team_comparison.sync "$1" \
+    --local-psql "docker exec -i ${LOCAL_DB} psql -U cpbl -d cpbl" \
+    --target-psql "ssh -o BatchMode=yes ${VPS} 'cd ${DEPLOY_PATH} && set -a && . ./.env && docker exec -i prod_pg psql -U \"\$DB_USER\" -d \"\$DB_NAME\"'"
+}
+if [ -n "${TEAM_COMPARISON_ONLY:-}" ]; then
+  if [ "$TEAM_COMPARISON_ONLY" != 1 ] || [ "${SKIP_SCRAPE:-}" != 1 ] || [ -n "${WITH_DETAIL:-}" ] \
+     || [ -n "${LINEUP_ONLY:-}" ] || [ -n "${ROSTER_ONLY:-}" ] || [ -n "${POSTSEASON_RESULTS_ONLY:-}" ]; then
+    echo 'FATAL: TEAM_COMPARISON_ONLY=1 必須搭配 SKIP_SCRAPE=1，且不得與 WITH_DETAIL／LINEUP_ONLY／ROSTER_ONLY／POSTSEASON_RESULTS_ONLY 併用' >&2
+    exit 64
+  fi
+  if [ -z "${BACKUP_DIR:-}" ] || [ "${BACKUP_DIR#/}" = "$BACKUP_DIR" ]; then
+    echo 'FATAL: TEAM_COMPARISON_ONLY 需明示獨立的 BACKUP_DIR（絕對路徑；不得與每日鏈共用輪替視窗）' >&2
+    exit 64
+  fi
+  TC_BACKUP_DIR="$(python3 -c 'import os,sys; print(os.path.realpath(sys.argv[1]))' "$BACKUP_DIR")"
+  TC_DAILY_BACKUP_DIR="$(python3 -c 'import os,sys; print(os.path.realpath(sys.argv[1]))' \
+    "$HOME/Library/Application Support/cpbl-analytics/backups")"
+  if [ -z "$TC_BACKUP_DIR" ] || [ "$TC_BACKUP_DIR" = "$TC_DAILY_BACKUP_DIR" ]; then
+    echo 'FATAL: TEAM_COMPARISON_ONLY 的 BACKUP_DIR 與每日鏈備份目錄是同一個目錄（不得共用輪替視窗）' >&2
+    exit 64
+  fi
+  cd "$REPO_DIR"
+  echo '==> 隊伍比較摘要：唯讀比對本機與 production（insert-only）'
+  # 非零（67／69／70／72）在 set -e 下原碼結束：拒絕不重試、不備份、不寫。
+  TC_PLAN="$(team_comparison_sync plan)"
+  echo "$TC_PLAN"
+  case "$TC_PLAN" in
+    *TEAM_COMPARISON_SYNC_PLAN=no-change*)
+      echo '==> 隊伍比較摘要：無變更（未備份、未寫入）'
+      exit 0
+      ;;
+    *TEAM_COMPARISON_SYNC_PLAN=insert-pending*) ;;
+    *)
+      echo 'FATAL: 隊伍比較摘要比對結果無法辨識，停止（不備份、不寫入）' >&2
+      exit 67
+      ;;
+  esac
+  echo '==> 隊伍比較摘要：獨立目錄備份 production（整庫）；驗證不過即中止'
+  BACKUP_PATH="$(VPS="$VPS" DEPLOY_PATH="$DEPLOY_PATH" BACKUP_DIR="$TC_BACKUP_DIR" \
+    BACKUP_KEEP="${BACKUP_KEEP:-3}" "$REPO_DIR/scripts/backup-prod-db.sh")"
+  echo "    ✓ 已驗證備份：${BACKUP_PATH}"
+  echo '==> 隊伍比較摘要：單交易 insert-only 寫入＋事後對帳'
+  team_comparison_sync apply
+  echo '==> 隊伍比較摘要：完成（只代表摘要三表同步與對帳，不代表整鏈刷新）'
+  exit 0
+fi
 
 # 有限公告同步在完整鏈之前退出，不碰 freshness／特徵／訓練。
 # 季後 32 人名單三表（#284 S03；Q3 裁定 A＋T2 裁定 A）：比照 LINEUP_ONLY 早退的獨立 insert-only 步驟。
@@ -835,6 +899,15 @@ if [ -n "${WITH_DETAIL:-}" ]; then
   # canonical PA build（INGEST-PA-DAILY1）：衍生自上面剛同步的 game_livelog／pitch_tracking／
   # batting_gamelog／pitching_gamelog，故放在其後；父子表 FK 順序見檔首 sync_pa_build。
   sync_pa_build
+  # 隊伍比較摘要（#287 S06）：衍生自本機 gamelog（每日鏈 builder 已在爬取後建置），故排在 gamelog
+  # 同步之後。insert-only＋單交易＋事後對帳在 Python 模組；整庫備份已於 2/4 完成。
+  # ⛔ 失敗只記錄、不擋其他同步（production 尚無三表時為 exit 69，待部署窗口；舊摘要保留標待更新）。
+  echo "    + 隊伍比較摘要（insert-only；失敗只記錄、不擋其他同步）"
+  if team_comparison_sync apply; then
+    :
+  else
+    echo "    ⚠ 隊伍比較摘要同步未完成 exit=$?（只記錄，不擋其他同步；見上方訊息）" >&2
+  fi
   sync_table batting_seasons "player_id,year,team_id" \
     team_name g pa ab rbi r h b1 b2 b3 hr tb so sb gidp sh sf bb ibb hbp cs go fo
   sync_table pitching_seasons "player_id,year,team_id" \

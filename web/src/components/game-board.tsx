@@ -16,6 +16,7 @@ import { buildPaCardVM, paCardHitterName, paCardLabel, paScoreLineOf, type PaCar
 import { indexWpCurve, joinPaSwing } from "@/lib/pa-wp-join";
 import { displayWpPctInt } from "@/lib/win-prob-display";
 import { PaScoreLine } from "@/components/pa-score-line";
+import { SplitBar } from "@/components/split-bar";
 import {
   canShowPostgameConclusions, inningLabel, knownCount, liveScorebarScores, officialCompletionOf, phaseLabel, plateAppearancePitchCountLabel, trackingEmptyMessage,
   type LiveCaptureCoverage, type LiveSnapshot,
@@ -182,25 +183,17 @@ function ScoreBar({ game, e, records, snapshot, plain }: {
 }
 
 // ───────────────────────── 目前預期勝率（當前打席，推算）─────────────────────────
-function WpBar({ homeWp, homeName, awayName, homeColor, awayColor }: {
+export function WpBar({ homeWp, homeName, awayName, homeColor, awayColor }: {
   homeWp: number; homeName: string; awayName: string; homeColor: string; awayColor: string;
 }) {
   // 顯示夾層：本條顯示的一律是「當前打席開始時」的勝率——依定義不是終場點，故一律夾到
   // [1%, 99%]，比賽終結前不顯示 100%／0%（`lib/win-prob-display.ts`）。
+  // 呈現抽到共用 `SplitBar`（#287 D1）；勝率語意（夾層、文案）只住這裡，不帶進比較條。
   const h = displayWpPctInt(homeWp);
   const a = 100 - h;
   return (
-    <div className="rounded-md bg-surface px-3 py-2">
-      <div className="mb-1 flex items-center justify-between text-xs">
-        <span className="font-semibold tabular-nums" style={{ color: awayColor }}>{awayName} {a}%</span>
-        <span className="text-[11px] text-muted">目前預期勝率（推算）</span>
-        <span className="font-semibold tabular-nums" style={{ color: homeColor }}>{homeName} {h}%</span>
-      </div>
-      <div className="flex h-2.5 overflow-hidden rounded-full">
-        <div style={{ width: `${a}%`, background: awayColor }} />
-        <div style={{ width: `${h}%`, background: homeColor }} />
-      </div>
-    </div>
+    <SplitBar leftPct={a} leftColor={awayColor} rightColor={homeColor}
+      left={<>{awayName} {a}%</>} center="目前預期勝率（推算）" right={<>{homeName} {h}%</>} />
   );
 }
 
