@@ -10,7 +10,7 @@ export type NavItem = {
   group?: string;
 };
 
-/** 頂層導覽：今日／賽程／戰績／球員／對戰，另加「更多」展開選單。 */
+/** 頂層導覽：今日／賽程／戰績／球員／對戰／季後賽，另加「更多」展開選單。 */
 export const PRIMARY_NAV: NavItem[] = [
   { href: "/", label: "今日", group: "主要" },
   { href: "/games", label: "賽程", group: "主要" },
@@ -18,6 +18,8 @@ export const PRIMARY_NAV: NavItem[] = [
   // 需求方 2026-07-17 決策（§12-3）：固定進打者排行，角色切換在排行介面內。
   { href: "/batters", label: "球員", match: ["/pitchers", "/players"], group: "主要" },
   { href: "/matchups", label: "對戰", group: "主要" },
+  // 需求方 2026-10-15 裁定（#285 D1）：主要導覽第 6 項「季後賽」。
+  { href: "/playoffs", label: "季後賽", group: "主要" },
 ];
 
 // 需求方 2026-07-17 決策（§12-2）：紀錄室桌機維持在「更多」，與球場同層。

@@ -20,6 +20,8 @@ from cpbl.api.routers import (
     outcome,
     people,
     players,
+    playoffs,
+    playoffs_watch,
     projections,
     recap,
     report,
@@ -42,5 +44,6 @@ app.add_middleware(
 )
 
 for _mod in (info, projections, leaders, outcome, standings, players, games, daily,
-             ability, tracking, trend, teams, umpires, people, venues, recap, facts, report):
+             ability, tracking, trend, teams, umpires, people, venues, recap, facts, report,
+             playoffs, playoffs_watch):
     app.include_router(_mod.router)
