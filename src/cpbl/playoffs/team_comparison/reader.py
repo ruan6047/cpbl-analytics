@@ -8,8 +8,9 @@ GET 在**單一 REPEATABLE READ READ ONLY 交易**內只做四類查詢（PLAN r
 4. 本系列 counted 場次的 E／C gamelog（``game_sno = ANY(...)`` 一次批次）。
 
 ⛔ 不讀 A gamelog、⛔ 不寫、⛔ 不呼叫 builder、⛔ 無行程內快取；current 不存在 ⇒ ``summary_missing``，
-⛔ 不回退全季重建。三 scope 各自 ``status``，一個缺漏不連坐另兩個。
-路由與外層封套屬 S04 整合窗口（WP6），本模組只提供組裝函式。
+⛔ 不回退全季重建。三 scope 各自 ``status``，一個缺漏不連坐另兩個；頂層 ``status``（ok／partial／
+unavailable）是區層級摘要（#285 掛點契約 §2）。路由 ``GET /api/v1/playoffs/comparison``
+（``api/routers/playoffs_comparison.py``，讀取例外 503）；回應即本 payload，⛔ 不另包封套。
 """
 
 from __future__ import annotations
@@ -190,8 +191,10 @@ def build_payload(cur, year: int, kind: str, *, now: datetime) -> dict:
     # ---- 2) 本系列：S02 counted 場次＋E/C gamelog 一次批次
     series_scope = _series_scope(cur, year, kind, ctx, teams, both_known, season_views, league_raw)
 
+    scopes = {"season_a": season_scope, "head_to_head_a": h2h_scope, "series": series_scope}
     return {
         "contract": CONTRACT,
+        "status": overall_status(scopes),
         "series_id": series["series_id"],
         "participants_status": series["participants_status"],
         "context_version": ctx["context_version"],
@@ -199,8 +202,27 @@ def build_payload(cur, year: int, kind: str, *, now: datetime) -> dict:
         "metric_defs": [dict(d) for d in core.METRIC_DEFS],
         "style_axes": [{"key": a, "label": ts.AXIS_LABELS[a], "semantics": AXIS_SEMANTICS[a],
                         "components": list(core.AXIS_COMPONENTS[a])} for a in ts.AXES],
-        "scopes": {"season_a": season_scope, "head_to_head_a": h2h_scope, "series": series_scope},
+        "scopes": scopes,
     }
+
+
+#: scope status 中屬「正常」者；本系列未開打是正常狀態（T0／T1），不算缺席。
+_SCOPE_OK = frozenset({"available", "not_started"})
+
+
+def overall_status(scopes: dict[str, dict]) -> str:
+    """區層級 ``status``（#285 掛點契約 §2「回應必帶」；C1：非 ``ok`` 時由元件呈現缺席）。
+
+    - ``ok``：三個 scope 皆 ``available``／``not_started``。
+    - ``partial``：至少一個 scope 有可呈現的隊伍資料，但有 scope 為待更新、摘要缺、缺 box 或對戰組合待定。
+    - ``unavailable``：沒有任何 scope 有隊伍資料（例如摘要未建置且本系列尚無場次）。
+    讀取例外不在這裡表達——路由層回 HTTP 503。
+    """
+    if all(s["status"] in _SCOPE_OK for s in scopes.values()):
+        return "ok"
+    if any(s.get("teams") for s in scopes.values()):
+        return "partial"
+    return "unavailable"
 
 
 def _series_scope(cur, year: int, kind: str, ctx: dict, teams: list[str], both_known: bool,

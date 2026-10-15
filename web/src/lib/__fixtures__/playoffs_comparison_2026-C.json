@@ -1,5 +1,6 @@
 {
  "contract": "playoffs-comparison/v1",
+ "status": "ok",
  "series_id": {
   "year": 2026,
   "kind_code": "C",
@@ -123,8 +124,8 @@
     "builder_version": "team-comparison-1.0.0",
     "source_hash": "a43b6aa58c106c0c4627873dbfa06c56c13ee4527762e1482d332e7d0ed69f4c",
     "games_fingerprint": "7b9c03ace3d8341268ac9b1b888d292dd29599664a05e45e9fe3141e41569bc2",
-    "built_at": "2026-10-15T12:16:21.068105+08:00",
-    "promoted_at": "2026-10-15T12:16:21.068105+08:00",
+    "built_at": "2026-10-15T13:02:01.425103+08:00",
+    "promoted_at": "2026-10-15T13:02:01.425103+08:00",
     "pending_since": null,
     "completed_games": 360,
     "stale_reason": null

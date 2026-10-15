@@ -94,3 +94,14 @@ test("T5 and all copy carry no prediction language", () => {
   assert.ok(strings.length > 20);
   for (const s of strings) assert.doesNotMatch(s, /預測|預期|誤差/, s);
 });
+
+test("payload carries area-level status (mount contract §2): real fixtures are ok", () => {
+  const allowed = new Set(["ok", "partial", "unavailable"]);
+  for (const p of [p2025, p2026]) {
+    assert.ok(allowed.has(p.status));
+    assert.equal(p.contract, "playoffs-comparison/v1");
+    assert.ok(typeof p.context_version === "string" && p.context_version.length > 0);
+  }
+  assert.equal(p2025.status, "ok");
+  assert.equal(p2026.status, "ok"); // 本系列未開打是正常狀態
+});

@@ -1,7 +1,8 @@
 // 季後賽第 2 區「隊伍表現」三範圍比較的 view-model 與文案單點（#287 WP5）。
 //
-// 契約鏡射後端 `playoffs-comparison/v1`（src/cpbl/playoffs/team_comparison/reader.py）。
-// ⚠️ 型別暫住本檔、**不寫進 `playoffs-types.ts`**：路由、外層封套與第 2 區掛點屬 S04 整合窗口（WP6）。
+// 契約鏡射後端 `playoffs-comparison/v1`（src/cpbl/playoffs/team_comparison/reader.py），
+// 端點 `GET /api/v1/playoffs/comparison?season=&series=`（讀取失敗 503；回應即本型別，無外層封套）。
+// ⚠️ 型別住本檔、**不寫進 `playoffs-types.ts`**（#285 掛點契約 §2、§7）；第 2 區元件與 registry 登記屬第 2 次合併。
 //
 // 規則（PLAN r2 §4、§8；需求方 D1／D2 裁定）：
 // 1. 比較條＝共享尺度＋方向：同一指標同一 scope 一條軸，兩隊共用軸域；缺值顯示「—＋原因」，不畫成 0。
@@ -75,8 +76,13 @@ export type SeriesScope = {
   scales: Partial<Record<ComparisonMetricKey, ComparisonScale>>;
 };
 
+/** 區層級狀態（#285 掛點契約 §2）：ok＝三 scope 皆可用或本系列未開打；partial＝有 scope 缺席／待更新；
+ *  unavailable＝沒有任何 scope 有隊伍資料。讀取失敗是 HTTP 503，不在此值域。 */
+export type ComparisonStatus = "ok" | "partial" | "unavailable";
+
 export type ComparisonPayload = {
   contract: "playoffs-comparison/v1";
+  status: ComparisonStatus;
   series_id: { year: number; kind_code: "E" | "C"; rule_version: string | null; teams: (string | null)[] };
   participants_status: "known" | "pending_e_winner" | "unknown";
   context_version: string;

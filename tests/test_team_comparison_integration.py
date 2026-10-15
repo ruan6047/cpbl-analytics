@@ -438,8 +438,18 @@ def test_e8_missing_summary_does_not_fall_back(dsn):
     assert p["scopes"]["season_a"]["status"] == "summary_missing"
     assert p["scopes"]["head_to_head_a"]["status"] == "summary_missing"
     assert p["scopes"]["series"]["status"] == "available"  # 不連坐
+    assert p["status"] == "partial"
     assert _gamelog_kinds(log) == ["C", "C"]
     assert _builds(dsn, 2025) == set()  # GET 不建置
+    assert _payload(dsn, 2026, "C")["status"] == "unavailable"  # 摘要缺且本系列未開打
+
+
+def test_top_level_status_on_real_data(dsn):
+    for y in (2025, 2026):
+        assert _build(dsn, y).code == 0
+    assert _payload(dsn, 2025, "C")["status"] == "ok"
+    assert _payload(dsn, 2026, "C")["status"] == "ok"  # 本系列未開打是正常狀態
+    assert _payload(dsn, 2026, "E")["status"] == "ok"
 
 
 def test_series_pending_source_when_one_box_missing(dsn):
