@@ -61,6 +61,7 @@ EXPECTED = {
     "/api/v1/players/{player_id}/trend-career",
     "/api/v1/players/{player_id}/vs-team",
     "/api/v1/postseason-summary",
+    "/api/v1/playoffs/watch",
     "/api/v1/projections/batting",
     "/api/v1/projections/pitching",
     "/api/v1/records",
