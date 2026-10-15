@@ -1,0 +1,42 @@
+[
+ {
+  "props": {
+   "homeWp": 0.63,
+   "homeName": "中信兄弟",
+   "awayName": "統一7-ELEVEn獅",
+   "homeColor": "#C8A24A",
+   "awayColor": "#E35A13"
+  },
+  "html": "<div class=\"rounded-md bg-surface px-3 py-2\"><div class=\"mb-1 flex items-center justify-between text-xs\"><span class=\"font-semibold tabular-nums\" style=\"color:#E35A13\">統一7-ELEVEn獅 37%</span><span class=\"text-[11px] text-muted\">目前預期勝率（推算）</span><span class=\"font-semibold tabular-nums\" style=\"color:#C8A24A\">中信兄弟 63%</span></div><div class=\"flex h-2.5 overflow-hidden rounded-full\"><div style=\"width:37%;background:#E35A13\"></div><div style=\"width:63%;background:#C8A24A\"></div></div></div>"
+ },
+ {
+  "props": {
+   "homeWp": 0.004,
+   "homeName": "樂天桃猿",
+   "awayName": "味全龍",
+   "homeColor": "#8E1537",
+   "awayColor": "#C8102E"
+  },
+  "html": "<div class=\"rounded-md bg-surface px-3 py-2\"><div class=\"mb-1 flex items-center justify-between text-xs\"><span class=\"font-semibold tabular-nums\" style=\"color:#C8102E\">味全龍 99%</span><span class=\"text-[11px] text-muted\">目前預期勝率（推算）</span><span class=\"font-semibold tabular-nums\" style=\"color:#8E1537\">樂天桃猿 1%</span></div><div class=\"flex h-2.5 overflow-hidden rounded-full\"><div style=\"width:99%;background:#C8102E\"></div><div style=\"width:1%;background:#8E1537\"></div></div></div>"
+ },
+ {
+  "props": {
+   "homeWp": 0.999,
+   "homeName": "富邦悍將",
+   "awayName": "台鋼雄鷹",
+   "homeColor": "#2A4B9B",
+   "awayColor": "#15543C"
+  },
+  "html": "<div class=\"rounded-md bg-surface px-3 py-2\"><div class=\"mb-1 flex items-center justify-between text-xs\"><span class=\"font-semibold tabular-nums\" style=\"color:#15543C\">台鋼雄鷹 1%</span><span class=\"text-[11px] text-muted\">目前預期勝率（推算）</span><span class=\"font-semibold tabular-nums\" style=\"color:#2A4B9B\">富邦悍將 99%</span></div><div class=\"flex h-2.5 overflow-hidden rounded-full\"><div style=\"width:1%;background:#15543C\"></div><div style=\"width:99%;background:#2A4B9B\"></div></div></div>"
+ },
+ {
+  "props": {
+   "homeWp": 0.5,
+   "homeName": "A",
+   "awayName": "B",
+   "homeColor": "#000",
+   "awayColor": "#fff"
+  },
+  "html": "<div class=\"rounded-md bg-surface px-3 py-2\"><div class=\"mb-1 flex items-center justify-between text-xs\"><span class=\"font-semibold tabular-nums\" style=\"color:#fff\">B 50%</span><span class=\"text-[11px] text-muted\">目前預期勝率（推算）</span><span class=\"font-semibold tabular-nums\" style=\"color:#000\">A 50%</span></div><div class=\"flex h-2.5 overflow-hidden rounded-full\"><div style=\"width:50%;background:#fff\"></div><div style=\"width:50%;background:#000\"></div></div></div>"
+ }
+]

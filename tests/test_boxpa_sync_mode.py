@@ -242,6 +242,7 @@ def test_box_column_lists_are_shared_with_the_full_chain(boxpa_run, tmp_path):
     {"POSTSEASON_RESULTS_ONLY": "1"},
     {"ROSTER_ONLY": "1"},
     {"LINEUP_ONLY": "1"},
+    {"TEAM_COMPARISON_ONLY": "1"},
     {"POSTSEASON_BOXPA_ONLY": "yes"},
     {"POSTSEASON_BOXPA_GAMES": None},
     {"POSTSEASON_BOXPA_GAMES": "2026-A-2"},
