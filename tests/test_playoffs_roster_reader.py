@@ -196,3 +196,66 @@ def test_query_count_independent_of_roster_size():
     two = calls({AWAY: roster(*_ids(32, "11111")), HOME: roster(*_ids(32, "22222"))})
     # cutoff＋打擊計數＋投球計數＋官方 PR＋兩個聯盟基準＋兩個最近出賽批次
     assert one == two == 8
+
+
+class _RowsCur:
+    """依 SQL 回傳真實形狀列（欄名＝SELECT 別名）的假 cursor：走 read_background 的真讀取／解析路徑。"""
+
+    def __init__(self, ids_bat, ids_pit):
+        self.ids_bat, self.ids_pit = ids_bat, ids_pit
+        self.description, self._rows = [], []
+
+    def _set(self, cols, rows):
+        self.description = [(c,) for c in cols]
+        self._rows = rows
+
+    def execute(self, sql, params=None):
+        if "max(g.game_date)" in sql:
+            from datetime import date
+            self._set(["max"], [(date(2026, 10, 6),)])
+        elif "FROM cpbl.batting_gamelog b\n     WHERE" in sql:
+            self._set(["pid", "kind_code", "g", "pa", "ab", "h", "bb", "hbp", "sf", "tb", "hr"],
+                      [(p, "A", 30, 100, 90, 27, 8, 1, 1, 40, 3) for p in self.ids_bat]
+                      + [(self.ids_bat[0], "D", 5, 20, 18, 5, 2, 0, 0, 7, 0)])
+        elif "FROM cpbl.pitching_gamelog p\n     WHERE" in sql:
+            self._set(["pid", "kind_code", "g", "outs", "er", "so", "bb"], [(p, "A", 40, 120, 12, 35, 10) for p in self.ids_pit])
+        elif "cpbl.advanced_stats" in sql:
+            self._set(["acnt", "role", *rr.PR_COLUMNS], [(self.ids_bat[0], "batting", *([95] + [None] * 12))])
+        elif "FROM cpbl.batting_current" in sql:
+            self._set(["s"] * 6, [(4000, 1100, 400, 50, 30, 1600)])
+        elif "FROM cpbl.pitching_current" in sql:
+            self._set(["ip", "er"], [(1000.0, 400)])
+        elif "RECENT" in sql or "row_number()" in sql:
+            if "hitter_acnt" in sql:
+                self._set(["pid", "game_date", "game_sno", "ab", "h", "bb", "hbp", "sf", "tb"],
+                          [(self.ids_bat[0], None, i, 3, 1, 0, 0, 0, 1) for i in range(30)])
+            else:
+                self._set(["pid", "game_date", "game_sno", "ipc", "ip3", "er"],
+                          [(self.ids_pit[0], None, i, 1, 0, 0) for i in range(30)])
+        else:
+            raise AssertionError(f"unexpected SQL: {sql[:60]}")
+
+    def fetchone(self):
+        return self._rows[0] if self._rows else None
+
+    def fetchall(self):
+        return self._rows
+
+
+def test_read_background_parses_real_row_shapes():
+    """真讀取路徑：計數列含 kind_code 字串、PR 列含 acnt／role（規劃者以真 DB 抓到的 pop 求值順序缺陷的回歸）。"""
+    bat, pit = ["0000000001", "0000000002"], ["0000000003"]
+    rosters = {AWAY: roster(*[(p, "內野手", None) for p in bat], *[(p, "投手", None) for p in pit]), HOME: None}
+    inp = inputs(rosters)
+    rr.read_background(_RowsCur(bat, pit), inp)
+    assert inp.counts[("0000000001", "batting", "A")]["g"] == 30
+    assert inp.counts[("0000000001", "batting", "D")]["g"] == 5
+    assert inp.counts[("0000000003", "pitching", "A")]["outs"] == 120
+    assert inp.advanced[("0000000001", "batting")]["ev_pr"] == 95
+    assert inp.background_cutoff == "2026-10-06"
+    assert len(inp.recent["0000000001"]) == 30 and len(inp.recent["0000000003"]) == 30
+    out = compute_roster(inp, now=NOW)
+    m = members(out)
+    assert m["0000000001"]["background"]["pr_tags"] == [{"key": "ev_pr", "value": 95}]
+    assert m["0000000001"]["background"]["arrow"]["status"] == "flat"
+    assert m["0000000003"]["background"]["arrow"]["status"] == "undefined"   # 全程 0 自責 ⇒ ERA0
