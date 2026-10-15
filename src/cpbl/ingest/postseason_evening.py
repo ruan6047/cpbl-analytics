@@ -921,15 +921,61 @@ def _boxpa_prepare_state(state: dict, now: datetime, year: int) -> dict[str, dic
     return boxpa_refresh(state, now, local, boxpa_load_facts(keys))
 
 
-def boxpa_detail(year: int, keys: list[str]) -> dict:
-    """既有 _postseason_detail_step（www gamelog＋觀眾裁判時長＋逐球），只帶目標場的賽別與賽事日。"""
+def boxpa_detail(year: int, keys: list[str], state: Mapping | None = None) -> dict:
+    """既有 _postseason_detail_step（www gamelog＋觀眾裁判時長＋逐球），只帶目標場的賽別與賽事日。
+
+    #293 r3：明細的兩個 www 入口（``scrape_gamelogs``／``scrape_game_details``，皆逐場以 ``[sno]``
+    呼叫）在本次呼叫期間包一層 www 標記，場次取自呼叫參數（不解析 URL）；結束後原樣還原。"""
     from datetime import date as _date
 
-    from cpbl.ingest.run_refresh_recent import _postseason_detail_step
+    from cpbl.ingest import run_refresh_recent as rr
 
     kinds = tuple(sorted({k.split("-")[1] for k in keys}))
     days = sorted({_date.fromisoformat(d) for d in boxpa_game_dates(keys)})
-    return _postseason_detail_step(year, kinds, days)
+    recs = (state or {}).get("boxpa") or {}
+    originals = {name: getattr(rr, name) for name in ("scrape_gamelogs", "scrape_game_details")}
+
+    def marked(fn):
+        def call(y, snos, kind_code="A", *args, **kwargs):
+            from cpbl.ingest._browser import www_marker
+
+            sno = snos[0] if len(snos) == 1 else None
+            key = f"{y}-{kind_code}-{sno}"
+            kind = "retry" if (recs.get(key) or {}).get("detail_attempts") else "box"
+            with www_marker(kind, "293", f"{y}/{kind_code}/{sno if sno is not None else '-'}"):
+                return fn(y, snos, kind_code, *args, **kwargs)
+        return call
+
+    try:
+        for name, fn in originals.items():
+            setattr(rr, name, marked(fn))
+        return rr._postseason_detail_step(year, kinds, days)
+    finally:
+        for name, fn in originals.items():
+            setattr(rr, name, fn)
+
+
+def scrape_marker_args(state: Mapping, kind: str) -> tuple[str, str]:
+    """#293 r3（PLAN r3.1 §16.1）：一次賽別賽程抓取的 (kind, src)。
+
+    * 該賽別有未結事件 → src=293；任一事件先前已試過 www → ``retry``，否則 ``event``。
+    * 沒有未結事件（只由 #292 先發時點觸發）→ ``other``／src=292。"""
+    evs = [e for e in open_events(state).values() if _kind_of(e["key"]) == kind]
+    if not evs:
+        return "other", "292"
+    return ("retry" if any(e.get("attempts") for e in evs) else "event"), "293"
+
+
+def marked_scrape_games(state: Mapping, year: int) -> Callable[..., Any]:
+    """包住既有 ``scrape_games``：每個賽別一個 www 標記區塊（``<year>/<kind>/-``）。"""
+    from cpbl.ingest._browser import www_marker
+    from cpbl.ingest.cpbl_site import scrape_games
+
+    def call(start_year: int, end_year: int, kind_code: str):
+        kind, src = scrape_marker_args(state, kind_code)
+        with www_marker(kind, src, f"{year}/{kind_code}/-"):
+            return scrape_games(start_year, end_year, kind_code)
+    return call
 
 
 def boxpa_game_dates(keys: Iterable[str]) -> list[str]:
@@ -1214,7 +1260,8 @@ def main(argv: list[str] | None = None) -> int:
             print("unchanged")
             return 0
         before = local_signature(year)
-        result = _postseason_games_step(year, kinds)
+        # #293 r3：每個賽別的賽程抓取包一層 www 標記（src／kind 見 scrape_marker_args）。
+        result = _postseason_games_step(year, kinds, scrape=marked_scrape_games(state, year))
         after = local_signature(year)
         stats_has_c = any(g.get("kind_code") == "C" for g in state.get("schedule") or [])
         local_c = sum(1 for k in load_local_games(year, now) if k.split("-")[1] == "C")
@@ -1253,7 +1300,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "boxpa-detail":
         keys = [k for k in args.games.split(",") if k]
         try:
-            result = boxpa_detail(year, keys)
+            result = boxpa_detail(year, keys, state)
             errors = result.get("errors") or []
         except Exception as exc:  # noqa: BLE001 — www 失敗照實記錄、不吞成成功
             log.exception("box／PA 明細失敗")

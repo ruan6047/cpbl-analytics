@@ -33,6 +33,9 @@ scripts/postseason-evening.sh — 季後事件觸發晚間鏈（#268；launchd �
         ＝已驗證備份 → box 七表目標鍵 upsert → PA 五表目標鍵單交易替換 → 逐表逐場對帳
         （同來源 1 次＋1 次重送；不 TRUNCATE、不 CASCADE、不 migrate、不呼叫 prod_cpbl_api）。
   5. 寫狀態檔與（有嘗試時）本機 refresh_log（scope postseason-evening）。
+  #293 r3：本鏈每次官網 www 導頁在 log 留一行 `WWW_REQ card=293 kind=… src=<292|293> at=… game=… status=…`
+  （同頁 POST 不記＝導頁次數下限），另以 Playwright 導頁事件寫 `WWW_NAV card=293 …` 供獨立對帳；
+  每日鏈不寫。計數：grep -h 'WWW_REQ card=293' logs/postseason-evening-*.log
   沒有鐘點截止：跨過 24:00 照常處理；T1–T3 以實際日期時刻記錄。
 
 會寫什麼（⚠️ 有事件時高後果）
@@ -50,6 +53,7 @@ scripts/postseason-evening.sh — 季後事件觸發晚間鏈（#268；launchd �
   手動單次：REFRESH_TRIGGER=manual bash scripts/postseason-evening.sh
   只跑 box／PA 階段（手動單次）：POSTSEASON_EVENING_STAGE=boxpa REFRESH_TRIGGER=manual bash scripts/postseason-evening.sh
   查看狀態：cat logs/last-postseason-evening.json
+  （POSTSEASON_EVENING_STAGE=boxpa 時 log 另寫 logs/postseason-evening-boxpa-manual-YYYYMMDD.log）
 
 環境變數
   REFRESH_TRIGGER          manual（預設）或 launchd；其他值 exit 64
@@ -108,6 +112,8 @@ fi
 
 mkdir -p logs
 LOG="logs/postseason-evening-$(date +%Y%m%d).log"
+# #293 r3：手動只跑 box／PA 階段（WP5）時另寫一檔，標記與 launchd 的晚間 log 分開計數。
+[ "$STAGE" = "boxpa" ] && LOG="logs/postseason-evening-boxpa-manual-$(date +%Y%m%d).log"
 note() { echo "[$(date '+%F %T')] $*" >> "$LOG"; }
 py() { "$UV" run python -m cpbl.ingest.postseason_evening "$@" 2>>"$LOG"; }
 

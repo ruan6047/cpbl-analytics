@@ -24,9 +24,15 @@ import atexit
 import logging
 import os
 import re
-from urllib.parse import urlencode
+from collections.abc import Iterator
+from contextlib import contextmanager
+from datetime import datetime
+from urllib.parse import urlencode, urlsplit
+from zoneinfo import ZoneInfo
 
 log = logging.getLogger("cpbl.browser")
+# #293 r3：官網 www 導頁的固定標記（預設不作用；只有 www_marker() 區塊內才寫）。
+www_log = logging.getLogger("cpbl.browser.www")
 
 # 反爬封鎖是「懲罰新訪客」：有舊挑戰 cookie 的瀏覽器暢通、無 cookie 新訪客被擋
 # （2026-07-04 實測：同 IP 同時刻 Chrome(有cookie)全通、Safari(無cookie)全擋）。
@@ -59,6 +65,91 @@ _BACKOFF_MS = (2000, 6000, 15000)
 
 # 批次迴圈斷路器：連續失敗人數達此值＝全站節流（非單人偶發），續打只會升級成深度封鎖
 CIRCUIT_LIMIT = int(os.environ.get("CPBL_SCRAPE_CIRCUIT", "3") or 3)
+
+
+# =========================================================================== #293 r3 www 請求標記
+#
+# 需求方裁定 6189968411／6189981037；PLAN r3 §16（r3.1 補 C3 src、C4 同頁 POST 不記）。
+# **預設不作用**：模組變數 _MARKER 為 None 時，_Session 的導頁路徑與原本位元等價（不註冊監聽、
+# 不寫任何一行）。只有呼叫端以 ``with www_marker(...)`` 包住一次邏輯抓取時才啟用；目前只有晚間鏈
+# （postseason_evening 的 scrape 與 #293 box 階段）這樣做，每日鏈／每週排程／手動 CLI 都不會。
+#
+# 每次 ``page.goto`` 寫一行（同頁 fetch POST 不記——總數是導頁次數的**下限**）：
+#   WWW_REQ card=293 kind=<box|event|retry|other> src=<292|293> at=<ISO8601 +08:00>
+#           game=<year>/<kind>/<sno 或 -> status=<HTTP 碼|challenge|error>
+# * kind：同一個 www_marker 區塊內，某頁路徑第一次導頁記區塊的 kind；同一路徑再導頁（重載退避、
+#   換 context 重試）記 retry。呼叫端在「同一場後續喚醒的第二次以後抓取」時直接傳 kind=retry。
+# * status：goto 的最終 Response.status；goto 拋錯記 error；page_html 的必要內容檢查不過
+#   （HiNet 挑戰頁常回 200）記 challenge。不含 token、cookie、完整 URL 或 query。
+# * 另以 Playwright ``page.on("request")`` 獨立計數主框架導頁（重定向鏈只計起點），每個請求寫一行
+#   ``WWW_NAV card=293 …``——與 WWW_REQ 是兩條獨立機制，WP5 以兩者 grep -c 相等對帳。
+
+TAIPEI = ZoneInfo("Asia/Taipei")
+WWW_KINDS = ("box", "event", "retry", "other")
+WWW_SRCS = ("292", "293")
+WWW_REQ_RE = re.compile(
+    r"WWW_REQ card=293 kind=(box|event|retry|other) src=(292|293) at=\S+\+08:00 "
+    r"game=\d{4}/[EC]/(\d+|-) status=(\d{3}|challenge|error)$")
+_MARKER: dict | None = None
+
+
+@contextmanager
+def www_marker(kind: str, src: str, game: str) -> Iterator[None]:
+    """在區塊內啟用 www 導頁標記。``game``＝``<year>/<kind>/<sno 或 ->``（取自呼叫參數，不解析 URL）。"""
+    global _MARKER
+    if kind not in WWW_KINDS or src not in WWW_SRCS or not re.fullmatch(r"\d{4}/[EC]/(\d+|-)", game):
+        raise ValueError(f"www_marker 參數不合法：kind={kind!r} src={src!r} game={game!r}")
+    prev = _MARKER
+    _MARKER = {"kind": kind, "src": src, "game": game, "seen": set(), "pending": []}
+    try:
+        yield
+    finally:
+        _flush_marks(None)
+        _MARKER = prev
+
+
+def _now_tpe() -> str:
+    return datetime.now(TAIPEI).isoformat(timespec="seconds")
+
+
+def _note_goto(page_path: str, status: int | str, at: str) -> None:
+    m = _MARKER
+    if m is None:
+        return
+    path = urlsplit(page_path).path
+    kind = "retry" if path in m["seen"] else m["kind"]
+    m["seen"].add(path)
+    m["pending"].append({"kind": kind, "at": at, "status": status})
+
+
+def _flush_marks(challenged: bool | None) -> None:
+    """寫出待決的導頁行。``challenged=True``＝必要內容不在（最後一筆記 challenge）。"""
+    m = _MARKER
+    if m is None:
+        return
+    pending, m["pending"] = m["pending"], []
+    for i, rec in enumerate(pending):
+        status = rec["status"]
+        if challenged and i == len(pending) - 1 and status != "error":
+            status = "challenge"
+        www_log.info("WWW_REQ card=293 kind=%s src=%s at=%s game=%s status=%s",
+                     rec["kind"], m["src"], rec["at"], m["game"], status)
+
+
+def _on_request(request) -> None:  # noqa: ANN001 — Playwright Request
+    m = _MARKER
+    if m is None:
+        return
+    try:
+        if not request.is_navigation_request() or request.redirected_from is not None:
+            return
+        if request.frame.parent_frame is not None:
+            return
+        host = urlsplit(request.url).hostname or ""
+    except Exception:  # noqa: BLE001 — 計數監聽不得影響爬蟲
+        return
+    if host == urlsplit(BASE).hostname:
+        www_log.info("WWW_NAV card=293 src=%s at=%s game=%s", m["src"], _now_tpe(), m["game"])
 
 
 def check_circuit(consec_fail: int, what: str = "選手") -> None:
@@ -111,18 +202,52 @@ class _Session:
             self._ctx = self._browser.new_context(**ctx_kw)
             self._page = self._ctx.new_page()
         self._loaded: str | None = None
+        self._listening = False
+        self._defer_marks = False
 
     def _goto(self, page_path: str, wait: str) -> None:
         """單次導航；失敗（如 ERR_TOO_MANY_REDIRECTS = 挑戰 cookie 壞掉）→ 換新 context 重試一次。"""
         from playwright.sync_api import Error
         url = f"{BASE}{page_path}"
+        if _MARKER is None:   # #293 r3：未啟用標記＝原路徑，逐字不變
+            try:
+                self._page.goto(url, wait_until=wait, timeout=45000)
+            except Error as e:
+                log.warning("導航失敗（%s），換乾淨 context 於 5s 後重試：%s", page_path, str(e)[:120])
+                self._new_context()
+                self._page.wait_for_timeout(5000)
+                self._page.goto(url, wait_until=wait, timeout=45000)
+            return
+        self._marked_goto(page_path, url, wait, Error)
+
+    def _marked_goto(self, page_path: str, url: str, wait: str, error_type: type) -> None:
+        """與 :meth:`_goto` 同流程，另為每次 goto 留標記（#293 r3）。"""
+        self._listen()
+        at = _now_tpe()
         try:
-            self._page.goto(url, wait_until=wait, timeout=45000)
-        except Error as e:
+            res = self._page.goto(url, wait_until=wait, timeout=45000)
+        except error_type as e:
+            _note_goto(page_path, "error", at)
+            _flush_marks(None)
             log.warning("導航失敗（%s），換乾淨 context 於 5s 後重試：%s", page_path, str(e)[:120])
             self._new_context()
+            self._listen()
             self._page.wait_for_timeout(5000)
-            self._page.goto(url, wait_until=wait, timeout=45000)
+            at = _now_tpe()
+            try:
+                res = self._page.goto(url, wait_until=wait, timeout=45000)
+            except error_type:
+                _note_goto(page_path, "error", at)
+                _flush_marks(None)
+                raise
+        _note_goto(page_path, res.status if res is not None else "error", at)
+        if not self._defer_marks:
+            _flush_marks(None)
+
+    def _listen(self) -> None:
+        if not self._listening:
+            self._page.on("request", _on_request)
+            self._listening = True
 
     def _ensure(self, page_path: str, wait: str = "networkidle", force: bool = False) -> None:
         """確保目前停在 page_path（過挑戰）。換頁才重載。
@@ -149,9 +274,15 @@ class _Session:
                 log.warning("頁面缺必要內容（挑戰未過？len=%d）%s：%dms 後重載（第 %d 次）",
                             last_len, page_path, backoff, i)
                 self._page.wait_for_timeout(backoff)
-            self._ensure(page_path, wait, force=force or i > 0)
-            html = self._page.content()
-            if require is None or re.search(require, html):
+            self._defer_marks = _MARKER is not None   # #293 r3：挑戰要等必要內容檢查後才知道
+            try:
+                self._ensure(page_path, wait, force=force or i > 0)
+                html = self._page.content()
+            finally:
+                self._defer_marks = False
+            ok = require is None or re.search(require, html)
+            _flush_marks(not ok)
+            if ok:
                 return html
             last_len = len(html)
             wait = "networkidle"  # 重試一律等到底，給挑戰 JS 時間
