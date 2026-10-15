@@ -93,6 +93,14 @@
 | `run_scrape_legends`（退役生涯分項） | 同 `cpbl_player_detail`（apart 端點，year=9999、kind A/C/E） | 同上 | C | 名單=現任教練前球員 + 7 生涯榜 top10 |
 | `cpbl_site.lineup_acnts` | ⚠️ **純 httpx** GET `/box` + POST `/box/getlive` | 當日上場名單（BattingJson/PitchingJson） | B | **例外：此路徑 httpx 目前可直連**（2026-07-04 實測 200；挑戰未覆蓋或機率性）。若日後回 428 → 改走 `_browser` 即可 |
 
+> **getgamedatas 的官方先發欄位**（#292 S11）：每場 entry 的 `HomePitcherAcnt`／`VisitingPitcherAcnt`
+> （另有 `*PitcherName`）是官方公布的預定先發，`cpbl_site.upsert_games` 寫進 `games.home_starter_id`／
+> `away_starter_id`（原地覆寫），原始 entry 另存 `game_schedule_status_revisions.raw_payload`（內容相同只更新
+> `last_seen_at`）。空字串＝官方尚未填（入庫為 NULL），不是「沒有先發」。開賽時刻另有 `GameDateTimeS`（鐘點字串）。
+> 賽後 entry 的同欄位是官方最後的值，須與賽前觀測分開看（`IsPlayBall`／`GameResult` 判開賽後）。
+> 這兩欄**沒有公布時刻**：`fetched_at`／`last_seen_at` 只是本站觀測時刻，⛔ 不可當官方公布時刻。
+> 與 stats 單場 API `Pitchers[]`（START 後才出現、不可倒推先發，Runbook §3）是不同來源。
+
 > ⚠️ `cpbl_season_backfill.py` **已壞**（遺留）：仍以舊 httpx 簽名呼叫
 > `_teamscore_token(client)`，但 `cpbl_stats` 遷移 Playwright 後簽名已改為無參數，
 > 一執行即 TypeError。要再用（回填 opendata 未涵蓋年份）須先改接 `_browser` 版 helpers。
