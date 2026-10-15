@@ -922,38 +922,62 @@ def _boxpa_prepare_state(state: dict, now: datetime, year: int) -> dict[str, dic
     return boxpa_refresh(state, now, local, boxpa_load_facts(keys))
 
 
-def boxpa_detail(year: int, keys: list[str], state: Mapping | None = None) -> dict:
-    """既有 _postseason_detail_step（www gamelog＋觀眾裁判時長＋逐球），只帶目標場的賽別與賽事日。
+def boxpa_detail(year: int, keys: list[str], state: Mapping | None = None, *, delay: float = 1.2) -> dict:
+    """只對傳入的目標場抓明細（#293 審核席 1 F1）：gamelog＋觀眾裁判時長（www）＋逐球（stats）。
 
-    #293 r3：明細的兩個 www 入口（``scrape_gamelogs``／``scrape_game_details``，皆逐場以 ``[sno]``
-    呼叫）在本次呼叫期間包一層 www 標記，場次取自呼叫參數（不解析 URL）；結束後原樣還原。"""
-    from datetime import date as _date
+    ⛔ 不呼叫 ``_postseason_detail_step``：那支是每日補洞用，候選＝賽事日完賽場 ∪ 全賽別缺明細的完賽場，
+    會把非目標的歷史場一起抓、一起寫。這裡改為逐場呼叫它內部用的同一批葉函式（``scrape_gamelogs``、
+    ``scrape_game_details``、``scrape_game_pitches``、``_postseason_detail_gaps``），場次只來自 ``keys``；
+    逐球也不帶入 ``_lagging_pitch_games``。判定與錯誤形狀與 ``_postseason_detail_step`` 相同。
 
+    www 標記（PLAN r3.1 §16.1）：每場一個 ``www_marker`` 區塊＝一次邏輯抓取；區塊內第一個導頁記
+    ``box``（該場本晚已抓過則 ``retry``），其後的導頁記 ``retry``。"""
     from cpbl.ingest import run_refresh_recent as rr
+    from cpbl.ingest._browser import www_marker
+    from cpbl.ingest.cpbl_pitch_tracking import is_frozen, scrape_game_pitches
 
-    kinds = tuple(sorted({k.split("-")[1] for k in keys}))
-    days = sorted({_date.fromisoformat(d) for d in boxpa_game_dates(keys)})
     recs = (state or {}).get("boxpa") or {}
-    originals = {name: getattr(rr, name) for name in ("scrape_gamelogs", "scrape_game_details")}
-
-    def marked(fn):
-        def call(y, snos, kind_code="A", *args, **kwargs):
-            from cpbl.ingest._browser import www_marker
-
-            sno = snos[0] if len(snos) == 1 else None
-            key = f"{y}-{kind_code}-{sno}"
-            kind = "retry" if (recs.get(key) or {}).get("detail_attempts") else "box"
-            with www_marker(kind, "293", f"{y}/{kind_code}/{sno if sno is not None else '-'}"):
-                return fn(y, snos, kind_code, *args, **kwargs)
-        return call
-
-    try:
-        for name, fn in originals.items():
-            setattr(rr, name, marked(fn))
-        return rr._postseason_detail_step(year, kinds, days)
-    finally:
-        for name, fn in originals.items():
-            setattr(rr, name, fn)
+    out: dict[str, Any] = {"games": {}, "errors": []}
+    for y, kind, sno in _keys_tuple(keys):
+        key = f"{y}-{kind}-{sno}"
+        if kind not in KINDS:
+            raise ValueError(f"季後賽別只接受 E／C：{kind!r}")
+        issues: list[str] = []
+        summary: dict[str, Any] = {}
+        try:
+            first = "retry" if (recs.get(key) or {}).get("detail_attempts") else "box"
+            with www_marker(first, "293", f"{y}/{kind}/{sno}"):
+                gamelog = rr._tolerate_gamelog_gap(
+                    rr.scrape_gamelogs(y, [sno], kind, allow_partial=True),
+                    f"季後明細 gamelog kind={kind}")
+                for part in ("scoreboard", "livelog", "batting_box", "pitching_box"):
+                    if gamelog.get(part, 0) == 0:
+                        issues.append(f"{key}:gamelog.{part}=0")
+                detail_rows = rr.scrape_game_details(y, [sno], kind)
+                if detail_rows < 1:
+                    issues.append(f"{key}:game_details={detail_rows}")
+            summary = {"gamelog": gamelog, "detail_rows": detail_rows}
+            if is_frozen(y, kind, sno):
+                summary["pitches"] = {"skipped_frozen": 1}
+            else:
+                pitches = scrape_game_pitches([(y, kind, sno)], delay=delay)
+                summary["pitches"] = pitches
+                if pitches.get("games", 0) < 1:
+                    issues.append(f"{key}:pitch_games=0")
+                elif not pitches.get("pitcher_flags"):
+                    issues.append(f"{key}:pitcher_flags=0")
+            gaps = rr._postseason_detail_gaps(y, kind, [sno], rr._POSTSEASON_CORE_DETAIL_TABLES)
+            summary["missing"] = gaps.get(sno, [])
+            if gaps:
+                out["errors"].append({"kind": kind, "stage": "detail_missing",
+                                      "error": f"{sno}:{'/'.join(gaps[sno])}"})
+            if issues:
+                out["errors"].append({"kind": kind, "stage": "detail_source", "error": "；".join(issues)})
+        except Exception as exc:  # noqa: BLE001 — 單場失敗照實記錄，不連坐其他目標場
+            log.exception("季後 box 明細失敗 %s", key)
+            out["errors"].append({"kind": kind, "stage": "detail", "error": str(exc)})
+        out["games"][key] = summary
+    return out
 
 
 def scrape_marker_args(state: Mapping, kind: str) -> tuple[str, str]:

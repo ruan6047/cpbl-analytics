@@ -348,33 +348,52 @@ def test_scrape_marker_args_event_retry_and_292_other():
     assert pe.scrape_marker_args(state, "E") == ("other", "292")
 
 
-def test_boxpa_detail_marks_each_game_and_restores_entry_points(monkeypatch):
+def _stub_detail_leaves(monkeypatch, calls):
+    from cpbl.ingest import cpbl_pitch_tracking as pt
     from cpbl.ingest import run_refresh_recent as rr
 
-    seen = []
-    orig_g = rr.scrape_gamelogs
-    monkeypatch.setattr(rr, "scrape_gamelogs", lambda y, snos, kind, **kw: seen.append(("g", dict(br._MARKER))) or {})
-    monkeypatch.setattr(rr, "scrape_game_details", lambda y, snos, kind: seen.append(("d", dict(br._MARKER))) or 1)
-    patched_g, patched_d = rr.scrape_gamelogs, rr.scrape_game_details
+    def gamelogs(y, snos, kind, **kw):
+        calls.append(("gamelog", y, kind, list(snos), dict(br._MARKER) if br._MARKER else None))
+        return {"scoreboard": 18, "livelog": 300, "batting_box": 20, "pitching_box": 8}
 
-    def fake_step(year, kinds, days):
-        rr.scrape_gamelogs(year, [2], "C", allow_partial=True)
-        rr.scrape_game_details(year, [2], "C")
-        return {"errors": []}
+    def details(y, snos, kind):
+        calls.append(("detail", y, kind, list(snos), dict(br._MARKER) if br._MARKER else None))
+        return 1
 
-    monkeypatch.setattr(rr, "_postseason_detail_step", fake_step)
-    monkeypatch.setattr(pe, "boxpa_game_dates", lambda keys: ["2026-10-18"])
+    def pitches(games, delay):
+        calls.append(("pitches", games, None, None, dict(br._MARKER) if br._MARKER else None))
+        return {"games": 1, "pitches": 250, "pitcher_flags": 8}
+
+    monkeypatch.setattr(rr, "scrape_gamelogs", gamelogs)
+    monkeypatch.setattr(rr, "scrape_game_details", details)
+    monkeypatch.setattr(rr, "_postseason_detail_gaps", lambda y, k, snos, tables: {})
+    # 每日補洞的選場來源：若被用到就會把歷史 C1 帶進來（席 1 F1 的重現條件）。
+    monkeypatch.setattr(rr, "_missing_postseason_detail_snos", lambda *a, **k: [1])
+    monkeypatch.setattr(rr, "_completed_snos", lambda *a, **k: [1, 2])
+    monkeypatch.setattr(rr, "_lagging_pitch_games", lambda *a, **k: {1})
+    monkeypatch.setattr(rr, "_postseason_detail_step",
+                        lambda *a, **k: pytest.fail("boxpa_detail 不得走每日補洞的 _postseason_detail_step"))
+    monkeypatch.setattr(pt, "scrape_game_pitches", pitches)
+    monkeypatch.setattr(pt, "is_frozen", lambda *a: False)
+
+
+def test_boxpa_detail_fetches_only_target_games_and_marks_one_block_per_game(monkeypatch, caplog):
+    """#293 審核席 1 F1＋F5：只抓傳入的目標場（歷史缺口 C1 不被帶入）；每場一個標記區塊。"""
+    calls = []
+    _stub_detail_leaves(monkeypatch, calls)
     state = {"boxpa": {"2026-C-2": {"detail_attempts": []}}}
-    pe.boxpa_detail(2026, ["2026-C-2"], state)
-    assert [(k, m["kind"], m["src"], m["game"]) for k, m in seen] == [
-        ("g", "box", "293", "2026/C/2"), ("d", "box", "293", "2026/C/2")]
+    out = pe.boxpa_detail(2026, ["2026-C-2"], state)
+    assert out["errors"] == []
+    assert [(c[0], c[3]) for c in calls] == [("gamelog", [2]), ("detail", [2]), ("pitches", None)]
+    assert calls[2][1] == [(2026, "C", 2)], "逐球只帶目標場，不帶 lagging 場"
+    assert [(c[4]["kind"], c[4]["src"], c[4]["game"]) for c in calls[:2]] == [
+        ("box", "293", "2026/C/2"), ("box", "293", "2026/C/2")], "gamelog 與 details 在同一個區塊（同一次邏輯抓取）"
+    assert calls[2][4] is None, "逐球是 stats 站，不在 www 標記區塊內"
     state["boxpa"]["2026-C-2"]["detail_attempts"] = ["x"]
-    seen.clear()
+    calls.clear()
     pe.boxpa_detail(2026, ["2026-C-2"], state)
-    assert {m["kind"] for _, m in seen} == {"retry"}, "同一場後續喚醒的再抓記 retry"
-    assert (rr.scrape_gamelogs, rr.scrape_game_details) == (patched_g, patched_d), "呼叫後原樣還原"
+    assert calls[0][4]["kind"] == "retry", "同一場後續喚醒的再抓記 retry"
     assert br._MARKER is None
-    assert orig_g is not patched_g
 
 
 def test_results_scrape_marks_each_kind_without_changing_the_call_interface(monkeypatch):
