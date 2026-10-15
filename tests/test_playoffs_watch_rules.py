@@ -268,6 +268,20 @@ def test_load_reports_rest_days():
     assert r["last_pitch_date"] == "2026-10-12" and r["full_rest_days"] == 4
 
 
+def test_rest_days_unknown_when_later_day_incomplete():
+    cov = full_cov() | {day(1): DayCoverage(day(1), False, ("box_missing",))}
+    r = load([app(None, 20, on=day(3))], cov)
+    assert r["full_rest_days"] is None and r["last_pitch_date"] is None
+    assert r["rest_unknown_reason"] == "box_missing"
+    # 不完整日期早於最後投球日 ⇒ 休息日照算
+    cov2 = full_cov() | {day(3): DayCoverage(day(3), False, ("box_missing",))}
+    r2 = load([app(None, 20, on=day(1))], cov2)
+    assert r2["full_rest_days"] == 0 and r2["last_pitch_date"] == day(1).isoformat()
+    # 窗口內沒投、但有不完整日 ⇒ 不可判定
+    r3 = load([app(None, 20, on=date(2026, 10, 1))], cov)
+    assert r3["full_rest_days"] is None
+
+
 def test_recent_appearances_order():
     a1 = app(None, 1, on=date(2026, 10, 1))
     a2 = app(None, 2, on=date(2026, 10, 5))

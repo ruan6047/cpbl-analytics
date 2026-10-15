@@ -236,6 +236,12 @@ def bullpen_load(target_date: date, appearances: Sequence[Appearance],
                    "text": [REASON_TEXT[r] for r in v["reasons"]]}
                   for v in sorted(days.values(), key=lambda v: -v["offset"]) if not v["complete"]]
     last, last_reason = last_pitch_date(apps, before=target_date)
+    # 窗口內 D 之前有不完整日期、且晚於最後已知投球日 ⇒ 該日可能有未入庫的登板，休息日不可判定。
+    gap = next((v for v in sorted(days.values(), key=lambda v: v["offset"])
+                if v["offset"] >= 1 and not v["complete"]
+                and (last is None or date.fromisoformat(v["date"]) > last)), None)
+    if gap is not None and last_reason is None:
+        last, last_reason = None, gap["reasons"][0]
     return {
         "policy_version": POLICY_VERSION,
         "target_date": target_date.isoformat(),
