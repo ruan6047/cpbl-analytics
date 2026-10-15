@@ -107,6 +107,9 @@ docker compose exec redis redis-cli DEL cpbl:live:kill
 - `START` 依官方 raw status，不看比分；兩隊 lineup 可各自 partial。A-226～228 證實
   `Pitchers[]` 僅在 START 後出現且帶 box 統計，正式 probable starter 來源在 Design Gate
   定案前一律 fail closed，不得由 `RoleType=先發` 倒推。
+  （適用範圍：本條指 **stats 單場 API 的 `Pitchers[]`／`RoleType`** 不得倒推先發；官網 www
+  getgamedatas 的官方先發欄位 `HomePitcherAcnt`／`VisitingPitcherAcnt` 是另一來源，賽前送達見 §10
+  〈先發查核時點〉，#292 S11。）
 - final 後 TrackMan 可能延遲（2026-07-26 A-224／225 完賽當下仍 0），0 筆只標 pending。
 - 觀測矩陣與 canary evidence：[`research/LIVE_GAME_BACKEND1_OBSERVATION.md`](research/LIVE_GAME_BACKEND1_OBSERVATION.md)。
 
@@ -785,3 +788,27 @@ GitHub 會自動標記。判斷是否經 PR 合併要看 `gh api repos/.../commi
 - 回復（各自可單獨執行）：排程＝`launchctl bootout gui/$(id -u)/com.cpbl.postseason-evening` 並移除 LaunchAgents 連結；
   程式＝revert 本卡 PR 或回退主站 submodule 指標；資料＝見上方備份範圍。
 - 啟用前提（P1，尚未核定）：Mac 晚間保持喚醒且登入（不改個人電源設定，只記錄）、登記表 `expected_installed` 已改 `true` 且主 checkout 在含它的 main、具體備份／排他／釋放證據；停用前先處置本機未解決的 `official_change_signals`（否則每日鏈會持續把它鏡像成公站「賽程待更新」）。
+
+### 先發查核時點（#292 S11 A1；旗標預設關，啟用另需授權）
+
+官方先發投手（www getgamedatas `HomePitcherAcnt`／`VisitingPitcherAcnt` → `games.home_starter_id`／`away_starter_id`，原始 payload 進 `game_schedule_status_revisions`）
+除每日 10:10 鏈之外，由晚間鏈在下列時點再查一次（需求方裁定 #292 6184111089；容許窗 D9、重送 D2，規劃確認 6184976448）。邏輯在 `src/cpbl/ingest/starter_checkpoints.py`，接線在 `postseason_evening.plan`。
+
+- 時點（S＝狀態檔中最近一次 stats `PreExeDate`；F＝本機觀測到該場「未完賽→完賽」轉變的時刻；**首次看到時就已完賽的場次沒有 F、不產生 F+60**，狀態檔 `finished_first_seen` 的舊字串值也不當錨點）：
+  `S-60`（最遲 S−40，失敗不重送）、`S-30`（須早於開賽，開賽整點不算；失敗於 ≥20 分後重送 1 次，同樣須早於開賽）、`F+60`（最遲 F+90，失敗於 ≥20 分後重送 1 次）。
+  launchd 每 300 秒喚醒，實際執行通常晚 0–5 分；挑戰類失敗不重送；鎖被占、冷卻、讓位 10:10 只延後不計次；超過最遲時刻記 `missed`（被挑戰停／對帳停擋下記 `blocked`），⛔ 事後補打。
+  S−60／S−30 只對未開打場次（stats 狀態 `START`／`FINISHED`／`POSTPONED`／`RESERVED` 以外）；取不到 S ⇒ `start_time_unknown`；延賽／保留 ⇒ F+60 記 `no_final`，改期後依新 S 產生新時點，舊錨點的待辦一看到新時程即結清（`rescheduled`），⛔ 再以舊時刻抓取。www `GameDateTimeS` 只並列記錄（`www_start_raw`／`start_mismatch`），以 stats 為準。
+- 抓取與送達都沿用既有路徑：plan 回 `scrape`（理由 `starter_checkpoint`；與同賽別事件合併成一次），只抓目標賽別，共用 www 冷卻帳本、挑戰停、`halted`／68 停當晚。
+  本機 E／C 指紋（`local_signature`）含兩隊先發欄位與「每場目前觀測版本」（依 `last_seen_at` 的 payload_hash 集合），修正、撤回、**改回舊值（A→B→A）**都會觸發既有 `POSTSEASON_RESULTS_ONLY` 同步；同內容重抓不觸發。
+- 旗標：`logs/postseason-starter-checkpoints.enabled`（可用 `POSTSEASON_STARTER_FLAG` 改路徑）。**存在＝開**：`touch` 開、`rm` 關，下次喚醒生效、不需重新 bootstrap；開啟前已到點的時點不補建。
+  預覽（不連網、不碰 DB、不寫狀態）：`uv run python -m cpbl.ingest.postseason_evening plan --dry [--now 2026-10-17T12:00:00]`。
+- 紀錄：狀態檔 `starter_checkpoints`（每時點 `key／point／phase／due_at／deadline_at／fired_at／attempts[]／outcome／sync_code`）、`finished_first_seen`；`last-postseason-evening.json` 的 `starter_checkpoints` 為摘要。
+  outcome ∈ `changed／unchanged／failed／missed／blocked／start_time_unknown／no_final`；`phase`：S 兩點 `pregame`、F+60 `postgame`（**開賽後觀測，⛔ 不是賽前公告**）。
+- ⚠️ 時間語意：`fired_at`、修訂列 `fetched_at`（首見）／`last_seen_at`（最後一次看到）都是**本機觀測時刻**，⛔ 不是官方公布時刻；任何層都不得產生或宣稱「公布時刻」。`last_seen_at` 只留最後一次，不能重建每次查詢歷史——查詢歷史以時點紀錄為準。
+- 同步的提交邊界（演練見 #292 E4）：四表各自一次 `--single-transaction`、逐表提交。寫入前的參數／目錄（64）、本機 freshness 基準（65）、已驗證備份失敗 ⇒ 四表都未寫；第 k 表的寫入前檢查（欄位守衛、序列名 66、payload 斷言 67、序列遙測）或交易失敗 ⇒ 前 k−1 表已提交（`games` 投影可能先於修訂證據更新；舊修訂列不刪不改，下一次成功同步收斂）；68 ⇒ 四表已寫入。
+- 正式站讀取（C-1 以 E-4 為錨點）：`GET /api/v1/games/4/report?season=2026&kind_code=E&context_only=true` 取 `journey_context.context_hash` →
+  `GET /api/v1/games/4/report?season=2026&kind_code=E&next_kind=C&next_sno=1&context_hash=<hash>`，讀 `comparison.game.{away,home}_starter`；C-2 起錨點改前一場 C、讀 `next_game.*_starter`。另 `/api/v1/games/calendar` 的 `home_starter`／`away_starter`。
+  已知限制（D7，A2 修）：A→B→A 時 report 的賽前選版仍依 `max(fetched_at)` 選到 B；日曆依 `games` 顯示 A。
+- 停止與恢復（晚間鏈被時點連坐停止時）：① 先 `rm` 旗標；② 讀 `logs/postseason-evening-YYYYMMDD.log` 與同步 log 判斷失敗類別，production 狀態未明先停、交 PM，⛔ 盲目重跑；
+  ③ 依上方〈錯誤即停〉把兩份狀態檔的 `halted` 改回 `null`；④ 若已 bootout：`launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.cpbl.postseason-evening.plist`（避開 09:30–10:30、21:00–21:15）；
+  ⑤ 確認下一次喚醒 log `plan → idle`／`scrape`、`launchctl list | grep postseason-evening` 有載入、`last-postseason-evening.json` 的 halted 為 null、schedule-watchdog 未報 FAILED；⑥ 68（停當晚）不需人工，隔日 12:00 後自動重試，不調時段補洞。各步由具名本機角色在需求方授權下執行。
