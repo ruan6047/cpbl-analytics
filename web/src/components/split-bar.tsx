@@ -39,8 +39,8 @@ export function SplitBar({ leftPct, leftColor, rightColor, left, center, right, 
 }
 
 /**
- * 隊伍比較條（共享尺度＋方向）：兩隊值同一軸域、同時呈現數值、單位、樣本與方向。
- * 缺值顯示「—」與原因，**不畫成 0 長度**（改成不畫比例條）。
+ * 隊伍比較條（共享尺度＋方向）：兩隊值同一軸域、同時呈現數值、單位、樣本數與方向箭頭。
+ * 缺值格只寫「—」、**不畫 0 長度**（改成不畫比例條）；具體原因與方向圖例在頁尾（#285 契約 r3 §2）。
  */
 export function ComparisonBar({ vm, leftColor, rightColor }: {
   vm: ComparisonBarVM; leftColor: string; rightColor: string;
@@ -60,7 +60,6 @@ export function ComparisonBar({ vm, leftColor, rightColor }: {
           <span className="text-[11px] text-muted">{vm.label}</span>
           <span className="font-semibold tabular-nums" style={{ color: rightColor }}>{vm.rightText}</span>
         </div>
-        <p className="text-[11px] text-muted">{vm.missingNote}</p>
         {sample}
       </div>
     );

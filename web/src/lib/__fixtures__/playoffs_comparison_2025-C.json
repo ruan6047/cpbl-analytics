@@ -11,6 +11,7 @@
   ]
  },
  "participants_status": "known",
+ "series_status": "decided",
  "context_version": "1ab60b1fb0ca522a1feee200d08a58eb83590741b92f1a1fd93e21af2929235e",
  "as_of": "2026-10-15T04:00:00+00:00",
  "metric_defs": [
@@ -956,5 +957,5 @@
    }
   }
  },
- "_fixture_meta": "#287 WP5：卡號隔離庫 cpbl_test_287（本機共享 cpbl 2025/2026 唯讀匯出）以 reader 實際產生；now=2026-10-15T04:00Z"
+ "_fixture_meta": "#287 WP5：卡號隔離庫 cpbl_test_287（本機共享 cpbl 2025/2026 唯讀匯出）以 reader 實際產生；now=2026-10-15T04:00Z；series_status 為 2026-10-16 審核 F1 修正後同庫 reader 重產的值（其餘欄位不變）"
 }

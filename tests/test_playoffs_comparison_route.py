@@ -17,8 +17,8 @@ client = TestClient(app)
 def test_route_returns_payload_body_without_envelope(monkeypatch):
     seen = {}
 
-    def fake(season, series, *, connect=None, now=None):
-        seen.update(season=season, series=series, connect=connect)
+    def fake(season, series, *, connect=None, now=None, live_reader=None):
+        seen.update(season=season, series=series, connect=connect, live_reader=live_reader)
         return {"contract": reader.CONTRACT, "status": "ok", "context_version": "v", "series_id": {},
                 "as_of": "t", "scopes": {}}
 
@@ -27,6 +27,8 @@ def test_route_returns_payload_body_without_envelope(monkeypatch):
     assert r.status_code == 200
     assert r.json()["contract"] == "playoffs-comparison/v1" and r.json()["status"] == "ok"
     assert seen["season"] == 2025 and seen["series"] == "C" and seen["connect"] is not None
+    from cpbl.api.live_cache import get_public_live_snapshot
+    assert seen["live_reader"] is get_public_live_snapshot  # 與 overview／watch 同一 live 來源
 
 
 def test_read_failure_is_503_not_empty_200(monkeypatch):
