@@ -14,6 +14,7 @@
 // 6. 使用者可見字串集中在 COMPARISON_COPY／T5_COPY／NOTE_COPY（掃描對象）。
 
 import { SEMANTICS_BADGE, TEAM_STYLE_COPY, outsToIp, type TeamStyleAxisKey, type TeamStyleSemantics } from "@/lib/team-style";
+import type { PlayoffsNote } from "@/lib/playoffs-notes";
 import { streakLabel, type StreakFact } from "@/lib/team-streak";
 
 // —— 契約型別 ——
@@ -257,8 +258,8 @@ export const COMPARISON_REFRESH = "every_round" as const;
 
 // —— 頁尾說明（#285 契約 r3 §2.4／§2.5：notes(data) 純函式、同步、不讀時鐘／window、不發請求）——
 
-/** 結構與 S04 `PlayoffsNote` 相同（`web/src/lib/playoffs-notes.ts` 合併後改 import 該型別）。 */
-export type ComparisonNote = { key: string; text: string; source?: { label: string; url: string } };
+/** 頁尾說明型別即 S04 的 `PlayoffsNote`（`web/src/lib/playoffs-notes.ts`）。 */
+export type ComparisonNote = PlayoffsNote;
 
 export const NOTE_COPY = {
   directionLegend: "比較條兩隊共用同一條尺度：範圍取同年例行賽六隊的最小到最大值，並擴大到涵蓋兩隊在該範圍的數值；↑ 表示數值高較好，↓ 表示數值低較好。",

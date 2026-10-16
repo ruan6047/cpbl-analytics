@@ -88,3 +88,15 @@ test("missing metric cell shows only —", () => {
   assert.match(html, /data-comparison-missing="der"/);
   assert.doesNotMatch(text(html), /樣本為 0/);
 });
+
+test("registry: #teams 一筆＝本卡端點、元件、every_round、notes（契約 r3 §4）", async () => {
+  const { PLAYOFFS_AREAS } = await import("./area-registry.ts");
+  const { COMPARISON_AREA } = await import("@/lib/playoffs-comparison-area.ts");
+  const teams = PLAYOFFS_AREAS.filter((r) => r.id === "teams");
+  assert.equal(teams.length, 1);
+  assert.equal(teams[0], COMPARISON_AREA);
+  assert.equal(COMPARISON_AREA.Section, ComparisonSection);
+  assert.equal(COMPARISON_AREA.refresh, "every_round");
+  assert.equal(COMPARISON_AREA.path(2026, "C"), "/api/v1/playoffs/comparison?season=2026&series=C");
+  assert.deepEqual(COMPARISON_AREA.notes!(null), comparisonNotes(null));
+});
