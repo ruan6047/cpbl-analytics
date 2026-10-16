@@ -79,7 +79,11 @@ export function SeriesHighlights({ year, kind, contextVersion, refreshKey }: {
       if (entries.some((e) => e.isIntersecting)) { setNear(true); io.disconnect(); }
     }, { rootMargin: `${typeof window === "undefined" ? 0 : window.innerHeight}px 0px` });
     io.observe(el);
-    return () => io.disconnect();
+    // 收合在 <details> 裡（挑戰賽）時，展開事件直接觸發，不等觀察器的下一個渲染幀。
+    const det = el.closest("details");
+    const onToggle = () => { if (det?.open) setNear(true); };
+    det?.addEventListener("toggle", onToggle);
+    return () => { io.disconnect(); det?.removeEventListener("toggle", onToggle); };
   }, [near]);
 
   useEffect(() => {
