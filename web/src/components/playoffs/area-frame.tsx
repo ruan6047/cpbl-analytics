@@ -16,7 +16,9 @@ import type { WatchState } from "@/lib/playoffs-poll";
 //   （P2 桌機實測 #teams 標題頂 1061／視窗 900）。網址錨點指向本區、且使用者自載入後還沒捲動或操作（滾輪、觸控、
 //   點擊、鍵盤）時，**本區或它前面任一區第一次取得內容**就重新對齊（#285 批次 B，需求方「錨點位移：甲」）：
 //   前面的區晚到時會把本區往下推（名單齊）或往上拉（名單缺、外框不再固定占位高度），只對齊本區自己會被推出畫面。
-//   每區只算第一次（idle → 其他狀態）；之後的輪詢更新、stale／error 轉換 ⛔ 捲動。使用者一操作就停止。
+//   「有內容」＝外框第一個子節點不是占位 `<p role="status">`（本外框與 watch-area 同一套占位標記）：
+//   `stale` 且沒有上一份仍是占位，⛔ 算第一次內容（審核 B-01：曾以「非 idle」判定，首輪錯版占位就耗掉補正）。
+//   每區只算第一次；之後的輪詢更新、stale／error 轉換 ⛔ 捲動。使用者一操作就停止。
 
 let userInteracted = false;
 function watchInteraction(): void {
@@ -36,8 +38,8 @@ export const AREA_COPY = {
 /** 外框 className（測試會檢查不含困住 fixed 的樣式）。 */
 export const AREA_FRAME_CLASS = `min-w-0 ${AREA_SCROLL_MARGIN}`;
 
-/** 外殼直接子節點中、目標（含）之前帶狀態屬性的區：[id, 狀態]（第 2／3 區 `data-area-state`、第 4 區 `data-watch-state`）。 */
-export type AnchorStates = [string, string][];
+/** 外殼直接子節點中、目標（含）之前帶狀態屬性的區：[id, 是否已有內容]（第 2／3 區 `data-area-state`、第 4 區 `data-watch-state`）。 */
+export type AnchorStates = [string, boolean][];
 
 /**
  * 錨點補正判斷（純函式）：`seen` 記已第一次取得內容的區。回傳本次是否有區**第一次**取得內容（要重新對齊），
@@ -45,8 +47,8 @@ export type AnchorStates = [string, string][];
  */
 export function takeFirstContent(states: AnchorStates, seen: Set<string>): { realign: boolean; settled: boolean } {
   let realign = false;
-  for (const [id, st] of states) {
-    if (st !== "idle" && !seen.has(id)) {
+  for (const [id, filled] of states) {
+    if (filled && !seen.has(id)) {
       seen.add(id);
       realign = true;
     }
@@ -54,11 +56,16 @@ export function takeFirstContent(states: AnchorStates, seen: Set<string>): { rea
   return { realign, settled: states.every(([id]) => seen.has(id)) };
 }
 
+/** 占位時外框只有 `<p role="status">`（idle、stale 無上一份、第 4 區無目標場）；其他第一個子節點＝區元件已掛上。 */
+export function isPlaceholder(first: { tagName: string; getAttribute(name: string): string | null } | null): boolean {
+  return first === null || (first.tagName === "P" && first.getAttribute("role") === "status");
+}
+
 function anchorStates(parent: Element, target: Element): AnchorStates {
   const out: AnchorStates = [];
   for (const c of Array.from(parent.children)) {
     const st = c.getAttribute("data-area-state") ?? c.getAttribute("data-watch-state");
-    if (st !== null && c.id) out.push([c.id, st]);
+    if (st !== null && c.id) out.push([c.id, !isPlaceholder(c.firstElementChild)]);
     if (c === target) break;
   }
   return out;
