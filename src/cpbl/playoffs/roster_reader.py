@@ -127,10 +127,16 @@ def pr_tags(adv: dict | None) -> list[dict]:
     return sorted(tags, key=lambda t: (-t["value"], order[t["key"]]))
 
 
+#: 箭頭比較的浮點容差（OPS+／ERA+ 點）。由原始計數算出的 OPS+／ERA+ 帶二進位浮點誤差（約 1e-14），
+#: 精確等於門檻的差值會算成 14.99999999999999 而誤判平穩（review-1 F1）。刻意：只吸收浮點誤差，
+#: 遠小於畫面顯示精度（0.1 點）；⛔ 拿來放寬門檻或改用顯示取整後的值比較。
+ARROW_EPS = 1e-9
+
+
 def arrow_status(v1: float, v0: float, threshold: float) -> str:
-    """W1−W0 ≥ 門檻 ⇒ up；≤ −門檻 ⇒ down；其餘 flat（未四捨五入比較）。"""
+    """W1−W0 ≥ 門檻 ⇒ up；≤ −門檻 ⇒ down；其餘 flat（未四捨五入比較，容許 :data:`ARROW_EPS` 浮點誤差）。"""
     d = v1 - v0
-    return "up" if d >= threshold else "down" if d <= -threshold else "flat"
+    return "up" if d >= threshold - ARROW_EPS else "down" if d <= -threshold + ARROW_EPS else "flat"
 
 
 def _bat_window(rows: list[dict]) -> dict:

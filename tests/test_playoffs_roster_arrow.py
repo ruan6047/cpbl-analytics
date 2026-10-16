@@ -129,3 +129,53 @@ def test_pitching_down_direction_follows_era_plus_higher_is_better():
     v1 = era_plus_raw(15 * 27 / 45, LG_ERA)
     v0 = era_plus_raw(1 * 27 / 45, LG_ERA)
     assert a["status"] == "down" and v1 < v0
+
+
+# —— review-1 F1：從原始計數到分類的恰好等值全路徑 ——————————————————————————————
+# 精確差值以有理數算得恰為門檻，浮點差值卻是 14.99999999999999／19.99999999999997；修正前判 flat。
+
+
+def _bat15(hits):
+    """15 次出賽、各 AB=2，共 AB=30；前 ``hits`` 次各 1 安（1 壘打）。"""
+    return [bat(ab=2, h=int(i < hits), tb=int(i < hits)) for i in range(15)]
+
+
+def _pit15(outs, er):
+    """15 次出賽，總出局 ``outs``、總自責 ``er``（各窗 outs≥30）。"""
+    per, extra = divmod(outs, 15)
+    return [pit(outs=per + int(i < extra), er=int(i < er)) for i in range(15)]
+
+
+def test_exact_threshold_from_raw_counts_batting_both_directions():
+    # OBP=SLG=9/30 對 8/30；lgOBP=0.4、lgSLG=0.5 ⇒ 精確 OPS+ 35 對 20，差恰為 ±15。
+    up = arrow(_bat15(9) + _bat15(8), lg_obp=0.4, lg_slg=0.5)
+    down = arrow(_bat15(8) + _bat15(9), lg_obp=0.4, lg_slg=0.5)
+    assert (up["status"], up["delta"]) == ("up", 15.0)
+    assert (down["status"], down["delta"]) == ("down", -15.0)
+
+
+def test_just_below_threshold_from_raw_counts_batting_stays_flat():
+    # 同計數、lgSLG 0.5→0.5001 ⇒ 精確差約 14.998，未達 15。
+    assert arrow(_bat15(9) + _bat15(8), lg_obp=0.4, lg_slg=0.5001)["status"] == "flat"
+    assert arrow(_bat15(8) + _bat15(9), lg_obp=0.4, lg_slg=0.5001)["status"] == "flat"
+
+
+def test_exact_threshold_from_raw_counts_pitching_both_directions():
+    # W1 30 outs／3 ER、W0 34 outs／4 ER；lgERA=3.6 ⇒ 精確 ERA+ 400/3 對 340/3，差恰為 ±20。
+    up = arrow(_pit15(30, 3) + _pit15(34, 4), "pitching", lg_era=3.6)
+    down = arrow(_pit15(34, 4) + _pit15(30, 3), "pitching", lg_era=3.6)
+    assert (up["status"], up["delta"]) == ("up", 20.0)
+    assert (down["status"], down["delta"]) == ("down", -20.0)
+    assert up["w1"]["outs"] == 30 and up["w0"]["outs"] == 34
+
+
+def test_just_below_threshold_from_raw_counts_pitching_stays_flat():
+    # 同計數、lgERA 3.6→3.599 ⇒ 精確差約 19.994，未達 20。
+    assert arrow(_pit15(30, 3) + _pit15(34, 4), "pitching", lg_era=3.599)["status"] == "flat"
+    assert arrow(_pit15(34, 4) + _pit15(30, 3), "pitching", lg_era=3.599)["status"] == "flat"
+
+
+def test_tolerance_only_absorbs_float_error():
+    assert rr.ARROW_EPS == 1e-9
+    assert arrow_status(115 - 1e-6, 100, 15) == "flat"      # 真實差 14.999999 仍未達
+    assert arrow_status(80 + 1e-6, 100, 20) == "flat"
