@@ -113,8 +113,12 @@ export function ComparisonView({ data, scope, onScope }: {
             <h3 className="text-sm font-bold text-muted">{COMPARISON_COPY.styleHeading}</h3>
             <div className="grid gap-3 sm:grid-cols-2">
               {[left, right].map((code, i) => (
-                <StyleBlock key={code ?? `none-${i}`} scope={scope} view={code ? current.teams[code] : undefined}
-                  axes={data.style_axes} />
+                <div key={code ?? `none-${i}`} className="min-w-0 space-y-1" data-style-team={code ?? ""}>
+                  <p className="text-xs font-bold" style={{ color: teamColor(code) }}>
+                    {code ? teamShortName(code) : COMPARISON_COPY.missingValue}
+                  </p>
+                  <StyleBlock scope={scope} view={code ? current.teams[code] : undefined} axes={data.style_axes} />
+                </div>
               ))}
             </div>
           </div>
@@ -164,29 +168,29 @@ function T5Table({ data, left, right }: { data: ComparisonPayload; left: string 
     <div className="space-y-1" data-t5="">
       <h3 className="text-sm font-bold text-muted">{T5_COPY.heading}</h3>
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[18rem] text-xs tabular-nums">
+        <table className="w-full min-w-[18rem] whitespace-nowrap text-xs tabular-nums">
           <thead>
             <tr className="text-muted">
               <th className="py-1 text-left font-semibold" />
-              <th className="py-1 text-right font-semibold" colSpan={2}>{name(left)}</th>
-              <th className="py-1 text-right font-semibold" colSpan={2}>{name(right)}</th>
+              <th className="py-1 pl-3 text-right font-semibold" colSpan={2}>{name(left)}</th>
+              <th className="py-1 pl-3 text-right font-semibold" colSpan={2}>{name(right)}</th>
             </tr>
             <tr className="text-faint">
               <th />
-              <th className="text-right font-normal">{T5_COPY.seasonColumn}</th>
-              <th className="text-right font-normal">{T5_COPY.seriesColumn}</th>
-              <th className="text-right font-normal">{T5_COPY.seasonColumn}</th>
-              <th className="text-right font-normal">{T5_COPY.seriesColumn}</th>
+              <th className="pl-3 text-right font-normal">{T5_COPY.seasonColumn}</th>
+              <th className="pl-3 text-right font-normal">{T5_COPY.seriesColumn}</th>
+              <th className="pl-3 text-right font-normal">{T5_COPY.seasonColumn}</th>
+              <th className="pl-3 text-right font-normal">{T5_COPY.seriesColumn}</th>
             </tr>
           </thead>
           <tbody>
             {data.metric_defs.map((def) => (
               <tr key={def.key} className="border-t border-line">
                 <th className="py-1 text-left font-semibold text-ink">{def.label}</th>
-                <td className="py-1 text-right text-muted">{pick(left, "season_a", def)}</td>
-                <td className="py-1 text-right text-ink">{pick(left, "series", def)}</td>
-                <td className="py-1 text-right text-muted">{pick(right, "season_a", def)}</td>
-                <td className="py-1 text-right text-ink">{pick(right, "series", def)}</td>
+                <td className="py-1 pl-3 text-right text-muted">{pick(left, "season_a", def)}</td>
+                <td className="py-1 pl-3 text-right text-ink">{pick(left, "series", def)}</td>
+                <td className="py-1 pl-3 text-right text-muted">{pick(right, "season_a", def)}</td>
+                <td className="py-1 pl-3 text-right text-ink">{pick(right, "series", def)}</td>
               </tr>
             ))}
           </tbody>

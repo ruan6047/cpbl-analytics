@@ -137,8 +137,9 @@ export const COMPARISON_COPY = {
 // T5：例行賽背景與本系列實際並列；⛔ 不稱預測誤差。「不是事前判斷」的說明句在頁尾（NOTE_COPY.t5）。
 export const T5_COPY = {
   heading: "例行賽背景 vs 本系列實際",
-  seasonColumn: "例行賽（全年）",
-  seriesColumn: "本系列實際",
+  /** 欄名精簡（375 寬不換行、不橫捲）；完整語意在區標題「例行賽背景 vs 本系列實際」。 */
+  seasonColumn: "例行賽",
+  seriesColumn: "本系列",
 } as const;
 
 // —— 數字格式 ——
