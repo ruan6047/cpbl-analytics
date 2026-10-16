@@ -27,9 +27,10 @@ test("E 已決＋C 未開打：大比分、精簡卡（比分＋官方 MVP）、
   // 挑戰賽一句（D3）與四場精簡卡
   assert.match(t, /季後挑戰賽中信兄弟以 3：2 晉級台灣大賽（中信兄弟含規則勝 1）/);
   for (const name of ["勝騎士", "喬登", "獅帝芬", "鄭浩均"]) assert.match(t, new RegExp(`MVP ${name}`));
-  // 預告：日期、開賽時刻＋來源、球場、主客
+  // 預告：日期、開賽時刻、球場、主客（公告來源搬到頁尾 series.schedule_source，#285 批次 C）
   assert.match(t, /下一場：台灣大賽 G1/);
-  assert.match(t, /10\/17（六） 17:05 開賽（官方 10\/5 公告）・大巨蛋/);
+  assert.match(t, /10\/17（六） 17:05 開賽・大巨蛋/);
+  assert.doesNotMatch(t, /公告/);
   assert.match(t, /中信兄弟（客） @ 味全龍（主）/);
 });
 
@@ -97,13 +98,14 @@ test("MVP 缺值：未取得與姓名缺分開，⛔ 寫未公布", () => {
   for (const c of [missing, noName]) assert.doesNotMatch(mvpText(c)!, /未公布/);
 });
 
-test("覆蓋 pending_update：顯示待更新說明；overview 缺下一場：說明本站尚未取得", () => {
+test("覆蓋 pending_update：格內只留短狀態（說明在頁尾）；overview 缺下一場：說明本站尚未取得", () => {
   const o = clone();
   o.coverage = "pending_update";
   o.series_section.next_game = null;
   o.series_section.next_game_missing_reason = "no_target";
   const t = text(html(<SeriesSection overview={o} />));
   assert.match(t, /最新完賽結果更新中/);
+  assert.doesNotMatch(t, /比分以本站已同步的為準/);
   assert.match(t, /下一場賽程本站尚未取得/);
 });
 
@@ -138,14 +140,15 @@ test("精簡卡補充行：MVP 缺值、非賽前狀態都有文字", () => {
   assert.equal(chipView({ ...g, display_status: "result_pending" }).foot, "賽果待更新");
 });
 
-test("狀態章皆有文字；開賽時刻標公告來源；資料時點轉台北時間", () => {
+test("狀態章皆有文字；開賽時刻不帶公告來源（來源在頁尾）；資料時點轉台北時間", () => {
   const g = REAL.series_section.current.games[0];
   assert.deepEqual(cardStatus(g), { text: "賽前", tone: "scheduled" });
   assert.deepEqual(cardStatus(REAL.series_section.previous!.games[0]), { text: "終場", tone: "done" });
   assert.deepEqual(cardStatus({ ...g, target_status: "live" }), { text: "進行中", tone: "live" });
   assert.deepEqual(cardStatus({ ...g, official_status: "postponed" }), { text: "延賽", tone: "warn" });
   assert.deepEqual(cardStatus({ ...g, display_status: "result_pending" }), { text: "賽果待更新", tone: "warn" });
-  assert.equal(startText({ ...g, start: null }, REAL), "開賽時間本站尚未取得");
+  assert.equal(startText({ ...g, start: null }), "開賽時間本站尚未取得");
+  assert.equal(startText(g), "17:05 開賽");
   assert.equal(asOfText(REAL), "本站資料更新於 10/15 10:11");
   assert.equal(asOfText({ as_of: { ...REAL.as_of, last_refresh_at: "2026-10-15T02:11:21+00:00" } }), "本站資料更新於 10/15 10:11");
   assert.equal(dateText(null), "日期待定");

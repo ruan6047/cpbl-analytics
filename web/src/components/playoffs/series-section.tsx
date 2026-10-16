@@ -114,7 +114,7 @@ function NextGame({ overview }: { overview: PlayoffsOverview }) {
       className="block rounded-md bg-surface-2 px-3 py-2 text-sm hover:bg-band focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent">
       <span className="font-bold text-ink">{lead}：{gameTitle(next)}</span>
       <span className="mt-0.5 block text-ink">
-        {dateText(next.game_date)} {startText(next, overview)}・{next.venue ?? "球場本站尚未取得"}
+        {dateText(next.game_date)} {startText(next)}・{next.venue ?? "球場本站尚未取得"}
       </span>
       <span className="block text-ink">
         {teamLabel(next.away_team_code)}（客）<span className="text-faint"> @ </span>{teamLabel(next.home_team_code)}（主）

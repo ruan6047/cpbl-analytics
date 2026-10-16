@@ -8,8 +8,11 @@
 // - 每張完賽卡比分＋官方 MVP＋單場連結（整張卡可點即單場連結）；未完賽卡沒有比分（S02 恆 null）。
 // - 需求方 SHA-F2 人工審核（issuecomment-6190739641）：大比分要一眼看到、卡片精簡不重複、整卡可點、
 //   第 1 區桌機與手機都在第一個畫面內看完（不橫捲）。卡片用二字隊名（UI_UX_SYSTEM §9.6 short）。
+// - 說明性注意事項收頁尾（6194706200；#285 批次 C）：覆蓋狀態的「比分以本站已同步的為準」、開賽時刻的公告來源
+//   由 `seriesNotes` 送頁尾，格內只留短狀態；缺值格的「本站尚未取得」是短狀態，留在原處。
 
 import { teamName3, teamShort } from "./teams.ts";
+import type { PlayoffsNote } from "./playoffs-notes.ts";
 import type { OverviewGameCard, OverviewSeriesBlock, PlayoffsOverview, PlayoffsSeriesCode } from "./playoffs-types.ts";
 
 export const SERIES_NAME: Record<PlayoffsSeriesCode, string> = { E: "季後挑戰賽", C: "台灣大賽" };
@@ -21,8 +24,8 @@ export const SERIES_COPY = {
   overviewFailed: "季後賽資料暫時無法讀取",
   empty: "本站尚無這一年的季後賽場次",
   noGames: "場次本站尚未取得",
-  pendingUpdate: "最新完賽結果更新中，比分以本站已同步的為準",
-  coverageUnknown: "本站資料完整度未知，比分以本站已同步的為準",
+  pendingUpdate: "最新完賽結果更新中",
+  coverageUnknown: "本站資料完整度未知",
   pollFailed: "最新資料暫時無法取得，畫面維持上一次取得的內容",
   conditional: "如有必要",
   unknownTeam: "待定",
@@ -159,11 +162,9 @@ export function chipView(card: OverviewGameCard): ChipView {
   return { title: `G${card.series_game_no}`, date: md(card.game_date), rows, foot, label };
 }
 
-/** 開賽時刻＋來源（公告常數）。 */
-export function startText(card: OverviewGameCard, overview: Pick<PlayoffsOverview, "schedule_source">): string {
-  if (!card.start) return "開賽時間本站尚未取得";
-  const src = overview.schedule_source;
-  return src ? `${card.start} 開賽（官方 ${md(src.published_on)} 公告）` : `${card.start} 開賽`;
+/** 開賽時刻（公告來源在頁尾 `series.schedule_source`）。 */
+export function startText(card: OverviewGameCard): string {
+  return card.start ? `${card.start} 開賽` : "開賽時間本站尚未取得";
 }
 
 export function nextGameMissingText(o: PlayoffsOverview): string | null {
@@ -185,10 +186,30 @@ function taipeiIso(iso: string): string {
   return new Date(ms + 8 * 3_600_000).toISOString();
 }
 
-/** 第 1 區的區塊缺值說明（逐區缺資料原因）。 */
+/** 第 1 區的區塊缺值短狀態（具體說明見 `seriesNotes` 的頁尾條目）。 */
 export function seriesNotices(o: PlayoffsOverview): string[] {
   const out: string[] = [];
   if (o.coverage === "pending_update") out.push(SERIES_COPY.pendingUpdate);
   else if (o.coverage === "unknown") out.push(SERIES_COPY.coverageUnknown);
+  return out;
+}
+
+/**
+ * 第 1 區依資料出現的頁尾說明（契約 §2.5：以畫面上那份 overview 呼叫；null ⇒ 無）。key 前綴 `series.`，⛔ `common.*`。
+ * 與 #288 `seriesSummaryNotes` 同屬 series 群組、排在它之前。
+ */
+export function seriesNotes(o: PlayoffsOverview | null): PlayoffsNote[] {
+  if (!o) return [];
+  const out: PlayoffsNote[] = [];
+  if (o.coverage === "pending_update") {
+    out.push({ key: "series.coverage_pending_update", text: "最新完賽結果更新中，比分以本站已同步的為準。" });
+  } else if (o.coverage === "unknown") {
+    out.push({ key: "series.coverage_unknown", text: "本站資料完整度未知，比分以本站已同步的為準。" });
+  }
+  const src = o.schedule_source;
+  if (src && o.series_section.next_game?.start) {
+    out.push({ key: "series.schedule_source", text: `開賽時間依官方 ${md(src.published_on)} 公告。`,
+      source: { label: "官方公告", url: src.url } });
+  }
   return out;
 }
