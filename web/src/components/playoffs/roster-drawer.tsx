@@ -9,9 +9,8 @@ import { SeasonTrendCard } from "@/app/players/[id]/trend";
 import { CLIENT_API } from "@/lib/client";
 import {
   DRAWER_COPY,
-  ROSTER_COPY,
   drawerState,
-  gText,
+  drawerSubtitle,
   pickAbility,
   playerHref,
   rosterPlayerPath,
@@ -102,8 +101,7 @@ export function RosterDrawer({ member, year, series, sectionVersion, onClose }: 
           <div className="min-w-0 flex-1">
             <h2 id={headingId} className="truncate text-lg font-bold text-ink">{member.name}</h2>
             <p className="text-xs text-muted">
-              {member.official_position} · {ROSTER_COPY.roleSource}：{member.tactical_role ?? ROSTER_COPY.missing}
-              {" · "}{gText(member.background)}{member.background.level === "D" ? ` · ${ROSTER_COPY.farm}` : ""}
+              {drawerSubtitle(member)}
             </p>
           </div>
           <button ref={closeRef} type="button" onClick={onClose} aria-label={DRAWER_COPY.close}

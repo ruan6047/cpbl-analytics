@@ -1,4 +1,4 @@
-"""第 4 區 watch 讀取面（#289 S08 WP2）：4A 近期使用負荷＋官方先發投手狀態＋4B 未發布占位。
+"""第 4 區 watch 讀取面（#289 S08 WP2）：4A 近期使用負荷＋官方先發投手狀態。
 
 分兩層（沿 :mod:`cpbl.postseason_contract` 慣例）：
 
@@ -11,11 +11,16 @@
 1. GET ⛔ 寫入、⛔ 觸發爬取；⛔ 讀 ``reports/background``／``reports/assembler``（#272 共享區）。
 2. 名單未提交 ⇒ 不列投手，⛔ 以出賽紀錄反推名單（S03 三表是唯一來源）。
 3. 覆蓋先判：該隊 D−3～D 每天的正式場都已完賽且有該隊投手 box，才算有證據；否則灰＋理由。
-4. 4B：S09 未啟用 ⇒ A、B 兩格 ``not_published``「賽前快照尚未發布」，⛔ 包裝成已鎖定 B。
-   指定已完賽場 ⇒ 歷史版本由 S09 提供（尚未發布），⛔ 以現在資料重算冒充當時版本。
-6. 官方先發投手：來源歸 S11（#292），定案前恆 ``unknown``＋固定灰字（需求方裁定 E1／E2，
-   issuecomment-6184481637）。本模組 ⛔ 讀 074（只有打序、沒有先發投手）、⛔ 讀 ``games.*_starter_id``，
-   ⛔ 自建替代來源；S11 定案後只換 :func:`_starters` 的來源。
+4. 4B 賽前快照（S09）已停止（#290；#314 移除占位與 ``s09_not_enabled``），回應不再帶 ``publication``。
+   指定已完賽場或系列已結束 ⇒ 只回固定文字（``historical_not_supported``），⛔ 以現在資料重算冒充當時版本。
+6. 官方先發投手（#314）：讀 S11（#292）已送達的 ``game_schedule_status_revisions`` 目標場**現行列**
+   （選列＝``OFFICIAL_SCHEDULE_ORDER_BY``／:func:`cpbl.api.helpers.official_status` 同一份規則）。
+   現行列不是賽前（延賽／保留／終場／未知）、日期或主客隊不符、先發欄空 ⇒「待公告」；讀取失敗 ⇒
+   ``unknown``「暫時無法取得」（⛔ 冒充待公告或已公告）。只顯示最新一筆，⛔ 標更換、⛔ 呈現歷程；官方
+   沒有公告時刻欄，``fetched_at``／``last_seen_at`` 只是本站觀測時刻 ⇒ 回應 ⛔ 帶任何公告時間。
+   本模組 ⛔ 讀 074（只有打序、沒有先發投手）、⛔ 讀 ``games.*_starter_id``（原地覆寫、看不出屬哪一版官方
+   狀態）、⛔ 推測。姓名順位：官方列姓名 → ``players.name`` → ``pitching_gamelog.pitcher_name``；
+   三者皆無 ⇒「已公告（姓名待更新）」，⛔ 顯示 acnt。
    ⚠️ 間接讀取仍在：:func:`read_watch_inputs` 經 S02 ``postseason_contract.read_series_inputs`` 會讀 074，
    列入 source manifest 並計入 ``context_version``；畫面不呈現。依需求方裁定 R2 乙（issuecomment-6184818006）
    暫留，待 S11（#292）定案時處理；⛔ 在本模組攔截（會讓 context_version 與 overview 永遠不一致）。
@@ -30,7 +35,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import UTC, date, datetime, timedelta
 
-from cpbl.api.helpers import _dicts
+from cpbl.api.helpers import OFFICIAL_SCHEDULE_ORDER_BY, _dicts, official_status
 from cpbl.completion import completed_games_sql_with_evidence
 from cpbl.coverage import taipei_date
 from cpbl.playoffs import watch_rules as rules
@@ -47,9 +52,11 @@ LOAD_KINDS = ("A", "E", "C", "D")
 SCOPE_NOTE = ("近三日含一軍例行賽 A、季後 E／C 與二軍 D 已完賽正式場的投手逐場球數；"
               "未觀測熱身球與牛棚練投，不納入")
 
-NOT_PUBLISHED_TEXT = "賽前快照尚未發布"
 REGISTRATION_TEXT = "未知（當場登錄來源尚未接入）"
-STARTER_UNKNOWN_TEXT = "官方先發投手：未知（來源尚未接入，S11）"
+STARTER_PENDING_TEXT = "待公告"
+STARTER_NAME_MISSING_TEXT = "已公告（姓名待更新）"
+STARTER_UNAVAILABLE_TEXT = "暫時無法取得"
+HISTORICAL_TEXT = "本場已完賽，觀戰重點只提供系列下一場"
 
 
 def farm_code(team_code: str) -> str | None:
@@ -69,6 +76,10 @@ class WatchInputs:
     window_games: list[dict] | None = None                 # 兩隊（含二軍）窗口內場次；None ⇒ 不可用
     appearances: dict[str, list[Appearance]] = field(default_factory=dict)
     appearances_ok: bool = True
+    #: 目標場官方賽程修訂列（全部版本，選列交 :func:`official_starters`）；None ⇒ 來源不可用或未讀。
+    official_schedule: list[dict] | None = None
+    #: acnt → {"player_name", "gamelog_name"}（姓名第二、三順位）。
+    starter_names: dict[str, dict] = field(default_factory=dict)
     manifest: list[dict] = field(default_factory=list)
 
 
@@ -215,18 +226,49 @@ def _pitcher(member: dict, apps: list[Appearance], cov: dict, target_date: date)
     return out
 
 
-def _starters(teams: list[str]) -> list[dict]:
-    """官方先發投手：S11 來源定案前，每隊固定 unknown（⛔ 推測、⛔ 讀 074 打序或 games.*_starter_id）。"""
-    return [{"team_code": t, "status": "unknown", "reason": "starter_source_not_delivered",
-             "text": STARTER_UNKNOWN_TEXT} for t in teams]
+def _clean(v) -> str | None:
+    v = str(v).strip() if v is not None else ""
+    return v or None
 
 
-def _publication() -> dict:
-    return {
-        "status": "not_published",
-        "reason": "s09_not_enabled",
-        "slots": [{"slot": s, "status": "not_published", "text": NOT_PUBLISHED_TEXT} for s in ("A", "B")],
-    }
+def official_starters(rows: list[dict] | None, *, target_date: date | None, teams: list[str],
+                      names: dict[str, dict]) -> tuple[list[dict], list[str]]:
+    """官方賽程現行列 → 兩隊（客、主）先發投手狀態＋missing_reason（純，紅線 6）。
+
+    - ``rows`` 為 None（讀取失敗）⇒ 兩隊 ``unknown``「暫時無法取得」。
+    - 現行列（:func:`official_status` 選列）不是 ``scheduled``、日期≠目標日、主客隊碼≠目標場 ⇒ 兩隊「待公告」。
+    - 否則逐隊：先發欄空 ⇒「待公告」；有 acnt ⇒ ``announced``，姓名依三順位，皆無 ⇒「已公告（姓名待更新）」。
+    """
+    if rows is None:
+        return ([{"team_code": t, "status": "unknown", "reason": "starter_source_unavailable", "player_id": None,
+                  "name": None, "text": STARTER_UNAVAILABLE_TEXT} for t in teams], ["starter_source_unavailable"])
+    status, row = official_status(rows)
+    gate = None
+    if row is None:
+        gate = "official_schedule_missing"
+    elif status != "scheduled":
+        gate = f"official_schedule_{status}"
+    elif target_date is None or _as_date(row.get("raw_game_date")) != target_date:
+        gate = "official_schedule_date_mismatch"
+    elif [row.get("visiting_team_code"), row.get("home_team_code")] != list(teams):
+        gate = "official_schedule_team_mismatch"
+    out: list[dict] = []
+    missing: list[str] = []
+    for side, code in zip(("visiting", "home"), teams, strict=True):
+        acnt = None if gate else _clean(row.get(f"{side}_pitcher_acnt"))
+        if acnt is None:
+            out.append({"team_code": code, "status": "pending", "reason": gate or "starter_not_announced",
+                        "player_id": None, "name": None, "text": STARTER_PENDING_TEXT})
+            missing.append(f"starter_not_announced:{code}")
+            continue
+        n = names.get(acnt) or {}
+        name = (_clean(row.get(f"{side}_pitcher_name")) or _clean(n.get("player_name"))
+                or _clean(n.get("gamelog_name")))
+        out.append({"team_code": code, "status": "announced", "reason": None if name else "starter_name_missing",
+                    "player_id": acnt, "name": name, "text": name or STARTER_NAME_MISSING_TEXT})
+        if name is None:
+            missing.append(f"starter_name_missing:{code}")
+    return out, missing
 
 
 def compute_watch(inputs: WatchInputs, *, now: datetime) -> dict:
@@ -253,7 +295,6 @@ def compute_watch(inputs: WatchInputs, *, now: datetime) -> dict:
             "last_completed_game_date": (ctx.get("as_of") or {}).get("last_completed_game_date"),
         },
         "scope": {"kinds": list(LOAD_KINDS), "note": SCOPE_NOTE},
-        "publication": _publication(),
         "registration": {"status": "unknown", "reason": "registration_source_not_delivered",
                          "text": REGISTRATION_TEXT},
     }
@@ -278,8 +319,8 @@ def compute_watch(inputs: WatchInputs, *, now: datetime) -> dict:
             return finish("game_unknown", ["game_not_in_series"], coverage="unknown", teams=[])
         if req != target_key:
             if g.get("completed"):
-                return finish("historical_not_published", ["s09_not_enabled"], coverage="unknown", teams=[],
-                              text="歷史賽前版本由 S09 提供，尚未發布")
+                return finish("historical_not_published", ["historical_not_supported"], coverage="unknown",
+                              teams=[], text=HISTORICAL_TEXT)
             return finish("not_target", ["only_current_target_supported"], coverage="unknown", teams=[],
                           text="只提供系列目前目標場")
 
@@ -289,12 +330,14 @@ def compute_watch(inputs: WatchInputs, *, now: datetime) -> dict:
     tg = games_by_key[target_key]
     if tg.get("completed"):
         # 系列已決定時 S02 目標停在最後一場已完賽場：同樣不以現在資料重算冒充當時賽前版本。
-        return finish("historical_not_published", ["s09_not_enabled"], coverage="unknown", teams=[],
-                      text="歷史賽前版本由 S09 提供，尚未發布")
+        return finish("historical_not_published", ["historical_not_supported"], coverage="unknown", teams=[],
+                      text=HISTORICAL_TEXT)
     target_date = _as_date(tg.get("game_date"))
     target_status = tg.get("target_status")
     teams = [tg["away_team_code"], tg["home_team_code"]]
-    missing: list[str] = ["s09_not_enabled", "registration_source_not_delivered", "starter_source_not_delivered"]
+    starters, starter_missing = official_starters(inputs.official_schedule, target_date=target_date, teams=teams,
+                                                  names=inputs.starter_names)
+    missing: list[str] = ["registration_source_not_delivered", *starter_missing]
     if target_date is None:
         missing.append("target_date_unknown")
 
@@ -358,7 +401,7 @@ def compute_watch(inputs: WatchInputs, *, now: datetime) -> dict:
         coverage=coverage,
         target={"game_key": st.get("target_game_key"), "game_date": target_date.isoformat() if target_date else None,
                 "target_status": target_status, "away_team_code": teams[0], "home_team_code": teams[1]},
-        starters=_starters(teams),
+        starters=starters,
         teams=team_out,
     )
 
@@ -410,6 +453,33 @@ APPEARANCES_SQL = """
      ORDER BY p.pitcher_acnt, g.game_date NULLS FIRST, p.kind_code, p.game_sno
 """
 
+# 官方先發（紅線 6）：目標場全部修訂列（單場通常 1–3 列，走 idx_game_schedule_status_revisions_latest），
+# 以同一份選列規則排序；選列在 :func:`official_starters` 經 :func:`official_status` 再做一次（防呆，同構全序）。
+OFFICIAL_SCHEDULE_SQL = f"""
+    SELECT raw_present_status, raw_game_result, raw_game_date, payload_hash, fetched_at, last_seen_at,
+           raw_payload->>'VisitingTeamCode' AS visiting_team_code,
+           raw_payload->>'HomeTeamCode' AS home_team_code,
+           NULLIF(btrim(raw_payload->>'VisitingPitcherAcnt'), '') AS visiting_pitcher_acnt,
+           NULLIF(btrim(raw_payload->>'HomePitcherAcnt'), '') AS home_pitcher_acnt,
+           NULLIF(btrim(raw_payload->>'VisitingPitcherName'), '') AS visiting_pitcher_name,
+           NULLIF(btrim(raw_payload->>'HomePitcherName'), '') AS home_pitcher_name
+      FROM cpbl.game_schedule_status_revisions
+     WHERE year = %(year)s AND kind_code = %(kind)s AND game_sno = %(sno)s
+     ORDER BY {OFFICIAL_SCHEDULE_ORDER_BY}
+"""
+
+# 姓名第二、三順位（批次 ANY，次數固定）：players.name；缺者以 pitching_gamelog 最近一筆非空姓名補
+# （逐場表無日期欄，「最近」＝year、game_sno 遞減，跨賽別時只是近似；只用於補名，不影響狀態）。
+STARTER_NAMES_SQL = """
+    SELECT a.acnt, p.name AS player_name, gl.pitcher_name AS gamelog_name
+      FROM unnest(%(ids)s::text[]) AS a(acnt)
+      LEFT JOIN cpbl.players p ON p.id = a.acnt
+      LEFT JOIN LATERAL (SELECT x.pitcher_name FROM cpbl.pitching_gamelog x
+                          WHERE x.pitcher_acnt = a.acnt AND NULLIF(btrim(x.pitcher_name), '') IS NOT NULL
+                          ORDER BY x.year DESC, x.game_sno DESC LIMIT 1) gl ON TRUE
+"""
+
+
 def _optional(cur, fn):
     """非核心來源失敗只降級（回 None），以 SAVEPOINT 隔離，不讓交易進入 aborted。"""
     connection = getattr(cur, "connection", None)
@@ -456,6 +526,27 @@ def read_watch_inputs(cur, year: int, series: str, *, now: datetime, requested_g
     inputs.manifest.append({"source": "series_roster", "scope": f"{year}/{series}/{','.join(teams)}",
                             "version_or_hash": _hash(inputs.rosters), "observed_at": observed,
                             "status": "ok" if inputs.rosters is not None else "unavailable"})
+
+    def starters_read():
+        cur.execute(OFFICIAL_SCHEDULE_SQL, {"year": target[0], "kind": target[1], "sno": target[2]})
+        rows = _dicts(cur)
+        _, sel = official_status(rows)
+        ids = sorted({a for a in ((sel or {}).get("visiting_pitcher_acnt"), (sel or {}).get("home_pitcher_acnt"))
+                      if a})
+        names: dict[str, dict] = {}
+        if ids:
+            cur.execute(STARTER_NAMES_SQL, {"ids": ids})
+            names = {r["acnt"]: r for r in _dicts(cur)}
+        return rows, names
+
+    got = _optional(cur, starters_read)
+    if got is not None:
+        inputs.official_schedule, inputs.starter_names = got
+    sel = official_status(inputs.official_schedule)[1] if inputs.official_schedule else None
+    inputs.manifest.append({"source": "official_starters", "scope": f"{target[0]}/{target[1]}/{target[2]}",
+                            "version_or_hash": (sel or {}).get("payload_hash") or _hash(inputs.official_schedule),
+                            "observed_at": observed,
+                            "status": "ok" if inputs.official_schedule is not None else "unavailable"})
 
     codes = [c for t in teams for c in (t, farm_code(t)) if c]
     if target_date is not None:
