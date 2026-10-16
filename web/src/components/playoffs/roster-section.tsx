@@ -182,7 +182,8 @@ export function MemberCard({ m, scope = "background", onOpen }: {
         </span>
       </div>
       <div className="mt-1 flex flex-wrap gap-x-3 text-xs text-muted">
-        <span data-role>{ROSTER_COPY.roleSource}：<span className="text-ink">{m.tactical_role ?? ROSTER_COPY.missing}</span></span>
+        {/* 本站角色：有值才顯示、只顯示值；無值整段不顯示（需求方裁定 #286 6210276945）。其他缺值格仍「—」。 */}
+        {m.tactical_role ? <span data-role className="text-ink">{m.tactical_role}</span> : null}
         <span className="tabular-nums" data-line>{line ?? ROSTER_COPY.missing}</span>
       </div>
       {series ? null : <ArrowLine m={m} />}

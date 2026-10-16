@@ -7,6 +7,7 @@ import { MemberCard, RosterSection, RosterView } from "./roster-section.tsx";
 import {
   rosterNotes,
   rosterPath,
+  drawerSubtitle,
   initialScope,
   scopeG,
   sortMembers,
@@ -85,12 +86,12 @@ test("series_unknown ⇒ 對戰組合尚未確定", () => {
   assert.match(text(<RosterSection data={payload([], "series_unknown")} />), /對戰組合尚未確定/);
 });
 
-test("小卡：守位、本站角色、G、二軍、無紀錄「—」、PR 標籤用球員頁同一組中文標籤", () => {
+test("小卡：守位、角色（有值才顯示）、G、二軍、無紀錄「—」、PR 標籤用球員頁同一組中文標籤", () => {
   const html = renderToStaticMarkup(<RosterView data={payload([A, B], "partial")} team="all" sort="position" />);
   const t = text(<RosterView data={payload([A, B], "partial")} team="all" sort="position" />);
   assert.match(t, /球員11 外野手 120G/);
-  assert.match(t, /本站角色： 主力/);
-  assert.match(t, /本站角色： —/);
+  assert.match(t, /球員11 外野手 120G 主力 打擊率/);   // 角色有值：只顯示值
+  assert.doesNotMatch(t, /本站角色/);                   // PR3：不帶「本站角色」字樣
   assert.match(t, /二軍/);
   assert.match(t, /球員04 捕手 —/);
   assert.match(t, /wOBA PR 95/);
@@ -193,7 +194,7 @@ test("本系列：小卡顯示本系列 G 與計數，不顯示箭頭與 PR；�
   assert.match(t, /球員11 外野手 3G/);
   assert.match(t, /球員02 投手 0G/);
   assert.doesNotMatch(t, /末段 15 次|PR 9|二軍/);
-  assert.match(t, /本站角色： — —/);   // 0G 投手：計數「—」
+  assert.match(t, /球員02 投手 0G 終結 —/);   // 0G 投手：角色照顯示，計數「—」
 });
 
 test("本系列尚無完賽場：G 與計數皆「—」", () => {
@@ -238,7 +239,7 @@ test("review-3 F1：本系列來源未齊的球員顯示「待更新」（⛔ 0G
   const p = t0.members.find((m) => m.role === "pitching")!;
   const series = text(<MemberCard m={p} scope="series" />);
   assert.match(series, /球員02 投手 待更新/);
-  assert.match(series, /本站角色： 終結 待更新/);
+  assert.match(series, /球員02 投手 待更新 終結 待更新/);   // 角色有值仍顯示，計數待更新
   assert.doesNotMatch(series, /0G/);
   assert.match(text(<MemberCard m={p} scope="background" />), /球員02 投手 55G/);
   assert.equal(scopeG(p, "series"), null);
@@ -246,4 +247,37 @@ test("review-3 F1：本系列來源未齊的球員顯示「待更新」（⛔ 0G
   const b: RosterMember = { ...A.members[0], series: { g: 3, pending: false,
     line: { pa: 12, ab: 10, h: 3, hr: 1, bb: 2, so: 4, avg: 0.3, obp: 0.417, slg: 0.6, ops: 1.017 } } };
   assert.equal((b.series?.line as { so?: number }).so, 4);
+});
+
+// —— PR3：角色行（需求方裁定 #286 6210276945、6210408828） ——————————————————————————
+
+test("PR3：角色無值整段不顯示（無 data-role、不多出「—」），有值只顯示值；其他缺值仍「—」", () => {
+  const none = member("0000000041", "外野手", { tactical_role: null }, { level: "none", g: null, line: null,
+    arrow: arrowOf("insufficient", "batting") });
+  const html = renderToStaticMarkup(<MemberCard m={none} />);
+  const t = text(<MemberCard m={none} />);
+  assert.doesNotMatch(html, /data-role/);
+  assert.doesNotMatch(t, /本站角色/);
+  assert.equal(t, "球員41 外野手 — — 末段 15 次 OPS+ — — 能力與走勢");   // G「—」、計數「—」、箭頭「—」照舊
+  const withRole = member("0000000042", "投手", { tactical_role: "勝利組" });
+  const html2 = renderToStaticMarkup(<MemberCard m={withRole} />);
+  assert.match(html2, /<span data-role="true" class="text-ink">勝利組<\/span>/);
+  assert.doesNotMatch(text(<MemberCard m={withRole} />), /本站角色/);
+});
+
+test("PR3：抽屜標頭副標——角色有值只放值、無值整段省略，不帶「本站角色」", () => {
+  assert.equal(drawerSubtitle(member("0000000043", "投手", { tactical_role: "終結" }, { g: 55 })), "投手 · 終結 · 55G");
+  assert.equal(drawerSubtitle(member("0000000044", "捕手", { tactical_role: null }, { g: 12 })), "捕手 · 12G");
+  assert.equal(drawerSubtitle(member("0000000045", "內野手", {}, { level: "D", g: 40 })), "內野手 · 40G · 二軍");
+  assert.equal(drawerSubtitle(member("0000000046", "外野手", {}, { level: "none", g: null })), "外野手 · —");
+});
+
+test("PR3：頁尾說明不受角色行改動影響（固定 key 與依資料 key 同改動前）", () => {
+  assert.deepEqual(rosterNotes(null).map((n) => n.key), ["roster.registration_unknown",
+    "roster.eligibility_not_availability", "roster.appearance_g", "roster.official_pr_only", "roster.arrow_proposed",
+    "roster.series_only"]);
+  assert.deepEqual(rosterNotes(payload([A, B], "partial")).map((n) => n.key), ["roster.registration_unknown",
+    "roster.eligibility_not_availability", "roster.appearance_g", "roster.official_pr_only", "roster.arrow_proposed",
+    "roster.series_only", "roster.roster_missing.ACN011", "roster.arrow_unavailable", "roster.farm_background"]);
+  assert.ok(rosterNotes(payload([A, B], "partial")).every((n) => !n.text.includes("本站角色")));
 });
