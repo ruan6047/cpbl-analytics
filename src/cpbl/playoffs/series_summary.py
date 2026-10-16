@@ -21,12 +21,20 @@
 4. 排序用未四捨五入值（6 位）降冪、同值 ``player_id`` 升冪；候選不足就少列（G14）。⛔ 輸出任何
    「MVP」「領先」字樣給 RE24 排名；MVP 次數只計 S02 的官方 ``official_mvp_id``（A05、G07）。
 5. 獎項 G2 恆 ``pending_source``；⛔ 從 MVP 次數推任何獎項。後端不產文案，句子由前端組。
+6. **三大轉折**（WP-G3）：候選＝本系列**所有已涵蓋場**的打席（⛔ 先在單場截前 N），指標＝|ΔWP|
+   （既有 :func:`pa_facts.wp_swings`，各場 final_outcome 依該場比分）。任一已涵蓋場拿不到 WP ⇒ **整組**
+   改 |ΔRE24|（不混用兩種指標）；門檻沿用 ``KEY_PLAY_MIN_WP_ABS``／``KEY_PLAY_MIN_ABS``（⛔ 改）。
+   平手依（系列場序, pa_index, pa_id）；少於 3 筆不補；取定後依時間排序。有未涵蓋場 ⇒
+   ``scope=covered_only``（只能稱「已涵蓋場次轉折」）。WP 解算器由呼叫端注入（``scorer_for``），
+   本模組 ⛔ 改模型或門檻。
 """
 
 from __future__ import annotations
 
 from collections import Counter
+from collections.abc import Callable
 from dataclasses import dataclass, field
+from typing import Any
 
 from cpbl import postseason_contract as contract
 from cpbl.api.matchup_teams import charged_walk_pitcher
@@ -37,6 +45,7 @@ ALGORITHM = f"re24-span-{pa_facts.RE_SPAN}/v1"
 SERIES_ORDER = ("E", "C")
 BATTER_LIMIT = 3
 PITCHER_LIMIT = 2
+TURNING_LIMIT = 3
 RE_CELLS = 24   # 8 壘況 × 3 出局；少於此 delta_re24 無從計算
 
 # 資料缺口：任一打席落在這裡 ⇒ 整場排除。其餘 unavailable 原因是既有核心的正常歸桶。
@@ -151,6 +160,98 @@ class SeriesAggregate:
     build_ids_hash: str | None
     livelog_names: dict[str, str] = field(default_factory=dict)   # players 缺名時的後備
     teams: dict[str, str | None] = field(default_factory=dict)    # 已涵蓋場出現過的打者／投手 → 隊（MVP 清單用）
+    turning: dict | None = None         # 三大轉折（turning_points 純函式輸出）；無已涵蓋場 ⇒ None
+
+
+# (kind_code, season) → (scorer | None, 不可用原因 | None)；由呼叫端注入，測試可替身。
+ScorerFor = Callable[[str, int], tuple[Any, str | None]]
+
+
+def scorer_for(kind_code: str, season: int) -> tuple[Any, str | None]:
+    """既有 WP 解算器（``models.winprob_scorer``）的取得與降級原因，語意同 ``pa_facts._load_wp_swings``。
+
+    ⚠️ ``get_scorer`` 首次會以 ``cpbl.db.conn()`` 讀 ``run_dist`` artifact（process 級快取）——那支查詢
+    **不在** overview 的單一交易內；artifact 是離線建置的靜態表，與單場 recap 同一取得方式。
+    """
+    from cpbl.models.winprob_scorer import DIST_SOURCE, get_scorer
+
+    if kind_code not in DIST_SOURCE:
+        return None, "wp_scope_unsupported"
+    try:
+        scorer, _model = get_scorer(kind_code, season)
+    except Exception:  # noqa: BLE001 — artifact／解算器異常一律降級，不中斷累計榜
+        return None, "winprob_model_error"
+    return (scorer, None) if scorer is not None else (None, "winprob_model_not_built")
+
+
+def _final_outcome(game: dict) -> float | None:
+    home, away = game.get("home_score"), game.get("away_score")
+    if home is None or away is None:
+        return None
+    return 1.0 if home > away else (0.0 if home < away else 0.5)
+
+
+def turning_points(covered: list[tuple[dict, list[dict]]], *, scorer: Any, scorer_reason: str | None,
+                   full_scope: bool, limit: int = TURNING_LIMIT) -> dict:
+    """全系列三大轉折（純函式）。``covered``＝[(S02 場次, 該場 delta_re24 事實流)]，只含已涵蓋場。
+
+    回傳 ``{signal, min_abs, degraded, reason, degraded_games, scope, items}``；``items`` 已依時間排序，
+    每筆是事實流打席的淺拷貝＋``series_game_no``／隊別＋``delta_wp``（降級時 None）。
+    """
+    swings: dict[int, dict[int, dict]] = {}
+    degraded_games: list[int] = []
+    reason = scorer_reason
+    for g, facts in covered:
+        if scorer is None:
+            degraded_games.append(g["series_game_no"])
+            continue
+        final = _final_outcome(g)
+        wp = pa_facts.wp_swings(facts, scorer=scorer, final_outcome=final) if final is not None else {}
+        if not wp:
+            degraded_games.append(g["series_game_no"])
+            reason = reason or ("final_unknown" if final is None else "winprob_no_scored_plays")
+            continue
+        swings[g["series_game_no"]] = wp
+    use_wp = scorer is not None and not degraded_games
+
+    candidates: list[tuple[float, dict, dict]] = []
+    for g, facts in covered:
+        wp = swings.get(g["series_game_no"], {})
+        for f in facts:
+            if f.get("delta_re24") is None:
+                continue
+            if use_wp:
+                w = wp.get(f["pa_index"])
+                if w is None or abs(w["delta"]) < pa_facts.KEY_PLAY_MIN_WP_ABS:
+                    continue
+                candidates.append((abs(w["delta"]), g, {**f, "delta_wp": w["delta"]}))
+            elif abs(f["delta_re24"]) >= pa_facts.KEY_PLAY_MIN_ABS:
+                candidates.append((abs(f["delta_re24"]), g, {**f, "delta_wp": None}))
+
+    def order(c):
+        return (c[1]["series_game_no"], c[2]["pa_index"], c[2].get("pa_id") or "")
+
+    top = sorted(candidates, key=lambda c: (-c[0], *order(c)))[:limit]
+    items = []
+    for _metric, g, f in sorted(top, key=order):
+        items.append({
+            "series_game_no": g["series_game_no"],
+            "game_key": g["game_key"],
+            "away_team_code": g["away_team_code"], "home_team_code": g["home_team_code"],
+            **{k: f.get(k) for k in ("pa_id", "pa_index", "inning", "half", "outs_before", "bases_before",
+                                     "away_score_before", "home_score_before", "away_score_after",
+                                     "home_score_after", "hitter", "pitcher", "result_action", "delta_re24",
+                                     "delta_wp")},
+        })
+    return {
+        "signal": "delta_wp" if use_wp else "delta_re24",
+        "min_abs": pa_facts.KEY_PLAY_MIN_WP_ABS if use_wp else pa_facts.KEY_PLAY_MIN_ABS,
+        "degraded": not use_wp,
+        "reason": None if use_wp else (reason or "winprob_unavailable"),
+        "degraded_games": [] if use_wp else degraded_games,
+        "scope": "full" if full_scope else "covered_only",
+        "items": items,
+    }
 
 
 def charged_pitcher(pa: dict, members: list[str], by_event: dict[str, dict]) -> str | None:
@@ -187,8 +288,11 @@ def _mvp(games: list[dict]) -> tuple[list[dict], list[int]]:
     return out, missing
 
 
-def aggregate(context: dict, kind: str, rows: SeriesRows | None) -> SeriesAggregate:
-    """單一系列累計（純函式）。``rows=None`` ⇒ 讀取失敗 ⇒ ``unavailable``（比分與 MVP 照常）。"""
+def aggregate(context: dict, kind: str, rows: SeriesRows | None, *,
+              scorer_for: ScorerFor | None = None) -> SeriesAggregate:
+    """單一系列累計（``scorer_for`` 以外為純函式）。``rows=None`` ⇒ 讀取失敗 ⇒ ``unavailable``（比分與 MVP 照常）。
+
+    ``scorer_for=None`` ⇒ 不取 WP，三大轉折直接走 |ΔRE24|（reason ``winprob_not_requested``）。"""
     games = series_games(context, kind)
     mvp_counts, mvp_missing = _mvp(games)
 
@@ -210,6 +314,7 @@ def aggregate(context: dict, kind: str, rows: SeriesRows | None) -> SeriesAggreg
     excluded: list[dict] = []
     builds: list[str] = []
     names: dict[str, str] = {}
+    covered_facts: list[tuple[dict, list[dict]]] = []
     for g in games:
         sno = int(g["game_key"]["game_sno"])
         pas = rows.pas.get((kind, sno))
@@ -224,6 +329,7 @@ def aggregate(context: dict, kind: str, rows: SeriesRows | None) -> SeriesAggreg
             excluded.append({"series_game_no": g["series_game_no"], "reason": gaps[0]})
             continue
         builds.append(rows.build_ids.get((kind, sno)) or "")
+        covered_facts.append((g, facts))
         names.update(pa_facts.player_names(events))
         by_event = {str(e["main_event_no"]): e for e in events}
         by_index = {int(p["pa_index"]): p for p in pas}
@@ -248,6 +354,12 @@ def aggregate(context: dict, kind: str, rows: SeriesRows | None) -> SeriesAggreg
     for line in (*batters.values(), *pitchers.values()):
         line.value = round(line.value, 6)
     covered = len(games) - len(missing)
+    turning = None
+    if covered_facts:
+        scorer, reason = (scorer_for(kind, int(context["year"])) if scorer_for
+                          else (None, "winprob_not_requested"))
+        turning = turning_points(covered_facts, scorer=scorer, scorer_reason=reason,
+                                 full_scope=covered == len(games))
     return result(
         "ok" if covered == len(games) else ("partial" if covered else "pending_pa"),
         games_covered=covered, missing_games=missing, excluded_games=excluded,
@@ -256,11 +368,13 @@ def aggregate(context: dict, kind: str, rows: SeriesRows | None) -> SeriesAggreg
         build_ids_hash=contract._hash(sorted(builds)) if builds else None,
         livelog_names=names,
         teams={line.player_id: line.team_code for line in (*batters.values(), *pitchers.values())},
+        turning=turning,
     )
 
 
-def aggregate_all(context: dict, rows: SeriesRows | None) -> dict[str, SeriesAggregate]:
-    return {kind: aggregate(context, kind, rows) for kind in SERIES_ORDER}
+def aggregate_all(context: dict, rows: SeriesRows | None, *,
+                  scorer_for: ScorerFor | None = None) -> dict[str, SeriesAggregate]:
+    return {kind: aggregate(context, kind, rows, scorer_for=scorer_for) for kind in SERIES_ORDER}
 
 
 def player_ids(aggs: dict[str, SeriesAggregate]) -> list[str]:
@@ -271,6 +385,10 @@ def player_ids(aggs: dict[str, SeriesAggregate]) -> list[str]:
             ids[line.player_id] = None
         for m in a.mvp_counts:
             ids[m["player_id"]] = None
+        for t in (a.turning or {}).get("items", []):
+            for who in (t.get("hitter"), t.get("pitcher")):
+                if who and who.get("player_id"):
+                    ids[who["player_id"]] = None
     return list(ids)
 
 
@@ -279,6 +397,16 @@ def _block(agg: SeriesAggregate, names: dict[str, str] | None) -> dict:
         return (names or {}).get(pid) or agg.livelog_names.get(pid)
 
     mvp = {m["player_id"]: m["count"] for m in agg.mvp_counts}
+
+    def person(who: dict | None) -> dict | None:
+        if not who or not who.get("player_id"):
+            return None
+        return {"player_id": who["player_id"], "name": (names or {}).get(who["player_id"]) or who.get("name")}
+
+    turning = None
+    if agg.turning is not None:
+        turning = {**agg.turning, "items": [{**t, "hitter": person(t["hitter"]), "pitcher": person(t["pitcher"])}
+                                             for t in agg.turning["items"]]}
     return {
         "kind_code": agg.kind_code,
         "status": agg.status,
@@ -297,6 +425,7 @@ def _block(agg: SeriesAggregate, names: dict[str, str] | None) -> dict:
                         "team_code": agg.teams.get(m["player_id"]), "count": m["count"]} for m in agg.mvp_counts],
         "mvp_missing_games": agg.mvp_missing_games,
         "awards": {"status": "pending_source"},
+        "turning_points": turning,
         "source": {"pa_build_ids_hash": agg.build_ids_hash, "re_span": pa_facts.RE_SPAN},
     }
 
