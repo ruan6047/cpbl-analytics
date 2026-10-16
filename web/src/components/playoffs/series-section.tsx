@@ -11,7 +11,6 @@ import {
   gameTitle,
   nextGameMissingText,
   seriesNotices,
-  seriesSentence,
   seriesStatusLine,
   startText,
   teamLabel,
@@ -23,7 +22,7 @@ import { SeriesSummaryBlock } from "./series-summary";
 // 輪詢只換 props，⛔ 自行捲動或移焦點。
 //
 // 需求方 SHA-F2 人工審核（issuecomment-6190739641）後的呈現：
-// - 第 1 區桌機與手機都在第一個畫面內看完：當前系列大比分 → 精簡場次卡 → 下一場預告 → 前一系列總結。
+// - 第 1 區桌機與手機都在第一個畫面內看完：當前系列大比分 → 精簡場次卡 → 下一場預告（前一系列不畫，批次 D）。
 //   大比分放最上面，一眼看到；第 4 區往下捲才看到。
 // - 場次卡改格狀（不橫捲）：手機 4 欄、桌機 7 欄；每張只放場序、日期、兩隊（分數或客主）、一行補充。
 // - 整張卡就是單場連結（D3 的「單場連結」），卡內不再另放連結文字。
@@ -91,18 +90,6 @@ function CurrentSeries({ block }: { block: OverviewSeriesBlock }) {
   );
 }
 
-/** 前一系列：一句結果（D3 系列一句）＋精簡場次卡。 */
-function PreviousSeries({ block }: { block: OverviewSeriesBlock }) {
-  return (
-    <div className="min-w-0 space-y-1.5" data-series={block.kind_code}>
-      <p className="text-sm text-ink" data-series-sentence>
-        <span className="mr-2 font-bold">{SERIES_NAME[block.kind_code]}</span>{seriesSentence(block)}
-      </p>
-      <ChipGrid block={block} />
-    </div>
-  );
-}
-
 function NextGame({ overview }: { overview: PlayoffsOverview }) {
   const next = overview.series_section.next_game;
   const missing = nextGameMissingText(overview);
@@ -130,14 +117,14 @@ export function SeriesSection({ overview }: { overview: PlayoffsOverview }) {
     <section id="series" aria-labelledby="series-heading" className="min-w-0 scroll-mt-[70px] space-y-3 md:scroll-mt-[76px]">
       <h2 id="series-heading" className="sr-only">系列賽表現</h2>
       {notices.map((n) => <Notice key={n} label="待更新">{n}</Notice>)}
-      {/* 整區空態只在整年 E／C 都沒有場次時；當前系列缺列不藏前一系列總結（審核 F1） */}
+      {/* 整區空態只在整年 E／C 都沒有場次時。前一系列（C 頁的挑戰賽）不畫：E 的資料只放 E 頁，切換列就在上方
+          （需求方 6221797588；批次 D Q1 不退回，C 未開打或缺場次列時也不畫）。overview 仍帶 `previous`，前端不用。 */}
       {ss.status === "empty" ? (
         <p className="text-sm text-muted">{SERIES_COPY.empty}</p>
       ) : (
         <>
           <CurrentSeries block={ss.current} />
           <NextGame overview={overview} />
-          {ss.previous && <PreviousSeries block={ss.previous} />}
           <SeriesSummaryBlock summary={overview.series_summary} />
         </>
       )}
