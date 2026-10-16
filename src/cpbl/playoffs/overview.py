@@ -114,11 +114,16 @@ def _series_block(kind: str, context: dict, names: dict[str, str] | None) -> dic
     }
 
 
-def compute_overview(inputs: OverviewInputs) -> dict:
-    """``playoffs-overview/v1``：同輸入必得同輸出（JSON-able）。"""
+def compute_overview(inputs: OverviewInputs, series: str | None = None) -> dict:
+    """``playoffs-overview/v1``：同輸入必得同輸出（JSON-able）。
+
+    ``series``（E｜C，選填）＝使用者在 ``/playoffs?series=`` 選的系列；未給時用 S02 ``default_series``。
+    所選系列只換組裝的軸（區塊、前一系列、目標場、第 4 區參數、累計榜），``default_series`` 與
+    ``context_version`` 照舊轉出 S02 原值（#285 批次 B）。
+    """
     ctx = inputs.context
     names = inputs.names
-    current = ctx["state"]["default_series"]
+    current = series or ctx["state"]["default_series"]
     target = ctx["state"]["by_series"][current]["target_game_key"]
     has_games = {k: any(g["game_key"]["kind_code"] == k for g in ctx["games"]) for k in SERIES_ORDER}
     # 區塊空態＝整年 E／C 都沒有場次列；只有當前系列缺列時前一系列總結照常給，缺列記在 missing_reason
@@ -163,7 +168,8 @@ def compute_overview(inputs: OverviewInputs) -> dict:
         "context_contract": ctx["contract"],
         "year": ctx["year"],
         "context_version": ctx["context_version"],
-        "default_series": current,
+        "default_series": ctx["state"]["default_series"],
+        "selected_series": current,
         "series_id": ctx["series"][current]["series_id"],
         "target_game_key": target,
         "as_of": ctx["as_of"],
@@ -216,8 +222,8 @@ def read_overview_inputs(cur, year: int, *, now: datetime, live_reader=None) -> 
 READ_ONLY_TXN = contract.READ_ONLY_TXN
 
 
-def playoffs_overview(year: int, *, now: datetime | None = None, connect: Callable | None = None,
-                      live_reader=None) -> dict:
+def playoffs_overview(year: int, *, series: str | None = None, now: datetime | None = None,
+                      connect: Callable | None = None, live_reader=None) -> dict:
     """``playoffs-overview/v1``：單一 REPEATABLE READ READ ONLY 交易讀完全部來源。"""
     if connect is None:
         from cpbl.db import conn as connect
@@ -227,4 +233,4 @@ def playoffs_overview(year: int, *, now: datetime | None = None, connect: Callab
             cur = c.cursor()
             cur.execute(READ_ONLY_TXN)
             inputs = read_overview_inputs(cur, year, now=now, live_reader=live_reader)
-    return compute_overview(inputs)
+    return compute_overview(inputs, series)
