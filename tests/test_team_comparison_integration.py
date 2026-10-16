@@ -300,8 +300,12 @@ def test_e7_killed_build_leaves_pointer_untouched(dsn):
             if proc.poll() is None:
                 proc.kill()
         time.sleep(0.5)
-        assert _pointer(dsn, 2025)[0] == old_id
+        ptr = _pointer(dsn, 2025)
+        assert ptr[0] == old_id
         assert _builds(dsn, 2025) == {old_id}
+        # 審核 F2：強制中止後待更新標記已持久、GET 立即 stale（完整演練見 test_team_comparison_review1 E18）
+        assert ptr[1] is not None and ptr[2] is not None
+        assert _payload(dsn, 2025, "C")["scopes"]["season_a"]["status"] == "stale"
 
 
 def test_e7_concurrent_builders_switch_at_most_once(dsn, monkeypatch):

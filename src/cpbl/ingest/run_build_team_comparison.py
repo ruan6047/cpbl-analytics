@@ -9,6 +9,9 @@
   cpbl-build-team-comparison --year 2026 --promote-existing <build_id>   # 回指既有 build（回復用）
   cpbl-build-team-comparison --year 2026 --record-failure    # 每日鏈用：失敗時在本機 refresh_log 記一列
 
+--dry-run 對**每個分支**都成立（審核 F3）：建置／no-op／覆蓋不全只讀不標記；--promote-existing 只讀
+檢查要回指的 build 與目前 current；--record-failure 在 --dry-run 下不寫 refresh_log（只印出會記什麼）。
+
 DB：寫入 DATABASE_URL 指向的庫（預設本機共享 cpbl；寫共享庫前須取得資源租用）。只寫
     ``team_comparison_*`` 三表（與 --record-failure 的本機 refresh_log 一列）；⛔ 不 migrate；
     ⛔ 生產只經 ``refresh-cpbl-prod.sh`` 的 TEAM_COMPARISON_ONLY／完整鏈 insert-only 同步。
@@ -52,7 +55,7 @@ def main(argv: list[str] | None = None) -> int:
     from cpbl.db import conn
 
     if args.promote_existing:
-        out = run_promote_existing(conn, args.year, args.promote_existing)
+        out = run_promote_existing(conn, args.year, args.promote_existing, dry_run=args.dry_run)
     else:
         out = run_build(conn, args.year, dry_run=args.dry_run)
     stream = sys.stdout if out.code == EXIT_OK else sys.stderr
@@ -62,6 +65,10 @@ def main(argv: list[str] | None = None) -> int:
               f"build_id={out.plan.build_id} rows_digest={out.plan.rows_digest} "
               f"games={out.plan.coverage['expected_games']}", file=stream)
     if out.code != EXIT_OK and args.record_failure and out.code != EXIT_NO_TABLES:
+        if args.dry_run:
+            print(f"  dry-run：不寫 refresh_log（實跑會記 exit_code={out.code} status={out.status}）",
+                  file=sys.stderr)
+            return out.code
         try:
             record_failure(conn, args.year, out)
         except Exception as exc:  # noqa: BLE001 — 記錄失敗不改變原退出碼
