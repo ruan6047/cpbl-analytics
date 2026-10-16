@@ -494,3 +494,22 @@ def test_style_self_check_equals_team_style_payload(dsn, monkeypatch):
                     assert round(entry["z"], 4) == season["axes"][axis]["z"], (year, team, axis)
                     assert entry["rank"] == season["axes"][axis]["rank"], (year, team, axis)
     assert reader.AXIS_SEMANTICS == api_ts.AXIS_SEMANTICS
+
+
+def test_context_version_matches_overview_and_watch_for_same_live_reader(dsn):
+    """S04 版本處置：第 2 區 context_version 必須等於同輪 overview 的（同一 live_reader）。"""
+    assert _build(dsn, 2025).code == 0
+    from cpbl.playoffs.overview import playoffs_overview
+    from cpbl.playoffs.watch_reader import playoffs_watch
+
+    def live(*a, **k):
+        return None
+
+    conn_ = connector(dsn)
+    for year in (2025, 2026):
+        ov = playoffs_overview(year, now=NOW, connect=conn_, live_reader=live)
+        cmp_ = reader.comparison_payload(year, "C", now=NOW, connect=conn_, live_reader=live)
+        wt = playoffs_watch(year, "C", now=NOW, connect=conn_, live_reader=live)
+        assert cmp_["context_version"] == ov["context_version"] == wt["context_version"], year
+        # 負控：不傳 live_reader 的版本不同（第 1 次合併的缺陷形狀）
+        assert reader.comparison_payload(year, "C", now=NOW, connect=conn_)["context_version"] != ov["context_version"]

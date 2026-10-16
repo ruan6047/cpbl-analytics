@@ -122,11 +122,16 @@ def _finish(views: dict[str, dict]) -> dict[str, dict]:
     return views
 
 
-def build_payload(cur, year: int, kind: str, *, now: datetime) -> dict:
-    """在呼叫端已開好的 REPEATABLE READ READ ONLY 交易內組裝（測試可傳記錄查詢的 cursor）。"""
+def build_payload(cur, year: int, kind: str, *, now: datetime, live_reader=None) -> dict:
+    """在呼叫端已開好的 REPEATABLE READ READ ONLY 交易內組裝（測試可傳記錄查詢的 cursor）。
+
+    ``live_reader`` 必須與 overview／watch 路由同一個（``get_public_live_snapshot``）：S02 的
+    ``context_version`` 雜湊含 ``live_snapshot`` 來源的狀態，傳與不傳會得到不同版本，S04 的版本處置
+    （區 ``context_version`` ≠ overview ⇒ 保留上一份／「資料更新中」）就永遠不會接受本區資料。
+    """
     if kind not in pc.POSTSEASON_KINDS:
         raise ValueError(f"kind 必須是 {pc.POSTSEASON_KINDS}")
-    ctx = pc.compute_series_context(pc.read_series_inputs(cur, year, now=now), now=now)
+    ctx = pc.compute_series_context(pc.read_series_inputs(cur, year, now=now, live_reader=live_reader), now=now)
     series = ctx["series"][kind]
     teams = [t for t in series["series_id"]["teams"] if t]
     both_known = series["participants_status"] == "known" and len(teams) == 2
@@ -291,7 +296,7 @@ def _series_scope(cur, year: int, kind: str, ctx: dict, teams: list[str], both_k
 
 
 def comparison_payload(year: int, kind: str, *, now: datetime | None = None,
-                       connect: Callable | None = None) -> dict:
+                       connect: Callable | None = None, live_reader=None) -> dict:
     """IO 入口：單一 REPEATABLE READ READ ONLY 交易讀完全部來源。"""
     if connect is None:
         from cpbl.db import conn as connect
@@ -300,4 +305,4 @@ def comparison_payload(year: int, kind: str, *, now: datetime | None = None,
         with c.transaction():
             cur = c.cursor()
             cur.execute(pc.READ_ONLY_TXN)
-            return build_payload(cur, year, kind, now=now)
+            return build_payload(cur, year, kind, now=now, live_reader=live_reader)
