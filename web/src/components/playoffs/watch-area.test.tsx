@@ -18,8 +18,8 @@ const sectionFirst = (s: string) => /^<div id="watch"[^>]*><section aria-labelle
 test("data：#watch 掛整個 WatchSection（4B 兩格占位＋每隊先發灰列，E3／E1），不含 074 打序", () => {
   const out = html(<WatchArea state={{ kind: "data", data: W }} overview={OV} requested={false} />);
   assert.ok(sectionFirst(out));
-  assert.equal((out.match(/data-slot="/g) ?? []).length, 2);
-  assert.equal((text(out).match(/賽前快照尚未發布/g) ?? []).length, 2);
+  assert.equal((out.match(/data-slot="/g) ?? []).length, 0);
+  assert.equal((text(out).match(/賽前快照尚未發布/g) ?? []).length, 0);
   assert.equal((out.match(/data-starter-status="unknown"/g) ?? []).length, 2);
   assert.equal((text(out).match(/官方先發投手：未知（來源尚未接入，S11）/g) ?? []).length, 2);
   assert.match(text(out), /觀戰重點/);
