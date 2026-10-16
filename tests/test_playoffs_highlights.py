@@ -116,3 +116,14 @@ def test_sql_is_parameterized_and_read_only():
     for sql in sh.TABLE_SQL.values():
         assert "%(year)s" in sql and "%(kind)s" in sql and "%(snos)s" in sql
         assert not re.search(r"\b(INSERT|UPDATE|DELETE|TRUNCATE)\b", sql, re.I)
+
+
+def test_series_summary_carries_year_and_context_version_for_the_client(ctx):
+    """WP-K3：前端逐場焦點元件靠 series_summary 的 year／context_version 組 URL 與比對版本（＝overview 值）。"""
+    from cpbl.playoffs import overview as ov
+    from cpbl.playoffs import series_summary as ss
+
+    aggs = ss.aggregate_all(ctx, ss.SeriesRows())
+    out = ov.compute_overview(ov.OverviewInputs(context=ctx, names={}, series_summary=aggs, summary_names={}))
+    assert out["series_summary"]["year"] == 2026 == out["year"]
+    assert out["series_summary"]["context_version"] == out["context_version"] == ctx["context_version"]

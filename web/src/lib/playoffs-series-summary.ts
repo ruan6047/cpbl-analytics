@@ -11,6 +11,7 @@
 
 import { marginText, situationText } from "./game-facts.ts";
 import type { PlayoffsNote } from "./playoffs-notes.ts";
+import { HIGHLIGHTS_NOTE } from "./playoffs-series-highlights.ts";
 import { SERIES_NAME } from "./playoffs-series-view.ts";
 import type { PlayoffsOverview, PlayoffsSeriesCode } from "./playoffs-types.ts";
 
@@ -89,6 +90,9 @@ export type SeriesTurning = {
 export type SeriesSummary = {
   contract: "playoffs-series-summary/v1";
   algorithm: string;
+  /** WP-K3：逐場焦點元件組端點 URL 與比對版本用（＝overview 的 year／context_version）。舊版 API 沒有。 */
+  year?: number;
+  context_version?: string | null;
   current: SeriesSummaryBlock | null;
   previous: SeriesSummaryBlock | null;
 };
@@ -217,6 +221,11 @@ function blockNotes(b: SeriesSummaryBlock): PlayoffsNote[] {
   return out;
 }
 
+/** WP-K3：逐場焦點是否顯示（新版 API 才帶 year／context_version；舊版不顯示、也不出頁尾）。 */
+export function highlightsEnabled(s: Pick<SeriesSummary, "year" | "context_version">): boolean {
+  return typeof s.year === "number" && !!s.context_version;
+}
+
 /** 第 1 區累計榜的頁尾說明（契約 §2.5：以畫面上那份 overview 呼叫；null ⇒ 無）。 */
 export function seriesSummaryNotes(o: Pick<PlayoffsOverview, "series_summary"> | null): PlayoffsNote[] {
   const s = o?.series_summary;
@@ -232,6 +241,7 @@ export function seriesSummaryNotes(o: Pick<PlayoffsOverview, "series_summary"> |
     ...(blocks.some((b) => b.turning_points && boardReady(b))
       ? [{ key: "series.turning_method", text: "三大轉折取本系列勝率變化絕對值最大的 3 個打席，依時間排列；勝率為參考資訊，不是預測準確率。" }]
       : []),
+    ...(highlightsEnabled(s) ? [{ ...HIGHLIGHTS_NOTE }] : []),
     ...blocks.flatMap(blockNotes),
   ];
 }

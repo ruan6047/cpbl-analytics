@@ -161,6 +161,8 @@ class SeriesAggregate:
     livelog_names: dict[str, str] = field(default_factory=dict)   # players 缺名時的後備
     teams: dict[str, str | None] = field(default_factory=dict)    # 已涵蓋場出現過的打者／投手 → 隊（MVP 清單用）
     turning: dict | None = None         # 三大轉折（turning_points 純函式輸出）；無已涵蓋場 ⇒ None
+    year: int | None = None             # WP-K3：逐場焦點元件呼叫 /api/v1/playoffs/highlights 用
+    context_version: str | None = None  # WP-K3：S02 原值（＝overview 的 context_version），比對端點回應版本
 
 
 # (kind_code, season) → (scorer | None, 不可用原因 | None)；由呼叫端注入，測試可替身。
@@ -300,7 +302,8 @@ def aggregate(context: dict, kind: str, rows: SeriesRows | None, *,
         base = dict(games_covered=0, missing_games=[], excluded_games=[], batters=[], pitchers=[],
                     pitcher_unattributed=0, build_ids_hash=None)
         return SeriesAggregate(kind_code=kind, status=status, games_total=len(games), mvp_counts=mvp_counts,
-                               mvp_missing_games=mvp_missing, **{**base, **kw})
+                               mvp_missing_games=mvp_missing, year=int(context["year"]),
+                               context_version=context.get("context_version"), **{**base, **kw})
 
     if not games:
         return result("no_completed_games")
@@ -436,6 +439,9 @@ def summary_json(aggs: dict[str, SeriesAggregate], names: dict[str, str] | None,
     return {
         "contract": CONTRACT,
         "algorithm": ALGORITHM,
+        # WP-K3：前端逐場焦點元件（client 延遲載入）以這兩欄組端點 URL 與比對版本；#285 檔不必改。
+        "year": aggs[current].year,
+        "context_version": aggs[current].context_version,
         "current": _block(aggs[current], names),
         "previous": _block(aggs[previous], names) if previous else None,
     }

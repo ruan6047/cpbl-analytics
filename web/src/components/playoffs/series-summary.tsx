@@ -17,8 +17,11 @@ import {
   type SeriesSummary,
   type SeriesSummaryBlock,
   type TurningPoint,
+  highlightsEnabled,
 } from "@/lib/playoffs-series-summary";
+import { highlightsKey } from "@/lib/playoffs-series-highlights";
 import { teamLabel } from "@/lib/playoffs-series-view";
+import { SeriesHighlights } from "./series-highlights";
 
 // `/playoffs` 第 1 區系列累計榜（#288 S07 WP-G2）。無 hooks、純排字：SSR 首屏與 client 輪詢共用，輪詢只換 props，
 // ⛔ 自行捲動或移焦點。
@@ -93,7 +96,7 @@ function Turning({ block, ready }: { block: SeriesSummaryBlock; ready: boolean }
   );
 }
 
-function Board({ block }: { block: SeriesSummaryBlock }) {
+function Board({ block, summary }: { block: SeriesSummaryBlock; summary: SeriesSummary }) {
   const ready = boardReady(block);
   const row = "flex min-h-11 flex-wrap items-center gap-x-2 gap-y-0.5 py-1 text-sm";
   const mvpEmpty = block.mvp_missing_games.length ? SUMMARY_COPY.pending : SUMMARY_COPY.missing;
@@ -147,6 +150,10 @@ function Board({ block }: { block: SeriesSummaryBlock }) {
         <Cell text={SUMMARY_COPY.pending} />
       </div>
       <Turning block={block} ready={ready} />
+      {highlightsEnabled(summary) && (
+        <SeriesHighlights year={summary.year!} kind={block.kind_code} contextVersion={summary.context_version!}
+          refreshKey={highlightsKey(summary.context_version, block)} />
+      )}
     </div>
   );
 }
@@ -167,13 +174,13 @@ export function SeriesSummaryBlock({ summary }: { summary: SeriesSummary | null 
               <span className="group-open:hidden">展開</span><span className="hidden group-open:inline">收合</span>
             </span>
           </summary>
-          <div className="pb-3"><Board block={prev} /></div>
+          <div className="pb-3"><Board block={prev} summary={summary} /></div>
         </details>
       )}
       {cur && (
         <div className="min-w-0 rounded-md bg-surface px-3 py-2.5" data-summary={cur.kind_code}>
           <h3 className="mb-1 text-sm font-bold text-ink">{summaryTitle(cur)}</h3>
-          <Board block={cur} />
+          <Board block={cur} summary={summary} />
         </div>
       )}
     </div>
