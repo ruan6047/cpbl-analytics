@@ -89,8 +89,8 @@
 
 - `scripts/**`：**54**
 - `docs/research/**/*.py`：**22**
-- `pyproject [project.scripts]`：**49**
-- **三面總和：125**
+- `pyproject [project.scripts]`：**50**
+- **三面總和：126**
 
 檔案面分類分佈：CI 繫結守衛 10、一次性產物 42、待產品裁定 1、常設工具 23
 
@@ -101,9 +101,9 @@
 
 **不取聯集也不取交集**：聯集會把「只是 import 了一個含寫入函式的模組」誤判成寫入者；交集會漏掉「呼叫 `build_splits()` 但自己一行 SQL 都沒有」的真寫入者。不一致者逐支人工裁定，出現**未裁定的新不一致**即 CI 紅，**裁定條目過期**（兩判準已一致）也會 CI 紅——後者是刻意的，`roadmap_lines.py` 的 `GATE_OVERRIDES` 被 `#137` 判為缺陷的理由正是「沒有到期來源」。
 
-- 兩判準皆適用：**114** 支，其中不一致 **31** 支（全部已裁定）
+- 兩判準皆適用：**115** 支，其中不一致 **31** 支（全部已裁定）
 - **只有一套判準：11** 支（`.sh`／`.plist` 沒有 Python AST，W1 結構性不適用）——**這一格沒有交叉複算**，不假裝有
-- 判定為寫入型：**56** 支（`scripts/**` 10、`docs/research/` 1、CLI 45）
+- 判定為寫入型：**57** 支（`scripts/**` 10、`docs/research/` 1、CLI 46）
 
 > [!important] **W1 有一個結構性盲點，而它剛好落在最危險的那支上。**
 > `docs/research/INGEST-DEEP-TM-BACKFILL1/sync_deep_tm_prod.py` 把 `COPY` ＋ `UPDATE cpbl.pitch_tracking` 透過 `subprocess.run(['ssh', VPS, …'psql'], input=…)` 串進**生產**——
@@ -188,7 +188,7 @@
 
 判定為**高後果**的入口，argv 必須在主流程前被解析。**既有不合格者具名列入 allowlist**。
 
-高後果 **68** 支（其中非寫入型 **12** 支）。
+高後果 **69** 支（其中非寫入型 **12** 支）。
 
 ### 判準的形狀：出口目錄 ＋ 一台可達性引擎
 
@@ -210,7 +210,7 @@
 > **兩次都不是「少寫了一條正則」，是「判準的名字承諾了一致性、實作沒有給」。**所以第二次的修法不是再加一條，是把「出口是什麼」與「碰不碰得到」拆開。
 
 > [!important] **為什麼不掃 import 閉包**（W2 的射程，也是本判準改版前對 `.py` 用的射程）。
-> `httpx` 在 `cpbl.*` 相依圖裡到處都是，掃閉包會把只 import 了一個常數的唯讀腳本判成打網路的。**現算的差額**（每次重生清冊時重新量，不寫死；母體限 `.py` 入口 114 支，`.sh` 沒有 import 圖故不在本對照內）：閉包法命中 **51** 支、呼叫圖法 **42** 支，閉包法多出來的 **9** 支即誤判面。
+> `httpx` 在 `cpbl.*` 相依圖裡到處都是，掃閉包會把只 import 了一個常數的唯讀腳本判成打網路的。**現算的差額**（每次重生清冊時重新量，不寫死；母體限 `.py` 入口 115 支，`.sh` 沒有 import 圖故不在本對照內）：閉包法命中 **51** 支、呼叫圖法 **42** 支，閉包法多出來的 **9** 支即誤判面。
 > 最刺眼的一支是 `check_splits_pa_split1_results.py`——它從 `cpbl.ingest.cpbl_player_detail` **只 import 了 `APART_COMBOS` 這個 list 常數**，閉包法照樣判它打網路。**誤判要靠 allowlist 消化，而每多一條 allowlist 就離 `roadmap_lines.py` 的 `GATE_OVERRIDES` 近一步**——這裡要的是精確，不是寬。
 
 閉包法多判、呼叫圖法不判的 9 支：`cpbl-classify-pitches-v2`、`docs/research/DEV-CLI-HELP-GUARD1/audit_cli_help.py`、`docs/research/ISSUE-201/collect_matchup_pre2018.py`、`scripts/check_splits_pa_split1_results.py`、`scripts/data_tie_remedy1.py`、`scripts/g4_gate_report.py`、`scripts/g4_phase_a_metrics.py`、`scripts/ibb_ghost1_probe.py`、`scripts/verify_splits_pa_split1.py`
@@ -360,7 +360,7 @@ shell 沒有 argparse，判準原本是一條寬鬆正則（「有 `getopts`／`
 | `keyplay_garbage_time.py` | 一次性產物 | `docs/research/WP-DISCLOSURE-SYNC1/` | ✅ | 唯讀 | ✅ --help 安全 | WP-DISCLOSURE-SYNC1 | WP-DISCLOSURE-SYNC1：關鍵打席選法 × 垃圾時間打席 的完整母體重測（唯讀）。 | ⚠️ 未查證 |
 | `scan_time_semantics.py` | 常設工具 | `docs/research/TIME-SEMANTICS-CONTRACT1/` | ✅ | 唯讀 | ✅ --help 安全 | TIME-SEMANTICS-CONTRACT1 | TIME-SEMANTICS-CONTRACT1：時間語意用點盤點（**唯讀**，artifact 由本腳本產生）。 | ⚠️ 未查證 |
 
-## 清冊：`pyproject [project.scripts]`（49）
+## 清冊：`pyproject [project.scripts]`（50）
 
 | CLI | 寫入 | runnable | purpose_declared | purpose_verified |
 |---|---|---|---|---|
@@ -376,6 +376,7 @@ shell 沒有 argparse，判準原本是一條寬鬆正則（「有 `getopts`／`
 | `cpbl-check-coverage` | 唯讀 | ✅ --help 安全 | CLI：資料涵蓋率排查（唯讀、不爬網）——抓「應有卻缺漏」的場次。 | ⚠️ 未查證 |
 | `cpbl-classify-pitches` | **寫** | ✅ --help 安全 | CLI：離線推算球種，寫回 pitch_tracking.pitch_type_pred。 | ⚠️ 未查證 |
 | `cpbl-classify-pitches-v2` | **寫** | ✅ --help 安全 | 球種細分 v2（ML-PT2 Phase2）：MLB 標籤遷移 cluster-then-label。 | 手動觸發：球種細分 v2，未接排程（memory：二軍／生產未同步） |
+| `cpbl-import-series-awards` | **寫** | ✅ --help 安全 | cpbl-import-series-awards：官方系列獎項的本機離線匯入（#288 S07 WP-AWARDS；series_award_* 唯一 writer）。 | ⚠️ 未查證 |
 | `cpbl-ingest-editorial` | **寫** | ✅ --help 安全 | CLI for validated Google Sheets editorial ingest. | ⚠️ 未查證 |
 | `cpbl-live-game` | 唯讀 | ✅ --help 安全 | CLI【實驗】：賽況即時 TrackMan 單次探測（不寫 DB、不掛排程；等使用者下令實測）。 | ⚠️ 未查證 |
 | `cpbl-live-worker` | **寫** | ✅ --help 安全 | 集中式 stats live worker；預設關閉，需 ``LIVE_GAME_WORKER_ENABLED=true``。 | ⚠️ 未查證 |
