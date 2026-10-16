@@ -44,23 +44,25 @@ test("ComparisonBar draws both teams on the shared scale with value, unit, sampl
   const vm = comparisonBarVM(def, s.teams[l], s.teams[r], s.scales.era);
   const html = renderToStaticMarkup(<ComparisonBar vm={vm} leftColor="#C8A24A" rightColor="#8E1537" />);
   assert.match(html, /ERA/);
-  assert.match(html, /↓ 數值低較好/);
+  assert.match(html, />↓</);
+  assert.doesNotMatch(html, /數值低較好/);
   assert.match(html, / 局</);
   assert.ok(vm.leftPct != null);
   assert.match(html, new RegExp(`width:${vm.leftPct}%`));
 });
 
-test("ComparisonBar with a missing value shows the reason and draws no 0-length bar", () => {
+test("ComparisonBar with a missing value shows only — and draws no 0-length bar (reason goes to footer)", () => {
   const s = payload.scopes.series;
   const [l, r] = payload.series_id.teams as string[];
   const def = payload.metric_defs.find((d) => d.key === "ops")!;
   const left = structuredClone(s.teams[l]);
   left.metrics.ops = null;
-  left.null_reasons["metric:ops"] = ["box_missing:2025/C/5"];
+  left.null_reasons["metric:ops"] = ["column_null:bb"];
   const vm = comparisonBarVM(def, left, s.teams[r], s.scales.ops);
   const html = renderToStaticMarkup(<ComparisonBar vm={vm} leftColor="#000" rightColor="#fff" />);
   assert.equal(vm.leftPct, null);
   assert.doesNotMatch(html, /width:/);
-  assert.match(html, /缺 box 2025\/C\/5/);
+  assert.doesNotMatch(html, /欄位|缺 box|樣本為 0|原因/);
+  assert.match(html, />—</);
   assert.match(html, /data-comparison-missing="ops"/);
 });
