@@ -191,7 +191,7 @@ test("?game 變更：舊 game 的延遲回應被丟棄，畫面只有新 game", 
   oldWatch.d.resolve(wt("v1", "ok", "game1"));
   newWatch.d.resolve(wt("v1", "not_target", "game3"));
   await flush();
-  assert.deepEqual(h.shown.watch.map((s) => s.kind === "data" ? s.data.tag : s.kind), ["game3"]);
+  assert.deepEqual(h.shown.watch.map((s) => s.kind === "data" ? s.data.tag : s.kind), ["idle", "game3"]);
   assert.equal(h.poller.failureCount, 0);           // 使用者切換不算失敗
 });
 

@@ -191,16 +191,16 @@ test("專頁首頁可達最新完賽報告，保留單場 kind/year 並標清所
   const journey = build([LION, LION], "2026-10-11T12:00:00+08:00");
   for (const active of ["E", "C"]) {
     const html = renderToStaticMarkup(view(journey, active));
-    assert.match(html, /href="\/games\/2\/report\?kind=E&amp;year=2026&amp;tab=overview"/);
+    assert.match(html, /href="\/playoffs\?year=2026&amp;series=E&amp;game=2#watch"/);
     assert.doesNotMatch(html, /href="\/games\/[13]\/report/);
-    assert.match(html, /最新場間報告/);
+    assert.match(html, /本場詳情/);
     assert.match(html, /季後挑戰賽.*G2/);
   }
   assert.match(renderToStaticMarkup(view(journey, "E")), /href="\/games\/2\?kind=E&amp;year=2026"/);
   assert.doesNotMatch(renderToStaticMarkup(view(build([], "2026-10-08T12:00:00+08:00"), "E")), /\/report\?/);
 });
 
-test("下一場有既存正式列：入口改為下一場觀戰報告連 Y 獨立頁；公告場無正式列維持最新場間報告、不造 ID", () => {
+test("下一場有既存正式列：入口改為下一場詳情連 Y 獨立頁；公告場無正式列維持本場詳情、不造 ID", () => {
   const rows: JourneyRow[] = [
     { year: 2026, kind_code: "E", game_sno: 1, game_date: "2026-10-09", venue: "洲際",
       away_team_code: LION, home_team_code: BRO, away_score: 4, home_score: 1 },
@@ -211,15 +211,15 @@ test("下一場有既存正式列：入口改為下一場觀戰報告連 Y 獨�
   assert.equal(j.next?.row?.game_sno, 2, "合成前提：E2 有正式列且為下一場");
   for (const active of ["E", "C"]) {
     const html = renderToStaticMarkup(view(j, active));
-    assert.match(html, /href="\/games\/2\/preview\?kind=E&amp;year=2026&amp;tab=overview"/);
-    assert.match(html, /下一場觀戰報告 →/);
+    assert.match(html, /href="\/playoffs\?year=2026&amp;series=E&amp;game=2#watch"/);
+    assert.match(html, /下一場詳情 →/);
     assert.match(html, /季後挑戰賽 · G2 開賽前背景/);
-    assert.doesNotMatch(html, /最新場間報告|\/report\?/);
+    assert.doesNotMatch(html, /本場詳情|\/report\?/);
   }
   const announced = build([LION], "2026-10-09T23:00:00+08:00");
   assert.equal(announced.next?.row ?? null, null);
   const html = renderToStaticMarkup(view(announced, "E"));
-  assert.match(html, /href="\/games\/1\/report\?kind=E&amp;year=2026&amp;tab=overview"/);
-  assert.match(html, /最新場間報告/);
-  assert.doesNotMatch(html, /\/preview\?|下一場觀戰報告/);
+  assert.match(html, /href="\/playoffs\?year=2026&amp;series=E&amp;game=1#watch"/);
+  assert.match(html, /本場詳情/);
+  assert.doesNotMatch(html, /\/preview\?|下一場詳情/);
 });

@@ -20,14 +20,18 @@ export const WATCH_COPY = {
   noTarget: "目前沒有可呈現觀戰重點的目標場次",
 } as const;
 
-export function WatchArea({ state, overview, requested }: {
+export function WatchArea({ state, overview, requested, identity }: {
   state: WatchState<PlayoffsWatch>;
   overview: PlayoffsOverview | null;
   /** 目標場來自 `?game`（使用者指定）。 */
   requested: boolean;
+  identity?: { year: number; series: string | null; game: number | null; revision: string | null };
 }) {
   const shown: PlayoffsWatch | null = state.kind === "data" ? state.data
     : state.kind === "idle" ? null : state.previous;
+  const missingVersion = identity?.revision != null;
+  const missingGame = requested && shown !== null && ["historical_not_published", "not_target", "game_unknown", "series_unknown"].includes(shown.status);
+  const unavailable = missingVersion ? "此版本未提供" : missingGame ? "此場詳情未提供" : null;
   const noTarget = state.kind === "idle" && !requested && overview?.sections.watch.status === "no_target";
   // 有內容（或讀取失敗而無上一份，交給 WatchSection 的錯誤態）就掛元件；否則占位文字。
   const mountSection = shown !== null || state.kind === "error";
@@ -38,9 +42,11 @@ export function WatchArea({ state, overview, requested }: {
     : state.kind === "stale" ? WATCH_COPY.updatingEmpty : WATCH_COPY.loading;
   return (
     <div id="watch" className="min-h-48 min-w-0 scroll-mt-[70px] md:scroll-mt-[76px]" data-watch-state={state.kind}>
-      {mountSection ? <WatchSection data={shown} /> : null}
-      {placeholder ? <p role="status" className="rounded bg-surface p-3 text-sm text-muted">{placeholder}</p> : null}
-      {notice ? <Notice label="資料更新中" className="mt-3">{notice}</Notice> : null}
+      {identity && (requested || missingVersion) ? <p className="my-2 break-words text-sm text-muted" data-watch-identity>{identity.year}・{identity.series === "E" ? "挑戰賽" : identity.series === "C" ? "台灣大賽" : "系列未指定"}{identity.game !== null ? `・場號 ${identity.game}` : ""}{missingVersion ? `・版本 ${identity.revision}` : ""}</p> : null}
+      {!unavailable && mountSection ? <WatchSection data={shown} /> : null}
+      {unavailable ? <p role="status" className="rounded bg-surface p-3 text-sm text-muted">{unavailable}</p> : null}
+      {!unavailable && placeholder ? <p role="status" className="rounded bg-surface p-3 text-sm text-muted">{placeholder}</p> : null}
+      {!missingVersion && notice ? <Notice label="資料更新中" className="mt-3">{notice}</Notice> : null}
     </div>
   );
 }

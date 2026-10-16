@@ -15,9 +15,10 @@
 // 兩層皆不成立時**停在賽中態**，嚴禁以時間推斷硬切完賽。
 
 import Link from "next/link";
-import { previewLink, recapReportLink } from "@/lib/between-games";
+import { playoffsGameHref } from "@/lib/playoffs-selection";
+import { recapReportLink } from "@/lib/between-games";
 import { arrangedSlotForGame, slotWhen } from "@/lib/postseason-journey";
-import { REPORT_NAMES, reportEntry } from "@/lib/postseason-game-name";
+import { reportEntry } from "@/lib/postseason-game-name";
 import type { PostseasonSummaryResponse } from "@/lib/api";
 import { useParams, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
@@ -337,7 +338,7 @@ export default function GameLivePage() {
         <span className="ml-2 font-normal">{g.game_date ? slotWhen({ date: String(g.game_date), start: null }) : "日期未取得"} {startText ? `${startText} 開打` : "開賽時間未取得"}{g.venue ? ` · ${String(g.venue)}` : ""}</span>
       </p>
       {postseasonSlot?.conditional && <p className="text-muted"><b className="font-bold text-ink">如有必要</b>：系列若提前分出勝負，這一場就不舉行。</p>}
-      <Link href={previewLink(Number(sno), gameKind, season)} className="inline-flex min-h-11 items-center font-semibold text-accent underline">{REPORT_NAMES.preview}：開賽前兩隊背景 →</Link>
+      <Link href={playoffsGameHref(season, gameKind, Number(sno))} className="inline-flex min-h-11 items-center font-semibold text-accent underline">季後賽專頁：本場詳情 →</Link>
     </div>
   ) : null;
 

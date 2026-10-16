@@ -31,7 +31,7 @@ import { WatchArea } from "./watch-area";
 
 export const PLAYOFFS_LIVE_CLASS = "min-w-0 space-y-6";
 
-export function PlayoffsLive({ initial, year, game, series = null, yearParam = null, areas }: {
+export function PlayoffsLive({ initial, year, game, series = null, yearParam = null, revision = null, areas }: {
   initial: PlayoffsOverview | null;
   year: number;
   game: number | null;
@@ -39,22 +39,32 @@ export function PlayoffsLive({ initial, year, game, series = null, yearParam = n
   series?: PlayoffsSeriesCode | null;
   /** 網址上的 `?year=`（未指定為 null）：系列切換連結只在網址有帶時保留。 */
   yearParam?: number | null;
+  revision?: string | null;
   /** 第 2／3 區登記；預設讀 `area-registry.ts`（測試可注入）。 */
   // `any`：各區 payload 型別不同（AreaRegistration<各自型別>）。
   areas?: AreaRegistration<any>[];
 }) {
   const regs = useMemo(() => orderedRegistrations(areas ?? PLAYOFFS_AREAS), [areas]);
   const [overview, setOverview] = useState<PlayoffsOverview | null>(initial);
-  const [watch, setWatch] = useState<WatchState<PlayoffsWatch>>({ kind: "idle" });
+  const [watchResult, setWatchResult] = useState<{ game: number | null; revision: string | null; state: WatchState<PlayoffsWatch> }>({ game, revision, state: { kind: "idle" } });
+  // 同一身分離開後再回來，也先清空；避免 revision 返回 null 時復用先前的現行畫面。
+  const [selection, setSelection] = useState({ game, revision });
+  if (selection.game !== game || selection.revision !== revision) {
+    setSelection({ game, revision });
+    setWatchResult({ game, revision, state: { kind: "idle" } });
+  }
+  const watch: WatchState<PlayoffsWatch> = watchResult.game === game && watchResult.revision === revision ? watchResult.state : { kind: "idle" };
   const [areaStates, setAreaStates] = useState<Partial<Record<RegisteredAreaId, WatchState<VersionedArea>>>>({});
   const [pollFailed, setPollFailed] = useState(false);
   const pollerRef = useRef<PlayoffsPoller<PlayoffsOverview, PlayoffsWatch> | null>(null);
+  const selectionRef = useRef({ game, revision });
+  selectionRef.current = { game, revision };
   const pendingNear = useRef(new Set<RegisteredAreaId>());
 
   useEffect(() => {
     const poller = new PlayoffsPoller<PlayoffsOverview, PlayoffsWatch>({
       fetchOverview: (signal) => fetchJson<PlayoffsOverview>(`${CLIENT_API}${overviewPath(year, series)}`, signal),
-      fetchWatch: (t, signal) =>
+      fetchWatch: revision !== null ? undefined : (t, signal) =>
         fetchJson<PlayoffsWatch>(`${CLIENT_API}${watchPath(year, t.series as PlayoffsSeriesCode, t.game)}`, signal),
       areas: regs.map((r) => ({
         id: r.id,
@@ -66,9 +76,16 @@ export function PlayoffsLive({ initial, year, game, series = null, yearParam = n
       setTimer: (fn, ms) => window.setTimeout(fn, ms),
       clearTimer: (h) => window.clearTimeout(h as number),
       onOverview: (o) => setOverview(o),
-      onWatch: (s) => setWatch(s),
+      onWatch: (state, selectedGame) => setWatchResult({ game: selectedGame, revision, state }),
       onArea: (id, s) => setAreaStates((prev) => ({ ...prev, [id]: s })),
-      onRound: (r) => setPollFailed(!r.overviewOk),
+      onRound: (r) => {
+        setPollFailed(!r.overviewOk);
+        if (!r.overviewOk) setWatchResult((previous) => ({ ...selectionRef.current, state: {
+          kind: "error", previous: previous.game === selectionRef.current.game && previous.revision === selectionRef.current.revision
+            ? previous.state.kind === "data" ? previous.state.data : previous.state.kind === "idle" ? null : previous.state.previous
+            : null,
+        } }));
+      },
     }, game);
     pollerRef.current = poller;
     // 外框的 effect 先於本 effect 執行：控制器建立前就接近 viewport 的區，隨第一輪一起取。
@@ -79,12 +96,13 @@ export function PlayoffsLive({ initial, year, game, series = null, yearParam = n
     poller.start(true);
     return () => {
       document.removeEventListener("visibilitychange", onVisibility);
+      for (const r of regs) if (poller.isActive(r.id)) pendingNear.current.add(r.id);
       poller.stop();
       pollerRef.current = null;
     };
     // game 變更走 setGame（下方 effect），不重建控制器；year／series 變更由頁面以 key 重新掛載；regs 只隨登記（建置期常數）變。
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [year, regs]);
+  }, [year, regs, revision]);
 
   useEffect(() => {
     pollerRef.current?.setGame(game);
@@ -112,7 +130,7 @@ export function PlayoffsLive({ initial, year, game, series = null, yearParam = n
       <SeriesSwitch selected={overview?.selected_series ?? series ?? overview?.default_series ?? null} year={yearParam} />
       {pollFailed && overview && <Notice label="暫時無法更新">{SERIES_COPY.pollFailed}</Notice>}
       {overview ? <SeriesSection overview={overview} /> : <ErrorState>{SERIES_COPY.overviewFailed}</ErrorState>}
-      <WatchArea state={watch} overview={overview} requested={game !== null} />
+      <WatchArea state={watch} overview={overview} requested={game !== null} identity={{ year, series: series ?? overview?.selected_series ?? overview?.default_series ?? null, game, revision }} />
       {regs.map((r) => (
         <AreaFrame key={r.id} id={r.id} state={areaStates[r.id] ?? { kind: "idle" }} Section={r.Section}
           minHeightPx={r.minHeightPx} onNear={onNear} />

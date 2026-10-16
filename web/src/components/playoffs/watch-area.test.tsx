@@ -62,6 +62,21 @@ test("沒有目標場（overview watch.status=no_target）：說明沒有目標�
 test("watch 非 ok（例：?game 指定歷史場）：顯示 watch 自帶文字", () => {
   const hist = { ...W, status: "historical_not_published" as const, text: "歷史賽前版本尚未發布" };
   const t = text(html(<WatchArea state={{ kind: "data", data: hist }} overview={OV} requested={true} />));
-  assert.match(t, /歷史賽前版本尚未發布/);
+  assert.match(t, /此場詳情未提供/);
 });
 
+
+
+test("指定版本永不顯示目前 watch，保留原始身分並安全轉義", () => {
+  const out = html(<WatchArea state={{ kind: "data", data: W }} overview={OV} requested={true}
+    identity={{ year: 2024, series: "E", game: 1, revision: "<old>" }} />);
+  assert.match(out, /2024・挑戰賽・場號 1・版本 &lt;old&gt;/);
+  assert.match(out, /此版本未提供/);
+  assert.doesNotMatch(out, /watch-heading|data-starter-status/);
+});
+test("指定場的讀取失敗不冒充此場未提供", () => {
+  const out = html(<WatchArea state={{ kind: "error", previous: null }} overview={OV} requested={true}
+    identity={{ year: 2025, series: "C", game: 7, revision: null }} />);
+  assert.match(out, /第 4 區資料暫時無法讀取/);
+  assert.doesNotMatch(out, /此場詳情未提供/);
+});
