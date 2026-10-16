@@ -795,6 +795,10 @@ sync_table coaches "year,team_code,name" pos uniform_no
 sync_table managers "team_code,era_name,name,from_year" to_year g w l t win_pct postseason championships source needs_review
 sync_table overseas "player_id,league,from_year" team source needs_review
 sync_table player_awards "player_id,year,category,award" source
+# #288 官方系列獎項（migration 078；本機 cpbl-import-series-awards 唯一 writer）。兩表不可變、revision 只追加：
+# 同值列 no-op，同鍵不同值會被觸發器擋下而中止同步（大聲失敗）。revision 須先於得主（FK＋得主只掛 published）。
+sync_table series_award_revision "year,kind_code,revision" status source_url source_sha256 checked_at imported_at
+sync_table series_award_winner "year,kind_code,revision,award_seq,ordinal" award_name award_type player_id winner_name team_code
 # 維基個人頁補充（所屬球隊/教練/行政、國際賽獎牌、獎項）：一次抓+手動刷新
 sync_table wiki_tenures "player_id,phase,seq" team_raw role from_year to_year source needs_review
 sync_table wiki_medals "player_id,seq" color competition event year source
