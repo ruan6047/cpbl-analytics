@@ -4,7 +4,7 @@ import test from "node:test";
 
 import {
   COMPARISON_COPY, NOTE_COPY, T5_COPY, comparisonBarVM, comparisonNotes, comparisonPath, defaultScope, formatMetric,
-  scopeStatusNote, streakVM, styleTagsVM, taipeiStamp,
+  scopeStatusNote, showT5, streakVM, styleTagsVM, taipeiStamp,
   type ComparisonPayload,
 } from "./playoffs-comparison.ts";
 
@@ -188,4 +188,16 @@ test("payload carries area-level status (mount contract §2): real fixtures are 
   }
   assert.equal(p2025.status, "ok");
   assert.equal(p2026.status, "ok"); // 本系列未開打是正常狀態
+});
+
+test("showT5: only series scope + S02 decided + both scopes with teams (審核 F1)", () => {
+  assert.equal(showT5(p2025, "series"), true);                        // 真實：2025 C decided
+  assert.equal(showT5(p2025, "season_a"), false);
+  assert.equal(showT5(p2025, "head_to_head_a"), false);
+  assert.equal(p2026.series_status, "pending");                       // 真實：2026 C 未開打
+  assert.equal(showT5(p2026, "series"), false);
+  // 變異（標示）：同一份 2025 真實底稿只改 series_status
+  for (const st of ["active", "pending", "unknown"] as const) assert.equal(showT5({ ...p2025, series_status: st }, "series"), false, st);
+  // 變異（標示）：decided 但本系列無隊伍資料 ⇒ 不顯示
+  assert.equal(showT5({ ...p2026, series_status: "decided" }, "series"), false);
 });

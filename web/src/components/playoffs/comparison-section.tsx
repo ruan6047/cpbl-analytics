@@ -11,6 +11,7 @@ import {
   formatMetric,
   scopeHasTeams,
   scopeStatusNote,
+  showT5,
   streakVM,
   styleTagsVM,
   type ComparisonMetricDef,
@@ -123,7 +124,7 @@ export function ComparisonView({ data, scope, onScope }: {
             </div>
           </div>
 
-          {scope === "series" && scopeHasTeams(data.scopes.season_a) ? (
+          {showT5(data, scope) ? (
             <T5Table data={data} left={left} right={right} />
           ) : null}
         </>

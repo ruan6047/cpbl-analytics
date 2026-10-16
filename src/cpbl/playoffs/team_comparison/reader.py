@@ -204,6 +204,9 @@ def build_payload(cur, year: int, kind: str, *, now: datetime, live_reader=None)
         "status": overall_status(scopes),
         "series_id": series["series_id"],
         "participants_status": series["participants_status"],
+        # S02 權威系列狀態原樣帶出（pending／active／decided／unknown）；T5 只在 decided 顯示（PLAN r4 §4.5），
+        # ⛔ 前端不得以統計資料自行推算勝負。
+        "series_status": series["series_status"],
         "context_version": ctx["context_version"],
         "as_of": now.isoformat(),
         "metric_defs": [dict(d) for d in core.METRIC_DEFS],

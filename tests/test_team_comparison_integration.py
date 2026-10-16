@@ -10,7 +10,7 @@ import sys
 import textwrap
 import threading
 import time
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 import psycopg
 import pytest
@@ -513,3 +513,33 @@ def test_context_version_matches_overview_and_watch_for_same_live_reader(dsn):
         assert cmp_["context_version"] == ov["context_version"] == wt["context_version"], year
         # 負控：不傳 live_reader 的版本不同（第 1 次合併的缺陷形狀）
         assert reader.comparison_payload(year, "C", now=NOW, connect=conn_)["context_version"] != ov["context_version"]
+
+
+def test_series_status_is_s02_authority_decided_and_active(dsn):
+    """審核 F1：payload 原樣帶出 S02 ``series_status``（T5 顯示條件的唯一依據）。
+
+    真實資料：2025 C 已分勝負（decided）、2026 C 未開打（pending），與同輪 overview 的 S02 區塊一致。
+    變異（標示）：把 2025/C/5 的 game_date 單點移到 as_of 之後 ⇒ 該場不算完賽、系列 3:1 未分勝負
+    ⇒ S02 判 active；離開時還原。
+    """
+    from cpbl.playoffs.overview import playoffs_overview
+
+    def live(*a, **k):
+        return None
+
+    for y in (2025, 2026):
+        assert _build(dsn, y).code == 0
+    conn_ = connector(dsn)
+    for year, want in ((2025, "decided"), (2026, "pending")):
+        cmp_ = reader.comparison_payload(year, "C", now=NOW, connect=conn_, live_reader=live)
+        ov = playoffs_overview(year, now=NOW, connect=conn_, live_reader=live)
+        assert cmp_["series_status"] == want, year
+        assert ov["default_series"] == "C", year  # 同輪 overview 的 C 區塊＝同一份 S02 輸出
+        assert ov["series_section"]["current"]["series_status"] == cmp_["series_status"], year
+
+    sql = "UPDATE cpbl.games SET game_date = game_date + %s WHERE year = 2025 AND kind_code = 'C' AND game_sno = 5"
+    with mutated(dsn, sql, (timedelta(days=800),), sql, (timedelta(days=-800),)):
+        p = reader.comparison_payload(2025, "C", now=NOW, connect=conn_, live_reader=live)
+        assert p["series_status"] == "active"
+        assert len(p["scopes"]["series"]["expected_game_keys"]) == 4
+    assert reader.comparison_payload(2025, "C", now=NOW, connect=conn_, live_reader=live)["series_status"] == "decided"

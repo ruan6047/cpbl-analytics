@@ -15,6 +15,7 @@
 
 import { SEMANTICS_BADGE, TEAM_STYLE_COPY, outsToIp, type TeamStyleAxisKey, type TeamStyleSemantics } from "@/lib/team-style";
 import type { PlayoffsNote } from "@/lib/playoffs-notes";
+import type { SeriesStatusV2 } from "@/lib/postseason-series-contract";
 import { streakLabel, type StreakFact } from "@/lib/team-streak";
 
 // —— 契約型別 ——
@@ -90,6 +91,8 @@ export type ComparisonPayload = {
   status: ComparisonStatus;
   series_id: { year: number; kind_code: "E" | "C"; rule_version: string | null; teams: (string | null)[] };
   participants_status: "known" | "pending_e_winner" | "unknown";
+  /** S02 權威系列狀態（reader 原樣帶出）；T5 只在 decided 顯示，⛔ 前端不自行推算勝負。 */
+  series_status: SeriesStatusV2;
   context_version: string;
   as_of: string;
   metric_defs: ComparisonMetricDef[];
@@ -246,6 +249,12 @@ export function scopeHasTeams(scope: SeasonScope | HeadToHeadScope | SeriesScope
 }
 
 /** 初始範圍：本系列有已完成場次 ⇒ 本系列；否則全年。之後由使用者切換，資料更新不重置。 */
+/** T5「例行賽背景 vs 本系列實際」顯示條件（PLAN r4 §4.5）：選中本系列、S02 判系列已分勝負，且兩側範圍有隊伍資料。 */
+export function showT5(data: ComparisonPayload, scope: ComparisonScopeKey): boolean {
+  return scope === "series" && data.series_status === "decided"
+    && scopeHasTeams(data.scopes.series) && scopeHasTeams(data.scopes.season_a);
+}
+
 export function defaultScope(data: ComparisonPayload): ComparisonScopeKey {
   return scopeHasTeams(data.scopes.series) ? "series" : "season_a";
 }

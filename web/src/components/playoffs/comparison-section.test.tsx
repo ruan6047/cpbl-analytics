@@ -46,11 +46,26 @@ test("three scopes render metrics, streaks and style from payload only", () => {
 });
 
 test("T5 side-by-side only in series scope with season data; no prediction words", () => {
+  assert.equal(p2025.series_status, "decided"); // 真實資料：2025 台灣大賽 S02 判已分勝負
   const html = view(p2025, "series");
   assert.match(html, /data-t5=""/);
   assert.match(text(html), /例行賽背景 vs 本系列實際/);
   assert.doesNotMatch(view(p2025, "season_a"), /data-t5/);
   assert.doesNotMatch(text(html), /預測|預期|誤差/);
+});
+
+test("T5 gated by S02 series_status: hidden while series undecided (審核 F1)", () => {
+  // 變異（標示）：以真實 2025 C reader 輸出為底，只改 S02 series_status 一欄；本系列統計原樣保留，
+  // 證明 T5 不以「本系列已有統計」替代「系列已分勝負」。真實 active 路徑見
+  // tests/test_team_comparison_integration.py::test_series_status_is_s02_authority_decided_and_active。
+  for (const st of ["active", "pending", "unknown"] as const) {
+    const mutated: ComparisonPayload = { ...p2025, series_status: st };
+    const html = view(mutated, "series");
+    assert.match(html, />OPS</, st);                 // 本系列比較條照常呈現
+    assert.doesNotMatch(html, /data-t5/, st);       // 但 T5 不出現
+    assert.doesNotMatch(text(html), /例行賽背景 vs 本系列實際/, st);
+  }
+  assert.match(view(p2025, "series"), /data-t5=""/); // 同一底稿 decided ⇒ 出現
 });
 
 test("no explanatory notes rendered in the area: footer texts never appear in cells", () => {
