@@ -11,7 +11,10 @@
 //    ⛔ 拼接不同版本。（PRD「重取 overview 後只重取受影響區」：watch 較新時只重取 watch 永遠追不上舊 overview。）
 // 6. 更新只換資料，⛔ 捲動、⛔ 移焦點——那是呈現層的事，本檔只交出資料。
 // 7. 第 2／3 區（registry 登記的區，#285 續做 PLAN r6 §3、MOUNT-CONTRACT r3 §3）：
-//    - 第一次接近 viewport 才 `activate(id)`；未啟用的區請求數 0。啟用時立即一輪。
+//    - 第一次接近 viewport 才 `activate(id)`；未啟用的區請求數 0。啟用時立即一輪；但本輪進行中且還沒發出
+//      區請求時，只併入本輪（本輪 overview／第 4 區結束後依當下已啟用的區一起取），⛔ 開新一輪——
+//      首屏 `start` 那一輪不會被接近 viewport 的區取代（#285 批次 B 發現 1；Chromium 對多個 IO 回呼分開
+//      呼叫、中間會跑 microtask，同 microtask 合併擋不住）。
 //    - 每輪 overview → 第 4 區 → 已啟用的區（並行）。`every_round` 每輪重取；`on_context_change` 只在
 //      overview `context_version` 與該區上次接受的版本不同時重取。
 //    - 版本：區回應 `context_version` ≠ 當下 overview ⇒ 本輪最多重取 overview 一次，再重取受影響區一次；
@@ -32,7 +35,9 @@ export function nextDelay(failures: number): number {
 
 export type VersionedOverview = {
   context_version: string;
-  /** 第 2／3 區的 series 參數（MOUNT-CONTRACT §4）；缺時退回 `sections.watch.series`（同一個 S02 預設系列）。 */
+  /** 第 2／3 區的 series 參數＝使用者所選系列（#285 批次 B，`/playoffs?series=`）；舊 API 沒有此欄。 */
+  selected_series?: string;
+  /** 缺 `selected_series` 時的退回（MOUNT-CONTRACT §4）；再缺退回 `sections.watch.series`（同一個 S02 預設系列）。 */
   default_series?: string;
   sections: { watch: { status: string; series: string; game: number | null } };
 };
@@ -110,6 +115,8 @@ export class PlayoffsPoller<O extends VersionedOverview, W extends VersionedWatc
   private active = new Set<string>();
   private areaLast = new Map<string, VersionedArea>();
   private activatePending = false;
+  /** 進行中的這一輪是否已發出（或已決定不發）區請求；`false` 時新啟用的區併入本輪。 */
+  private areasIssued = false;
   /** 本輪區請求的中止器（本輪 overview／watch 結束後區請求仍在背景跑，下一輪開始時中止、不計失敗）。 */
   private areaAc: AbortController | null = null;
 
@@ -149,11 +156,15 @@ export class PlayoffsPoller<O extends VersionedOverview, W extends VersionedWatc
     if (!this.stopped) void this.tick("game");
   }
 
-  /** 區第一次接近 viewport：啟用並立即一輪（同一個 microtask 內多區啟用只跑一輪）。 */
+  /**
+   * 區第一次接近 viewport：啟用並立即一輪（同一個 microtask 內多區啟用只跑一輪）。
+   * 本輪進行中且還沒發出區請求 ⇒ 只併入本輪，⛔ 開新一輪（發現 1）。
+   */
   activate(id: string): void {
     if (this.active.has(id)) return;
     this.active.add(id);
     if (this.stopped || this.activatePending) return;
+    if (this.inflight && !this.areasIssued) return;
     this.activatePending = true;
     void Promise.resolve().then(() => {
       this.activatePending = false;
@@ -209,6 +220,7 @@ export class PlayoffsPoller<O extends VersionedOverview, W extends VersionedWatc
     const ac = new AbortController();
     this.inflight = ac;
     this.areaAc = ac;
+    this.areasIssued = false;
     const live = () => token === this.seq && !ac.signal.aborted;
     this.overviewOk = false;
     try {
@@ -295,6 +307,7 @@ export class PlayoffsPoller<O extends VersionedOverview, W extends VersionedWatc
 
   /** 第 2／3 區：已啟用者並行取、各自結算；版本不一致者共用同一次 overview 重取，再各重取一次。 */
   private roundAreas(overview: O, signal: AbortSignal, live: () => boolean): void {
+    this.areasIssued = true;                        // 此後才啟用的區 ⇒ 下一個 microtask 開新一輪
     const areas = (this.deps.areas ?? []).filter((a) => this.active.has(a.id));
     const due = areas.filter((a) => a.refresh === "every_round"
       || this.areaLast.get(a.id)?.context_version !== overview.context_version);
@@ -309,7 +322,7 @@ export class PlayoffsPoller<O extends VersionedOverview, W extends VersionedWatc
 
   private async runArea(a: PollArea, overview: O, signal: AbortSignal, live: () => boolean,
     freshOverview: () => Promise<O | null>): Promise<void> {
-    const series = (o: O) => o.default_series ?? o.sections.watch.series;
+    const series = (o: O) => o.selected_series ?? o.default_series ?? o.sections.watch.series;
     const fetchOne = async (o: O): Promise<VersionedArea | null> => {
       try {
         return await a.fetch(series(o), signal);

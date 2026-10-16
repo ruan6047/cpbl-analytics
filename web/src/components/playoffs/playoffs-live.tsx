@@ -15,6 +15,7 @@ import { AreaFrame } from "./area-frame";
 import { PLAYOFFS_AREAS } from "./area-registry";
 import { PageNotes } from "./page-notes";
 import { SeriesSection } from "./series-section";
+import { SeriesSwitch } from "./series-switch";
 import { WatchArea } from "./watch-area";
 
 // `/playoffs` 的 client 外殼（#285 S04）：持有 overview、第 4 區與第 2／3 區狀態並跑共用輪詢控制器（playoffs-poll.ts）。
@@ -22,15 +23,21 @@ import { WatchArea } from "./watch-area";
 // watch 與各區一律 client 端自取 `CLIENT_API`：⛔ 用各卡讀 server 端 API_URL 的取數函式（瀏覽器內會退回 localhost:4001）。
 // 區塊順序固定 1→4→3→2（需求方 C2）；第 2／3 區只在 `area-registry.ts` 有登記時出現（C1），接近 viewport 才載入。
 // 頁尾說明（6194706200）：PAGE_NOTES＋各區 `notes(畫面上那份資料)`，0 條不渲染。
+// 系列（#285 批次 B）：`series`＝網址 `?series=`（未指定為 null，跟隨 S02 預設）。SSR 與輪詢用同一個值取 overview；
+// 第 2／3／4 區的 series 一律取 overview `selected_series`。換系列由頁面以 key 重掛本元件，⛔ 在本元件內切換。
 // 輪詢只換資料：區塊位置與 key 固定，⛔ 捲動、⛔ 移焦點、⛔ remount；本元件與外框 ⛔ 設 transform／filter／contain／
 // overflow-hidden（各區抽屜以 portal z-50 疊在 sticky header 之上，契約 §2.3）。
 
 export const PLAYOFFS_LIVE_CLASS = "min-w-0 space-y-6";
 
-export function PlayoffsLive({ initial, year, game, areas }: {
+export function PlayoffsLive({ initial, year, game, series = null, yearParam = null, areas }: {
   initial: PlayoffsOverview | null;
   year: number;
   game: number | null;
+  /** 網址 `?series=`；null＝未指定（跟隨 S02 預設系列）。 */
+  series?: PlayoffsSeriesCode | null;
+  /** 網址上的 `?year=`（未指定為 null）：系列切換連結只在網址有帶時保留。 */
+  yearParam?: number | null;
   /** 第 2／3 區登記；預設讀 `area-registry.ts`（測試可注入）。 */
   // `any`：各區 payload 型別不同（AreaRegistration<各自型別>）。
   areas?: AreaRegistration<any>[];
@@ -45,7 +52,7 @@ export function PlayoffsLive({ initial, year, game, areas }: {
 
   useEffect(() => {
     const poller = new PlayoffsPoller<PlayoffsOverview, PlayoffsWatch>({
-      fetchOverview: (signal) => fetchJson<PlayoffsOverview>(`${CLIENT_API}${overviewPath(year)}`, signal),
+      fetchOverview: (signal) => fetchJson<PlayoffsOverview>(`${CLIENT_API}${overviewPath(year, series)}`, signal),
       fetchWatch: (t, signal) =>
         fetchJson<PlayoffsWatch>(`${CLIENT_API}${watchPath(year, t.series as PlayoffsSeriesCode, t.game)}`, signal),
       areas: regs.map((r) => ({
@@ -74,7 +81,7 @@ export function PlayoffsLive({ initial, year, game, areas }: {
       poller.stop();
       pollerRef.current = null;
     };
-    // game 變更走 setGame（下方 effect），不重建控制器；year 變更由頁面以 key 重新掛載；regs 只隨登記（建置期常數）變。
+    // game 變更走 setGame（下方 effect），不重建控制器；year／series 變更由頁面以 key 重新掛載；regs 只隨登記（建置期常數）變。
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [year, regs]);
 
@@ -101,6 +108,7 @@ export function PlayoffsLive({ initial, year, game, areas }: {
       <SectionTitle as="h1" date={year} meta={overview ? <span data-as-of>{asOfText(overview)}</span> : undefined}>
         季後賽
       </SectionTitle>
+      <SeriesSwitch selected={overview?.selected_series ?? series ?? overview?.default_series ?? null} year={yearParam} />
       {pollFailed && overview && <Notice label="暫時無法更新">{SERIES_COPY.pollFailed}</Notice>}
       {overview ? <SeriesSection overview={overview} /> : <ErrorState>{SERIES_COPY.overviewFailed}</ErrorState>}
       <WatchArea state={watch} overview={overview} requested={game !== null} />
