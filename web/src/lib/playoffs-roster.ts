@@ -109,7 +109,6 @@ export const ROSTER_COPY = {
   sortLabel: "排序",
   all: "全部",
   farm: "二軍",
-  roleSource: "本站角色",
   scopeLabel: "資料範圍",
 } as const;
 
@@ -129,7 +128,7 @@ export const initialScope = (d: PlayoffsRoster): RosterScope =>
 
 export type RosterSort = "position" | "games" | "arrow";
 export const SORTS: { key: RosterSort; label: string }[] = [
-  { key: "position", label: "官方守位" },
+  { key: "position", label: "守位" },   // 需求方裁定 #286：內外野依例行賽主守位拆分、非官方分組，按鈕不冠「官方」
   { key: "games", label: "出賽 G" },
   { key: "arrow", label: "箭頭方向" },
 ];
@@ -166,6 +165,13 @@ const r3 = (v: number | null) => (v == null ? ROSTER_COPY.missing : v.toFixed(3)
 
 /** 出賽 G：無紀錄 ⇒「—」。 */
 export const gText = (bg: { g: number | null }) => (bg.g == null ? ROSTER_COPY.missing : `${bg.g}G`);
+
+/** 抽屜標頭副標：守位 · 本站角色（有值才放、只放值）· 例行賽 G（· 二軍）。
+ *  需求方裁定 #286 6210276945、6210408828：角色無值整段不顯示，不帶「本站角色」字樣。 */
+export function drawerSubtitle(m: RosterMember): string {
+  return [m.official_position, m.tactical_role, gText(m.background),
+    m.background.level === "D" ? ROSTER_COPY.farm : null].filter(Boolean).join(" · ");
+}
 
 /** 一行傳統計數（後端已算率）：打者打擊率／OPS、投手防禦率／局數。scope＝series 時用本系列計數。無紀錄 ⇒ null。 */
 export function lineText(m: RosterMember, scope: RosterScope = "background"): string | null {
