@@ -20,7 +20,8 @@
    記在 ``pitcher_unattributed``（⛔ 歸末投手、⛔ 猜）。投手展示值＝−ΣΔRE24（打者視角轉號，正＝壓制，G08）。
 4. 排序用未四捨五入值（6 位）降冪、同值 ``player_id`` 升冪；候選不足就少列（G14）。⛔ 輸出任何
    「MVP」「領先」字樣給 RE24 排名；MVP 次數只計 S02 的官方 ``official_mvp_id``（A05、G07）。
-5. 獎項 G2 恆 ``pending_source``；⛔ 從 MVP 次數推任何獎項。後端不產文案，句子由前端組。
+5. 本卡不提供官方系列獎項（需求方 6216986617）；``awards`` 欄恆 ``pending_source`` 只為相容舊前端（見 _block）。
+   ⛔ 從 MVP 次數推任何獎項。後端不產文案，句子由前端組。
 6. **三大轉折**（WP-G3）：候選＝本系列**所有已涵蓋場**的打席（⛔ 先在單場截前 N），指標＝|ΔWP|
    （既有 :func:`pa_facts.wp_swings`，各場 final_outcome 依該場比分）。任一已涵蓋場拿不到 WP ⇒ **整組**
    改 |ΔRE24|（不混用兩種指標）；門檻沿用 ``KEY_PLAY_MIN_WP_ABS``／``KEY_PLAY_MIN_ABS``（⛔ 改）。
@@ -161,6 +162,8 @@ class SeriesAggregate:
     livelog_names: dict[str, str] = field(default_factory=dict)   # players 缺名時的後備
     teams: dict[str, str | None] = field(default_factory=dict)    # 已涵蓋場出現過的打者／投手 → 隊（MVP 清單用）
     turning: dict | None = None         # 三大轉折（turning_points 純函式輸出）；無已涵蓋場 ⇒ None
+    year: int | None = None             # WP-K3：逐場焦點元件呼叫 /api/v1/playoffs/highlights 用
+    context_version: str | None = None  # WP-K3：S02 原值（＝overview 的 context_version），比對端點回應版本
 
 
 # (kind_code, season) → (scorer | None, 不可用原因 | None)；由呼叫端注入，測試可替身。
@@ -300,7 +303,8 @@ def aggregate(context: dict, kind: str, rows: SeriesRows | None, *,
         base = dict(games_covered=0, missing_games=[], excluded_games=[], batters=[], pitchers=[],
                     pitcher_unattributed=0, build_ids_hash=None)
         return SeriesAggregate(kind_code=kind, status=status, games_total=len(games), mvp_counts=mvp_counts,
-                               mvp_missing_games=mvp_missing, **{**base, **kw})
+                               mvp_missing_games=mvp_missing, year=int(context["year"]),
+                               context_version=context.get("context_version"), **{**base, **kw})
 
     if not games:
         return result("no_completed_games")
@@ -424,6 +428,8 @@ def _block(agg: SeriesAggregate, names: dict[str, str] | None) -> dict:
         "mvp_counts": [{"player_id": m["player_id"], "name": name(m["player_id"]),
                         "team_code": agg.teams.get(m["player_id"]), "count": m["count"]} for m in agg.mvp_counts],
         "mvp_missing_games": agg.mvp_missing_games,
+        # 刻意保留：舊版前端（≤16b64634）每輪輪詢讀 awards.status，移除會讓未重載的分頁出錯；
+        # 前端已不顯示獎項格（#288 6217030580）。⛔ 由此推出本站有官方系列獎項。
         "awards": {"status": "pending_source"},
         "turning_points": turning,
         "source": {"pa_build_ids_hash": agg.build_ids_hash, "re_span": pa_facts.RE_SPAN},
@@ -436,6 +442,9 @@ def summary_json(aggs: dict[str, SeriesAggregate], names: dict[str, str] | None,
     return {
         "contract": CONTRACT,
         "algorithm": ALGORITHM,
+        # WP-K3：前端逐場焦點元件（client 延遲載入）以這兩欄組端點 URL 與比對版本；#285 檔不必改。
+        "year": aggs[current].year,
+        "context_version": aggs[current].context_version,
         "current": _block(aggs[current], names),
         "previous": _block(aggs[previous], names) if previous else None,
     }
