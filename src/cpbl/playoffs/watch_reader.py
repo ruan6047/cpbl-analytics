@@ -1,4 +1,4 @@
-"""第 4 區 watch 讀取面（#289 S08 WP2）：4A 近期使用負荷＋官方先發投手狀態＋4B 未發布占位。
+"""第 4 區 watch 讀取面（#289 S08 WP2）：4A 近期使用負荷＋官方先發投手狀態。
 
 分兩層（沿 :mod:`cpbl.postseason_contract` 慣例）：
 
@@ -11,8 +11,8 @@
 1. GET ⛔ 寫入、⛔ 觸發爬取；⛔ 讀 ``reports/background``／``reports/assembler``（#272 共享區）。
 2. 名單未提交 ⇒ 不列投手，⛔ 以出賽紀錄反推名單（S03 三表是唯一來源）。
 3. 覆蓋先判：該隊 D−3～D 每天的正式場都已完賽且有該隊投手 box，才算有證據；否則灰＋理由。
-4. 4B：S09 未啟用 ⇒ A、B 兩格 ``not_published``「賽前快照尚未發布」，⛔ 包裝成已鎖定 B。
-   指定已完賽場 ⇒ 歷史版本由 S09 提供（尚未發布），⛔ 以現在資料重算冒充當時版本。
+4. 4B 賽前快照（S09）已停止（#290；#314 移除占位與 ``s09_not_enabled``），回應不再帶 ``publication``。
+   指定已完賽場或系列已結束 ⇒ 只回固定文字（``historical_not_supported``），⛔ 以現在資料重算冒充當時版本。
 6. 官方先發投手：來源歸 S11（#292），定案前恆 ``unknown``＋固定灰字（需求方裁定 E1／E2，
    issuecomment-6184481637）。本模組 ⛔ 讀 074（只有打序、沒有先發投手）、⛔ 讀 ``games.*_starter_id``，
    ⛔ 自建替代來源；S11 定案後只換 :func:`_starters` 的來源。
@@ -47,9 +47,9 @@ LOAD_KINDS = ("A", "E", "C", "D")
 SCOPE_NOTE = ("近三日含一軍例行賽 A、季後 E／C 與二軍 D 已完賽正式場的投手逐場球數；"
               "未觀測熱身球與牛棚練投，不納入")
 
-NOT_PUBLISHED_TEXT = "賽前快照尚未發布"
 REGISTRATION_TEXT = "未知（當場登錄來源尚未接入）"
 STARTER_UNKNOWN_TEXT = "官方先發投手：未知（來源尚未接入，S11）"
+HISTORICAL_TEXT = "本場已完賽，觀戰重點只提供系列下一場"
 
 
 def farm_code(team_code: str) -> str | None:
@@ -221,14 +221,6 @@ def _starters(teams: list[str]) -> list[dict]:
              "text": STARTER_UNKNOWN_TEXT} for t in teams]
 
 
-def _publication() -> dict:
-    return {
-        "status": "not_published",
-        "reason": "s09_not_enabled",
-        "slots": [{"slot": s, "status": "not_published", "text": NOT_PUBLISHED_TEXT} for s in ("A", "B")],
-    }
-
-
 def compute_watch(inputs: WatchInputs, *, now: datetime) -> dict:
     """``playoffs-watch/v1``（JSON-able）。``now`` 只用於 ``as_of``，不影響燈號以外的判定。"""
     ctx = inputs.context
@@ -253,7 +245,6 @@ def compute_watch(inputs: WatchInputs, *, now: datetime) -> dict:
             "last_completed_game_date": (ctx.get("as_of") or {}).get("last_completed_game_date"),
         },
         "scope": {"kinds": list(LOAD_KINDS), "note": SCOPE_NOTE},
-        "publication": _publication(),
         "registration": {"status": "unknown", "reason": "registration_source_not_delivered",
                          "text": REGISTRATION_TEXT},
     }
@@ -278,8 +269,8 @@ def compute_watch(inputs: WatchInputs, *, now: datetime) -> dict:
             return finish("game_unknown", ["game_not_in_series"], coverage="unknown", teams=[])
         if req != target_key:
             if g.get("completed"):
-                return finish("historical_not_published", ["s09_not_enabled"], coverage="unknown", teams=[],
-                              text="歷史賽前版本由 S09 提供，尚未發布")
+                return finish("historical_not_published", ["historical_not_supported"], coverage="unknown",
+                              teams=[], text=HISTORICAL_TEXT)
             return finish("not_target", ["only_current_target_supported"], coverage="unknown", teams=[],
                           text="只提供系列目前目標場")
 
@@ -289,12 +280,12 @@ def compute_watch(inputs: WatchInputs, *, now: datetime) -> dict:
     tg = games_by_key[target_key]
     if tg.get("completed"):
         # 系列已決定時 S02 目標停在最後一場已完賽場：同樣不以現在資料重算冒充當時賽前版本。
-        return finish("historical_not_published", ["s09_not_enabled"], coverage="unknown", teams=[],
-                      text="歷史賽前版本由 S09 提供，尚未發布")
+        return finish("historical_not_published", ["historical_not_supported"], coverage="unknown", teams=[],
+                      text=HISTORICAL_TEXT)
     target_date = _as_date(tg.get("game_date"))
     target_status = tg.get("target_status")
     teams = [tg["away_team_code"], tg["home_team_code"]]
-    missing: list[str] = ["s09_not_enabled", "registration_source_not_delivered", "starter_source_not_delivered"]
+    missing: list[str] = ["registration_source_not_delivered", "starter_source_not_delivered"]
     if target_date is None:
         missing.append("target_date_unknown")
 

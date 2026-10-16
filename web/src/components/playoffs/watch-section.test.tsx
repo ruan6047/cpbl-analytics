@@ -77,9 +77,6 @@ function watch(teams: WatchTeam[], extra: Partial<PlayoffsWatch> = {}): Playoffs
       last_completed_game_date: "2026-10-12" },
     scope: { kinds: ["A", "E", "C", "D"], note: "近三日含一軍例行賽 A、季後 E／C 與二軍 D 已完賽正式場的投手逐場球數" },
     coverage: "complete", missing_reason: [], source_manifest: [],
-    publication: { status: "not_published", reason: "s09_not_enabled", slots: [
-      { slot: "A", status: "not_published", text: "賽前快照尚未發布" },
-      { slot: "B", status: "not_published", text: "賽前快照尚未發布" }] },
     registration: { status: "unknown", reason: "registration_source_not_delivered", text: "未知（當場登錄來源尚未接入）" },
     starters: ["ACN011", "AAA011"].map((t) => ({ team_code: t, status: "unknown" as const,
       reason: "starter_source_not_delivered", text: "官方先發投手：未知（來源尚未接入，S11）" })),
@@ -147,11 +144,11 @@ test("角色未標記的投手不被刪除，收在其他投手", () => {
   assert.match(visible(watch([team("ACN011", [pitcher("5", null, load("low"), false)])])), /角色未標記/);
 });
 
-test("4B 兩格各自寫賽前快照尚未發布，不出現已鎖定樣式", () => {
+test("4B 占位已移除（#314）：不出現兩格、賽前快照或已鎖定樣式", () => {
   const html = renderToStaticMarkup(<WatchSection data={watch([])} />);
-  assert.equal((html.match(/賽前快照尚未發布/g) ?? []).length, 2);
-  assert.match(html, /data-slot="A"/);
-  assert.match(html, /data-slot="B"/);
+  assert.doesNotMatch(html, /賽前快照尚未發布|S09/);
+  assert.doesNotMatch(html, /data-slot=/);
+  assert.doesNotMatch(html, /推測候選|官方先發與看點/);
   assert.doesNotMatch(html, /已鎖定|locked/);
   assert.doesNotMatch(html, /打序|先發公告/);
 });
@@ -172,8 +169,8 @@ test("名單未提交：不列投手", () => {
 });
 
 test("非目前目標與讀取失敗", () => {
-  assert.match(visible(watch([], { status: "historical_not_published", text: "歷史賽前版本由 S09 提供，尚未發布" })),
-    /歷史賽前版本由 S09 提供，尚未發布/);
+  assert.match(visible(watch([], { status: "historical_not_published", text: "本場已完賽，觀戰重點只提供系列下一場" })),
+    /本場已完賽，觀戰重點只提供系列下一場/);
   assert.match(visible(null), /第 4 區資料暫時無法讀取/);
 });
 

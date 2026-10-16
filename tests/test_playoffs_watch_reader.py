@@ -252,13 +252,18 @@ def test_module_does_not_read_074_or_starter_ids_directly():
         assert banned not in sql
 
 
-# —— 4B 未發布、歷史目標、版本欄 ——————————————————————————————————————
+# —— 4B 占位移除（#314）、歷史目標、版本欄 ——————————————————————————————————
 
 
-def test_publication_not_published_both_slots():
+def test_no_publication_placeholder():
+    """S09 已停止（#290）：回應不帶 ``publication``，全文不再出現 ``s09_not_enabled``／「賽前快照尚未發布」。"""
+    import json
+
+    for w in (run(), run(series="E", requested_game=4), run(series="E"), run(requested_game=2)):
+        assert "publication" not in w
+        dumped = json.dumps(w, ensure_ascii=False, default=str)
+        assert "s09_not_enabled" not in dumped and "賽前快照尚未發布" not in dumped and "S09" not in dumped
     w = run()
-    assert w["publication"]["status"] == "not_published"
-    assert [s["text"] for s in w["publication"]["slots"]] == ["賽前快照尚未發布", "賽前快照尚未發布"]
     assert w["policy_version"] == "playoffs-policy/v2.0-proposed"
     for k in ("series_id", "target_game_key", "context_version", "source_manifest", "as_of", "coverage",
               "missing_reason", "watch_version", "registration"):
@@ -270,6 +275,9 @@ def test_requested_completed_game_is_historical():
     assert w["status"] == "historical_not_published" and w["teams"] == []
     w2 = run(series="E")  # S02 目標停在已完賽 E4（系列已決定）
     assert w2["status"] == "historical_not_published"
+    for x in (w, w2):
+        assert x["text"] == "本場已完賽，觀戰重點只提供系列下一場"
+        assert x["missing_reason"] == ["historical_not_supported"]
 
 
 def test_requested_future_non_target():

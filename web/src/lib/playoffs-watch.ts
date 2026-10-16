@@ -101,7 +101,6 @@ export type PlayoffsWatch = {
   coverage: "complete" | "partial" | "incomplete" | "unknown";
   missing_reason: string[];
   source_manifest: { source: string; status: string }[];
-  publication: { status: string; reason: string; slots: { slot: "A" | "B"; status: string; text: string }[] };
   registration: { status: string; reason: string; text: string };
   starters?: WatchStarter[];
   teams: WatchTeam[];
