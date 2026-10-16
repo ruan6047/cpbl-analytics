@@ -254,9 +254,9 @@ export function TodayGameCard({ g, trainedThrough, nowMs, reveal = false, series
       entry={PHASE_ENTRY.pregame}
       aside={unsupported ? (reportHref ? (
         <Link href={reportHref} data-testid="ticket-report-link"
-          aria-label={`${g.away_team_name} 對 ${g.home_team_name}，觀戰報告：開賽前兩隊背景`}
+          aria-label={`${g.away_team_name} 對 ${g.home_team_name}，季後賽專頁：本場詳情`}
           className="inline-flex min-h-11 items-center text-right text-[13px] font-semibold text-accent underline">
-          觀戰報告 →
+          季後賽專頁 →
         </Link>
       ) : undefined) : (
         <PregameCard model={pregameModel} homeName={teamShort(g.home_team_code) || g.home_team_name} variant="aside" />

@@ -77,6 +77,6 @@ export function reportEntry(input: {
   if (!recapHref) return null;
   if (backendFinal && !!year && (kind === "E" || kind === "C") && previewHref === undefined) return { pending: true };
   return previewHref
-    ? { pending: false, href: previewHref, text: `下一場${REPORT_NAMES.preview}` }
-    : { pending: false, href: recapHref, text: `${REPORT_NAMES.between}：下一場兩隊背景` };
+    ? { pending: false, href: previewHref, text: "下一場詳情" }
+    : { pending: false, href: recapHref, text: "本場詳情" };
 }

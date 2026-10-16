@@ -192,7 +192,7 @@ test("F1：公告外的真實 C8（未完賽）是下一場；首頁指標、場
   assert.equal(j.next?.href, "/games/8?kind=C&year=2026");
   assert.ok(postseasonPointer(j));
   assert.match(postseasonGameLabels(j)["2026-C-8"] ?? "", /台灣大賽 G8/);
-  assert.match(Object.values(postseasonPreviewLinks(j)).join(" "), /\/games\/8\/preview\?kind=C&year=2026/);
+  assert.match(Object.values(postseasonPreviewLinks(j)).join(" "), /\/playoffs\?year=2026&series=C&game=8#watch/);
   const s = arrangedSlotForGame(g8, "C", 8);
   assert.equal(s?.seq, 8);
   assert.equal(s?.announced, false);

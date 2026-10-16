@@ -298,7 +298,7 @@ test("季後頁：尚無 C 列時異動只出現在標頭一句，#238 報告入
   assert.match(t, /・1 場賽程待更新：10\/17 台灣大賽 No\.1 賽程異動/);
   assert.doesNotMatch(after, /ps-row-schedule-pending/, "公告 G1 沒有正式列：不把訊號掛到 G1");
   assert.equal(after.replace(HEADER_NOTE, ""), before, "只多標頭一句；報告 Link/CTA/preview 與 RefreshHint 不受影響");
-  assert.match(before, /最新場間報告/, "前提：#238 入口有渲染");
+  assert.match(before, /本場詳情/, "前提：#238 入口有渲染");
 });
 
 test("季後頁：已有 C1 正式列時該列另標賽程待更新；拿掉兩處標示後與原畫面逐字相同", () => {
@@ -310,7 +310,7 @@ test("季後頁：已有 C1 正式列時該列另標賽程待更新；拿掉兩�
   assert.equal((after.match(ROW_NOTE) ?? []).length, 1);
   assert.match(after, /賽程待更新・官方賽程已異動，本站正式資料尚未反映/);
   assert.equal(after.replace(HEADER_NOTE, "").replace(ROW_NOTE, ""), before);
-  assert.match(before, /下一場觀戰報告/, "前提：#238 下一場入口有渲染且未被改動");
+  assert.match(before, /下一場詳情/, "前提：#238 下一場入口有渲染且未被改動");
 });
 
 test("刷新失敗與涵蓋分立：已涵蓋但刷新失敗仍照實說刷新失敗", () => {

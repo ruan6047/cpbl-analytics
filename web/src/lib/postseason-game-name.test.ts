@@ -53,8 +53,8 @@ test("N38：完賽季後單場頁在下一場目標解析前不給連結，解�
   const base = { recapHref: "/games/4/report?kind=E&year=2026&tab=overview", backendFinal: true, kind: "E", year: 2026 };
   assert.deepEqual(reportEntry({ ...base, previewHref: undefined }), { pending: true });
   assert.deepEqual(reportEntry({ ...base, previewHref: "/games/1/preview?kind=C&year=2026&tab=overview" }),
-    { pending: false, href: "/games/1/preview?kind=C&year=2026&tab=overview", text: "下一場觀戰報告" });
-  assert.deepEqual(reportEntry({ ...base, previewHref: null }), { pending: false, href: base.recapHref, text: "場間報告：下一場兩隊背景" });
+    { pending: false, href: "/games/1/preview?kind=C&year=2026&tab=overview", text: "下一場詳情" });
+  assert.deepEqual(reportEntry({ ...base, previewHref: null }), { pending: false, href: base.recapHref, text: "本場詳情" });
   // 後端尚未定案（只有頁面層完賽）時不會去解析，直接給場間報告，不會卡在空位。
   assert.equal((reportEntry({ ...base, backendFinal: false, previewHref: undefined }) as { pending: boolean }).pending, false);
   assert.equal(reportEntry({ ...base, recapHref: null, previewHref: undefined }), null);

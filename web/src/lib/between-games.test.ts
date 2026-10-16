@@ -16,8 +16,8 @@ test("頁籤入口固定 X、年度與賽別；無效 tab 回總覽",()=>{
   assert.equal(reportTab("invalid"),"overview");
 });
 test("賽況入口只在有年度的完賽 E/C 出現",()=>{
-  assert.equal(recapReportLink(true,"1","E",2026),reportLink(1,"E",2026));
-  assert.equal(recapReportLink(true,"1","C",2026),reportLink(1,"C",2026));
+  assert.equal(recapReportLink(true,"1","E",2026),"/playoffs?year=2026&series=E&game=1#watch");
+  assert.equal(recapReportLink(true,"1","C",2026),"/playoffs?year=2026&series=C&game=1#watch");
   assert.equal(recapReportLink(false,"1","E",2026),null);
   assert.equal(recapReportLink(true,"1","A",2026),null);
   assert.equal(recapReportLink(true,"1","E",undefined),null);
@@ -63,14 +63,14 @@ test("Y觀戰網址固定Y身分；只有journey與第二讀同指Y才成立",()
   assert.equal(previewMatches({report:{...report,next_game:nextE2},journey,updating:true},"E",2),false);
 });
 test("入口只給既存正式列；Y須定位回同一X才給觀戰網址",async()=>{
-  assert.equal(nextPreviewLink({kind_code:"C",game_sno:901,year:2026}),"/games/901/preview?kind=C&year=2026&tab=overview");
+  assert.equal(nextPreviewLink({kind_code:"C",game_sno:901,year:2026}),"/playoffs?year=2026&series=C&game=901#watch");
   assert.equal(nextPreviewLink(null),null);
   assert.equal(nextPreviewLink({kind_code:"A",game_sno:1,year:2026}),null);
   const report=fixture();const journey=reportJourney(report);
   const view={report:{...report,next_game:nextE2},journey,updating:false};
   const anchor=(kind_code:ReportKind,game_sno:number):ReportAnchor=>({status:"ok",season:2026,kind_code:"E",game_sno:2,anchor:{kind_code,game_sno}});
   const asked:unknown[]=[];
-  assert.equal(await nextPreviewFor(view,async(sno,kind)=>{asked.push([sno,kind]);return anchor("E",1);}),"/games/2/preview?kind=E&year=2026&tab=overview");
+  assert.equal(await nextPreviewFor(view,async(sno,kind)=>{asked.push([sno,kind]);return anchor("E",1);}),"/playoffs?year=2026&series=E&game=2#watch");
   assert.deepEqual(asked,[[2,"E"]]);
   assert.equal(await nextPreviewFor(view,async()=>anchor("E",4)),null);
   assert.equal(await nextPreviewFor(view,async()=>({status:"final",season:2026,kind_code:"E",game_sno:2})),null);
