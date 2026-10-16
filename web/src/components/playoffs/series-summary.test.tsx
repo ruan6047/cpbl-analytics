@@ -30,10 +30,18 @@ test("真實樣本：挑戰賽累計榜預設收合（details 無 open）、C 0 
   for (const s of ["詹子賢", "PA 5", "相對局面得分期望，累計 +2.4 分", "江坤宇", "PA 17", "陳俊秀"]) assert.ok(t.includes(s), s);
   for (const s of ["喬登", "BF 24", "壓制貢獻，累計 +3.4 分", "獅帝芬", "BF 18", "壓制貢獻，累計 +3.0 分"]) assert.ok(t.includes(s), s);
   assert.equal((out.match(/<li[^>]*data-player=/g) ?? []).length, 5);
-  // 官方單場 MVP 次數（含不在榜上的人）＋獎項格待更新
+  // 官方單場 MVP 次數（含不在榜上的人）照常；本卡不顯示官方系列獎項（6217030580）
   for (const n of ["勝騎士", "鄭浩均"]) assert.match(t, new RegExp(`${n}×1`));
   assert.match(t, /單場 MVP ×1/);
-  assert.match(t, /官方系列獎項待更新/);
+  assert.doesNotMatch(t, /官方系列獎項|系列獎項/);
+});
+
+test("WP-CLEAN：API 仍帶 awards 欄（舊版相容）時照常渲染、不出現獎項格；MVP 次數格跨兩欄", () => {
+  const raw = JSON.parse(readFileSync(new URL("../../lib/__fixtures__/playoffs-series-summary_2026-10-16.json", import.meta.url), "utf8"));
+  assert.deepEqual(raw.previous.awards, { status: "pending_source" });   // fixture 是 16b64634 前的真實 payload
+  const out = html(<SeriesSummaryBlock summary={raw as SeriesSummary} />);
+  assert.doesNotMatch(text(out), /官方系列獎項/);
+  assert.match(out, /<div class="min-w-0 md:col-span-2"><h4[^>]*>單場 MVP 次數<\/h4>/);
 });
 
 test("RE24 第一不稱 MVP；格內不放說明句（只有「—」「待更新」）", () => {
@@ -54,7 +62,7 @@ test("pending_pa／unavailable：榜格待更新，MVP 次數照常；空投手�
   const s = sum();
   Object.assign(s.previous!, { status: "pending_pa", games_covered: 0, batters: [], pitchers: [] });
   let t = text(html(<SeriesSummaryBlock summary={s} />));
-  assert.equal((t.match(/待更新/g) ?? []).length, 3);   // 打者、投手、獎項
+  assert.equal((t.match(/待更新/g) ?? []).length, 2);   // 打者、投手（獎項格已拿掉）
   assert.match(t, /勝騎士×1/);
   Object.assign(s.previous!, { status: "partial", games_covered: 3, missing_games: [2], batters: SUMMARY.previous!.batters, pitchers: [] });
   t = text(html(<SeriesSummaryBlock summary={s} />));
