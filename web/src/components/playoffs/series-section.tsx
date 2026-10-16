@@ -17,6 +17,7 @@ import {
   teamLabel,
   visibleCards,
 } from "@/lib/playoffs-series-view";
+import { SeriesSummaryBlock } from "./series-summary";
 
 // `/playoffs` 第 1 區「系列賽表現」（#285 S04）。無 hooks、純排字：SSR 首屏與 client 輪詢共用同一元件，
 // 輪詢只換 props，⛔ 自行捲動或移焦點。
@@ -137,6 +138,7 @@ export function SeriesSection({ overview }: { overview: PlayoffsOverview }) {
           <CurrentSeries block={ss.current} />
           <NextGame overview={overview} />
           {ss.previous && <PreviousSeries block={ss.previous} />}
+          <SeriesSummaryBlock summary={overview.series_summary} />
         </>
       )}
     </section>

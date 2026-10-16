@@ -25,6 +25,7 @@ from datetime import UTC, datetime
 
 from cpbl import postseason_contract as contract
 from cpbl.api.helpers import _dicts
+from cpbl.playoffs import series_summary as summary
 
 CONTRACT = "playoffs-overview/v1"
 SERIES_ORDER = ("E", "C")
@@ -38,6 +39,9 @@ class OverviewInputs:
 
     context: dict                       # S02 compute_series_context 輸出
     names: dict[str, str] | None        # player_id → name；None ⇒ players 讀取失敗
+    # #288 系列累計榜（series_summary.aggregate_all）；None ⇒ 未計算（只見於直接構造的測試）。
+    series_summary: dict[str, summary.SeriesAggregate] | None = None
+    summary_names: dict[str, str] | None = None   # 榜上／MVP 次數清單姓名（與 names 同一次批次查詢）
 
 
 def _key(gk: dict | None) -> tuple[int, str, int] | None:
@@ -148,7 +152,9 @@ def compute_overview(inputs: OverviewInputs) -> dict:
 
     ann = ctx.get("announcement")
     ids = mvp_ids(ctx)
+    aggs = inputs.series_summary
     manifest = [*ctx["source_manifest"],
+                *([summary.manifest_entry(aggs, observed_at=ctx["as_of"]["now"])] if aggs is not None else []),
                 {"source": "players", "scope": f"mvp:{len(ids)}",
                  "version_or_hash": contract._hash(sorted((names or {}).items())) if names is not None else None,
                  "observed_at": ctx["as_of"]["now"], "status": "ok" if names is not None else "unavailable"}]
@@ -174,6 +180,9 @@ def compute_overview(inputs: OverviewInputs) -> dict:
             "next_game": next_game,
             "next_game_missing_reason": next_reason,
         },
+        "series_summary": (summary.summary_json(aggs, inputs.summary_names, current=current,
+                                                previous=prior[-1] if prior else None)
+                           if aggs is not None else None),
         "sections": {
             "series": {"status": section_status, "missing_reason": series_missing},
             "watch": {"status": "ok" if target else "no_target", "series": current,
@@ -186,16 +195,21 @@ def read_overview_inputs(cur, year: int, *, now: datetime, live_reader=None) -> 
     """薄 I/O：S02 inputs＋一次姓名批次查詢，皆在呼叫端開好的同一交易內。"""
     context = contract.compute_series_context(
         contract.read_series_inputs(cur, year, now=now, live_reader=live_reader), now=now)
-    ids = mvp_ids(context)
+    aggs = summary.aggregate_all(context, contract._optional(cur, lambda: summary.read_series_rows(cur, context)))
+    mvp = mvp_ids(context)
+    ids = list(dict.fromkeys([*mvp, *summary.player_ids(aggs)]))
     if not ids:
-        return OverviewInputs(context=context, names={})
+        return OverviewInputs(context=context, names={}, series_summary=aggs, summary_names={})
 
     def names_read():
         cur.execute(PLAYERS_SQL, {"ids": ids})
         return {r["id"]: r["name"] for r in _dicts(cur) if r.get("name")}
 
-    names = contract._optional(cur, names_read)   # 失敗只降級（SAVEPOINT 隔離），不讓交易 aborted
-    return OverviewInputs(context=context, names=names)
+    found = contract._optional(cur, names_read)   # 失敗只降級（SAVEPOINT 隔離），不讓交易 aborted
+    # 第 1 區 MVP 姓名只取 MVP id（其版本雜湊不因累計榜擴充 id 集合而變）
+    keep = set(mvp)
+    names = None if found is None else {k: v for k, v in found.items() if k in keep}
+    return OverviewInputs(context=context, names=names, series_summary=aggs, summary_names=found)
 
 
 READ_ONLY_TXN = contract.READ_ONLY_TXN
