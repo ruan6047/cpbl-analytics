@@ -10,6 +10,9 @@ schema。⛔ 絕不在共用本機庫或正式庫建表寫列。
 3. 真實 E1–E4（``tests/fixtures/series_summary_2026E.json``，本機唯讀抽取）跑完整 ``pa_facts.delta_re24``
    的結果＝執行階段對帳 artifact（逐人 PA/BF 對官方 gamelog 0 差）的前 3／前 2。
 4. PA 表讀取失敗只降級該欄（SAVEPOINT 隔離）：比分、MVP、姓名照常，交易不 aborted。
+5. （WP-G3）三大轉折走**真實** ``winprob_scorer.get_scorer`` 路徑：只把 ``get_dist`` 換成本機唯讀抽出的
+   ``run_dist`` A／2018-2025 fixture（``tests/fixtures/run_dist_A_2018-2025.json``），避免 ``get_dist`` 以
+   ``cpbl.db.conn()`` 連到共用庫；解算器、規則集與 ``pa_facts.wp_swings`` 都是生產碼。
 """
 
 from __future__ import annotations
@@ -25,10 +28,29 @@ from postseason_context_inputs import YEARS
 from test_playoffs_overview_isolated import _DDL, _NOW, _T0, MVP, NAMES
 
 from cpbl import postseason_contract as pc
+from cpbl.models import winprob_scorer as ws
+from cpbl.models.winprob import K_CAP
 from cpbl.playoffs import overview as ov
 from cpbl.playoffs import series_summary as ss
 
 FIXTURE = json.loads((Path(__file__).resolve().parent / "fixtures" / "series_summary_2026E.json").read_text("utf-8"))
+RUN_DIST = json.loads((Path(__file__).resolve().parent / "fixtures" / "run_dist_A_2018-2025.json").read_text("utf-8"))
+
+
+def _dist() -> dict:
+    """fixture → ``winprob._load_dist`` 同形狀：(side, bases, outs) → [p_0 … p_K_CAP]。"""
+    out: dict = {}
+    for side, bases, outs, k, p in RUN_DIST["rows"]:
+        out.setdefault((side, bases, outs), [0.0] * (K_CAP + 1))[k] = float(p)
+    return out
+
+
+@pytest.fixture(autouse=True)
+def _wp_from_fixture(monkeypatch):
+    """所有測試：WP 分布改讀 fixture（⛔ 讓 get_dist 連共用庫），解算器快取每次清空。"""
+    dist = _dist()
+    monkeypatch.setattr(ws, "get_dist", lambda kind: dist if kind == "A" else None)
+    monkeypatch.setattr(ws, "_solver_cache", {})
 
 _INT = {"inning_seq", "batting_order", "out_cnt", "ball_cnt", "strike_cnt", "pitch_cnt", "visiting_score", "home_score"}
 
@@ -178,3 +200,24 @@ def test_pa_table_failure_only_degrades_summary(dsn, monkeypatch):
     prev = o["series_section"]["previous"]["games"]
     assert [c["mvp"]["name"] for c in prev] == ["勝騎士", "喬登", "獅帝芬", "鄭浩均"]   # 姓名照常
     assert prev[0]["away_score"] == 1                                                # 比分照常
+
+
+def test_turning_points_real_scorer_path_on_real_e(dsn, monkeypatch):
+    o, _seen = _run(dsn, monkeypatch)
+    tp = o["series_summary"]["previous"]["turning_points"]
+    assert (tp["signal"], tp["degraded"], tp["reason"], tp["scope"]) == ("delta_wp", False, None, "full")
+    # 期望值＝執行階段在本機共用庫（同一份 run_dist）上的真實輸出（RECON-TURNING-E1-E4.json）
+    assert [(t["series_game_no"], t["pa_index"], t["delta_wp"], t["delta_re24"]) for t in tp["items"]] == [
+        (2, 29, 0.1321, -1.2062), (3, 46, -0.1809, -1.2062), (4, 29, 0.1252, 1.0)]
+    assert [t["hitter"]["name"] for t in tp["items"]] == ["岳東華", "宋晟睿", "江坤宇"]
+    assert o["series_summary"]["current"]["turning_points"] is None     # C 未開打
+
+
+def test_missing_wp_artifact_degrades_turning_to_re24(dsn, monkeypatch):
+    monkeypatch.setattr(ws, "get_dist", lambda kind: None)                # 分布未建置
+    o = ov.playoffs_overview(2026, now=_NOW, connect=lambda: _connect(dsn))
+    tp = o["series_summary"]["previous"]["turning_points"]
+    assert (tp["signal"], tp["degraded"], tp["reason"]) == ("delta_re24", True, "winprob_model_not_built")
+    assert tp["degraded_games"] == [1, 2, 3, 4]
+    assert all(abs(t["delta_re24"]) >= 0.30 and t["delta_wp"] is None for t in tp["items"])
+    assert o["series_summary"]["previous"]["status"] == "ok"            # 累計榜不受影響

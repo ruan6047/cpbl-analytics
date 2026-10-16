@@ -195,7 +195,8 @@ def read_overview_inputs(cur, year: int, *, now: datetime, live_reader=None) -> 
     """薄 I/O：S02 inputs＋一次姓名批次查詢，皆在呼叫端開好的同一交易內。"""
     context = contract.compute_series_context(
         contract.read_series_inputs(cur, year, now=now, live_reader=live_reader), now=now)
-    aggs = summary.aggregate_all(context, contract._optional(cur, lambda: summary.read_series_rows(cur, context)))
+    aggs = summary.aggregate_all(context, contract._optional(cur, lambda: summary.read_series_rows(cur, context)),
+                                 scorer_for=summary.scorer_for)
     mvp = mvp_ids(context)
     ids = list(dict.fromkeys([*mvp, *summary.player_ids(aggs)]))
     if not ids:
