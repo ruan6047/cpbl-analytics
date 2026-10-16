@@ -67,7 +67,13 @@ export type PlayoffsOverview = {
   context_contract: string;
   year: number;
   context_version: string;
+  /** S02 預設系列（沿 postseason journey）；與所選系列無關。 */
   default_series: PlayoffsSeriesCode;
+  /**
+   * 本回應組裝所用的系列＝`?series=` 所選，未選時同 `default_series`（#285 批次 B）。區塊、目標場、第 4 區參數、
+   * 累計榜都以它為軸；第 2／3 區的 series 參數也取它。舊版 API 沒有此欄。
+   */
+  selected_series?: PlayoffsSeriesCode;
   series_id: OverviewSeriesBlock["series_id"];
   target_game_key: GameKeyV2 | null;
   as_of: {
@@ -101,8 +107,9 @@ export type PlayoffsOverview = {
   };
 };
 
-export function overviewPath(year: number): string {
-  return `/api/v1/playoffs/overview?season=${year}`;
+/** `series` 未指定 ⇒ 不帶參數，後端用 S02 預設系列（與未加 `?series=` 前的網址相同）。 */
+export function overviewPath(year: number, series: PlayoffsSeriesCode | null = null): string {
+  return `/api/v1/playoffs/overview?season=${year}${series ? `&series=${series}` : ""}`;
 }
 
 export function watchPath(year: number, series: PlayoffsSeriesCode, game: number | null): string {
@@ -117,6 +124,16 @@ export function parseGameParam(raw: string | string[] | undefined): number | nul
   return n >= 1 ? n : null;
 }
 
+/** `?series=`：只收大寫 `E`、`C`；其他值（含小寫、重複參數）一律視為未指定，跟隨 S02 預設系列。 */
+export function parseSeriesParam(raw: string | string[] | undefined): PlayoffsSeriesCode | null {
+  return raw === "E" || raw === "C" ? raw : null;
+}
+
+/** 系列切換連結：保留網址上的 `year`、拿掉 `game`（`?game=` 只在所選系列內當第 4 區目標場）。 */
+export function seriesHref(series: PlayoffsSeriesCode, year: number | null): string {
+  return `/playoffs?${year !== null ? `year=${year}&` : ""}series=${series}`;
+}
+
 /** `?year=`：四位數年份，否則用預設年度。 */
 export function parseYearParam(raw: string | string[] | undefined, fallback: number): number {
   const v = Array.isArray(raw) ? raw[0] : raw;
@@ -124,10 +141,10 @@ export function parseYearParam(raw: string | string[] | undefined, fallback: num
 }
 
 /** SSR 取 overview（`no-store`）。失敗回 null，由頁面顯示第 1 區讀取失敗。 */
-export async function fetchPlayoffsOverview(year: number): Promise<PlayoffsOverview | null> {
+export async function fetchPlayoffsOverview(year: number, series: PlayoffsSeriesCode | null = null): Promise<PlayoffsOverview | null> {
   const base = process.env.API_URL ?? "http://localhost:4001";
   try {
-    const res = await fetch(`${base}${overviewPath(year)}`, { cache: "no-store" });
+    const res = await fetch(`${base}${overviewPath(year, series)}`, { cache: "no-store" });
     if (!res.ok) return null;
     const body = (await res.json()) as PlayoffsOverview;
     return body?.contract === "playoffs-overview/v1" ? body : null;
