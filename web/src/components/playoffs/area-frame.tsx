@@ -6,7 +6,8 @@ import { AREA_SCROLL_MARGIN, DEFAULT_AREA_MIN_HEIGHT_PX, type RegisteredAreaId }
 import type { WatchState } from "@/lib/playoffs-poll";
 
 // `/playoffs` 第 2／3 區外框（#285 續做 WP2；MOUNT-CONTRACT r3 §1–§3）。與已上線的 `#watch`（watch-area.tsx）同一套規則：
-// - 錨點 `<div id>`＋同值 scroll-margin；首次取得前固定最小高度占位，錨點跳轉後不位移。
+// - 錨點 `<div id>`＋同值 scroll-margin；首次取得前固定最小高度占位，錨點跳轉後不位移。最小高度只在占位時套用
+//   （契約 §2「占位高度」；#285 批次 B 發現 2）：區元件掛上後外框高＝元件高，名單缺等短內容不在下方留白。
 // - 外框接近 viewport（前 1 個視窗高度）才呼叫 `onNear` 啟用該區；不支援 IntersectionObserver 時掛載即啟用。
 // - 各卡的 Section 固定為外框第一個子節點、不給 key：輪詢只換 `data`，元件內的篩選、輸入、抽屜不被 remount。
 // - 提示放在 Section 之後；⛔ 在外框設 transform／filter／contain／overflow-hidden（會困住 portal 以外的
@@ -72,7 +73,8 @@ export function AreaFrame<T>({ id, state, Section, minHeightPx, onNear }: {
     : state.kind === "error" && shown ? AREA_COPY.refreshFailed : null;
   const placeholder = mountSection ? null : state.kind === "stale" ? AREA_COPY.updatingEmpty : AREA_COPY.loading;
   return (
-    <div id={id} ref={ref} className={AREA_FRAME_CLASS} style={{ minHeight: `${minHeightPx ?? DEFAULT_AREA_MIN_HEIGHT_PX}px` }}
+    <div id={id} ref={ref} className={AREA_FRAME_CLASS}
+      style={mountSection ? undefined : { minHeight: `${minHeightPx ?? DEFAULT_AREA_MIN_HEIGHT_PX}px` }}
       data-area-state={state.kind}>
       {mountSection ? <Section data={shown} /> : null}
       {placeholder ? <p role="status" className="rounded bg-surface p-3 text-sm text-muted">{placeholder}</p> : null}
