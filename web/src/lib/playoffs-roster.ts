@@ -128,7 +128,7 @@ export const initialScope = (d: PlayoffsRoster): RosterScope =>
 
 export type RosterSort = "position" | "games" | "arrow";
 export const SORTS: { key: RosterSort; label: string }[] = [
-  { key: "position", label: "官方守位" },
+  { key: "position", label: "守位" },   // 需求方裁定 #286：內外野依例行賽主守位拆分、非官方分組，按鈕不冠「官方」
   { key: "games", label: "出賽 G" },
   { key: "arrow", label: "箭頭方向" },
 ];

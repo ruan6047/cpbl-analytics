@@ -7,6 +7,7 @@ import { MemberCard, RosterSection, RosterView } from "./roster-section.tsx";
 import {
   rosterNotes,
   rosterPath,
+  SORTS,
   drawerSubtitle,
   initialScope,
   scopeG,
@@ -280,4 +281,13 @@ test("PR3：頁尾說明不受角色行改動影響（固定 key 與依資料 ke
     "roster.eligibility_not_availability", "roster.appearance_g", "roster.official_pr_only", "roster.arrow_proposed",
     "roster.series_only", "roster.roster_missing.ACN011", "roster.arrow_unavailable", "roster.farm_background"]);
   assert.ok(rosterNotes(payload([A, B], "partial")).every((n) => !n.text.includes("本站角色")));
+});
+
+test("PR3：排序鈕文字為「守位」（需求方裁定：內外野非官方分組，不冠「官方」），排序邏輯不變", () => {
+  assert.deepEqual(SORTS.map((x) => x.label), ["守位", "出賽 G", "箭頭方向"]);
+  const html = renderToStaticMarkup(<RosterView data={payload([A])} team="all" sort="position" />);
+  assert.match(html, /aria-pressed="true"[^>]*>守位</);
+  assert.doesNotMatch(html, /官方守位/);
+  assert.deepEqual(sortMembers(A.members, "position").map((m) => m.player_id),
+    ["0000000002", "0000000004", "0000000003", "0000000011"]);
 });
