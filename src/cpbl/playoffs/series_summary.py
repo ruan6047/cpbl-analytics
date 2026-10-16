@@ -20,7 +20,9 @@
    記在 ``pitcher_unattributed``（⛔ 歸末投手、⛔ 猜）。投手展示值＝−ΣΔRE24（打者視角轉號，正＝壓制，G08）。
 4. 排序用未四捨五入值（6 位）降冪、同值 ``player_id`` 升冪；候選不足就少列（G14）。⛔ 輸出任何
    「MVP」「領先」字樣給 RE24 排名；MVP 次數只計 S02 的官方 ``official_mvp_id``（A05、G07）。
-5. 獎項 G2 恆 ``pending_source``；⛔ 從 MVP 次數推任何獎項。後端不產文案，句子由前端組。
+5. 獎項（WP-AWARDS）讀官方系列獎項窄表（:mod:`cpbl.playoffs.series_awards`）每系列最新 revision；讀取有
+   **自己的** SAVEPOINT，與 PA 完整度互不影響（body 契約「獎項與 analysis 完整度獨立」）；表不存在時退化成
+   ``pending_source``（「待更新」）。⛔ 從 MVP 次數或 RE24 推任何獎項。後端不產文案，句子由前端組。
 6. **三大轉折**（WP-G3）：候選＝本系列**所有已涵蓋場**的打席（⛔ 先在單場截前 N），指標＝|ΔWP|
    （既有 :func:`pa_facts.wp_swings`，各場 final_outcome 依該場比分）。任一已涵蓋場拿不到 WP ⇒ **整組**
    改 |ΔRE24|（不混用兩種指標）；門檻沿用 ``KEY_PLAY_MIN_WP_ABS``／``KEY_PLAY_MIN_ABS``（⛔ 改）。
@@ -39,6 +41,7 @@ from typing import Any
 from cpbl import postseason_contract as contract
 from cpbl.api.matchup_teams import charged_walk_pitcher
 from cpbl.models import pa_facts
+from cpbl.playoffs import series_awards
 
 CONTRACT = "playoffs-series-summary/v1"
 ALGORITHM = f"re24-span-{pa_facts.RE_SPAN}/v1"
@@ -101,6 +104,9 @@ class SeriesRows:
     members: dict[tuple[str, int, int], list[str]] = field(default_factory=dict)  # (kind, sno, pa_index) → 事件號
     re_map: dict[tuple[str, int], float] = field(default_factory=dict)
     build_ids: dict[GameKey, str] = field(default_factory=dict)
+    pa_ok: bool = True                  # PA／livelog／RE 讀取成功；False ⇒ 累計榜 unavailable（獎項不受影響）
+    # 官方系列獎項：kind → 最新 revision；None ⇒ 讀取失敗或表未建（顯示「待更新」）；{} ⇒ 尚無任何 revision
+    awards: dict[str, dict] | None = None
 
 
 def series_games(context: dict, kind: str) -> list[dict]:
@@ -114,13 +120,26 @@ def series_games(context: dict, kind: str) -> list[dict]:
 
 
 def read_series_rows(cur, context: dict) -> SeriesRows:
-    """薄 I/O：本年度 E／C 完賽場一次批次讀完（固定 4 支查詢）。呼叫端以 ``contract._optional`` 包住。"""
-    keys = [(kind, int(g["game_key"]["game_sno"])) for kind in SERIES_ORDER for g in series_games(context, kind)]
+    """薄 I/O：本年度官方系列獎項＋E／C 完賽場的 PA 原料（各自 SAVEPOINT；PA 固定 4 支查詢）。
+
+    兩段互相獨立：獎項表不存在只讓 ``awards=None``；PA 讀取失敗只讓 ``pa_ok=False``。呼叫端仍以
+    ``contract._optional`` 包住整支（兩段都已自行吸收 SQL 錯誤，外層只剩非預期例外）。"""
     rows = SeriesRows()
+    rows.awards = contract._optional(cur, lambda: series_awards.read_latest(cur, int(context["year"])))
+    keys = [(kind, int(g["game_key"]["game_sno"])) for kind in SERIES_ORDER for g in series_games(context, kind)]
     if not keys:
         return rows
     params = {"year": context["year"], "kinds": [k for k, _ in keys], "snos": [s for _, s in keys]}
+    pa = contract._optional(cur, lambda: _read_pa(cur, params))
+    if pa is None:
+        rows.pa_ok = False
+        return rows
+    rows.pas, rows.livelog, rows.members, rows.re_map, rows.build_ids = pa
+    return rows
 
+
+def _read_pa(cur, params: dict) -> tuple:
+    rows = SeriesRows()
     cur.execute(PA_SQL, params)
     for r in pa_facts._rows(cur):
         key = (r.pop("_kind_code"), int(r.pop("_game_sno")))
@@ -133,7 +152,7 @@ def read_series_rows(cur, context: dict) -> SeriesRows:
     for kind, sno, pa_index, event_no in cur.fetchall():
         rows.members.setdefault((kind, int(sno), int(pa_index)), []).append(str(event_no))
     rows.re_map = pa_facts.load_re_matrix(cur, "C")   # 季後 kind 借一軍例行矩陣（E、C 同一張）
-    return rows
+    return rows.pas, rows.livelog, rows.members, rows.re_map, rows.build_ids
 
 
 @dataclass
@@ -161,6 +180,7 @@ class SeriesAggregate:
     livelog_names: dict[str, str] = field(default_factory=dict)   # players 缺名時的後備
     teams: dict[str, str | None] = field(default_factory=dict)    # 已涵蓋場出現過的打者／投手 → 隊（MVP 清單用）
     turning: dict | None = None         # 三大轉折（turning_points 純函式輸出）；無已涵蓋場 ⇒ None
+    awards: dict = field(default_factory=lambda: {"status": "pending_source"})   # series_awards.awards_json
 
 
 # (kind_code, season) → (scorer | None, 不可用原因 | None)；由呼叫端注入，測試可替身。
@@ -296,15 +316,17 @@ def aggregate(context: dict, kind: str, rows: SeriesRows | None, *,
     games = series_games(context, kind)
     mvp_counts, mvp_missing = _mvp(games)
 
+    awards = series_awards.awards_json(rows.awards if rows is not None else None, kind)
+
     def result(status: str, **kw) -> SeriesAggregate:
         base = dict(games_covered=0, missing_games=[], excluded_games=[], batters=[], pitchers=[],
-                    pitcher_unattributed=0, build_ids_hash=None)
+                    pitcher_unattributed=0, build_ids_hash=None, awards=awards)
         return SeriesAggregate(kind_code=kind, status=status, games_total=len(games), mvp_counts=mvp_counts,
                                mvp_missing_games=mvp_missing, **{**base, **kw})
 
     if not games:
         return result("no_completed_games")
-    if rows is None or len(rows.re_map) < RE_CELLS:
+    if rows is None or not rows.pa_ok or len(rows.re_map) < RE_CELLS:
         return result("unavailable", missing_games=[g["series_game_no"] for g in games])
 
     batters: dict[str, Line] = {}
@@ -424,7 +446,7 @@ def _block(agg: SeriesAggregate, names: dict[str, str] | None) -> dict:
         "mvp_counts": [{"player_id": m["player_id"], "name": name(m["player_id"]),
                         "team_code": agg.teams.get(m["player_id"]), "count": m["count"]} for m in agg.mvp_counts],
         "mvp_missing_games": agg.mvp_missing_games,
-        "awards": {"status": "pending_source"},
+        "awards": agg.awards,
         "turning_points": turning,
         "source": {"pa_build_ids_hash": agg.build_ids_hash, "re_span": pa_facts.RE_SPAN},
     }

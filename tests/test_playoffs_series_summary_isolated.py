@@ -13,6 +13,8 @@ schema。⛔ 絕不在共用本機庫或正式庫建表寫列。
 5. （WP-G3）三大轉折走**真實** ``winprob_scorer.get_scorer`` 路徑：只把 ``get_dist`` 換成本機唯讀抽出的
    ``run_dist`` A／2018-2025 fixture（``tests/fixtures/run_dist_A_2018-2025.json``），避免 ``get_dist`` 以
    ``cpbl.db.conn()`` 連到共用庫；解算器、規則集與 ``pa_facts.wp_swings`` 都是生產碼。
+6. （WP-AWARDS）官方系列獎項表（078）**不存在**時獎項退化成 ``pending_source``、其餘照常（Deploy 後到生產
+   migration 套用前的狀態）；表存在時在同一交易讀到最新 revision。
 """
 
 from __future__ import annotations
@@ -181,6 +183,7 @@ def test_same_transaction_fixed_query_count_and_real_e_board(dsn, monkeypatch):
     assert [(p["player_id"], p["value_raw"], p["bf"]) for p in e["pitchers"]] == [
         ("0000007778", 3.4458, 24), ("0000007597", 3.028, 18)]
     assert e["pitcher_unattributed"] == 0 and e["excluded_games"] == []
+    assert e["awards"] == {"status": "pending_source"}               # 078 表不存在 ⇒ 待更新、不報錯
     # 姓名：players 有的用 players，沒有的走 livelog 後備
     assert e["pitchers"][0]["name"] == "喬登" and e["batters"][0]["name"] == "詹子賢"
     assert [(m["name"], m["count"]) for m in e["mvp_counts"]] == [("勝騎士", 1), ("喬登", 1), ("獅帝芬", 1), ("鄭浩均", 1)]
@@ -221,3 +224,32 @@ def test_missing_wp_artifact_degrades_turning_to_re24(dsn, monkeypatch):
     assert tp["degraded_games"] == [1, 2, 3, 4]
     assert all(abs(t["delta_re24"]) >= 0.30 and t["delta_wp"] is None for t in tp["items"])
     assert o["series_summary"]["previous"]["status"] == "ok"            # 累計榜不受影響
+
+
+def test_zz_awards_table_present_is_read_in_same_transaction(dsn, monkeypatch):
+    """最後跑：在本模組隔離庫建 078 兩表、寫一個合成 revision，overview 讀到 published；結束時移除兩表。"""
+    import psycopg
+
+    migration = (Path(__file__).resolve().parent.parent / "migrations" / "078_series_award_revisions.sql").read_text(
+        "utf-8")
+    with psycopg.connect(dsn, autocommit=True) as c:
+        c.execute("CREATE TABLE IF NOT EXISTS cpbl.team_dim (team_code text PRIMARY KEY)")
+        c.execute("INSERT INTO cpbl.team_dim VALUES ('ACN011') ON CONFLICT DO NOTHING")
+        c.execute(migration)
+        c.execute("INSERT INTO cpbl.series_award_revision (year,kind_code,revision,status,source_url,source_sha256,"
+                  "checked_at) VALUES (2026,'E',1,'published','https://www.cpbl.com.tw/x',repeat('a',64),"
+                  "'2026-10-13T12:00:00+00')")
+        c.execute("INSERT INTO cpbl.series_award_winner VALUES "
+                  "(2026,'E',1,1,1,'測試挑戰賽最有價值球員','series_mvp',NULL,'甲','ACN011'),"
+                  "(2026,'E',1,1,2,'測試挑戰賽最有價值球員','series_mvp',NULL,'乙',NULL)")
+    try:
+        o, seen = _run(dsn, monkeypatch)
+        aw = o["series_summary"]["previous"]["awards"]
+        assert aw["status"] == "published" and aw["revision"] == 1
+        assert [w["name"] for w in aw["awards"][0]["winners"]] == ["甲", "乙"]
+        assert o["series_summary"]["current"]["awards"] == {"status": "pending_source"}   # C 沒有 revision
+        assert o["series_summary"]["previous"]["status"] == "ok"
+    finally:
+        with psycopg.connect(dsn, autocommit=True) as c:
+            c.execute("DROP TABLE cpbl.series_award_winner, cpbl.series_award_revision")
+            c.execute("DROP FUNCTION cpbl.reject_series_award_mutation, cpbl.check_series_award_winner_published")
