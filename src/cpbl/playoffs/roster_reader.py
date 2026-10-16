@@ -91,8 +91,9 @@ class RosterInputs:
     lg_era: float | None = None
     # 本系列（所選 series）已完賽場次的逐人原始計數：(player_id, role) → counts；None ⇒ 未讀（無完賽場）
     series_counts: dict[tuple[str, str], dict] | None = None
-    # 已完賽場次 game_sno → {"away": 該隊有 box, "home": …}；判 pending_games 用
-    series_box: dict[int, dict[str, bool]] = field(default_factory=dict)
+    # 已完賽場次 game_sno → {"away": {已送達的來源}, "home": …}；來源 ∈ {"batting", "pitching"}。
+    # 兩種來源分開記：打擊與投球由爬蟲分別提交，可能只到一份（review-3 F1）。
+    series_box: dict[int, dict[str, set[str]]] = field(default_factory=dict)
 
 
 # —— 純計算 ——————————————————————————————————————————————————————————
@@ -230,36 +231,59 @@ def _series_games(inputs: RosterInputs) -> list[dict]:
     return sorted(games, key=lambda g: (g.get("series_game_no") or 0, g["game_key"]["game_sno"]))
 
 
+SERIES_SOURCES = ("batting", "pitching")
+
+
 def series_scope(inputs: RosterInputs, teams: list[str]) -> dict:
-    """``scopes.series``：完賽場數、各隊缺 box 的場（以系列場序 G1、G2… 表示）、狀態。
+    """``scopes.series``：完賽場數、各隊缺 box 的場（以系列場序 G1、G2… 表示）、各隊缺哪種來源、狀態。
+
+    一場一隊要「打擊」與「投球」兩種來源都已送達才算完整；只到一份照樣列待送達（review-3 F1）。
 
     - 尚無完賽場 ⇒ ``no_games``（格內「—」）。
-    - 有完賽場但任一隊缺 box ⇒ ``pending_source``（該隊格內「待更新」、頁尾列場次）。
+    - 有完賽場但任一隊缺任一來源 ⇒ ``pending_source``（該隊格內「待更新」、頁尾列場次）。
     - 其餘 ⇒ ``ok``。
     """
     games = _series_games(inputs)
     if not games:
-        return {"status": "no_games", "completed_games": 0, "pending_games": [], "pending_by_team": {}}
+        return {"status": "no_games", "completed_games": 0, "pending_games": [], "pending_by_team": {},
+                "missing_roles": {}}
     pending: dict[str, list[int]] = {t: [] for t in teams}
+    missing_roles: dict[str, set[str]] = {t: set() for t in teams}
     for g in games:
         box = inputs.series_box.get(int(g["game_key"]["game_sno"]), {})
         for side in ("away", "home"):
             code = g.get(f"{side}_team_code")
-            if code in pending and not box.get(side):
+            if code not in pending:
+                continue
+            lacking = set(SERIES_SOURCES) - set(box.get(side) or ())
+            if lacking:
                 pending[code].append(g.get("series_game_no") or g["game_key"]["game_sno"])
+                missing_roles[code] |= lacking
     all_pending = sorted({n for v in pending.values() for n in v})
     return {"status": "pending_source" if all_pending else "ok", "completed_games": len(games),
-            "pending_games": all_pending, "pending_by_team": {t: v for t, v in pending.items() if v}}
+            "pending_games": all_pending, "pending_by_team": {t: v for t, v in pending.items() if v},
+            "missing_roles": {t: v for t, v in missing_roles.items() if v}}
 
 
-def series_of(pid: str, role: str, inputs: RosterInputs) -> dict | None:
-    """一名球員的本系列實戰：G 與傳統計數（只含已完賽且有 box 的場）。無完賽場 ⇒ None；未出賽 ⇒ g=0、line None。"""
+def series_of(pid: str, role: str, inputs: RosterInputs, *, source_missing: bool = False) -> dict | None:
+    """一名球員的本系列實戰：G 與傳統計數。
+
+    - 無完賽場 ⇒ None。
+    - 該隊有任一完賽場缺這名球員角色的來源（打者缺打擊、投手缺投球）⇒ ``pending``：G 與計數不給
+      （格內「待更新」）。⛔ 把查無列讀成 0G，⛔ 用部分場次的計數冒充完整數字（review-3 F1）。
+    - 來源齊、未出賽 ⇒ g=0、line None。
+    - 打者 line 帶 ``so``（WP6；review-3 F2）。
+    """
     if inputs.series_counts is None:
         return None
+    if source_missing:
+        return {"g": None, "line": None, "pending": True}
     c = inputs.series_counts.get((pid, role))
     if not c or not c.get("g"):
-        return {"g": 0, "line": None}
-    return {"g": c["g"], "line": (batting_line if role == "batting" else pitching_line)(c)}
+        return {"g": 0, "line": None, "pending": False}
+    if role == "batting":
+        return {"g": c["g"], "line": {**batting_line(c), "so": c.get("so") or 0}, "pending": False}
+    return {"g": c["g"], "line": pitching_line(c), "pending": False}
 
 
 def default_scope_of(inputs: RosterInputs) -> str:
@@ -298,7 +322,8 @@ def compute_roster(inputs: RosterInputs, *, now: datetime) -> dict:
         return {**out, "status": "series_unknown", "teams": [], "missing_reason": [*missing, "series_teams_unknown"]}
 
     sc = series_scope(inputs, teams)
-    out["scopes"] = {"background": {"status": "ok"}, "series": {k: v for k, v in sc.items() if k != "pending_by_team"}}
+    out["scopes"] = {"background": {"status": "ok"},
+                     "series": {k: v for k, v in sc.items() if k not in ("pending_by_team", "missing_roles")}}
     if sc["status"] == "pending_source":
         missing.append("series_box_pending")
     team_out = []
@@ -317,7 +342,8 @@ def compute_roster(inputs: RosterInputs, *, now: datetime) -> dict:
                 "tactical_role": _role(m.get("tactical_role")),
                 "role": role,
                 "background": background_of(m["player_id"], role, inputs),
-                "series": series_of(m["player_id"], role, inputs),
+                "series": series_of(m["player_id"], role, inputs,
+                                    source_missing=role in sc["missing_roles"].get(code, set())),
             })
         members.sort(key=lambda x: (POSITION_ORDER.get(x["official_position"], 99), x["player_id"]))
         team_out.append({
@@ -330,6 +356,7 @@ def compute_roster(inputs: RosterInputs, *, now: datetime) -> dict:
             },
             "members": members,
             "series_pending_games": sc["pending_by_team"].get(code, []),
+            "series_pending_roles": sorted(sc["missing_roles"].get(code, set())),
         })
     statuses = {t["roster_status"] for t in team_out}
     status = ("unavailable" if "unavailable" in statuses else "ok" if statuses == {"submitted"}
@@ -379,7 +406,8 @@ PIT_COUNTS_SQL = """
 SERIES_BAT_SQL = """
     SELECT b.hitter_acnt AS pid, count(DISTINCT b.game_sno) AS g,
            sum(b.plate_appearances) AS pa, sum(b.at_bats) AS ab, sum(b.hits) AS h, sum(b.bb) AS bb,
-           sum(b.hbp) AS hbp, sum(b.sac_fly) AS sf, sum(b.total_bases) AS tb, sum(b.home_runs) AS hr
+           sum(b.hbp) AS hbp, sum(b.sac_fly) AS sf, sum(b.total_bases) AS tb, sum(b.home_runs) AS hr,
+           sum(b.so) AS so
       FROM cpbl.batting_gamelog b
      WHERE b.year = %(year)s AND b.kind_code = %(kind)s AND b.game_sno = ANY(%(snos)s)
        AND b.hitter_acnt = ANY(%(ids)s)
@@ -396,12 +424,13 @@ SERIES_PIT_SQL = """
      GROUP BY 1
 """
 
-# 各場兩隊是否已有 box（打擊或投球任一表有該隊列即算）；visiting_home_type '1'＝客、'2'＝主。
+# 各場兩隊各自已送達哪種來源（打擊／投球分開，⛔ 合併成「任一有列」——review-3 F1）；
+# visiting_home_type '1'＝客、'2'＝主。
 SERIES_BOX_SQL = """
-    SELECT game_sno, visiting_home_type FROM cpbl.batting_gamelog
+    SELECT DISTINCT game_sno, visiting_home_type, 'batting' AS source FROM cpbl.batting_gamelog
      WHERE year = %(year)s AND kind_code = %(kind)s AND game_sno = ANY(%(snos)s)
     UNION
-    SELECT game_sno, visiting_home_type FROM cpbl.pitching_gamelog
+    SELECT DISTINCT game_sno, visiting_home_type, 'pitching' AS source FROM cpbl.pitching_gamelog
      WHERE year = %(year)s AND kind_code = %(kind)s AND game_sno = ANY(%(snos)s)
 """
 
@@ -495,8 +524,9 @@ def read_series(cur, inputs: RosterInputs) -> None:
     pit = sorted({m["player_id"] for m in members if role_of(m["official_position"]) == "pitching"})
     args = {"year": inputs.year, "kind": inputs.series, "snos": snos}
     cur.execute(SERIES_BOX_SQL, args)
-    for sno, vht in cur.fetchall():
-        inputs.series_box.setdefault(int(sno), {})["away" if str(vht) == "1" else "home"] = True
+    for sno, vht, source in cur.fetchall():
+        side = "away" if str(vht) == "1" else "home"
+        inputs.series_box.setdefault(int(sno), {}).setdefault(side, set()).add(source)
     inputs.series_counts = {}
     for role, sql, pids in (("batting", SERIES_BAT_SQL, bat), ("pitching", SERIES_PIT_SQL, pit)):
         if not pids:

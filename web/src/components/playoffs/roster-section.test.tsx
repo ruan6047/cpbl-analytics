@@ -3,11 +3,12 @@ import test from "node:test";
 import type { ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 
-import { RosterSection, RosterView } from "./roster-section.tsx";
+import { MemberCard, RosterSection, RosterView } from "./roster-section.tsx";
 import {
   rosterNotes,
   rosterPath,
   initialScope,
+  scopeG,
   sortMembers,
   type PlayoffsRoster,
   type RosterArrow,
@@ -227,4 +228,22 @@ test("切換保留篩選與排序：scope 不影響 team／sort 的選取狀態"
   assert.match(html, /aria-pressed="true"[^>]*>兄弟</);
   assert.match(html, /aria-pressed="true"[^>]*>出賽 G</);
   assert.match(html, /aria-pressed="true"[^>]*>本系列實戰數據</);
+});
+
+test("review-3 F1：本系列來源未齊的球員顯示「待更新」（⛔ 0G），背景 scope 不受影響；F2：本系列打者 line 帶 SO", () => {
+  const d = withSeries("pending_source", [1]);
+  const t0 = d.teams[0];
+  t0.series_pending_roles = ["pitching"];
+  t0.members = t0.members.map((m) => (m.role === "pitching" ? { ...m, series: { g: null, line: null, pending: true } } : m));
+  const p = t0.members.find((m) => m.role === "pitching")!;
+  const series = text(<MemberCard m={p} scope="series" />);
+  assert.match(series, /球員02 投手 待更新/);
+  assert.match(series, /本站角色： 終結 待更新/);
+  assert.doesNotMatch(series, /0G/);
+  assert.match(text(<MemberCard m={p} scope="background" />), /球員02 投手 55G/);
+  assert.equal(scopeG(p, "series"), null);
+  assert.deepEqual(sortMembers(t0.members, "games", "series").at(-1)?.player_id, p.player_id);
+  const b: RosterMember = { ...A.members[0], series: { g: 3, pending: false,
+    line: { pa: 12, ab: 10, h: 3, hr: 1, bb: 2, so: 4, avg: 0.3, obp: 0.417, slg: 0.6, ops: 1.017 } } };
+  assert.equal((b.series?.line as { so?: number }).so, 4);
 });

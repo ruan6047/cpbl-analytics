@@ -14,6 +14,7 @@ import {
   initialScope,
   lineText,
   scopeG,
+  seriesPending,
   prLabel,
   sortMembers,
   teamLabel,
@@ -166,8 +167,9 @@ export function MemberCard({ m, scope = "background", onOpen }: {
   m: RosterMember; scope?: RosterScope; onOpen?: (m: RosterMember) => void;
 }) {
   const bg = m.background;
-  const line = lineText(m, scope);
   const series = scope === "series";
+  const pending = seriesPending(m, scope);
+  const line = pending ? ROSTER_COPY.pending : lineText(m, scope);
   return (
     <div className="h-full min-w-0 rounded border border-line bg-surface p-3 text-left" data-player={m.player_id}
       data-level={bg.level}>
@@ -176,7 +178,7 @@ export function MemberCard({ m, scope = "background", onOpen }: {
         <span className="text-xs text-muted">{m.official_position}</span>
         {!series && bg.level === "D" ? <span className="pm-tag">{ROSTER_COPY.farm}</span> : null}
         <span className="ml-auto font-mono text-sm font-bold tabular-nums text-ink" data-g>
-          {gText({ g: scopeG(m, scope) })}
+          {pending ? ROSTER_COPY.pending : gText({ g: scopeG(m, scope) })}
         </span>
       </div>
       <div className="mt-1 flex flex-wrap gap-x-3 text-xs text-muted">

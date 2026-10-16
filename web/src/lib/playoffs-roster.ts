@@ -14,6 +14,8 @@ export type BackgroundLevel = "A" | "D" | "none";
 
 export type BattingLine = {
   pa: number; ab: number; h: number; hr: number; bb: number;
+  /** 三振：本系列打者才有（WP6；review-3 F2）。例行賽背景不帶。 */
+  so?: number;
   avg: number | null; obp: number | null; slg: number | null; ops: number | null;
 };
 export type PitchingLine = { outs: number; ip: string; er: number; so: number; bb: number; era: number | null };
@@ -52,8 +54,9 @@ export type RosterMember = {
   tactical_role: string | null;
   role: RosterRole;
   background: RosterBackground;
-  /** 本系列實戰（PR2）：尚無完賽場 ⇒ null；未出賽 ⇒ g=0、line null。 */
-  series?: { g: number; line: BattingLine | PitchingLine | null } | null;
+  /** 本系列實戰（PR2）：尚無完賽場 ⇒ null；未出賽 ⇒ g=0、line null；
+   *  該隊缺這名球員角色的來源（打者缺打擊、投手缺投球）⇒ pending、g null（格內「待更新」，⛔ 當成 0G）。 */
+  series?: { g: number | null; line: BattingLine | PitchingLine | null; pending?: boolean } | null;
 };
 
 export type RosterTeam = {
@@ -62,8 +65,10 @@ export type RosterTeam = {
   roster_status: "submitted" | "missing" | "unavailable";
   roster: { roster_id: string; published_date: string | null; source_url: string | null; annotation_version: number | null } | null;
   members: RosterMember[];
-  /** 該隊已完賽但 box 尚未送達的系列場序（PR2）。 */
+  /** 該隊已完賽但 box（打擊或投球任一）尚未送達的系列場序（PR2）。 */
   series_pending_games?: number[];
+  /** 該隊缺哪種來源："batting"／"pitching"（PR2；review-3 F1）。 */
+  series_pending_roles?: RosterRole[];
 };
 
 export type SeriesScopeStatus = "not_provided" | "no_games" | "ok" | "pending_source";
@@ -136,7 +141,10 @@ const POSITION_ORDER: Record<string, number> = { 投手: 0, 捕手: 1, 內野手
 
 /** 該 scope 的出賽 G：背景＝例行賽 G；系列＝本系列 G（無完賽場 ⇒ null）。 */
 export const scopeG = (m: RosterMember, scope: RosterScope): number | null =>
-  scope === "series" ? (m.series ? m.series.g : null) : m.background.g;
+  scope === "series" ? (m.series && !m.series.pending ? m.series.g : null) : m.background.g;
+
+/** 本系列來源未齊（該隊缺這名球員角色的來源）⇒ 格內「待更新」。 */
+export const seriesPending = (m: RosterMember, scope: RosterScope) => scope === "series" && !!m.series?.pending;
 
 /** 排序：守位（官方序、同守位依 player_id）；出賽 G（依目前 scope，多到少，無紀錄排最後）；箭頭方向（例行賽背景）。
  *  不改原陣列。 */
