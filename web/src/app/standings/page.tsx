@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { StandingsSeries } from "@/components/playoffs/standings-series";
 import { ENTITY_LINK_TEXT, StatAbbr, TeamBadge, TeamLogo, divBg, prColor } from "@/components/ui";
 import { DataTable, type Column } from "@/components/table";
 import { StandingsTrend } from "@/components/standings-trend";
@@ -456,6 +457,14 @@ export default async function Standings({ searchParams }: { searchParams: Promis
   const { years } = await api.seasons(kind);
   const currentYear = years[0] ?? new Date().getFullYear();
   const selectedYear = yearParam ? Number(yearParam) : currentYear;
+  // 一軍季後頁只需正式系列比分；一般戰績與二軍仍使用原有取數分支。
+  if (!isMinor && segCode === 3) {
+    const summary = await api.postseasonSummary(selectedYear, kind, { live: true });
+    return <div><header className="mb-4"><SectionTitle as="h1" date={selectedYear}>季後賽戰績</SectionTitle></header>
+      <StandingsNav kind={kind} years={years} selectedYear={selectedYear} seg={segCode} segs={segTabs}>
+        <StandingsSeries year={selectedYear} context={summary.series_context} />
+      </StandingsNav></div>;
+  }
   // 官方 rich view（半季冠軍判定/即時 OPS/近十場/連勝連敗）只在「一軍當季」；二軍與歷年皆由 games 即時算
   const useOfficial = !isMinor && selectedYear === currentYear;
   // 季後賽分頁（seg=3）：一軍＝挑戰賽/台灣大賽 bracket；二軍＝二軍總冠軍賽單一系列。

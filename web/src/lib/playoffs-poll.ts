@@ -88,7 +88,7 @@ export type PollDeps<O extends VersionedOverview, W extends VersionedWatch> = {
   setTimer: (fn: () => void, ms: number) => unknown;
   clearTimer: (handle: unknown) => void;
   onOverview: (o: O) => void;
-  onWatch?: (s: WatchState<W>) => void;
+  onWatch?: (s: WatchState<W>, game: number | null) => void;
   /** 第 2／3 區（registry 登記）；不給＝沒有區，行為與只有第 1／4 區時相同。 */
   areas?: PollArea[];
   /** 區狀態與第 4 區同形（`AreaState` ＝ `WatchState`）。 */
@@ -153,6 +153,7 @@ export class PlayoffsPoller<O extends VersionedOverview, W extends VersionedWatc
     if (game === this.requestedGame) return;
     this.requestedGame = game;
     this.lastWatch = null;
+    this.deps.onWatch?.({ kind: "idle" }, game);
     if (!this.stopped) void this.tick("game");
   }
 
@@ -266,7 +267,7 @@ export class PlayoffsPoller<O extends VersionedOverview, W extends VersionedWatc
       const game = this.requestedGame ?? target.game;
       if (target.status !== "ok" && !requested) {
         this.lastWatch = null;
-        this.deps.onWatch?.({ kind: "idle" });
+        this.deps.onWatch?.({ kind: "idle" }, this.requestedGame);
         return true;
       }
       if (game === null) return true;
@@ -275,18 +276,18 @@ export class PlayoffsPoller<O extends VersionedOverview, W extends VersionedWatc
         watch = await fetchWatch({ series: target.series, game }, signal);
       } catch {
         if (!live()) return false;
-        this.deps.onWatch?.({ kind: "error", previous: this.lastWatch });
+        this.deps.onWatch?.({ kind: "error", previous: this.lastWatch }, this.requestedGame);
         return false;
       }
       if (!live()) return false;
       const decision = watchDecision(o.context_version, watch, { requested, retried });
       if (decision === "accept") {
         this.lastWatch = watch;
-        this.deps.onWatch?.({ kind: "data", data: watch });
+        this.deps.onWatch?.({ kind: "data", data: watch }, this.requestedGame);
         return true;
       }
       if (decision === "keep_previous") {
-        this.deps.onWatch?.({ kind: "stale", previous: this.lastWatch });
+        this.deps.onWatch?.({ kind: "stale", previous: this.lastWatch }, this.requestedGame);
         return true;
       }
       let fresh: O;
@@ -294,7 +295,7 @@ export class PlayoffsPoller<O extends VersionedOverview, W extends VersionedWatc
         fresh = await this.deps.fetchOverview(signal);
       } catch {
         if (!live()) return false;
-        this.deps.onWatch?.({ kind: "stale", previous: this.lastWatch });
+        this.deps.onWatch?.({ kind: "stale", previous: this.lastWatch }, this.requestedGame);
         return false;
       }
       if (!live()) return false;

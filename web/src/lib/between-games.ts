@@ -1,4 +1,5 @@
 /** #238：有界輸入送既有 journey；不更動 #237 的選場規則。 */
+import { playoffsGameHref } from "./playoffs-selection.ts";
 import { announcementFor } from "./postseason-announcement.ts";
 import { buildPostseasonJourney } from "./postseason-journey.ts";
 import { ApiError } from "./http-error.ts";
@@ -21,7 +22,7 @@ export function recapReportLink(completed: boolean, sno: string | number, kind: 
   const id = Number(sno), season = Number(year);
   if (!completed || !["E", "C"].includes(kind) || !Number.isSafeInteger(id) || id <= 0
     || !Number.isInteger(season) || season < 1990 || season > 2100) return null;
-  return reportLink(id, kind as ReportKind, season);
+  return playoffsGameHref(season, kind, id);
 }
 export function reportJourney(report: Report) {
   const context = report.journey_context;
@@ -69,7 +70,7 @@ export function nextPreviewLink(row: { kind_code: string; game_sno: number; year
   const year = Number(row?.year);
   if (!row || !["E", "C"].includes(row.kind_code) || !Number.isSafeInteger(row.game_sno) || row.game_sno <= 0
     || !Number.isInteger(year) || year < 1990 || year > 2100) return null;
-  return previewLink(row.game_sno, row.kind_code as ReportKind, year);
+  return playoffsGameHref(year, row.kind_code, row.game_sno);
 }
 /** X 的下一場：journey 正式 Y 與第二讀同指，且 Y 定位回同一 X 才成立；否則 null，入口不顯示。 */
 export async function nextPreviewFor(view: ReportView, anchorOf: (sno: number, kind: ReportKind) => Promise<ReportAnchor>): Promise<string | null> {

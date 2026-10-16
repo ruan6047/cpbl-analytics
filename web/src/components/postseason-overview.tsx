@@ -291,7 +291,7 @@ export function PostseasonOverview({ journey, nameOf, seedOf, active }: {
       </nav>
 
       {latestReport && latest && <Link href={nextPreview ?? latestReport} className="mb-4 flex min-h-11 flex-wrap items-center justify-between gap-2 border-y border-line py-4 text-accent hover:underline">
-        <span className="font-bold">{nextPreview ? "下一場觀戰報告 →" : "最新場間報告 →"}</span>
+        <span className="font-bold">{nextPreview ? "下一場詳情 →" : "本場詳情 →"}</span>
         <span className="text-sm text-muted">{nextPreview && journey.next ? `${series[journey.next.kind].name} · G${journey.next.seq} 開賽前背景` : `${series[latest.kind].name} · G${latest.seq} 完賽後背景`}</span>
       </Link>}
       <PostseasonRefreshHint journey={journey} />
