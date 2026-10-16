@@ -8,7 +8,7 @@ import { orderedRegistrations, type AreaRegistration, type RegisteredAreaId } fr
 import { PAGE_NOTES, mergeNotes, shownData, warnNoteConflicts } from "@/lib/playoffs-notes";
 import { PlayoffsPoller, fetchJson, type VersionedArea, type WatchState } from "@/lib/playoffs-poll";
 import { seriesSummaryNotes } from "@/lib/playoffs-series-summary";
-import { SERIES_COPY, asOfText } from "@/lib/playoffs-series-view";
+import { SERIES_COPY, asOfText, seriesNotes } from "@/lib/playoffs-series-view";
 import { overviewPath, watchPath, type PlayoffsOverview, type PlayoffsSeriesCode } from "@/lib/playoffs-types";
 import type { PlayoffsWatch } from "@/lib/playoffs-watch";
 import { AreaFrame } from "./area-frame";
@@ -22,7 +22,8 @@ import { WatchArea } from "./watch-area";
 // 首屏 SSR 只給 overview（HTML 已含第 1 區）；掛載後立即一輪「overview → watch → 已啟用的區」，之後每 30 秒一輪。
 // watch 與各區一律 client 端自取 `CLIENT_API`：⛔ 用各卡讀 server 端 API_URL 的取數函式（瀏覽器內會退回 localhost:4001）。
 // 區塊順序固定 1→4→3→2（需求方 C2）；第 2／3 區只在 `area-registry.ts` 有登記時出現（C1），接近 viewport 才載入。
-// 頁尾說明（6194706200）：PAGE_NOTES＋各區 `notes(畫面上那份資料)`，0 條不渲染。
+// 頁尾說明（6194706200）：PAGE_NOTES＋第 1 區 `seriesNotes`／#288 `seriesSummaryNotes`（畫面上那份 overview）＋
+// 各區 `notes(畫面上那份資料)`，0 條不渲染。
 // 系列（#285 批次 B）：`series`＝網址 `?series=`（未指定為 null，跟隨 S02 預設）。SSR 與輪詢用同一個值取 overview；
 // 第 2／3／4 區的 series 一律取 overview `selected_series`。換系列由頁面以 key 重掛本元件，⛔ 在本元件內切換。
 // 輪詢只換資料：區塊位置與 key 固定，⛔ 捲動、⛔ 移焦點、⛔ remount；本元件與外框 ⛔ 設 transform／filter／contain／
@@ -95,7 +96,7 @@ export function PlayoffsLive({ initial, year, game, series = null, yearParam = n
   }, []);
 
   const { notes, conflicts } = mergeNotes([
-    { area: "series", notes: [...PAGE_NOTES.series, ...seriesSummaryNotes(overview)] },
+    { area: "series", notes: [...PAGE_NOTES.series, ...seriesNotes(overview), ...seriesSummaryNotes(overview)] },
     { area: "watch", notes: PAGE_NOTES.watch },
     ...regs.map((r) => ({ area: r.id, notes: r.notes ? r.notes(shownData(areaStates[r.id])) : [] })),
   ]);
