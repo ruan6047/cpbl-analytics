@@ -45,7 +45,7 @@ def test_envelope_carries_mount_contract_fields():
     assert out["contract"] == "playoffs-roster/v1"
     assert out["context_version"] == "ctx-v1"
     assert out["default_scope"] == "background"
-    assert out["scopes"]["series"]["status"] == "not_provided"
+    assert out["scopes"]["series"]["status"] == "no_games"      # PR2：context 無完賽場
     assert out["registration"]["status"] == "unknown"   # 28 人：S11 前恆 unknown，⛔ 推算
 
 
