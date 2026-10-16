@@ -4,7 +4,7 @@ import type { WatchState } from "@/lib/playoffs-poll";
 import type { PlayoffsOverview } from "@/lib/playoffs-types";
 import type { PlayoffsWatch } from "@/lib/playoffs-watch";
 
-// `/playoffs` 第 4 區外框（#285 S04 WP4）：`#watch` 錨點＋掛 #289 的 `WatchSection`（含 4B 兩格與先發灰列，
+// `/playoffs` 第 4 區外框（#285 S04 WP4）：`#watch` 錨點＋掛 #289 的 `WatchSection`（含官方先發投手，#314；
 // 需求方 E3：整個元件照常顯示，⛔ 拆、⛔ 用 CSS 藏任何一部分）。無 hooks、純排字。
 //
 // - 版本不一致時保留上一份一致畫面＋「資料更新中」（控制器給 stale），⛔ 拼接不同版本。

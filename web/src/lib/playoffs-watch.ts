@@ -79,8 +79,17 @@ export type WatchTeam = {
   pitchers: WatchPitcher[];
 };
 
-/** 官方先發投手：S11（#292）來源定案前恆 unknown（需求方裁定 E1／E2）。 */
-export type WatchStarter = { team_code: string; status: "unknown"; reason: string; text: string };
+/** 官方先發投手（#314）：後端讀官方賽程現行列判定，前端只排 `text`。
+ *  announced＝已公告（`text` 為姓名，查無姓名時為「已公告（姓名待更新）」）；pending＝「待公告」；
+ *  unknown＝來源讀取失敗「暫時無法取得」。⛔ 無公告時間、⛔ 無更換標示（需求方裁定 Q1／Q3）。 */
+export type WatchStarter = {
+  team_code: string;
+  status: "announced" | "pending" | "unknown";
+  reason: string | null;
+  player_id: string | null;
+  name: string | null;
+  text: string;
+};
 
 export type PlayoffsWatch = {
   contract: "playoffs-watch/v1";
@@ -101,7 +110,6 @@ export type PlayoffsWatch = {
   coverage: "complete" | "partial" | "incomplete" | "unknown";
   missing_reason: string[];
   source_manifest: { source: string; status: string }[];
-  publication: { status: string; reason: string; slots: { slot: "A" | "B"; status: string; text: string }[] };
   registration: { status: string; reason: string; text: string };
   starters?: WatchStarter[];
   teams: WatchTeam[];

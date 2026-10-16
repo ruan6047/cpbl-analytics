@@ -274,6 +274,7 @@ def test_query_count_independent_of_pitchers(pool):
 
 def test_end_to_end_read_only(pool):
     w = wrd.playoffs_watch(2026, "C", now=NOW, connect=db.conn)
-    assert w["status"] == "ok" and w["publication"]["status"] == "not_published"
+    assert w["status"] == "ok" and "publication" not in w
     assert {m["source"] for m in w["source_manifest"]} >= {"series_roster", "window_games"}
-    assert {s["status"] for s in w["starters"]} == {"unknown"}
+    assert {s["status"] for s in w["starters"]} == {"pending"}   # C1 修訂列 payload 無先發欄 ⇒ 待公告
+    assert any(m["source"] == "official_starters" and m["status"] == "ok" for m in w["source_manifest"])
