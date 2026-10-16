@@ -7,6 +7,7 @@ import { RosterSection, RosterView } from "./roster-section.tsx";
 import {
   rosterNotes,
   rosterPath,
+  initialScope,
   sortMembers,
   type PlayoffsRoster,
   type RosterArrow,
@@ -115,10 +116,11 @@ test("篩選：只顯示選中球隊；排序：出賽 G 多到少、無紀錄�
   assert.match(html, /aria-pressed="true"[^>]*>味全</);
 });
 
-test("頁尾說明：notes(null) 只回固定五條、全為 roster.*；依資料加缺名單、箭頭不足與二軍", () => {
+test("頁尾說明：notes(null) 只回固定六條、全為 roster.*；依資料加缺名單、箭頭不足與二軍", () => {
   const fixed = rosterNotes(null);
   assert.deepEqual(fixed.map((n) => n.key), ["roster.registration_unknown", "roster.eligibility_not_availability",
-    "roster.appearance_g", "roster.official_pr_only", "roster.arrow_proposed"]);
+    "roster.appearance_g", "roster.official_pr_only", "roster.arrow_proposed", "roster.series_only"]);
+  assert.match(fixed[5].text, /只計目前所選系列已正式完賽的場次/);
   assert.match(fixed[4].text, /本站建議值/);
   assert.ok(fixed.every((n) => n.key.startsWith("roster.")));
   assert.match(fixed[0].text, /28 人登錄/);
@@ -162,4 +164,67 @@ test("每張小卡有開抽屜按鈕（aria-haspopup=dialog、帶 player_id 供�
   const buttons = [...html.matchAll(/<button[^>]*data-open-player="(\d+)"[^>]*>/g)];
   assert.equal(buttons.length, A.members.length);
   assert.ok(buttons.every((b) => /aria-haspopup="dialog"/.test(b[0])));
+});
+
+// —— PR2 WP7：本系列實戰切換 ————————————————————————————————————————————————
+
+function withSeries(status: PlayoffsRoster["scopes"]["series"]["status"], pending: number[] = [],
+  defaultScope: PlayoffsRoster["default_scope"] = "background"): PlayoffsRoster {
+  const series = (m: RosterMember, g: number) => ({ ...m, series: status === "no_games" ? null
+    : { g, line: g ? m.background.line : null } });
+  const t = team("AAA011", "味全", A.members.map((m, i) => series(m, [3, 0, 1, 2][i])));
+  t.series_pending_games = pending;
+  const d = payload([t, team("ACN011", "兄弟", [series(member("0000000031", "投手"), 2)])]);
+  d.scopes.series = { status, completed_games: status === "no_games" ? 0 : 3, pending_games: pending };
+  d.default_scope = defaultScope;
+  return d;
+}
+
+test("切換：後端提供系列 scope 才顯示兩個切換鈕；舊版回應（not_provided）不顯示", () => {
+  assert.match(text(<RosterView data={withSeries("ok")} team="all" sort="position" />), /例行賽與對戰背景 本系列實戰數據/);
+  assert.doesNotMatch(text(<RosterView data={payload([A])} team="all" sort="position" />), /本系列實戰數據/);
+});
+
+test("本系列：小卡顯示本系列 G 與計數，不顯示箭頭與 PR；未出賽 0G、無計數「—」", () => {
+  const html = renderToStaticMarkup(<RosterView data={withSeries("ok")} team="AAA011" sort="position" scope="series" />);
+  const t = text(<RosterView data={withSeries("ok")} team="AAA011" sort="position" scope="series" />);
+  assert.match(html, /data-scope="series"/);
+  assert.match(t, /球員11 外野手 3G/);
+  assert.match(t, /球員02 投手 0G/);
+  assert.doesNotMatch(t, /末段 15 次|PR 9|二軍/);
+  assert.match(t, /本站角色： — —/);   // 0G 投手：計數「—」
+});
+
+test("本系列尚無完賽場：G 與計數皆「—」", () => {
+  const t = text(<RosterView data={withSeries("no_games")} team="AAA011" sort="position" scope="series" />);
+  assert.match(t, /球員11 外野手 —/);
+});
+
+test("box 未送達：該隊標題旁「待更新」；頁尾列場次", () => {
+  const d = withSeries("pending_source", [2, 3]);
+  const html = renderToStaticMarkup(<RosterView data={d} team="all" sort="position" scope="series" />);
+  assert.equal((html.match(/data-series-pending/g) ?? []).length, 1);
+  const n = rosterNotes(d).find((x) => x.key === "roster.series_box_pending");
+  assert.equal(n?.text, "本系列第 2、3 場的逐場紀錄尚未送達，本系列實戰數據暫不含這幾場。");
+  assert.ok(!rosterNotes(withSeries("ok")).some((x) => x.key === "roster.series_box_pending"));
+  // 背景 scope 不顯示系列「待更新」
+  assert.doesNotMatch(renderToStaticMarkup(<RosterView data={d} team="all" sort="position" scope="background" />),
+    /data-series-pending/);
+});
+
+test("排序：出賽 G 依目前 scope；初始 scope 取 default_scope（T5 ⇒ 本系列），舊版回應一律背景", () => {
+  const d = withSeries("ok");
+  assert.deepEqual(sortMembers(d.teams[0].members, "games", "series").map((m) => m.player_id),
+    ["0000000011", "0000000004", "0000000003", "0000000002"]);
+  assert.equal(initialScope(withSeries("ok", [], "series")), "series");
+  assert.equal(initialScope(withSeries("ok")), "background");
+  const old = payload([A]); old.default_scope = "series";
+  assert.equal(initialScope(old), "background");
+});
+
+test("切換保留篩選與排序：scope 不影響 team／sort 的選取狀態", () => {
+  const html = renderToStaticMarkup(<RosterView data={withSeries("ok")} team="ACN011" sort="games" scope="series" />);
+  assert.match(html, /aria-pressed="true"[^>]*>兄弟</);
+  assert.match(html, /aria-pressed="true"[^>]*>出賽 G</);
+  assert.match(html, /aria-pressed="true"[^>]*>本系列實戰數據</);
 });
