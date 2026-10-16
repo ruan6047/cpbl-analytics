@@ -6,9 +6,10 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { Tooltip } from "@/components/tooltip.tsx";
 import { WatchSection } from "./watch-section.tsx";
 import { streakOf, streakText } from "./watch-load.ts";
-import type { Load, LoadLevel, PlayoffsWatch, RecentAppearance, WatchPitcher, WatchTeam } from "@/lib/playoffs-watch.ts";
+import type { Load, LoadLevel, PlayoffsWatch, RecentAppearance, WatchPitcher, WatchStarter, WatchTeam } from "@/lib/playoffs-watch.ts";
 
-// #289 S08 WP3：第 4 區各態文字（灰／綠／橘／紅／先發不套燈號）、4B 未發布、官方先發投手未知、名單缺。
+// #289 S08 WP3：第 4 區各態文字（灰／綠／橘／紅／先發不套燈號）、名單缺。
+// #314：4B 占位移除；官方先發投手改為兩隊各一格（已公告／待公告／暫時無法取得）。
 // #300 S08c：4A 改懶人包呈現——說明句從常駐改進 `Tooltip`。#289 版的每條斷言都保留，只把「在畫面上」
 // 換成「在畫面上」或「在提示裡」其中一層（`visible()`／`tips()`）。需求方逐項裁定移除的項目
 // （6191101762，PLAN-r2 §16 的 E14／E16／E19／E20／E22／E24／E25）改為「兩層都不出現」並註明項次。
@@ -78,10 +79,18 @@ function watch(teams: WatchTeam[], extra: Partial<PlayoffsWatch> = {}): Playoffs
     scope: { kinds: ["A", "E", "C", "D"], note: "近三日含一軍例行賽 A、季後 E／C 與二軍 D 已完賽正式場的投手逐場球數" },
     coverage: "complete", missing_reason: [], source_manifest: [],
     registration: { status: "unknown", reason: "registration_source_not_delivered", text: "未知（當場登錄來源尚未接入）" },
-    starters: ["ACN011", "AAA011"].map((t) => ({ team_code: t, status: "unknown" as const,
-      reason: "starter_source_not_delivered", text: "官方先發投手：未知（來源尚未接入，S11）" })),
+    starters: ["ACN011", "AAA011"].map((t) => pending(t)),
     teams, ...extra,
   };
+}
+
+function pending(t: string): WatchStarter {
+  return { team_code: t, status: "pending", reason: "starter_not_announced", player_id: null, name: null, text: "待公告" };
+}
+
+function announced(t: string, id: string, name: string | null): WatchStarter {
+  return { team_code: t, status: "announced", reason: name ? null : "starter_name_missing", player_id: id, name,
+    text: name ?? "已公告（姓名待更新）" };
 }
 
 const re = (s: string) => new RegExp(s.replace(/[()（）+?.]/g, "."));
@@ -153,11 +162,35 @@ test("4B 占位已移除（#314）：不出現兩格、賽前快照或已鎖定�
   assert.doesNotMatch(html, /打序|先發公告/);
 });
 
-test("官方先發投手：S11 定案前每隊一行灰字未知", () => {
-  const html = renderToStaticMarkup(<WatchSection data={watch([])} />);
-  assert.equal((html.match(/官方先發投手：未知（來源尚未接入，S11）/g) ?? []).length, 2);
-  assert.equal((html.match(/data-starter-status="unknown"/g) ?? []).length, 2);
-  assert.match(visible(watch([])), /兄弟 官方先發投手/);
+test("官方先發投手：未公告 ⇒ 兩格各寫「待公告」，標題「官方先發投手」", () => {
+  const d = watch([]);
+  const html = renderToStaticMarkup(<WatchSection data={d} />);
+  assert.equal((html.match(/data-starter-status="pending"/g) ?? []).length, 2);
+  assert.match(visible(d), /官方先發投手 兄弟 待公告 味全 待公告 牛棚近期使用負荷/);
+  assert.equal((visible(d).match(/待公告/g) ?? []).length, 2);
+  assert.doesNotMatch(visible(d), /S11|未知|先發對決與看點/);
+});
+
+test("官方先發投手：已公告顯示姓名（客、主順序），查無姓名寫「已公告（姓名待更新）」，不顯示 acnt", () => {
+  const d = watch([], { starters: [announced("ACN011", "0000005151", "羅戈"), announced("AAA011", "0000007779", null)] });
+  const v = visible(d);
+  assert.ok(v.indexOf("羅戈") < v.indexOf("已公告（姓名待更新）"));
+  assert.doesNotMatch(renderToStaticMarkup(<WatchSection data={d} />), /0000005151|0000007779/);
+  assert.equal((renderToStaticMarkup(<WatchSection data={d} />).match(/data-starter-status="announced"/g) ?? []).length, 2);
+  // 單邊公告：另一隊仍待公告。
+  const one = visible(watch([], { starters: [announced("ACN011", "0000005151", "羅戈"), pending("AAA011")] }));
+  assert.match(one, /羅戈/);
+  assert.match(one, /待公告/);
+});
+
+test("官方先發投手：讀取失敗寫「暫時無法取得」；不顯示公告時間、更換標示或負荷連結", () => {
+  const fail = watch([], { starters: ["ACN011", "AAA011"].map((t) => ({ team_code: t, status: "unknown" as const,
+    reason: "starter_source_unavailable", player_id: null, name: null, text: "暫時無法取得" })) });
+  assert.equal((visible(fail).match(/暫時無法取得/g) ?? []).length, 2);
+  const d = watch([], { starters: [announced("ACN011", "0000005151", "羅戈"), announced("AAA011", "0000007779", "蔣銲")] });
+  const html = renderToStaticMarkup(<WatchSection data={d} />);
+  const starterBlock = html.slice(html.indexOf("官方先發投手"), html.indexOf("牛棚近期使用負荷"));
+  assert.doesNotMatch(starterBlock, /公告時間|更新於|\d{1,2}:\d{2}|已更換|更換|<a /);
 });
 
 test("名單未提交：不列投手", () => {

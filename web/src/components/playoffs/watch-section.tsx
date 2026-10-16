@@ -18,7 +18,8 @@ import { PitcherLoadRow, dayLabel } from "./watch-load-strip";
 // - 燈號、完整性與觸發理由全由後端算（`playoffs-watch/v1`），這裡只排字；灰色照後端給的理由呈現，
 //   ⛔ 不補成任何等級、⛔ 不寫「可用／待命」。
 // - 4B 賽前快照（S09）已停止（#290）：#314 移除兩格占位，⛔ 再放「賽前快照尚未發布」或其他占位框。
-// - 官方先發投手：S11 來源定案前每隊一行灰字「未知」（裁定 E1）；⛔ 顯示 074 打序或自行推測。
+// - 官方先發投手（#314）：兩隊各一格，格內只放後端給的 `text`（姓名／「待公告」／「暫時無法取得」）；
+//   ⛔ 顯示 074 打序或自行推測、⛔ 公告時間、⛔ 更換標示、⛔ 連到 4A 負荷（需求方裁定 Q1–Q3）。
 // - 角色是本站註記，與官方數據分開標示。
 // - 4A 呈現（#300 S08c）：燈號＋4 格球數日條＋連投摘要常駐，說明句收進共用 `Tooltip`；見 `watch-load-strip.tsx`。
 //   本檔維持 server-safe（⛔ `"use client"`），互動只來自既有 client 島。
@@ -49,16 +50,22 @@ export function WatchSection({ data }: { data: PlayoffsWatch | null }) {
 // —— 官方先發投手 ——————————————————————————————————————————————————
 
 function Starters({ data }: { data: PlayoffsWatch }) {
+  if (!data.starters?.length) return null;
   return (
     <div className="space-y-3">
-      <h3 className="text-base font-bold text-ink">先發對決與看點</h3>
-      {data.starters?.length ? (
-        <ul className="space-y-1 rounded border border-line bg-surface p-3 text-sm text-faint">
-          {data.starters.map((s) => (
-            <li key={s.team_code} data-starter-status={s.status}>{teamShortName(s.team_code)}　{s.text}</li>
-          ))}
-        </ul>
-      ) : null}
+      <h3 className="text-base font-bold text-ink">官方先發投手</h3>
+      <ul className="grid gap-3 sm:grid-cols-2">
+        {data.starters.map((s) => (
+          <li key={s.team_code} data-starter-status={s.status}
+            className="min-w-0 rounded border border-line bg-surface p-3">
+            <p className="text-xs font-bold text-muted">{teamShortName(s.team_code)}</p>
+            <p className={s.status === "announced" && s.name
+              ? "mt-1 break-words text-base font-bold text-ink" : "mt-1 break-words text-sm text-muted"}>
+              {s.text}
+            </p>
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }

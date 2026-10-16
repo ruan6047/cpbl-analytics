@@ -225,16 +225,132 @@ def test_appearance_of_reserve_and_outs():
     assert b.date_trusted is True and b.possible_dates == () and b.outs is None
 
 
-# —— 官方先發投手：S11 定案前恆未知（E1／E2） ——————————————————————————————
+# —— 官方先發投手（#314）：官方賽程現行列 ——————————————————————————————————
+#
+# 列形狀取自本機 DB 唯讀抽取的真實 ``game_schedule_status_revisions``（2026-10-16 13:4x，#314 執行證據
+# probes/revisions_E_C.txt），投影成 OFFICIAL_SCHEDULE_SQL 的欄位：賽前列 acnt 有值、姓名空（E2／E3）；
+# 先發未填＝空字串 → SQL NULLIF 成 None（C1、E3 首版、E4 賽前）。
 
 
-def test_starters_unknown_until_s11():
-    w = run(context=context(starters={AWAY: "announced", HOME: "changed"}))  # S02 的 074 狀態不得被轉出
-    assert w["starters"] == [
-        {"team_code": t, "status": "unknown", "reason": "starter_source_not_delivered",
-         "text": "官方先發投手：未知（來源尚未接入，S11）"} for t in (AWAY, HOME)]
-    assert "starter_source_not_delivered" in w["missing_reason"]
+def rev(day, vt, ht, vpa=None, hpa=None, *, result=None, present=1, vpn=None, hpn=None, h="h", fetched, seen=None):
+    return {"raw_present_status": present, "raw_game_result": result, "raw_game_date": date.fromisoformat(day),
+            "visiting_team_code": vt, "home_team_code": ht, "visiting_pitcher_acnt": vpa, "home_pitcher_acnt": hpa,
+            "visiting_pitcher_name": vpn, "home_pitcher_name": hpn, "payload_hash": h,
+            "fetched_at": datetime.fromisoformat(fetched), "last_seen_at": datetime.fromisoformat(seen or fetched)}
+
+
+# 真實列（本機 2026-10-16 抽取）。
+C1_NOW = rev("2026-10-17", AWAY, HOME, h="d2145728", fetched="2026-10-13T02:10:12+00:00",
+             seen="2026-10-16T02:10:17+00:00")
+E3_FIRST = rev("2026-10-11", "ADD011", "ACN011", h="be9f67d5", fetched="2026-10-10T02:10:15+00:00")
+E3_PREGAME = rev("2026-10-11", "ADD011", "ACN011", "0000006848", "0000005151", h="1c1dc856",
+                 fetched="2026-10-11T02:10:10+00:00")
+E3_FINAL = rev("2026-10-11", "ADD011", "ACN011", "0000006848", "0000005151", result="0", vpn="林詔恩", hpn="羅戈",
+               h="93aacb78", fetched="2026-10-12T02:10:27+00:00", seen="2026-10-16T02:10:16+00:00")
+E2_PREGAME = rev("2026-10-10", "ACN011", "ADD011", "0000007560", "0000007778", h="898ecd0c",
+                 fetched="2026-10-10T02:10:15+00:00")
+E3_DAY, E3_TEAMS = date(2026, 10, 11), ["ADD011", "ACN011"]
+NAMES = {"0000006848": {"player_name": "林詔恩", "gamelog_name": "林詔恩"},
+         "0000005151": {"player_name": "羅戈", "gamelog_name": "羅戈"}}
+
+
+def starters_of(rows, names=None, day=E3_DAY, teams=None):
+    return wrd.official_starters(rows, target_date=day, teams=teams or E3_TEAMS, names=names or {})
+
+
+def test_starters_pending_when_not_announced_real_c1_row():
+    w = run(official_schedule=[C1_NOW])
+    assert [(s["team_code"], s["status"], s["text"]) for s in w["starters"]] == [
+        (AWAY, "pending", "待公告"), (HOME, "pending", "待公告")]
+    assert {f"starter_not_announced:{AWAY}", f"starter_not_announced:{HOME}"} <= set(w["missing_reason"])
+    assert all(s["player_id"] is None and s["name"] is None for s in w["starters"])
+
+
+def test_starters_announced_real_pregame_row_names_from_players():
+    out, missing = starters_of([E3_FIRST, E3_PREGAME], NAMES)
+    assert [(s["team_code"], s["status"], s["player_id"], s["text"]) for s in out] == [
+        ("ADD011", "announced", "0000006848", "林詔恩"), ("ACN011", "announced", "0000005151", "羅戈")]
+    assert missing == []
+
+
+def test_starter_name_three_priorities():
+    row = dict(E3_PREGAME, visiting_pitcher_name="官方名")
+    names = {"0000006848": {"player_name": "主檔名", "gamelog_name": "逐場名"},
+             "0000005151": {"player_name": None, "gamelog_name": "逐場名"}}
+    out, _ = starters_of([row], names)
+    assert [s["text"] for s in out] == ["官方名", "逐場名"]
+    out, _ = starters_of([E3_PREGAME], {"0000006848": {"player_name": "主檔名", "gamelog_name": "逐場名"}})
+    assert out[0]["text"] == "主檔名"
+    # 三者皆無 ⇒ 已公告（姓名待更新），⛔ 顯示 acnt。
+    assert out[1]["status"] == "announced" and out[1]["text"] == "已公告（姓名待更新）" and out[1]["name"] is None
+
+
+def test_starter_name_missing_real_e2_shape():
+    out, missing = starters_of([E2_PREGAME], day=date(2026, 10, 10), teams=["ACN011", "ADD011"])
+    assert [s["text"] for s in out] == ["已公告（姓名待更新）"] * 2
+    assert missing == ["starter_name_missing:ACN011", "starter_name_missing:ADD011"]
+    assert "0000007560" not in [s["text"] for s in out]
+
+
+def test_starters_one_side_announced():
+    for empty in (None, "", "  "):   # SQL 端 NULLIF(btrim)；純函式對未投影的原字串也不當成已公告
+        out, missing = starters_of([dict(E3_PREGAME, home_pitcher_acnt=empty)], NAMES)
+        assert [(s["status"], s["text"]) for s in out] == [("announced", "林詔恩"), ("pending", "待公告")]
+        assert missing == ["starter_not_announced:ACN011"]
+
+
+def test_starters_latest_only_a_b_a():
+    """A→B→A：官網改回 A 時，同 payload 的 A 列 last_seen_at 更新 ⇒ 選 A（只顯示最新、⛔ 標更換）。"""
+    a = rev("2026-10-11", "ADD011", "ACN011", "0000006848", "0000005151", h="a",
+            fetched="2026-10-10T10:00:00+00:00", seen="2026-10-11T08:30:00+00:00")
+    b = rev("2026-10-11", "ADD011", "ACN011", "0000009999", "0000005151", h="b",
+            fetched="2026-10-11T02:10:00+00:00")
+    out, _ = starters_of([b, a], NAMES)
+    assert [s["player_id"] for s in out] == ["0000006848", "0000005151"]
+    out, _ = starters_of([dict(a, last_seen_at=a["fetched_at"]), b], NAMES)  # 停在 B
+    assert out[0]["player_id"] == "0000009999" and out[0]["text"] == "已公告（姓名待更新）"
+    for s in out:
+        assert set(s) == {"team_code", "status", "reason", "player_id", "name", "text"}  # 無時間、無更換欄
+
+
+def test_starters_pending_when_not_pregame_or_mismatch():
+    cases = {
+        "official_schedule_postponed": [dict(E3_PREGAME, raw_game_result="1")],
+        "official_schedule_reserved": [dict(E3_PREGAME, raw_game_result="2")],
+        "official_schedule_final": [E3_FINAL],
+        "official_schedule_unknown": [dict(E3_PREGAME, raw_present_status=0)],
+        "official_schedule_missing": [],
+        "official_schedule_date_mismatch": [dict(E3_PREGAME, raw_game_date=date(2026, 10, 12))],
+        "official_schedule_team_mismatch": [dict(E3_PREGAME, visiting_team_code="AAA011")],
+    }
+    for reason, rows in cases.items():
+        out, missing = starters_of(rows, NAMES)
+        assert [(s["status"], s["reason"], s["text"], s["player_id"]) for s in out] == [
+            ("pending", reason, "待公告", None)] * 2, reason
+        assert missing == ["starter_not_announced:ADD011", "starter_not_announced:ACN011"]
+    out, _ = starters_of([E3_PREGAME], NAMES, day=None)
+    assert {s["reason"] for s in out} == {"official_schedule_date_mismatch"}
+
+
+def test_starters_unavailable_when_read_failed():
+    w = run(official_schedule=None)
+    assert [(s["status"], s["text"]) for s in w["starters"]] == [("unknown", "暫時無法取得")] * 2
+    assert "starter_source_unavailable" in w["missing_reason"]
+    assert "starter_source_not_delivered" not in w["missing_reason"]
+
+
+def test_starters_ignore_s02_074_status():
+    w = run(context=context(starters={AWAY: "announced", HOME: "changed"}), official_schedule=[C1_NOW])
+    assert {s["status"] for s in w["starters"]} == {"pending"}  # S02 的 074 狀態不得被轉出
     assert "announcement" not in w
+
+
+def test_starters_change_watch_version():
+    a = run(official_schedule=[C1_NOW])
+    b = run(official_schedule=[dict(C1_NOW, visiting_pitcher_acnt="0000005151")],
+            starter_names={"0000005151": {"player_name": "羅戈", "gamelog_name": None}})
+    assert b["starters"][0]["text"] == "羅戈"
+    assert a["watch_version"] != b["watch_version"]
 
 
 def test_module_does_not_read_074_or_starter_ids_directly():
