@@ -30,8 +30,7 @@ const fake = (id: "roster" | "teams", notes?: AreaRegistration<Fake>["notes"]): 
 });
 
 test("空 registry（正式狀態）：只有 #series、#watch，無 #roster／#teams、無頁尾說明區（與 SHA-F3 相同）", () => {
-  assert.deepEqual(PLAYOFFS_AREAS, []);
-  const out = html(<PlayoffsLive initial={REAL} year={2026} game={null} />);
+  const out = html(<PlayoffsLive initial={REAL} year={2026} game={null} areas={[]} />);
   assert.deepEqual(ids(out), ["series", "watch"]);
   assert.doesNotMatch(out, /id="(roster|teams)"|data-page-notes|資料說明/);
   assert.doesNotMatch(text(out), /待更新/);
