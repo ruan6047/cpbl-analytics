@@ -6,6 +6,7 @@
 // - server 取數 `no-store`：控制狀態快取不得超過 30 秒輪詢（⛔ 用 api.ts 的 600 秒 revalidate）。
 
 import type { GameKeyV2, SeriesContractCoverage, SeriesContractOfficialStatus, SeriesStatusV2, TargetStatusV2 } from "./postseason-series-contract.ts";
+import type { SeriesSummary } from "./playoffs-series-summary.ts";
 
 export type PlayoffsSeriesCode = "E" | "C";
 
@@ -92,6 +93,8 @@ export type PlayoffsOverview = {
     next_game: OverviewGameCard | null;
     next_game_missing_reason: "no_target" | "target_not_in_games" | "series_decided" | "target_completed" | null;
   };
+  /** #288 系列累計榜（選填：舊版 API 沒有此欄）；形狀見 `playoffs-series-summary.ts`。 */
+  series_summary?: SeriesSummary | null;
   sections: {
     series: { status: "ok" | "empty"; missing_reason: string[] };
     watch: { status: "ok" | "no_target"; series: PlayoffsSeriesCode; game: number | null };

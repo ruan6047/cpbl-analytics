@@ -12,14 +12,14 @@ import {
 import { teamShortName } from "@/lib/postseason-journey";
 import { PitcherLoadRow, dayLabel } from "./watch-load-strip";
 
-// #289 S08：季後賽第 4 區「觀戰重點」。4A 牛棚近期使用負荷＋4B 先發對決（S09 前占位）＋官方先發投手狀態。
+// #289 S08：季後賽第 4 區「觀戰重點」。4A 牛棚近期使用負荷＋官方先發投手狀態。
 //
 // 紅線：
 // - 燈號、完整性與觸發理由全由後端算（`playoffs-watch/v1`），這裡只排字；灰色照後端給的理由呈現，
 //   ⛔ 不補成任何等級、⛔ 不寫「可用／待命」。
-// - 4B 在 S09 啟用前 A、B 兩格各自寫「賽前快照尚未發布」，⛔ 不套已鎖定 B 樣式；S09 上線後同一位置
-//   換成已發布版本（版面不跳）。兩格屬本元件，S04 整區隱藏時不含它們（需求方裁定 E3）。
-// - 官方先發投手：S11 來源定案前每隊一行灰字「未知」（裁定 E1）；⛔ 顯示 074 打序或自行推測。
+// - 4B 賽前快照（S09）已停止（#290）：#314 移除兩格占位，⛔ 再放「賽前快照尚未發布」或其他占位框。
+// - 官方先發投手（#314）：兩隊各一格，格內只放後端給的 `text`（姓名／「待公告」／「暫時無法取得」）；
+//   ⛔ 顯示 074 打序或自行推測、⛔ 公告時間、⛔ 更換標示、⛔ 連到 4A 負荷（需求方裁定 Q1–Q3）。
 // - 角色是本站註記，與官方數據分開標示。
 // - 4A 呈現（#300 S08c）：燈號＋4 格球數日條＋連投摘要常駐，說明句收進共用 `Tooltip`；見 `watch-load-strip.tsx`。
 //   本檔維持 server-safe（⛔ `"use client"`），互動只來自既有 client 島。
@@ -47,28 +47,25 @@ export function WatchSection({ data }: { data: PlayoffsWatch | null }) {
   );
 }
 
-// —— 4B：先發對決與看點卡（S09 前占位）＋原始官方公告事實 ——————————————————————
+// —— 官方先發投手 ——————————————————————————————————————————————————
 
 function Starters({ data }: { data: PlayoffsWatch }) {
+  if (!data.starters?.length) return null;
   return (
     <div className="space-y-3">
-      <h3 className="text-base font-bold text-ink">先發對決與看點</h3>
-      <div className="grid gap-3 sm:grid-cols-2">
-        {data.publication.slots.map((s) => (
-          <div key={s.slot} data-slot={s.slot}
-            className="rounded border border-dashed border-line-strong bg-surface p-3">
-            <p className="text-xs font-bold text-muted">{s.slot === "A" ? "A 推測候選" : "B 官方先發與看點"}</p>
-            <p className="mt-1 text-sm text-ink">{s.text}</p>
-          </div>
+      <h3 className="text-base font-bold text-ink">官方先發投手</h3>
+      <ul className="grid gap-3 sm:grid-cols-2">
+        {data.starters.map((s) => (
+          <li key={s.team_code} data-starter-status={s.status}
+            className="min-w-0 rounded border border-line bg-surface p-3">
+            <p className="text-xs font-bold text-muted">{teamShortName(s.team_code)}</p>
+            <p className={s.status === "announced" && s.name
+              ? "mt-1 break-words text-base font-bold text-ink" : "mt-1 break-words text-sm text-muted"}>
+              {s.text}
+            </p>
+          </li>
         ))}
-      </div>
-      {data.starters?.length ? (
-        <ul className="space-y-1 rounded border border-line bg-surface p-3 text-sm text-faint">
-          {data.starters.map((s) => (
-            <li key={s.team_code} data-starter-status={s.status}>{teamShortName(s.team_code)}　{s.text}</li>
-          ))}
-        </ul>
-      ) : null}
+      </ul>
     </div>
   );
 }

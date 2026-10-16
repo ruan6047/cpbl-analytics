@@ -7,6 +7,7 @@ import { CLIENT_API } from "@/lib/client";
 import { orderedRegistrations, type AreaRegistration, type RegisteredAreaId } from "@/lib/playoffs-areas";
 import { PAGE_NOTES, mergeNotes, shownData, warnNoteConflicts } from "@/lib/playoffs-notes";
 import { PlayoffsPoller, fetchJson, type VersionedArea, type WatchState } from "@/lib/playoffs-poll";
+import { seriesSummaryNotes } from "@/lib/playoffs-series-summary";
 import { SERIES_COPY, asOfText } from "@/lib/playoffs-series-view";
 import { overviewPath, watchPath, type PlayoffsOverview, type PlayoffsSeriesCode } from "@/lib/playoffs-types";
 import type { PlayoffsWatch } from "@/lib/playoffs-watch";
@@ -87,7 +88,7 @@ export function PlayoffsLive({ initial, year, game, areas }: {
   }, []);
 
   const { notes, conflicts } = mergeNotes([
-    { area: "series", notes: PAGE_NOTES.series },
+    { area: "series", notes: [...PAGE_NOTES.series, ...seriesSummaryNotes(overview)] },
     { area: "watch", notes: PAGE_NOTES.watch },
     ...regs.map((r) => ({ area: r.id, notes: r.notes ? r.notes(shownData(areaStates[r.id])) : [] })),
   ]);
