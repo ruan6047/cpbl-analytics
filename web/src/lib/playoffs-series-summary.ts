@@ -4,7 +4,8 @@
 // 紅線：
 // - 格內缺值只用「—」「待更新」（#281 6194693029）；原因寫頁尾（`seriesSummaryNotes`，MOUNT-CONTRACT r3 §2.4／§2.5）。
 // - 排名已由後端以未四捨五入值排好；同展示值 ⛔ 加任何「領先」字樣；RE24 第一 ⛔ 稱 MVP（A05、G07）。
-// - 單場 MVP 次數只來自官方單場 MVP；官方系列獎項 G2 一律「待更新」（⛔ 由次數推獎項）。
+// - 單場 MVP 次數只來自官方單場 MVP；本卡不顯示官方系列獎項（需求方 6216986617、6217030580），⛔ 由次數推獎項。
+//   API 仍回傳 `awards`（後端刻意保留給未重載的舊分頁），本檔型別不再鏡射、畫面不讀。
 // - `seriesSummaryNotes` 純函式、同步：⛔ 讀時鐘、⛔ 發請求、⛔ 讀 window；key 依「同一件事」穩定、不帶索引或時間。
 // - 三大轉折（WP-G3）：選取與排序全在後端（全系列母體、|ΔWP| 或整組降級 |ΔRE24|、時間序）；前端只排字。
 //   勝率擺動沿用單場 recap 的「受益隊＋整數百分點」呈現（`WpSwingBadge`），⛔ 顯示勝率水平值。
@@ -44,7 +45,6 @@ export type SeriesSummaryBlock = {
   pitcher_unattributed: number;
   mvp_counts: { player_id: string; name: string | null; team_code: string | null; count: number }[];
   mvp_missing_games: number[];
-  awards: { status: "pending_source" };
   /** 三大轉折（WP-G3）；沒有已涵蓋場時 null。舊版 API 沒有此欄（undefined）。 */
   turning_points?: SeriesTurning | null;
   source: { pa_build_ids_hash: string | null; re_span: string };
@@ -105,7 +105,6 @@ export const SUMMARY_COPY = {
   batterMetric: "相對局面得分期望累計",
   pitcherMetric: "壓制貢獻累計",
   mvpListHeading: "單場 MVP 次數",
-  awardsLabel: "官方系列獎項",
   turningHeading: "三大轉折",
   turningCoveredHeading: "已涵蓋場次轉折",
   turningByWp: "依勝率擺動選出・依時間排列",
@@ -235,9 +234,6 @@ export function seriesSummaryNotes(o: Pick<PlayoffsOverview, "series_summary"> |
   return [
     { key: "series.summary_method", text: "累計榜以本系列已完賽場的逐打席資料計算：打者依相對局面得分期望（ΔRE24）累計，投手依壓制貢獻（打者視角 RE24 轉號）排序；不是官方獎項。" },
     { key: "series.mvp_source", text: "單場 MVP 次數依官方單場 MVP 紀錄；系列 MVP 以官方系列獎項為準，本站不自行推選。" },
-    ...(blocks.some((b) => b.awards.status === "pending_source")
-      ? [{ key: "series.awards_pending", text: "官方系列獎項本站尚未取得，取得後更新。" }]
-      : []),
     ...(blocks.some((b) => b.turning_points && boardReady(b))
       ? [{ key: "series.turning_method", text: "三大轉折取本系列勝率變化絕對值最大的 3 個打席，依時間排列；勝率為參考資訊，不是預測準確率。" }]
       : []),

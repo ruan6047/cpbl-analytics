@@ -21,11 +21,11 @@ const clone = (): SeriesSummary => structuredClone(REAL);
 const E = (): SeriesSummaryBlock => clone().previous!;
 const keys = (s: SeriesSummary) => seriesSummaryNotes({ series_summary: s }).map((n) => n.key);
 
-test("真實樣本：C 0 場不渲染、E 照排；固定說明三條", () => {
+test("真實樣本：C 0 場不渲染、E 照排；固定說明兩條（獎項頁尾已拿掉）", () => {
   assert.equal(showSummary(REAL.current), false);
   assert.equal(showSummary(REAL.previous), true);
   assert.equal(boardReady(REAL.previous!), true);
-  assert.deepEqual(keys(REAL), ["series.summary_method", "series.mvp_source", "series.awards_pending"]);
+  assert.deepEqual(keys(REAL), ["series.summary_method", "series.mvp_source"]);   // 獎項頁尾已拿掉（6217030580）
 });
 
 test("沒有 series_summary（舊版 API）或兩系列都沒完賽 ⇒ 0 條說明", () => {
