@@ -2,6 +2,7 @@ import { TeamLogo } from "@/components/ui";
 import { WpSwingBadge } from "@/components/wp-swing-badge";
 import {
   SUMMARY_COPY,
+  type SeriesAwards,
   batterValueText,
   boardReady,
   mvpBadge,
@@ -47,6 +48,26 @@ function Badge({ n }: { n: number }) {
 
 function Cell({ text }: { text: string }) {
   return <p className="flex min-h-11 items-center text-sm text-muted">{text}</p>;
+}
+
+function Awards({ awards }: { awards: SeriesAwards }) {
+  if (awards.status !== "published") return <Cell text={SUMMARY_COPY.pending} />;
+  return (
+    <ul className="space-y-1 py-1 text-sm" data-awards="published">
+      {awards.awards.map((a) => (
+        <li key={a.award_name} className="min-w-0">
+          <span className="block text-xs text-muted">{a.award_name}</span>
+          <span className="flex flex-wrap gap-x-4 gap-y-0.5">
+            {a.winners.map((w, i) => (
+              <span key={`${w.player_id ?? w.name}-${i}`} className="flex min-h-11 items-center">
+                <Who p={w} />
+              </span>
+            ))}
+          </span>
+        </li>
+      ))}
+    </ul>
+  );
 }
 
 function TurningRow({ t }: { t: TurningPoint }) {
@@ -144,7 +165,7 @@ function Board({ block }: { block: SeriesSummaryBlock }) {
       </div>
       <div className="min-w-0">
         <h4 className="text-xs font-bold text-muted">{SUMMARY_COPY.awardsLabel}</h4>
-        <Cell text={SUMMARY_COPY.pending} />
+        <Awards awards={block.awards} />
       </div>
       <Turning block={block} ready={ready} />
     </div>

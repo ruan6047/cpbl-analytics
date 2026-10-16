@@ -4,7 +4,9 @@
 // 紅線：
 // - 格內缺值只用「—」「待更新」（#281 6194693029）；原因寫頁尾（`seriesSummaryNotes`，MOUNT-CONTRACT r3 §2.4／§2.5）。
 // - 排名已由後端以未四捨五入值排好；同展示值 ⛔ 加任何「領先」字樣；RE24 第一 ⛔ 稱 MVP（A05、G07）。
-// - 單場 MVP 次數只來自官方單場 MVP；官方系列獎項 G2 一律「待更新」（⛔ 由次數推獎項）。
+// - 單場 MVP 次數只來自官方單場 MVP；官方系列獎項只來自官方系列獎項窄表（WP-AWARDS），⛔ 由次數推獎項。
+//   「官方尚未公布」（not_published，帶本站查核時間）與「本站尚未取得」（pending_source）格內都是「待更新」，
+//   原因分寫頁尾；已公布者依官方順序列出完整獎項名稱與全部得主（共同得主不壓成一人）。
 // - `seriesSummaryNotes` 純函式、同步：⛔ 讀時鐘、⛔ 發請求、⛔ 讀 window；key 依「同一件事」穩定、不帶索引或時間。
 // - 三大轉折（WP-G3）：選取與排序全在後端（全系列母體、|ΔWP| 或整組降級 |ΔRE24|、時間序）；前端只排字。
 //   勝率擺動沿用單場 recap 的「受益隊＋整數百分點」呈現（`WpSwingBadge`），⛔ 顯示勝率水平值。
@@ -43,11 +45,29 @@ export type SeriesSummaryBlock = {
   pitcher_unattributed: number;
   mvp_counts: { player_id: string; name: string | null; team_code: string | null; count: number }[];
   mvp_missing_games: number[];
-  awards: { status: "pending_source" };
+  awards: SeriesAwards;
   /** 三大轉折（WP-G3）；沒有已涵蓋場時 null。舊版 API 沒有此欄（undefined）。 */
   turning_points?: SeriesTurning | null;
   source: { pa_build_ids_hash: string | null; re_span: string };
 };
+
+export type SeriesAwardWinner = { player_id: string | null; name: string; team_code: string | null };
+
+export type SeriesAwards =
+  | { status: "pending_source" }
+  | { status: "not_published"; revision: number; source_url: string; checked_at: string }
+  | {
+      status: "published"; revision: number; source_url: string; checked_at: string;
+      awards: { award_name: string; award_type: "series_mvp" | "other"; winners: SeriesAwardWinner[] }[];
+    };
+
+/** 台北時間「M/D HH:mm」（只用 payload 時戳；⛔ 讀時鐘）。 */
+export function taipeiShort(iso: string): string {
+  const ms = Date.parse(iso);
+  if (!Number.isFinite(ms)) return iso;
+  const m = /^\d{4}-(\d{2})-(\d{2})T(\d{2}):(\d{2})/.exec(new Date(ms + 8 * 3_600_000).toISOString());
+  return m ? `${Number(m[1])}/${Number(m[2])} ${m[3]}:${m[4]}` : iso;
+}
 
 export type TurningPerson = { player_id: string; name: string | null };
 
@@ -204,6 +224,15 @@ function blockNotes(b: SeriesSummaryBlock): PlayoffsNote[] {
   }
   if (b.mvp_missing_games.length) {
     out.push({ key: k("mvp_missing"), text: `${name} ${gameList(b.mvp_missing_games)} 官方單場 MVP 本站尚未取得，次數未計入。` });
+  }
+  const aw = b.awards;
+  if (aw.status === "not_published") {
+    out.push({ key: k("awards_not_published"), text: `${name}官方尚未公布本系列獎項（本站 ${taipeiShort(aw.checked_at)} 查核）。` });
+  } else if (aw.status === "published") {
+    out.push({
+      key: k("awards_source"), text: `${name}系列獎項依官方公布（本站 ${taipeiShort(aw.checked_at)} 查核）。`,
+      source: { label: "官方公布頁", url: aw.source_url },
+    });
   }
   const t = b.turning_points;
   if (t && boardReady(b)) {
