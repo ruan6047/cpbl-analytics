@@ -55,12 +55,21 @@ class World:
         self.detail = detail or (lambda f: f)            # www 明細替身
         self.builder_calls: list[list[str]] = []
         self.syncs: list[list[str]] = []
+        self.prechecks: list[str] = []
 
     def _plan(self, now):
         recs = pe.boxpa_refresh(self.state, now, LOCAL, {KEY: self.facts})
         return recs, pe.boxpa_plan(self.state, now, recs)
 
     def run_wake(self, now):
+        # shell 1b 預檢：`boxpa-plan --dry` 不取鎖、不寫狀態檔；結果鏈 idle 時只有 detail／sync／build 會進鎖。
+        import copy
+        dry = copy.deepcopy(self.state)
+        dry_recs = pe.boxpa_refresh(dry, now, LOCAL, {KEY: self.facts})
+        dry_action = pe.boxpa_plan(dry, now, dry_recs)[0]
+        self.prechecks.append(dry_action)
+        if dry_action not in ("detail", "sync", "build"):
+            return "precheck_exit"
         recs, (action, keys, parts) = self._plan(now)
         if action == "detail":
             pe.boxpa_record_detail(self.state, now, keys, [])
@@ -125,7 +134,7 @@ def test_m1_normal_box_ready_pa_built_same_wake_one_sync():
     w = World(NO_PA, builder=publish)
     w.run_wake(at(22, 0))
     assert w.syncs == [["box", "pa"]] and w.builder_calls == [[KEY]]
-    assert w.run_wake(at(22, 5)) == "idle"
+    assert w.run_wake(at(22, 5)) == "precheck_exit"
     assert w.rec["state"] == "delivered" and w.pa["same_night"] is True
 
 
@@ -154,7 +163,7 @@ def test_m4_pa_not_published_first_then_later_two_syncs():
     assert w.syncs == [["box"]] and w.pa["reason"] == "no_local_published_build"
     assert w.run_wake(at(22, 5)) == "sync"
     assert w.syncs == [["box"], ["pa"]]
-    assert w.run_wake(at(22, 10)) == "idle" and w.rec["state"] == "delivered"
+    assert w.run_wake(at(22, 10)) == "precheck_exit" and w.rec["state"] == "delivered"
 
 
 def test_m5_pa_never_published_keeps_building_without_syncing_then_handed_to_daily():
@@ -172,14 +181,14 @@ def test_m6_g1_delivered_then_box_update_with_correction_rebuilds_and_keeps_pa_p
     """再審 G1：已 published 的場 box 更新 → 重開 → builder **必須被呼叫** → 官方更正照實待收尾。"""
     w = World(NO_PA, builder=publish)
     w.run_wake(at(21, 30))
-    assert w.rec["state"] == "delivered" or w.run_wake(at(21, 35)) == "idle"
+    assert w.rec["state"] == "delivered" or w.run_wake(at(21, 35)) == "precheck_exit"
     w.builder = correction
     w.facts = dataclasses.replace(w.facts, box_counts={**w.facts.box_counts, "game_livelog": 356})
     w.run_wake(at(22, 0))
     assert w.builder_calls[-1] == [KEY], "已有 published 的場也要交給 builder"
     assert w.syncs == [["box", "pa"], ["box"]]
     assert (w.pa["status"], w.pa["reason"]) == ("pending_update", "official_correction_pending")
-    assert w.run_wake(at(22, 10)) == "idle" and len(pe.boxpa_syncs(w.rec)) == 2
+    assert w.run_wake(at(22, 10)) == "precheck_exit" and len(pe.boxpa_syncs(w.rec)) == 2
 
 
 def test_m7_delivered_then_tracking_late_republish_goes_with_box_in_one_sync():
@@ -189,7 +198,7 @@ def test_m7_delivered_then_tracking_late_republish_goes_with_box_in_one_sync():
     w.facts = dataclasses.replace(w.facts, box_counts={**w.facts.box_counts, "pitch_tracking": 340})
     w.run_wake(at(22, 0))
     assert w.syncs == [["box", "pa"], ["box", "pa"]], "republish 的 PA 與更新的 box 同一次送"
-    assert w.run_wake(at(22, 5)) == "idle"
+    assert w.run_wake(at(22, 5)) == "precheck_exit"
     assert w.pa["status"] == "delivered" and w.rec["state"] == "delivered"
 
 
@@ -224,7 +233,7 @@ def test_m10_correction_before_first_sync_sends_old_published_and_marks_pending(
     w.run_wake(at(22, 0))
     assert w.syncs == [["box", "pa"]]
     assert w.pa["reason"] == "official_correction_pending"
-    assert w.run_wake(at(22, 5)) == "idle"
+    assert w.run_wake(at(22, 5)) == "precheck_exit"
 
 
 def test_candidates_are_all_open_box_ready_games_regardless_of_published():
@@ -233,3 +242,116 @@ def test_candidates_are_all_open_box_ready_games_regardless_of_published():
     assert pe.boxpa_pa_build_candidates(recs) == [KEY]
     recs = pe.boxpa_refresh(pe.empty_state(), at(22, 0), LOCAL, {KEY: BOX_MISSING})
     assert pe.boxpa_pa_build_candidates(recs) == []
+
+
+# ------------------------------------------------------------------ fix-4：已送達／額度用完後才更新（B1）
+#
+# 需求方裁定 6204889879（「本機記『更正待同步』」）：仍呼叫本機 PA builder、狀態記更正待同步／待更新，
+# ⛔ 不再同步 production、⛔ 不超過 A3 以場計上限，隔日 10:10 每日鏈補上；不得停在「已送達」。
+
+def _two_syncs_box_box(w):
+    """21:30 box＋pa → 21:35 無更新（轉 delivered）→ 21:40 livelog 更新只送 box（第 2 次）。"""
+    w.run_wake(at(21, 30))
+    w.run_wake(at(21, 35))
+    assert w.rec["state"] == "delivered"
+    w.facts = dataclasses.replace(w.facts, box_counts={**w.facts.box_counts, "game_livelog": 356})
+    w.run_wake(at(21, 40))
+    assert w.syncs == [["box", "pa"], ["box"]]
+
+
+def _assert_pending_until_daily(w):
+    assert len(w.syncs) == 2, "A3 以場計：沒有第 3 次 production 同步"
+    assert w.builder_calls[-1] == [KEY], "本機 PA builder 仍被呼叫"
+    assert w.rec["state"] == "open" and w.rec["reason"] == "source_changed_after_quota"
+    assert w.box["reason"] == "local_changed_since_sync"
+    assert w.pa["reason"] == "official_correction_pending"
+    pe.boxpa_refresh(w.state, at(10, 20, day=13), LOCAL, {KEY: w.facts})
+    assert (w.rec["state"], w.rec["reason"]) == ("unreached", "handed_to_daily_chain"), "交隔日 10:10 補"
+
+
+def test_b1_seat1_m9_open_quota_used_then_update_passes_precheck_and_builds():
+    """席 1 現象 A：第 2 次同步後直接再更新（場次仍 open）→ 預檢 build 必須進鎖、builder 被呼叫。"""
+    w = World(NO_PA, builder=publish)
+    w.run_wake(at(21, 30))
+    w.facts = dataclasses.replace(w.facts, box_counts={**w.facts.box_counts, "game_livelog": 356})
+    w.run_wake(at(21, 40))
+    w.builder = correction
+    w.facts = dataclasses.replace(w.facts, box_counts={**w.facts.box_counts, "game_livelog": 357})
+    assert w.run_wake(at(22, 0)) == "build"
+    assert w.prechecks[-1] == "build"
+    _assert_pending_until_daily(w)
+
+
+def test_b1_seat1_s4_delivered_after_idle_wake_then_update_reopens_and_builds():
+    """席 1 現象 B／席 2 S4：第 2 次同步後有一次無更新喚醒（轉 delivered），之後才更新＋更正。"""
+    w = World(NO_PA, builder=publish)
+    _two_syncs_box_box(w)
+    assert w.run_wake(at(21, 45)) == "precheck_exit" and w.rec["state"] == "delivered"
+    w.builder = correction
+    w.facts = dataclasses.replace(w.facts, box_counts={**w.facts.box_counts, "game_livelog": 357})
+    assert w.run_wake(at(22, 0)) == "build"
+    _assert_pending_until_daily(w)
+
+
+def test_b1_seat2_s5_m4_path_delivered_then_correction():
+    """席 2 S5：[box]、[pa] 兩次後 delivered，再有 box 更新＋官方更正。"""
+    calls = {"n": 0}
+
+    def late(f):
+        calls["n"] += 1
+        return publish(f) if calls["n"] >= 2 else f
+    w = World(NO_PA, builder=late)
+    w.run_wake(at(21, 30))
+    w.run_wake(at(21, 35))
+    assert w.syncs == [["box"], ["pa"]]
+    assert w.run_wake(at(21, 45)) == "precheck_exit" and w.rec["state"] == "delivered"
+    w.builder = correction
+    w.facts = dataclasses.replace(w.facts, box_counts={**w.facts.box_counts, "game_livelog": 357})
+    assert w.run_wake(at(22, 0)) == "build"
+    _assert_pending_until_daily(w)
+
+
+def test_b1_delivered_with_quota_left_reopens_and_syncs_once_more():
+    """額度還有時，已送達後的更新照常送（第 2 次），不受 fix-4 影響。"""
+    w = World(NO_PA, builder=publish)
+    w.run_wake(at(21, 30))
+    assert w.run_wake(at(21, 35)) == "precheck_exit" and w.rec["state"] == "delivered"
+    w.facts = dataclasses.replace(w.facts, box_counts={**w.facts.box_counts, "game_livelog": 356})
+    assert w.run_wake(at(22, 0)) == "sync" and w.syncs == [["box", "pa"], ["box"]]
+
+
+def test_terminal_state_is_set_when_the_sync_is_recorded_not_by_a_later_plan():
+    """終態時序：最後一次同步入帳當下就轉終態——之後的喚醒只跑 `--dry` 預檢、不寫狀態檔。"""
+    w = World(NO_PA, builder=publish)
+    w.run_wake(at(22, 0))
+    assert w.rec["state"] == "delivered", "boxpa-record 存檔時已是 delivered"
+    w2 = World(dataclasses.replace(FULL), builder=correction)
+    w2.run_wake(at(22, 0))
+    assert w2.rec["state"] == "correction_pending", "更正待同步，不記已送達"
+
+
+def test_box_ready_rejects_not_final_and_missing_box():
+    assert not pe.boxpa_box_ready({"sources": {"box": {"reason": "not_final"}}})
+    assert not pe.boxpa_box_ready({"sources": {"box": {"reason": "local_box_incomplete:game_livelog"}}})
+    assert not pe.boxpa_box_ready({"sources": None})
+    assert pe.boxpa_box_ready({"sources": {"box": {"reason": "no_prod_evidence"}}})
+    assert pe.boxpa_pa_build_candidates({"k1": {"sources": {"box": {"reason": "not_final"}}},
+                                          "k2": {"sources": {"box": {"reason": None, "status": "delivered"}}}}) == ["k2"]
+
+
+def test_cli_boxpa_prepare_without_games_hands_published_games_to_the_builder(monkeypatch, tmp_path, capsys):
+    """G1 的 CLI 接線（席 2 G1c）：`boxpa-prepare` 無 --games 時，已有 published、box 已到齊的場也要交給 builder。"""
+    state = pe.empty_state()
+    pe.boxpa_refresh(state, at(21, 30), LOCAL, {KEY: FULL})
+    rec = state["boxpa"][KEY]
+    assert rec["sources"]["pa"]["reason"] == "no_prod_evidence", "已有 published"
+    monkeypatch.setenv("POSTSEASON_STATE", str(tmp_path / "state.json"))
+    monkeypatch.setenv("POSTSEASON_YEAR", "2026")
+    (tmp_path / "state.json").write_text(json.dumps(state), encoding="utf-8")
+    monkeypatch.setattr(pe, "_now", lambda: at(21, 31))
+    monkeypatch.setattr(pe, "load_local_games", lambda year, now: LOCAL)
+    monkeypatch.setattr(pe, "boxpa_load_facts", lambda keys: {KEY: FULL})
+    seen = []
+    monkeypatch.setattr(pe, "boxpa_pa_build", lambda year, keys: seen.append(list(keys)) or {"games": len(keys)})
+    assert pe.main(["boxpa-prepare"]) == 0
+    assert seen == [[KEY]]

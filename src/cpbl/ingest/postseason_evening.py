@@ -722,7 +722,9 @@ BOXPA_MAX_SENDS = 2                              # 每場每晚 production 同�
 BOXPA_RESEND_CODES = (68, 72)                    # 對帳不等／ssh 連線失敗
 BOXPA_NOT_FINAL = 73                             # production 尚未完賽：不算一次嘗試
 BOXPA_MAX_SECONDS = 20 * 60                      # scoped 同步超過 20 分鐘即停（PLAN §13 停止條件 4）
-BOXPA_TERMINAL = ("delivered", "conflict", "unreached")
+BOXPA_TERMINAL = ("delivered", "correction_pending", "conflict", "unreached")
+# 來源同晚又變時可重新打開的終態（#293 fix-4，需求方裁定 6204889879「本機記『更正待同步』」）。
+BOXPA_REOPENABLE = ("delivered", "correction_pending")
 _NEEDS_SEND = ("no_prod_evidence", "not_synced", "reconcile_mismatch_retrying", "local_changed_since_sync")
 
 
@@ -822,17 +824,37 @@ def boxpa_refresh(state: dict, now: datetime, local: Mapping[str, LocalGame],
             m = rec.get("manifest")
             rec["sources"] = as_dict(classify(facts[key], m, now, exhausted=boxpa_exhausted(rec),
                                               final_prod_at=_final_prod_at(state, rec)))
-        # #293 審核席 1 F2：已送達的場若某來源同晚又有新版本（例：新的 published PA、box 列數變）
-        # 且該來源仍有額度，重新打開；額度用完或衝突／未達的終態不重開。
-        if rec["state"] == "delivered" and boxpa_wants(rec) and boxpa_window(rec.get("game_date"), now):
-            rec["state"], rec["reason"] = "open", "reopened_source_changed"
+        # 已送達（或已記更正待同步）的場若某來源同晚又有新版本（新的 published PA、box 列數變），一律
+        # 重新打開（#293 審核席 1 F2；fix-4 B1）。仍有同步額度 → 照常送；額度已用完（A3 以場計）→ 不再同步
+        # production，只讓本機 PA builder 重判，狀態記「來源已變、待隔日 10:10 每日鏈補上」——⛔ 不得停在已送達。
+        changed = [x for x in ("box", "pa")
+                   if ((rec.get("sources") or {}).get(x) or {}).get("reason") in _NEEDS_SEND]
+        if rec["state"] in BOXPA_REOPENABLE and changed and boxpa_window(rec.get("game_date"), now):
+            rec["state"] = "open"
+            rec["reason"] = ("reopened_source_changed" if boxpa_game_can_sync(rec)
+                             else "source_changed_after_quota")
         if rec["state"] in BOXPA_TERMINAL:
             continue
         if not boxpa_window(rec.get("game_date"), now):
             rec["state"], rec["reason"] = "unreached", "handed_to_daily_chain"
             continue
+        # 終態在這裡就定（#293 fix-4 終態時序）：最後一次同步後，下一次喚醒的 `boxpa-plan --dry` 不寫
+        # 狀態檔、shell 隨即退出，若只在 plan 裡定終態，送達的場會一直停在 open、隔天被誤記成未達。
+        # boxpa_refresh 由 boxpa-record／boxpa-prepare 呼叫並存檔，所以同步一入帳就轉終態。
+        if not boxpa_wants(rec) and _boxpa_done(rec):
+            rec["state"] = _boxpa_terminal_state(rec)
+            continue
         out[key] = rec
     return out
+
+
+def _boxpa_terminal_state(rec: Mapping) -> str:
+    src = rec.get("sources") or {}
+    if any((src.get(s) or {}).get("status") == "delivered_conflict" for s in ("box", "pa")):
+        return "conflict"
+    if (src.get("pa") or {}).get("reason") == "official_correction_pending":
+        return "correction_pending"   # 更正待同步：本機已判出官方更正，交隔日每日鏈
+    return "delivered"
 
 
 def boxpa_plan(state: dict, now: datetime,
@@ -880,9 +902,6 @@ def boxpa_plan(state: dict, now: datetime,
             build.append(key)
         if wants:
             sync.append((key, wants))
-        elif _boxpa_done(rec):
-            rec["state"] = "conflict" if any(
-                (src.get(s) or {}).get("status") == "delivered_conflict" for s in ("box", "pa")) else "delivered"
     # 次序：detail > sync > build。sync 優先於 build：PA build 沒產出 published 時 box 仍照送；
     # shell 在任何非 idle 動作後都先跑 PA build 再重新 plan，所以決定 parts 的那次已看得到新 PA（R1）。
     if detail:

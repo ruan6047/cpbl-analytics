@@ -132,8 +132,9 @@ fi
 BOXPA_PRE="$(py boxpa-plan --dry)" || BOXPA_PRE="error"
 note "boxpa-plan --dry → ${BOXPA_PRE}"
 if [ "$ACTION" = "idle" ] || [ "$ACTION" = "halted" ]; then
+  # build 也要進來（#293 fix-4 B1）：已送達或額度用完後來源才更新時，只跑本機 PA builder、不同步。
   case "$BOXPA_PRE" in
-    detail*|sync*) ;;
+    detail*|sync*|build*) ;;
     *) exit 0 ;;
   esac
 fi

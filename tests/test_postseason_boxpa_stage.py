@@ -317,7 +317,7 @@ def test_official_correction_is_terminal_for_tonight_and_not_resent():
     record_sync(state, t0, f, 0, manifest(f, "2026-10-12T22:01:00+08:00"))
     assert step(state, tpe(10, 12, 22, 5), f) == ("idle", [])
     rec = state["boxpa"][KEY]
-    assert rec["state"] == "delivered"
+    assert rec["state"] == "correction_pending", "更正待同步：不得記成已送達（fix-4）"
     assert rec["sources"]["pa"]["reason"] == "official_correction_pending", "如實記官方更正待收尾"
 
 
@@ -472,3 +472,15 @@ def test_invalid_stage_is_64_and_busy_lock_is_75(tmp_path):
     assert bad.returncode == 64
     busy, read, lock = _evening(tmp_path / "b", boxpa="sync 2026-C-2 box,pa", lock_pid=os.getpid())
     assert busy.returncode == 75 and lock.is_dir() and not read("refresh.txt")
+
+
+def test_precheck_build_takes_lock_and_runs_pa_build_without_syncing(tmp_path):
+    """fix-4 B1：結果鏈 idle、box／PA 預檢回 build → 必須進鎖跑 boxpa-prepare（本機 PA builder），⛔ 不同步。"""
+    result, read, lock = _evening(tmp_path, boxpa="build 2026-C-2", stage="boxpa")
+    assert result.returncode == 0, result.stderr
+    uv = read("uv.txt")
+    assert "boxpa-plan --dry" in uv and any(x.endswith("boxpa-prepare") for x in uv.splitlines())
+    assert not read("refresh.txt"), "build 不得觸發 production 同步"
+    assert uv.rstrip().endswith("finish") and not lock.exists()
+    all_mode, read2, _ = _evening(tmp_path / "all", boxpa="build 2026-C-2")
+    assert all_mode.returncode == 0 and any(x.endswith("boxpa-prepare") for x in read2("uv.txt").splitlines())
