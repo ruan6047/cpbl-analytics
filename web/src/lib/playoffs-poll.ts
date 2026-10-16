@@ -10,6 +10,17 @@
 //    ⇒ 先重取 overview、再重取 watch 一次；仍不一致 ⇒ 第 4 區保留上一份畫面並標「資料更新中」，
 //    ⛔ 拼接不同版本。（PRD「重取 overview 後只重取受影響區」：watch 較新時只重取 watch 永遠追不上舊 overview。）
 // 6. 更新只換資料，⛔ 捲動、⛔ 移焦點——那是呈現層的事，本檔只交出資料。
+// 7. 第 2／3 區（registry 登記的區，#285 續做 PLAN r6 §3、MOUNT-CONTRACT r3 §3）：
+//    - 第一次接近 viewport 才 `activate(id)`；未啟用的區請求數 0。啟用時立即一輪。
+//    - 每輪 overview → 第 4 區 → 已啟用的區（並行）。`every_round` 每輪重取；`on_context_change` 只在
+//      overview `context_version` 與該區上次接受的版本不同時重取。
+//    - 版本：區回應 `context_version` ≠ 當下 overview ⇒ 本輪最多重取 overview 一次，再重取受影響區一次；
+//      仍不一致 ⇒ 該區 `stale`（保留上一份）。區不吃 `?game`、不解讀區層級 `status`。
+//    - 區讀取失敗只改該區狀態；⛔ 計入退避（沿用第 4 區時的失敗定義：overview 或 watch 失敗才算），
+//      ⛔ 影響第 1 區「暫時無法更新」提示。新一輪開始時與 overview／watch 一起中止。
+//    - 各區獨立結算（審核 F1，review-8）：一區一回來就上畫面，⛔ 等其他區；本輪的 overview／watch 結束即算
+//      本輪結束（onRound、退避判斷），區請求在背景繼續，⛔ 讓慢區把整輪拖成「被下一輪取代＝失敗」。
+//      跨輪未回的區請求在下一輪開始時中止（不計失敗），版本錯配共用同一次 overview 重取。
 
 export const POLL_INTERVAL_MS = 30_000;
 export const BACKOFF_MS = [30_000, 60_000, 120_000, 240_000] as const;
@@ -19,7 +30,12 @@ export function nextDelay(failures: number): number {
   return BACKOFF_MS[Math.min(Math.max(failures, 0), BACKOFF_MS.length - 1)];
 }
 
-export type VersionedOverview = { context_version: string; sections: { watch: { status: string; series: string; game: number | null } } };
+export type VersionedOverview = {
+  context_version: string;
+  /** 第 2／3 區的 series 參數（MOUNT-CONTRACT §4）；缺時退回 `sections.watch.series`（同一個 S02 預設系列）。 */
+  default_series?: string;
+  sections: { watch: { status: string; series: string; game: number | null } };
+};
 /** `context_version` 為 null（不應發生）時與任何 overview 都不一致，照版本落差處理。 */
 export type VersionedWatch = { context_version: string | null; status: string };
 
@@ -36,6 +52,23 @@ export function watchDecision(overviewVersion: string, watch: VersionedWatch, op
   return opts.retried ? "keep_previous" : "refetch_overview";
 }
 
+/** 第 2／3 區回應的最小形狀：版本處置只看 `context_version`。 */
+export type VersionedArea = { context_version: string | null };
+
+/** 區回應要不要接受：同 `watchDecision`，但沒有 `?game`（D2）也不解讀區層級 `status`。 */
+export function areaDecision(overviewVersion: string, area: VersionedArea, opts: { retried: boolean }): WatchDecision {
+  if (area.context_version === overviewVersion) return "accept";
+  return opts.retried ? "keep_previous" : "refetch_overview";
+}
+
+export type AreaRefresh = "every_round" | "on_context_change";
+
+export type PollArea<A extends VersionedArea = VersionedArea> = {
+  id: string;
+  refresh: AreaRefresh;
+  fetch: (series: string, signal: AbortSignal) => Promise<A>;
+};
+
 export type WatchState<W> =
   | { kind: "idle" }                       // 尚未取得（首屏占位）
   | { kind: "data"; data: W }
@@ -51,12 +84,18 @@ export type PollDeps<O extends VersionedOverview, W extends VersionedWatch> = {
   clearTimer: (handle: unknown) => void;
   onOverview: (o: O) => void;
   onWatch?: (s: WatchState<W>) => void;
+  /** 第 2／3 區（registry 登記）；不給＝沒有區，行為與只有第 1／4 區時相同。 */
+  areas?: PollArea[];
+  /** 區狀態與第 4 區同形（`AreaState` ＝ `WatchState`）。 */
+  onArea?: (id: string, s: WatchState<VersionedArea>) => void;
   /** 每輪結束回報（測試與除錯用）。 */
   /** `overviewOk`＝本輪 overview 已取得並上畫面（watch 失敗不影響第 1 區的「暫時無法更新」提示）。 */
   onRound?: (r: { ok: boolean; overviewOk: boolean; failures: number; nextDelayMs: number | null }) => void;
 };
 
-export type Trigger = "start" | "timer" | "visible" | "game";
+export type Trigger = "start" | "timer" | "visible" | "game" | "activate";
+
+export type AreaState<A> = WatchState<A>;
 
 export class PlayoffsPoller<O extends VersionedOverview, W extends VersionedWatch> {
   private seq = 0;
@@ -68,6 +107,11 @@ export class PlayoffsPoller<O extends VersionedOverview, W extends VersionedWatc
   private overviewOk = false;
   private deps: PollDeps<O, W>;
   private requestedGame: number | null;
+  private active = new Set<string>();
+  private areaLast = new Map<string, VersionedArea>();
+  private activatePending = false;
+  /** 本輪區請求的中止器（本輪 overview／watch 結束後區請求仍在背景跑，下一輪開始時中止、不計失敗）。 */
+  private areaAc: AbortController | null = null;
 
   constructor(deps: PollDeps<O, W>, requestedGame: number | null = null) {
     this.deps = deps;
@@ -105,6 +149,27 @@ export class PlayoffsPoller<O extends VersionedOverview, W extends VersionedWatc
     if (!this.stopped) void this.tick("game");
   }
 
+  /** 區第一次接近 viewport：啟用並立即一輪（同一個 microtask 內多區啟用只跑一輪）。 */
+  activate(id: string): void {
+    if (this.active.has(id)) return;
+    this.active.add(id);
+    if (this.stopped || this.activatePending) return;
+    this.activatePending = true;
+    void Promise.resolve().then(() => {
+      this.activatePending = false;
+      if (!this.stopped) void this.tick("activate");
+    });
+  }
+
+  /** 標記為已啟用但不立即跑一輪（控制器建立前就接近 viewport 的區；隨 `start` 的第一輪一起取）。 */
+  preactivate(ids: Iterable<string>): void {
+    for (const id of ids) this.active.add(id);
+  }
+
+  isActive(id: string): boolean {
+    return this.active.has(id);
+  }
+
   get failureCount(): number {
     return this.failures;
   }
@@ -117,6 +182,8 @@ export class PlayoffsPoller<O extends VersionedOverview, W extends VersionedWatc
   private abort(): void {
     this.inflight?.abort();
     this.inflight = null;
+    this.areaAc?.abort();
+    this.areaAc = null;
   }
 
   private schedule(ms: number): void {
@@ -132,6 +199,8 @@ export class PlayoffsPoller<O extends VersionedOverview, W extends VersionedWatc
       this.inflight.abort();
       if (trigger === "timer") this.failures += 1;   // 一整個間隔都沒回來＝慢，退避
     }
+    this.areaAc?.abort();                           // 上一輪仍在背景的區請求：中止、不計失敗
+    this.areaAc = null;
     this.clear();
     this.inflight = null;
     if (this.stopped || !this.deps.isVisible()) return;
@@ -139,6 +208,7 @@ export class PlayoffsPoller<O extends VersionedOverview, W extends VersionedWatc
     const token = ++this.seq;
     const ac = new AbortController();
     this.inflight = ac;
+    this.areaAc = ac;
     const live = () => token === this.seq && !ac.signal.aborted;
     this.overviewOk = false;
     try {
@@ -166,6 +236,15 @@ export class PlayoffsPoller<O extends VersionedOverview, W extends VersionedWatc
     if (!live()) return false;
     this.deps.onOverview(overview);
     this.overviewOk = true;
+    let current = overview;
+    const watchOk = await this.roundWatch(overview, signal, live, (o) => { current = o; });
+    if (!live()) return false;
+    this.roundAreas(current, signal, live);         // ⛔ await：區獨立結算，不拖住本輪（審核 F1）
+    return watchOk;
+  }
+
+  /** 第 4 區（行為與 SHA-F3 相同）。`onFresh` 回報本輪重取後的 overview，供第 2／3 區比版本。 */
+  private async roundWatch(overview: O, signal: AbortSignal, live: () => boolean, onFresh: (o: O) => void): Promise<boolean> {
     const fetchWatch = this.deps.fetchWatch;
     if (!fetchWatch) return true;
 
@@ -208,9 +287,66 @@ export class PlayoffsPoller<O extends VersionedOverview, W extends VersionedWatc
       }
       if (!live()) return false;
       this.deps.onOverview(fresh);
+      onFresh(fresh);
       return attempt(fresh, true);
     };
     return attempt(overview, false);
+  }
+
+  /** 第 2／3 區：已啟用者並行取、各自結算；版本不一致者共用同一次 overview 重取，再各重取一次。 */
+  private roundAreas(overview: O, signal: AbortSignal, live: () => boolean): void {
+    const areas = (this.deps.areas ?? []).filter((a) => this.active.has(a.id));
+    const due = areas.filter((a) => a.refresh === "every_round"
+      || this.areaLast.get(a.id)?.context_version !== overview.context_version);
+    if (!due.length) return;
+    let fresh: Promise<O | null> | null = null;
+    const freshOverview = () => (fresh ??= this.deps.fetchOverview(signal).then(
+      (o) => { if (live()) this.deps.onOverview(o); return o; },
+      () => null,
+    ));
+    for (const a of due) void this.runArea(a, overview, signal, live, freshOverview);
+  }
+
+  private async runArea(a: PollArea, overview: O, signal: AbortSignal, live: () => boolean,
+    freshOverview: () => Promise<O | null>): Promise<void> {
+    const series = (o: O) => o.default_series ?? o.sections.watch.series;
+    const fetchOne = async (o: O): Promise<VersionedArea | null> => {
+      try {
+        return await a.fetch(series(o), signal);
+      } catch {
+        return null;
+      }
+    };
+    const settle = (data: VersionedArea | null, o: O, retried: boolean): boolean => {
+      const previous = this.areaLast.get(a.id) ?? null;
+      if (data === null) {
+        this.deps.onArea?.(a.id, { kind: "error", previous });
+        return true;
+      }
+      const decision = areaDecision(o.context_version, data, { retried });
+      if (decision === "accept") {
+        this.areaLast.set(a.id, data);
+        this.deps.onArea?.(a.id, { kind: "data", data });
+        return true;
+      }
+      if (decision === "keep_previous") {
+        this.deps.onArea?.(a.id, { kind: "stale", previous });
+        return true;
+      }
+      return false;   // 需要重取 overview
+    };
+    const first = await fetchOne(overview);
+    if (!live()) return;
+    if (settle(first, overview, false)) return;
+    const o2 = await freshOverview();
+    if (!live()) return;
+    if (!o2) {
+      this.deps.onArea?.(a.id, { kind: "stale", previous: this.areaLast.get(a.id) ?? null });
+      return;
+    }
+    const second = await fetchOne(o2);
+    if (!live()) return;
+    settle(second, o2, true);
   }
 }
 
