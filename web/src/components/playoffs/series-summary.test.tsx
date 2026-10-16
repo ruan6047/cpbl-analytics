@@ -78,10 +78,10 @@ test("MVP 全缺 ⇒ 待更新；無缺也無次數 ⇒ —", () => {
   assert.match(text(html(<SeriesSummaryBlock summary={s} />)), /單場 MVP 次數—/);
 });
 
-test("掛進第 1 區：在前一系列一句之後；overview 沒有 series_summary 時第 1 區與既有輸出相同", () => {
+test("掛進第 1 區：在下一場預告之後；overview 沒有 series_summary 時第 1 區與既有輸出相同", () => {
   const with_ = { ...structuredClone(OVERVIEW), series_summary: SUMMARY };
   const out = html(<SeriesSection overview={with_} />);
-  assert.match(out, /data-series="E"[\s\S]*data-series-summary/);
+  assert.match(out, /data-next-game[\s\S]*data-series-summary/);
   const plain = html(<SeriesSection overview={OVERVIEW} />);
   assert.doesNotMatch(plain, /data-series-summary/);
   assert.equal(html(<SeriesSection overview={{ ...structuredClone(OVERVIEW), series_summary: null }} />), plain);
