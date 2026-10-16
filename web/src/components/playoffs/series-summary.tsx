@@ -1,4 +1,5 @@
 import { TeamLogo } from "@/components/ui";
+import { WpSwingBadge } from "@/components/wp-swing-badge";
 import {
   SUMMARY_COPY,
   batterValueText,
@@ -8,8 +9,14 @@ import {
   playerName,
   showSummary,
   summaryTitle,
+  turningCaption,
+  turningHeading,
+  turningRe24Text,
+  turningScoreChange,
+  turningSituation,
   type SeriesSummary,
   type SeriesSummaryBlock,
+  type TurningPoint,
 } from "@/lib/playoffs-series-summary";
 import { teamLabel } from "@/lib/playoffs-series-view";
 
@@ -21,6 +28,8 @@ import { teamLabel } from "@/lib/playoffs-series-view";
 // - K4：前一系列（挑戰賽）累計榜也做，預設收合（`<details>`，鍵盤可開關），不與當前系列混排。
 // 格內缺值只用「—」「待更新」，原因寫頁尾（#281 6194693029；`seriesSummaryNotes`）。
 // 沒有完賽場的系列整塊省略（PRD「沒有就省略，不套模板」）。
+// WP-G3 三大轉折：後端已選好並依時間排序；本元件只排字。勝率擺動沿用單場 recap 的 `WpSwingBadge`（受益隊＋
+// 整數百分點，⛔ 水平值）；降級（|ΔRE24| 選取）時改顯示得分期望變化，並由小標註明選取準則。
 
 function Who({ p }: { p: { name: string | null; team_code: string | null } }) {
   return (
@@ -38,6 +47,50 @@ function Badge({ n }: { n: number }) {
 
 function Cell({ text }: { text: string }) {
   return <p className="flex min-h-11 items-center text-sm text-muted">{text}</p>;
+}
+
+function TurningRow({ t }: { t: TurningPoint }) {
+  const score = turningScoreChange(t);
+  const re24 = turningRe24Text(t);
+  const hitter = t.hitter?.name ?? t.hitter?.player_id ?? SUMMARY_COPY.missing;
+  return (
+    <li className="flex min-h-11 min-w-0 flex-col gap-0.5 py-1.5 text-sm" data-turning={`${t.series_game_no}-${t.pa_index}`}>
+      <span className="flex min-w-0 flex-wrap items-baseline justify-between gap-x-2">
+        <span className="min-w-0 text-xs text-muted">{turningSituation(t)}</span>
+        {t.delta_wp !== null && (
+          <WpSwingBadge value={t.delta_wp} homeName={teamLabel(t.home_team_code)} awayName={teamLabel(t.away_team_code)}
+            homeColor="" awayColor="" />
+        )}
+      </span>
+      <span className="min-w-0 text-ink">
+        <span className="font-bold">{hitter}</span>
+        {t.result_action ? ` ${t.result_action}` : ""}
+        {t.pitcher?.name ? <span className="text-muted">（投手 {t.pitcher.name}）</span> : null}
+      </span>
+      <span className="flex flex-wrap gap-x-3 text-xs text-muted tabular-nums">
+        {score && <span>比分（客：主）{score.before} → {score.after}</span>}
+        {t.delta_wp === null && re24 && <span>{re24}</span>}
+      </span>
+    </li>
+  );
+}
+
+function Turning({ block, ready }: { block: SeriesSummaryBlock; ready: boolean }) {
+  const t = block.turning_points;
+  if (t === undefined) return null;   // 舊版 API（G2）沒有此欄：不放標題、不占位
+  return (
+    <div className="min-w-0 md:col-span-2" data-turning-block={block.kind_code}>
+      <h4 className="text-xs font-bold text-muted">
+        {t ? turningHeading(t) : SUMMARY_COPY.turningHeading}
+        {t && ready && <span className="ml-1 font-normal text-faint">（{turningCaption(t)}）</span>}
+      </h4>
+      {!ready || !t ? <Cell text={SUMMARY_COPY.pending} /> : t.items.length ? (
+        <ol aria-label={`${summaryTitle(block)}・${turningHeading(t)}`} className="divide-y divide-line">
+          {t.items.map((item) => <TurningRow key={`${item.series_game_no}-${item.pa_index}`} t={item} />)}
+        </ol>
+      ) : <Cell text={SUMMARY_COPY.missing} />}
+    </div>
+  );
 }
 
 function Board({ block }: { block: SeriesSummaryBlock }) {
@@ -93,6 +146,7 @@ function Board({ block }: { block: SeriesSummaryBlock }) {
         <h4 className="text-xs font-bold text-muted">{SUMMARY_COPY.awardsLabel}</h4>
         <Cell text={SUMMARY_COPY.pending} />
       </div>
+      <Turning block={block} ready={ready} />
     </div>
   );
 }

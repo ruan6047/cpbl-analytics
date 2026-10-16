@@ -1,0 +1,230 @@
+{
+  "_provenance": {
+    "how": "本機 DB（cpbl-analytics-db-1:5433）唯讀（default_transaction_read_only=on）呼叫 cpbl.playoffs.overview.playoffs_overview(2026) 取 series_summary 原樣存下",
+    "observed_at": "2026-10-16T11:00:51.522081+00:00",
+    "code_base": "8de12c9c + #288 WP-G3 未提交工作樹",
+    "context_version": "9ce7eed49c3cd16811fc0a427f6d6d05c94c04f748e272714f0d212e58e44734",
+    "data": "2026 E1–E4 published PA build（4/4 涵蓋）；C 尚未開打；WP 分布 run_dist A/2018-2025"
+  },
+  "contract": "playoffs-series-summary/v1",
+  "algorithm": "re24-span-2018-2025/v1",
+  "current": {
+    "kind_code": "C",
+    "status": "no_completed_games",
+    "games_total": 0,
+    "games_covered": 0,
+    "missing_games": [],
+    "excluded_games": [],
+    "batters": [],
+    "pitchers": [],
+    "pitcher_unattributed": 0,
+    "mvp_counts": [],
+    "mvp_missing_games": [],
+    "awards": {
+      "status": "pending_source"
+    },
+    "turning_points": null,
+    "source": {
+      "pa_build_ids_hash": null,
+      "re_span": "2018-2025"
+    }
+  },
+  "previous": {
+    "kind_code": "E",
+    "status": "ok",
+    "games_total": 4,
+    "games_covered": 4,
+    "missing_games": [],
+    "excluded_games": [],
+    "batters": [
+      {
+        "player_id": "0000002297",
+        "name": "詹子賢",
+        "team_code": "ACN011",
+        "pa": 5,
+        "re24_raw": 2.4087,
+        "mvp_count": 0
+      },
+      {
+        "player_id": "0000004636",
+        "name": "江坤宇",
+        "team_code": "ACN011",
+        "pa": 17,
+        "re24_raw": 1.6517,
+        "mvp_count": 0
+      },
+      {
+        "player_id": "0000003609",
+        "name": "陳俊秀",
+        "team_code": "ACN011",
+        "pa": 6,
+        "re24_raw": 1.1984,
+        "mvp_count": 0
+      }
+    ],
+    "pitchers": [
+      {
+        "player_id": "0000007778",
+        "name": "喬登",
+        "team_code": "ADD011",
+        "bf": 24,
+        "value_raw": 3.4458,
+        "mvp_count": 1
+      },
+      {
+        "player_id": "0000007597",
+        "name": "獅帝芬",
+        "team_code": "ADD011",
+        "bf": 18,
+        "value_raw": 3.028,
+        "mvp_count": 1
+      }
+    ],
+    "pitcher_unattributed": 0,
+    "mvp_counts": [
+      {
+        "player_id": "0000005604",
+        "name": "勝騎士",
+        "team_code": "ACN011",
+        "count": 1
+      },
+      {
+        "player_id": "0000007778",
+        "name": "喬登",
+        "team_code": "ADD011",
+        "count": 1
+      },
+      {
+        "player_id": "0000007597",
+        "name": "獅帝芬",
+        "team_code": "ADD011",
+        "count": 1
+      },
+      {
+        "player_id": "0000002345",
+        "name": "鄭浩均",
+        "team_code": "ACN011",
+        "count": 1
+      }
+    ],
+    "mvp_missing_games": [],
+    "awards": {
+      "status": "pending_source"
+    },
+    "turning_points": {
+      "signal": "delta_wp",
+      "min_abs": 0.03,
+      "degraded": false,
+      "reason": null,
+      "degraded_games": [],
+      "scope": "full",
+      "items": [
+        {
+          "series_game_no": 2,
+          "game_key": {
+            "year": 2026,
+            "kind_code": "E",
+            "game_sno": 2
+          },
+          "away_team_code": "ACN011",
+          "home_team_code": "ADD011",
+          "pa_id": "f7b3e519-0fe3-5381-ab96-a33fe0c6bf92",
+          "pa_index": 29,
+          "inning": 4,
+          "half": "1",
+          "outs_before": 1,
+          "bases_before": [
+            "1",
+            "3"
+          ],
+          "away_score_before": 0,
+          "home_score_before": 0,
+          "away_score_after": 0,
+          "home_score_after": 0,
+          "hitter": {
+            "player_id": "0000002291",
+            "name": "岳東華"
+          },
+          "pitcher": {
+            "player_id": "0000007778",
+            "name": "喬登"
+          },
+          "result_action": "雙殺打 刺殺",
+          "delta_re24": -1.2062,
+          "delta_wp": 0.1321
+        },
+        {
+          "series_game_no": 3,
+          "game_key": {
+            "year": 2026,
+            "kind_code": "E",
+            "game_sno": 3
+          },
+          "away_team_code": "ADD011",
+          "home_team_code": "ACN011",
+          "pa_id": "beb6d2f1-0a84-5ae1-8c13-2e3a618ee537",
+          "pa_index": 46,
+          "inning": 5,
+          "half": "2",
+          "outs_before": 1,
+          "bases_before": [
+            "1",
+            "3"
+          ],
+          "away_score_before": 3,
+          "home_score_before": 2,
+          "away_score_after": 3,
+          "home_score_after": 2,
+          "hitter": {
+            "player_id": "0000006225",
+            "name": "宋晟睿"
+          },
+          "pitcher": {
+            "player_id": "0000007597",
+            "name": "獅帝芬"
+          },
+          "result_action": "雙殺打 刺殺",
+          "delta_re24": -1.2062,
+          "delta_wp": -0.1809
+        },
+        {
+          "series_game_no": 4,
+          "game_key": {
+            "year": 2026,
+            "kind_code": "E",
+            "game_sno": 4
+          },
+          "away_team_code": "ADD011",
+          "home_team_code": "ACN011",
+          "pa_id": "443a6f4d-241d-5696-a38c-2f1370fcf12e",
+          "pa_index": 29,
+          "inning": 4,
+          "half": "2",
+          "outs_before": 2,
+          "bases_before": [
+            "2"
+          ],
+          "away_score_before": 0,
+          "home_score_before": 0,
+          "away_score_after": 0,
+          "home_score_after": 1,
+          "hitter": {
+            "player_id": "0000004636",
+            "name": "江坤宇"
+          },
+          "pitcher": {
+            "player_id": "0000005731",
+            "name": "布雷克"
+          },
+          "result_action": "二壘安打",
+          "delta_re24": 1.0,
+          "delta_wp": 0.1252
+        }
+      ]
+    },
+    "source": {
+      "pa_build_ids_hash": "67920cfad09051cdd84a9f1d6c30c876d4d15dc21e84019a050c7e373dd03d78",
+      "re_span": "2018-2025"
+    }
+  }
+}
