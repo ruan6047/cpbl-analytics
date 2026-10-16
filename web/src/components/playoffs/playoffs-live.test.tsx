@@ -29,10 +29,12 @@ const fake = (id: "roster" | "teams", notes?: AreaRegistration<Fake>["notes"]): 
   id, path: (y, s) => `/api/v1/playoffs/${id}-fake?season=${y}&series=${s}`, Section: FakeSection(id), refresh: "every_round", notes,
 });
 
-test("空 registry（正式狀態）：只有 #series、#watch，無 #roster／#teams、無頁尾說明區（與 SHA-F3 相同）", () => {
+test("空 registry：只有 #series、#watch，無 #roster／#teams；頁尾只含第 1／4 區說明、無第 2／3 區（需求方 W2）", () => {
   const out = html(<PlayoffsLive initial={REAL} year={2026} game={null} areas={[]} />);
   assert.deepEqual(ids(out), ["series", "watch"]);
-  assert.doesNotMatch(out, /id="(roster|teams)"|data-page-notes|資料說明/);
+  assert.doesNotMatch(out, /id="(roster|teams)"/);
+  const noteIds = [...out.matchAll(/<li id="note-([^"]+)"/g)].map((m) => m[1]);
+  assert.ok(noteIds.every((k) => /^(series|watch)\./.test(k)), noteIds.join());
   assert.doesNotMatch(text(out), /待更新/);
 });
 
@@ -60,7 +62,7 @@ test("頁尾說明：未載入時用 notes(null) 的固定說明、依 C2 排序
     fake("roster", () => [{ key: "roster.fixed", text: "假第 3 區固定說明" }, { key: "common.box_source", text: "共用說明" }]),
   ]} />);
   const footer = /<section aria-labelledby="page-notes-heading"[\s\S]*?<\/section>/.exec(out)![0];
-  assert.deepEqual([...footer.matchAll(/<li id="note-([^"]+)"/g)].map((m) => m[1]), ["roster.fixed", "common.box_source", "teams.fixed"]);
+  assert.deepEqual([...footer.matchAll(/<li id="note-([^"]+)"/g)].map((m) => m[1]), ["series.schedule_source", "roster.fixed", "common.box_source", "teams.fixed"]);
   assert.match(footer, /資料說明/);
   assert.doesNotMatch(footer, /依資料/);
   assert.ok(out.indexOf('id="teams"') < out.indexOf("page-notes-heading"));

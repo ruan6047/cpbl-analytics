@@ -17,19 +17,21 @@ const router = { back() {}, forward() {}, refresh() {}, push() {}, replace() {},
 const html = (node: ReactElement) => render(<AppRouterContext.Provider value={router as never}>{node}</AppRouterContext.Provider>);
 const text = (s: string) => s.replace(/<[^>]+>/g, "");
 
-test("E 已決＋C 未開打：大比分、精簡卡（比分＋官方 MVP）、G1 預告、挑戰賽一句（真實樣本）", () => {
+test("E 已決＋C 未開打：大比分、精簡卡、G1 預告；C 頁不含挑戰賽區塊（真實樣本）", () => {
   const out = html(<SeriesSection overview={REAL} />);
   const t = text(out);
   assert.match(out, /<section id="series"/);
   // 大比分（需求方 SHA-F2 人工審核：要一眼看到）
   assert.match(out, /aria-label="系列大比分 味全龍 0 比 0 中信兄弟"/);
   assert.match(t, /7 戰 4 勝制・尚未開打/);
-  // 挑戰賽一句（D3）與四場精簡卡
-  assert.match(t, /季後挑戰賽中信兄弟以 3：2 晉級台灣大賽（中信兄弟含規則勝 1）/);
-  for (const name of ["勝騎士", "喬登", "獅帝芬", "鄭浩均"]) assert.match(t, new RegExp(`MVP ${name}`));
-  // 預告：日期、開賽時刻＋來源、球場、主客
+  // C 頁不畫挑戰賽區塊（需求方 6221797588，批次 D）：無一句結果、無 E 場次卡與其 MVP
+  assert.doesNotMatch(t, /晉級台灣大賽/);
+  assert.doesNotMatch(out, /data-series="E"|data-game="E\d/);
+  for (const name of ["勝騎士", "喬登", "獅帝芬", "鄭浩均"]) assert.doesNotMatch(t, new RegExp(`MVP ${name}`));
+  // 預告：日期、開賽時刻、球場、主客（公告來源搬到頁尾 series.schedule_source，#285 批次 C）
   assert.match(t, /下一場：台灣大賽 G1/);
-  assert.match(t, /10\/17（六） 17:05 開賽（官方 10\/5 公告）・大巨蛋/);
+  assert.match(t, /10\/17（六） 17:05 開賽・大巨蛋/);
+  assert.doesNotMatch(t, /公告/);
   assert.match(t, /中信兄弟（客） @ 味全龍（主）/);
 });
 
@@ -44,7 +46,7 @@ test("Q3：第 2／3／4 區整區不渲染（無標題、無占位、無 #watch
   assert.doesNotMatch(text(out), /觀戰重點|名單|待更新/);
 });
 
-test("審核 F1：當前系列（C）缺場次列時，挑戰賽總結照常顯示，不誤稱全年無資料", () => {
+test("審核 F1：當前系列（C）缺場次列時不退回顯示挑戰賽（批次 D Q1）、不誤稱全年無資料", () => {
   const o = clone();
   o.series_section.current.games = [];
   o.series_section.next_game = null;
@@ -52,8 +54,8 @@ test("審核 F1：當前系列（C）缺場次列時，挑戰賽總結照常顯�
   o.series_section.missing_reason = ["series_games_missing"];
   const t = text(html(<SeriesSection overview={o} />));
   assert.doesNotMatch(t, /本站尚無這一年的季後賽場次/);
-  assert.match(t, /中信兄弟以 3：2 晉級台灣大賽/);
-  for (const name of ["勝騎士", "喬登", "獅帝芬", "鄭浩均"]) assert.match(t, new RegExp(`MVP ${name}`));
+  assert.doesNotMatch(t, /中信兄弟以 3：2 晉級台灣大賽/);
+  for (const name of ["勝騎士", "喬登", "獅帝芬", "鄭浩均"]) assert.doesNotMatch(t, new RegExp(`MVP ${name}`));
   assert.match(t, /台灣大賽場次本站尚未取得/);
   assert.match(t, /下一場賽程本站尚未取得/);
 });
@@ -97,13 +99,14 @@ test("MVP 缺值：未取得與姓名缺分開，⛔ 寫未公布", () => {
   for (const c of [missing, noName]) assert.doesNotMatch(mvpText(c)!, /未公布/);
 });
 
-test("覆蓋 pending_update：顯示待更新說明；overview 缺下一場：說明本站尚未取得", () => {
+test("覆蓋 pending_update：格內只留短狀態（說明在頁尾）；overview 缺下一場：說明本站尚未取得", () => {
   const o = clone();
   o.coverage = "pending_update";
   o.series_section.next_game = null;
   o.series_section.next_game_missing_reason = "no_target";
   const t = text(html(<SeriesSection overview={o} />));
   assert.match(t, /最新完賽結果更新中/);
+  assert.doesNotMatch(t, /比分以本站已同步的為準/);
   assert.match(t, /下一場賽程本站尚未取得/);
 });
 
@@ -138,14 +141,15 @@ test("精簡卡補充行：MVP 缺值、非賽前狀態都有文字", () => {
   assert.equal(chipView({ ...g, display_status: "result_pending" }).foot, "賽果待更新");
 });
 
-test("狀態章皆有文字；開賽時刻標公告來源；資料時點轉台北時間", () => {
+test("狀態章皆有文字；開賽時刻不帶公告來源（來源在頁尾）；資料時點轉台北時間", () => {
   const g = REAL.series_section.current.games[0];
   assert.deepEqual(cardStatus(g), { text: "賽前", tone: "scheduled" });
   assert.deepEqual(cardStatus(REAL.series_section.previous!.games[0]), { text: "終場", tone: "done" });
   assert.deepEqual(cardStatus({ ...g, target_status: "live" }), { text: "進行中", tone: "live" });
   assert.deepEqual(cardStatus({ ...g, official_status: "postponed" }), { text: "延賽", tone: "warn" });
   assert.deepEqual(cardStatus({ ...g, display_status: "result_pending" }), { text: "賽果待更新", tone: "warn" });
-  assert.equal(startText({ ...g, start: null }, REAL), "開賽時間本站尚未取得");
+  assert.equal(startText({ ...g, start: null }), "開賽時間本站尚未取得");
+  assert.equal(startText(g), "17:05 開賽");
   assert.equal(asOfText(REAL), "本站資料更新於 10/15 10:11");
   assert.equal(asOfText({ as_of: { ...REAL.as_of, last_refresh_at: "2026-10-15T02:11:21+00:00" } }), "本站資料更新於 10/15 10:11");
   assert.equal(dateText(null), "日期待定");
@@ -173,20 +177,36 @@ test("?year／?game 解析：只收合法值，其他忽略", () => {
 test("整張卡就是單場連結（卡內不另放連結文字），清單是格狀不橫捲", () => {
   const out = html(<SeriesSection overview={REAL} />);
   // 每張卡 <li> 內唯一的 <a> 包住整張卡，href 帶 year 與 kind
-  const chips = out.match(/<li class="min-w-0" data-game="[EC]\d+"><a [^>]+>/g) ?? [];
-  assert.equal(chips.length, 11);
-  const e4 = /<li class="min-w-0" data-game="E4"><a [^>]+>/.exec(out)![0];
-  assert.match(e4, /href="\/games\/4\?kind=E&amp;year=2026"/);
-  assert.match(e4, /aria-label="季後挑戰賽 G4，10\/12（一），洲際，統一獅 2：8 中信兄弟，官方 MVP：鄭浩均"/);
+  const chips = out.match(/<li class="min-w-0" data-game="C\d+"><a [^>]+>/g) ?? [];
+  assert.equal(chips.length, 7);
+  assert.equal((out.match(/data-game="E\d+"/g) ?? []).length, 0);
+  const c1 = /<li class="min-w-0" data-game="C1"><a [^>]+>/.exec(out)![0];
+  assert.match(c1, /href="\/games\/1\?kind=C&amp;year=2026"/);
+  assert.match(c1, /aria-label="台灣大賽 G1，10\/17（六），大巨蛋，中信兄弟（客）對 味全龍（主），賽前"/);
   assert.doesNotMatch(text(out), /單場賽況 →|單場頁 →/);
   const lists = out.match(/<ul aria-label="[^"]+" class="([^"]+)"/g) ?? [];
-  assert.equal(lists.length, 2);
+  assert.equal(lists.length, 1);
   for (const ul of lists) {
     assert.match(ul, /\bgrid\b/);
     assert.doesNotMatch(ul, /overflow-x-auto/);
   }
-  // 層級：大比分 → 下一場 → 前一系列
+  // 層級：大比分 → 下一場；C 頁沒有前一系列（批次 D）
   const i = (re: RegExp) => out.search(re);
-  assert.ok(i(/data-big-score/) < i(/data-next-game/) && i(/data-next-game/) < i(/data-series="E"/));
+  assert.ok(i(/data-big-score/) >= 0 && i(/data-big-score/) < i(/data-next-game/));
+  assert.equal(i(/data-series="E"/), -1);
 });
 
+
+test("批次 D：E 頁（current＝E、previous＝null）照常渲染挑戰賽當前區塊與四場卡；不因拿掉前一系列而變", () => {
+  const o = clone();
+  o.selected_series = "E";
+  o.series_section = { ...o.series_section, current: o.series_section.previous!, previous: null, next_game: null,
+    next_game_missing_reason: "series_decided" };
+  const out = html(<SeriesSection overview={o} />);
+  assert.deepEqual([...out.matchAll(/data-series="([EC])"/g)].map((m) => m[1]), ["E"]);
+  assert.equal((out.match(/data-game="E\d+"/g) ?? []).length, 4);
+  assert.match(text(out), /中信兄弟晉級台灣大賽（中信兄弟含規則勝 1）/);
+  for (const name of ["勝騎士", "喬登", "獅帝芬", "鄭浩均"]) assert.match(text(out), new RegExp(`MVP ${name}`));
+  // previous 有沒有值都不影響輸出（前端不畫 previous）
+  assert.equal(html(<SeriesSection overview={{ ...o, series_section: { ...o.series_section, previous: REAL.series_section.current } }} />), out);
+});
