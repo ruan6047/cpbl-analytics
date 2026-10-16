@@ -29,10 +29,9 @@ const fake = (id: "roster" | "teams", notes?: AreaRegistration<Fake>["notes"]): 
   id, path: (y, s) => `/api/v1/playoffs/${id}-fake?season=${y}&series=${s}`, Section: FakeSection(id), refresh: "every_round", notes,
 });
 
-test("空 registry：只有 #series、#watch，無 #roster／#teams、無頁尾說明區（與 SHA-F3 相同）", () => {
-  // #287 WP6b 起正式 registry 有 #teams 一筆（契約 M1 甲：各卡在自己 PR 加登記），空 registry 情境改以 areas={[]} 驗。
-  assert.deepEqual(PLAYOFFS_AREAS.map((r) => r.id), ["teams"]);
-  const out = html(<PlayoffsLive initial={REAL} year={2026} game={null} areas={[]} />);
+test("空 registry（正式狀態）：只有 #series、#watch，無 #roster／#teams、無頁尾說明區（與 SHA-F3 相同）", () => {
+  assert.deepEqual(PLAYOFFS_AREAS, []);
+  const out = html(<PlayoffsLive initial={REAL} year={2026} game={null} />);
   assert.deepEqual(ids(out), ["series", "watch"]);
   assert.doesNotMatch(out, /id="(roster|teams)"|data-page-notes|資料說明/);
   assert.doesNotMatch(text(out), /待更新/);
