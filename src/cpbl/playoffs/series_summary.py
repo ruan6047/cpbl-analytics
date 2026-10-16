@@ -20,7 +20,8 @@
    記在 ``pitcher_unattributed``（⛔ 歸末投手、⛔ 猜）。投手展示值＝−ΣΔRE24（打者視角轉號，正＝壓制，G08）。
 4. 排序用未四捨五入值（6 位）降冪、同值 ``player_id`` 升冪；候選不足就少列（G14）。⛔ 輸出任何
    「MVP」「領先」字樣給 RE24 排名；MVP 次數只計 S02 的官方 ``official_mvp_id``（A05、G07）。
-5. 獎項 G2 恆 ``pending_source``；⛔ 從 MVP 次數推任何獎項。後端不產文案，句子由前端組。
+5. 本卡不提供官方系列獎項（需求方 6216986617）；``awards`` 欄恆 ``pending_source`` 只為相容舊前端（見 _block）。
+   ⛔ 從 MVP 次數推任何獎項。後端不產文案，句子由前端組。
 6. **三大轉折**（WP-G3）：候選＝本系列**所有已涵蓋場**的打席（⛔ 先在單場截前 N），指標＝|ΔWP|
    （既有 :func:`pa_facts.wp_swings`，各場 final_outcome 依該場比分）。任一已涵蓋場拿不到 WP ⇒ **整組**
    改 |ΔRE24|（不混用兩種指標）；門檻沿用 ``KEY_PLAY_MIN_WP_ABS``／``KEY_PLAY_MIN_ABS``（⛔ 改）。
@@ -424,6 +425,8 @@ def _block(agg: SeriesAggregate, names: dict[str, str] | None) -> dict:
         "mvp_counts": [{"player_id": m["player_id"], "name": name(m["player_id"]),
                         "team_code": agg.teams.get(m["player_id"]), "count": m["count"]} for m in agg.mvp_counts],
         "mvp_missing_games": agg.mvp_missing_games,
+        # 刻意保留：舊版前端（≤16b64634）每輪輪詢讀 awards.status，移除會讓未重載的分頁出錯；
+        # 前端已不顯示獎項格（#288 6217030580）。⛔ 由此推出本站有官方系列獎項。
         "awards": {"status": "pending_source"},
         "turning_points": turning,
         "source": {"pa_build_ids_hash": agg.build_ids_hash, "re_span": pa_facts.RE_SPAN},
