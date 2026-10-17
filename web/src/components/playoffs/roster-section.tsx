@@ -237,7 +237,7 @@ export function MemberCard({ m, scope = "background", onOpen }: {
         onClick={() => onOpen?.(m)}
         className="group flex h-full w-full flex-col justify-between gap-1.5 rounded p-2.5 text-left transition-colors hover:bg-surface-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
       >
-        <div className="w-full space-y-1">
+        <div className="w-full space-y-1.5">
           <div className="flex min-w-0 items-baseline justify-between gap-1.5">
             <span className="flex min-w-0 items-baseline gap-1.5">
               <span className="truncate text-sm font-bold text-ink group-hover:text-accent">{m.name}</span>
@@ -248,29 +248,33 @@ export function MemberCard({ m, scope = "background", onOpen }: {
               {pending ? ROSTER_COPY.pending : gText({ g: scopeG(m, scope) })}
             </span>
           </div>
-          <div className="flex flex-wrap items-baseline justify-between gap-x-2 gap-y-0.5 text-xs text-muted">
-            {memberRoles(m).length ? <span className="flex flex-wrap gap-x-2">{memberRoles(m).map((role) => (
-              <span key={role} data-role className="text-ink">{role}</span>
-            ))}</span> : null}
-            <span className="font-mono tabular-nums" data-line>{line ?? ROSTER_COPY.missing}</span>
-          </div>
+          {memberRoles(m).length ? (
+            <div className="flex flex-wrap items-center gap-1 text-[11px] font-medium [&>[data-role]]:rounded [&>[data-role]]:bg-band [&>[data-role]]:px-1.5 [&>[data-role]]:py-0.5">
+              {memberRoles(m).map((role) => (
+                <span key={role} data-role className="text-ink">{role}</span>
+              ))}
+            </div>
+          ) : null}
+          <div className="font-mono text-xs tabular-nums text-muted" data-line>{line ?? ROSTER_COPY.missing}</div>
         </div>
         {!series && (
-          <div className="flex w-full flex-wrap items-center justify-between gap-1 border-t border-line pt-1.5 text-[11px] text-muted" data-arrow={a.dir ?? "none"}>
-            <span className="flex items-baseline gap-1">
+          <div className="w-full space-y-1.5 border-t border-line pt-1.5 text-[11px] text-muted" data-arrow={a.dir ?? "none"}>
+            <div className="flex items-baseline justify-between gap-1">
               <span>{a.label}</span>
-              <span className="font-mono font-bold tabular-nums text-ink">{a.value}</span>
-              <span className={`font-semibold ${a.dir ? DIR_CLASS[a.dir] : "text-muted"}`}>{a.text}</span>
-            </span>
+              <span className="flex items-baseline gap-1">
+                <span className="font-mono font-bold tabular-nums text-ink">{a.value}</span>
+                <span className={`font-semibold ${a.dir ? DIR_CLASS[a.dir] : "text-muted"}`}>{a.text}</span>
+              </span>
+            </div>
             {bg.pr_tags.length ? (
-              <span className="flex flex-wrap gap-1" aria-label="官方 PR 90 以上">
+              <div className="flex flex-wrap gap-1" aria-label="官方 PR 90 以上">
                 {bg.pr_tags.map((t) => (
                   <span key={t.key} data-pr={t.key}
                     className="rounded border border-accent px-1 py-0.2 text-[10px] font-semibold text-accent">
                     {prLabel(t.key, m.role)} <span className="font-mono tabular-nums">PR {t.value}</span>
                   </span>
                 ))}
-              </span>
+              </div>
             ) : null}
           </div>
         )}
