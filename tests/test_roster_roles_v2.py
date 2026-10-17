@@ -47,3 +47,12 @@ def test_v2_requires_exact_role_provenance():
     p["approval_table_sha256"] = None
     with pytest.raises(ValueError):
         validate_roles_v2("投手", ["先發"], p)
+
+
+def test_v2_hash_normalizes_unicode_without_changing_v1():
+    p = provenance(["先發"])
+    p["roles"]["先發"]["original_evidence"] = "caf\u00e9"
+    q = copy.deepcopy(p)
+    q["roles"]["先發"]["original_evidence"] = "cafe\u0301"
+    assert revision_hash_v2([("0000000001", ["先發"], p)]) == revision_hash_v2([
+        ("0000000001", ["先發"], q)])

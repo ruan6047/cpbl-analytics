@@ -138,7 +138,13 @@ def revision_hash_v2(rows: Iterable[tuple[str, list[str], dict]]) -> str:
         if approval is not None and current != approval:
             raise ValueError("同一角色版須有相同全表核准來源")
         approval = current
-        result.append([pid, list(canonical_roles), provenance])
+        stable_provenance = {**current, "roles": {
+            role: {**provenance["roles"][role],
+                   "source_ids": sorted(norm(s) for s in provenance["roles"][role]["source_ids"]),
+                   "original_basis": norm(provenance["roles"][role]["original_basis"]),
+                   "original_evidence": norm(provenance["roles"][role]["original_evidence"])}
+            for role in canonical_roles}}
+        result.append([pid, list(canonical_roles), stable_provenance])
     if not result:
         raise ValueError("v2 版本不能為空")
     return _digest({"hash": "roster-annotation/v2", "role_format_version": 2,
