@@ -206,10 +206,5 @@ export function seriesNotes(o: PlayoffsOverview | null): PlayoffsNote[] {
   } else if (o.coverage === "unknown") {
     out.push({ key: "series.coverage_unknown", text: "本站資料完整度未知，比分以本站已同步的為準。" });
   }
-  const src = o.schedule_source;
-  if (src && o.series_section.next_game?.start) {
-    out.push({ key: "series.schedule_source", text: `開賽時間依官方 ${md(src.published_on)} 公告。`,
-      source: { label: "官方公告", url: src.url } });
-  }
   return out;
 }

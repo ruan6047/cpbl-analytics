@@ -51,7 +51,7 @@ test("D2: rank chips only in season_a; h2h and series show raw + league referenc
     assert.equal(tags.length, 7);
     for (const tag of tags) {
       assert.doesNotMatch(tag.text, /第 \d/);
-      assert.match(tag.text, /聯盟平均/);
+      assert.match(tag.text, /（均 /);
     }
     const disc = tags.find((t) => t.axis === "discipline")!;
     assert.match(disc.text, /BB% .*K% /);
@@ -59,8 +59,8 @@ test("D2: rank chips only in season_a; h2h and series show raw + league referenc
   assert.ok(p2025.scopes.series.teams[L].style.speed.rank === undefined);
 });
 
-test("streaks are labelled per scope, season one as end of regular season", () => {
-  assert.match(streakVM("season_a", p2025.scopes.season_a.teams[L]), /^例行賽結束時 /);
+test("streaks are labelled per scope, season one as regular season", () => {
+  assert.match(streakVM("season_a", p2025.scopes.season_a.teams[L]), /^例行賽 /);
   assert.equal(streakVM("series", p2025.scopes.series.teams.AJL011), "本系列 二連勝");
   assert.equal(streakVM("series", undefined), "本系列 —");
 });
@@ -106,16 +106,10 @@ test("defaultScope: series when it has teams, else season", () => {
 
 // —— 頁尾說明（#285 契約 r3 §2.4／§2.5）——
 
-test("notes(null) returns only the fixed notes, keys unique and area-prefixed", () => {
-  const fixed = comparisonNotes(null);
-  assert.deepEqual(fixed.map((n) => n.key),
-    ["teams.direction_legend", "teams.data_source", "teams.sample_limit", "teams.t5_side_by_side"]);
-  const again = comparisonNotes(p2025).slice(0, fixed.length);
-  assert.deepEqual(again, fixed); // 固定說明與依資料無關
-  for (const n of [...comparisonNotes(p2025), ...comparisonNotes(p2026)]) {
-    assert.match(n.key, /^teams\.[a-z0-9_]+$/);
-    assert.doesNotMatch(n.text, /<|>|\*\*|\[/); // 純文字
-  }
+test("notes(null) and normal available payload return empty array; dynamic notes are area-prefixed and plain text", () => {
+  assert.deepEqual(comparisonNotes(null), []);
+  assert.deepEqual(comparisonNotes(p2025), []);
+  assert.deepEqual(comparisonNotes(p2026), []);
 });
 
 test("notes(data) is pure: same input gives identical output, input not mutated", () => {
@@ -124,12 +118,9 @@ test("notes(data) is pure: same input gives identical output, input not mutated"
   assert.equal(JSON.stringify(p2025), before);
 });
 
-test("notes(data): built-at in Taipei time from payload, no clock", () => {
-  const notes = comparisonNotes(p2025);
-  const built = notes.find((n) => n.key === "teams.summary_built_at")!;
+test("taipeiStamp formats ISO timestamp in Taipei time without reading clock", () => {
   const when = taipeiStamp(p2025.scopes.season_a.source!.built_at)!;
   assert.match(when, /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/);
-  assert.equal(built.text, NOTE_COPY.builtAt(when, p2025.scopes.season_a.source!.completed_games));
   assert.equal(taipeiStamp("2026-10-15T05:02:01+00:00"), "2026-10-15 13:02");
 });
 

@@ -20,12 +20,13 @@ export const WATCH_COPY = {
   noTarget: "目前沒有可呈現觀戰重點的目標場次",
 } as const;
 
-export function WatchArea({ state, overview, requested, identity }: {
+export function WatchArea({ state, overview, requested, identity, hidden }: {
   state: WatchState<PlayoffsWatch>;
   overview: PlayoffsOverview | null;
   /** 目標場來自 `?game`（使用者指定）。 */
   requested: boolean;
   identity?: { year: number; series: string | null; game: number | null; revision: string | null };
+  hidden?: boolean;
 }) {
   const shown: PlayoffsWatch | null = state.kind === "data" ? state.data
     : state.kind === "idle" ? null : state.previous;
@@ -41,7 +42,7 @@ export function WatchArea({ state, overview, requested, identity }: {
     : noTarget ? WATCH_COPY.noTarget
     : state.kind === "stale" ? WATCH_COPY.updatingEmpty : WATCH_COPY.loading;
   return (
-    <div id="watch" className="min-h-48 min-w-0 scroll-mt-[70px] md:scroll-mt-[76px]" data-watch-state={state.kind}>
+    <div id="watch" className="min-h-48 min-w-0 scroll-mt-[70px] md:scroll-mt-[76px]" data-watch-state={state.kind} hidden={hidden || undefined}>
       {identity && (requested || missingVersion) ? <p className="my-2 break-words text-sm text-muted" data-watch-identity>{identity.year}・{identity.series === "E" ? "挑戰賽" : identity.series === "C" ? "台灣大賽" : "系列未指定"}{identity.game !== null ? `・場號 ${identity.game}` : ""}{missingVersion ? `・版本 ${identity.revision}` : ""}</p> : null}
       {!unavailable && mountSection ? <WatchSection data={shown} /> : null}
       {unavailable ? <p role="status" className="rounded bg-surface p-3 text-sm text-muted">{unavailable}</p> : null}

@@ -21,11 +21,11 @@ const clone = (): SeriesSummary => structuredClone(REAL);
 const E = (): SeriesSummaryBlock => clone().previous!;
 const keys = (s: SeriesSummary) => seriesSummaryNotes({ series_summary: s }).map((n) => n.key);
 
-test("真實樣本：C 0 場不渲染、E 照排；固定說明兩條（獎項頁尾已拿掉）", () => {
+test("真實樣本：C 0 場不渲染、E 照排；正常完整涵蓋時無固定頁尾說明（已收進 InfoDot）", () => {
   assert.equal(showSummary(REAL.current), false);
   assert.equal(showSummary(REAL.previous), true);
   assert.equal(boardReady(REAL.previous!), true);
-  assert.deepEqual(keys(REAL), ["series.summary_method", "series.mvp_source"]);   // 獎項頁尾已拿掉（6217030580）
+  assert.deepEqual(keys(REAL), []);
 });
 
 test("沒有 series_summary（舊版 API）或兩系列都沒完賽 ⇒ 0 條說明", () => {
@@ -85,12 +85,12 @@ test("說明字數 ≤80（推估上限，契約 §9）且無 HTML", () => {
   }
 });
 
-test("格式：一位小數帶號、-0.0 不出現；文案照 PRD", () => {
+test("格式：一位小數帶號、-0.0 不出現；精簡數值與章", () => {
   assert.equal(signed1(2.4087), "+2.4");
   assert.equal(signed1(-0.31), "-0.3");
   assert.equal(signed1(-0.04), "0.0");
-  assert.equal(batterValueText(1.6517), "相對局面得分期望，累計 +1.7 分");
-  assert.equal(pitcherValueText(3.4458), "壓制貢獻，累計 +3.4 分");
+  assert.equal(batterValueText(1.6517), "+1.7 分");
+  assert.equal(pitcherValueText(3.4458), "+3.4 分");
   assert.equal(mvpBadge(0), null);
-  assert.equal(mvpBadge(2), "單場 MVP ×2");
+  assert.equal(mvpBadge(2), "MVP ×2");
 });

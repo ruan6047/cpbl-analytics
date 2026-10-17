@@ -166,7 +166,7 @@ test("官方先發投手：未公告 ⇒ 兩格各寫「待公告」，標題「
   const d = watch([]);
   const html = renderToStaticMarkup(<WatchSection data={d} />);
   assert.equal((html.match(/data-starter-status="pending"/g) ?? []).length, 2);
-  assert.match(visible(d), /官方先發投手 兄弟 待公告 味全 待公告 牛棚近期使用負荷/);
+  assert.match(visible(d), /官方先發投手.*兄弟 待公告.*味全 待公告 牛棚近期使用負荷/);
   assert.equal((visible(d).match(/待公告/g) ?? []).length, 2);
   assert.doesNotMatch(visible(d), /S11|未知|先發對決與看點/);
 });

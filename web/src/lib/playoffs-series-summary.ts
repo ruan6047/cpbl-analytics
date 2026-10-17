@@ -12,7 +12,6 @@
 
 import { marginText, situationText } from "./game-facts.ts";
 import type { PlayoffsNote } from "./playoffs-notes.ts";
-import { HIGHLIGHTS_NOTE } from "./playoffs-series-highlights.ts";
 import { SERIES_NAME } from "./playoffs-series-view.ts";
 import type { PlayoffsOverview, PlayoffsSeriesCode } from "./playoffs-types.ts";
 
@@ -156,18 +155,18 @@ export function signed1(v: number): string {
   return `${r > 0 ? "+" : "-"}${Math.abs(r).toFixed(1)}`;
 }
 
-/** 打者值文案（PRD：「相對局面得分期望，累計 +X.X 分」）。 */
+/** 打者值文案（精簡數值，欄位名已在標題）。 */
 export function batterValueText(v: number): string {
-  return `相對局面得分期望，累計 ${signed1(v)} 分`;
+  return `${signed1(v)} 分`;
 }
 
-/** 投手值文案（轉號後的壓制貢獻；方法寫在頁尾）。 */
+/** 投手值文案（轉號後的壓制貢獻；精簡數值）。 */
 export function pitcherValueText(v: number): string {
-  return `壓制貢獻，累計 ${signed1(v)} 分`;
+  return `${signed1(v)} 分`;
 }
 
 export function mvpBadge(n: number): string | null {
-  return n >= 1 ? `單場 MVP ×${n}` : null;
+  return n >= 1 ? `MVP ×${n}` : null;
 }
 
 export function playerName(p: { name: string | null }): string {
@@ -225,19 +224,11 @@ export function highlightsEnabled(s: Pick<SeriesSummary, "year" | "context_versi
   return typeof s.year === "number" && !!s.context_version;
 }
 
-/** 第 1 區累計榜的頁尾說明（契約 §2.5：以畫面上那份 overview 呼叫；null ⇒ 無）。 */
+/** 第 1 區累計榜的頁尾說明：只回資料缺漏或降級時的動態說明（方法說明已收進區塊標題 ⓘ Tooltip）。 */
 export function seriesSummaryNotes(o: Pick<PlayoffsOverview, "series_summary"> | null): PlayoffsNote[] {
   const s = o?.series_summary;
   if (!s) return [];
   const blocks = [s.current, s.previous].filter(showSummary);
   if (!blocks.length) return [];
-  return [
-    { key: "series.summary_method", text: "累計榜以本系列已完賽場的逐打席資料計算：打者依相對局面得分期望（ΔRE24）累計，投手依壓制貢獻（打者視角 RE24 轉號）排序；不是官方獎項。" },
-    { key: "series.mvp_source", text: "單場 MVP 次數依官方單場 MVP 紀錄；系列 MVP 以官方系列獎項為準，本站不自行推選。" },
-    ...(blocks.some((b) => b.turning_points && boardReady(b))
-      ? [{ key: "series.turning_method", text: "三大轉折取本系列勝率變化絕對值最大的 3 個打席，依時間排列；勝率為參考資訊，不是預測準確率。" }]
-      : []),
-    ...(highlightsEnabled(s) ? [{ ...HIGHLIGHTS_NOTE }] : []),
-    ...blocks.flatMap(blockNotes),
-  ];
+  return blocks.flatMap(blockNotes);
 }
