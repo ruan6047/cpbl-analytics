@@ -164,9 +164,10 @@ def test_bad_scope_allowlist_stops_before_any_external_action(tmp_path, scopes):
     assert r.returncode == 64 and actions == []
 
 
-def test_roster_scope_cannot_leak_into_full_refresh(tmp_path):
-    r, actions = harness(tmp_path, ROSTER_ONLY="", ROSTER_SCOPES="2026:C:AAA011,2026:C:ACN011")
-    assert r.returncode == 64 and actions == []
+def test_roster_scope_does_not_change_non_roster_mode(tmp_path):
+    r, actions = harness(tmp_path / "scoped", ROSTER_ONLY="", ROSTER_SCOPES="2026:C:AAA011,2026:C:ACN011")
+    baseline, original = harness(tmp_path / "baseline", ROSTER_ONLY="", ROSTER_SCOPES="")
+    assert r.returncode == baseline.returncode and actions == original
 
 
 @pytest.mark.parametrize("mode", ["nochange", "notable"])

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # LIFECYCLE: standing · 常設工具——這就是給你跑的；不要刪
-# CPBL 線上資料手動更新；ROSTER_ONLY 的 v2 角色同步須以 ROSTER_SCOPES 明示兩隊。
+# CPBL 線上資料手動更新（不掛 cron，避免浪費資源；要更新時自己跑）。
 #
 # 為什麼要在本機跑：CPBL 官網（HiNetCDN）對海外 IP 封鎖資料路徑，VPS 爬不到，
 # 只有台灣 IP（你的 Mac）能爬。故流程＝本機爬 → 非破壞性 upsert 同步到 prod →
@@ -51,8 +51,6 @@ scripts/refresh-cpbl-prod.sh — 把本機 CPBL 資料同步到 production（四
   LINEUP_ONLY=1 SKIP_SCRAPE=1 ./scripts/refresh-cpbl-prod.sh # 有限公告；不爬、不訓練、不檢查整鏈 freshness
   ROSTER_ONLY=1 SKIP_SCRAPE=1 BACKUP_DIR=<獨立目錄> ./scripts/refresh-cpbl-prod.sh
                                                               # 季後 32 人名單三表 insert-only 同步（手動、需授權）
-  ROSTER_ONLY=1 SKIP_SCRAPE=1 ROSTER_SCOPES=2026:C:AAA011,2026:C:ACN011 BACKUP_DIR=<獨立目錄> ./scripts/refresh-cpbl-prod.sh
-                                                              # v2角色只追加這兩份既有名單，不新增會員
   TEAM_COMPARISON_ONLY=1 SKIP_SCRAPE=1 BACKUP_DIR=<獨立目錄> ./scripts/refresh-cpbl-prod.sh
                                                               # 隊伍比較摘要三表 insert-only 同步（手動、需授權）
 
@@ -67,8 +65,6 @@ scripts/refresh-cpbl-prod.sh — 把本機 CPBL 資料同步到 production（四
   ROSTER_ONLY   1＝搭配 SKIP_SCRAPE=1 與獨立 BACKUP_DIR，只做名單三表 insert-only 同步
                 （唯讀比對；無變更不備份不寫；有待插入才備份＋單交易插入＋事後對帳；
                  不 migrate、不爬、不訓練、不寫 refresh 標記、不碰其他表）
-  ROSTER_SCOPES 僅限 ROSTER_ONLY=1；兩個不同 YEAR:E或C:TEAM，以逗號分隔、無空白
-                v2歷史必填；同一allowlist交plan、apply與內部reconcile，schema未備妥69停在備份前
   TEAM_COMPARISON_ONLY
                 1＝搭配 SKIP_SCRAPE=1 與獨立 BACKUP_DIR，只做隊伍比較摘要三表 insert-only 同步
                 （與 ROSTER_ONLY 同形：唯讀比對；無變更不備份不寫；有待寫才備份＋單交易寫入＋事後對帳）
@@ -109,11 +105,6 @@ API_INFO_URL="${API_INFO_URL:-https://cpbl.ruan-ruan.com/api/info}"
 REPO_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 YEAR="$(date +%Y)"
 PREV="$((YEAR - 1))"
-
-if [ -n "${ROSTER_SCOPES:-}" ] && [ "${ROSTER_ONLY:-}" != 1 ]; then
-  echo 'FATAL: ROSTER_SCOPES 只能搭配 ROSTER_ONLY=1，不得帶入完整刷新或其他模式' >&2
-  exit 64
-fi
 
 # 原有限投影與自然鍵guard共用於正常/full及LINEUP_ONLY。
 prepare_lineup_copy() {

@@ -2094,7 +2094,7 @@ KNOWN_TRAPS: tuple[tuple[str, str], ...] = (
 # ⚠️ 人工欄：沒有機械讀者，會過期。空白＝未查證，**不得靜默填 declared**。
 PURPOSE_VERIFIED: dict[str, str] = {
     # --- scripts/ 常設工具 ---
-    "scripts/refresh-cpbl-prod.sh": "本機爬完同步生產的主鏈；讀碼確認會呼叫 backup-prod-db.sh 與 verify_refresh_info.py",
+    "scripts/refresh-cpbl-prod.sh": "本機爬完同步生產的主鏈；ROSTER_ONLY 的 v2 角色以 ROSTER_SCOPES 明示兩隊，schema不足在備份前拒絕；完整鏈呼叫 backup-prod-db.sh 與 verify_refresh_info.py",
     "scripts/scrape-daily.sh": "launchd 每日 10:10 觸發，呼叫 refresh-cpbl-prod.sh 並用 refresh_status.py 記狀態",
     "scripts/backup-prod-db.sh": "備整庫並驗內容門檻（OPS-BACKUP-EMPTY1 的產物，已是常設）",
     "scripts/refresh_status.py": "每日鏈的狀態記錄輔助，唯讀 JSON 檔",
