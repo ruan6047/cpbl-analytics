@@ -137,7 +137,7 @@ T5 主體：官方系列結果、官方系列 MVP、其他官方獎項（有來�
 
 名稱使用「近期使用負荷」，綠／橘／紅旁有低／中／高文字；灰色是未知。這是球數與出賽日的描述，不是健康判斷、可用性機率或教練調度。
 
-預設顯示名單中 #終結、#勝利組、#長中繼 投手；其他投手可展開，不因角色未標記被刪除。並列最近 3 次登板、最近 3 個日曆日球數、完整休息日、連續日登板、當日登板次數、當場登錄是否確認。角色是本站註記，官方數據與角色不混淆。
+預設顯示名單中含任一後援角色（中繼、終結、勝利組、拆彈組、長中繼）的投手；純先發與其他投手可展開，不因角色未標記被刪除。角色多重無主次，一人只列一次。只有角色集合恰為「先發」（舊版「輪值」保留原語意）且原負荷為low才豁免；先發兼長中繼保留實際負荷，unknown不豁免，原球數與日期覆蓋門檻不變。並列最近 3 次登板、最近 3 個日曆日球數、完整休息日、連續日登板、當日登板次數、當場登錄是否確認。角色是本站註記，官方數據與角色不混淆。
 
 近三日跨 A/E/C；可靠觀測的其他正式登板也納入，無法涵蓋的活動在 scope 中揭露。目標場進行中時計入該場「目前已投」但標即時；歷史賽前報告保持凍結值。保留賽無法拆分實際投球日期時球數仍可展示，日期負荷標未知。
 
@@ -165,7 +165,7 @@ T5 主體：官方系列結果、官方系列 MVP、其他官方獎項（有來�
 
 標題「系列賽 32 人資格名單」。切換「例行賽與對戰背景」／「本系列實戰數據」；T1–T4 預設背景，T5 預設系列。切換保留球隊篩選、排序與抽屜選擇。
 
-小卡：姓名／官方守位、本站角色、已出賽 XG、官方 PR≥90 石油藍標籤、近 15 場背景與冷熱箭頭。PR 方向沿官方資料；無官方 PR 不補排名。只展示有可靠資料的標籤，完整能力圖與走勢在抽屜按需載入。
+小卡：姓名／官方守位、完整角色集合、已出賽 XG、官方 PR≥90 石油藍標籤、近 15 場背景與冷熱箭頭。角色有值平列換行、無主次；無值不顯示角色列，不加「本站角色」字樣。PR 方向沿官方資料；無官方 PR 不補排名。完整能力圖與走勢在抽屜按需載入；詳情須同時比對context_version與roster_version，不同則提示重開，不能混版。
 
 本季一軍沒有成績的名單球員仍顯示；可展示另標「二軍背景」的 D 成績，但不能補成 A 的 PR/OPS+。純代跑或守備出場亦可計 G；以完整官方出場證據判定，沒有 PA 不等於未出賽。
 
@@ -266,7 +266,19 @@ ERA+ 高代表較好；不能反向畫箭頭。任一窗 ERA=0 導致現有 ERA+
 
 支援同組換行、頓號、逗號分隔、首尾空白與空行；以實際分隔符切名字，不能依字數拆姓名。標記屬於緊鄰的單一姓名；黏連到多人且無法確定歸屬時回解析錯誤，不猜。未知命令、角色或守位回行號／原文字片段。
 
-投手四角色：輪值、終結、勝利組、長中繼；野手四角色：主力、代打、守備、待命。v2 每人最多一個戰術角色，可不標而為 unclassified；投打身分與角色須相容。官方守位與戰術角色分開，不能用 #主力 判當日先發。
+上述文字輸入保留為text-v1相容格式：投手四角色輪值、終結、勝利組、長中繼；野手四角色主力、代打、守備、待命；每人最多一個，可不標而為unclassified。既有版本不重新標註或重算hash。投打身分與角色須相容；官方守位與戰術角色分欄，不能用主力標籤判當日先發。
+
+### 多重角色輸入（#316，role_format_version=2）
+
+核准來源為#316 v3.3完整64人表及6229024703全表接受；每人取原human_roles與active_research_candidates聯集，保留逐角色原研究／個人指定來源及限制，不把全表接受誤寫成每人原始人工指定。pending_collection_candidates不加入。投手角色為先發、中繼、終結、勝利組、拆彈組、長中繼；野手角色為主力、代打、代跑、守備替補、工具人、替補、指定打擊。每人非空、可多重、無主次；替補與守備替補不同，DH不計實際守備位置。
+
+使用`cpbl-roster preview <package.json> --format roles-v2`唯讀預覽；輸入format為roster-roles/v2，含年度／賽別、核准表與manifest SHA-256／核准留言URL、兩隊team_code／roster_id／membership_hash／source_hash／expected_latest_revision／expected_latest_hash，以及各32列player_id／announced_name／official_position／tactical_roles[]／role_provenance。來源逐角色含origin（human或research）、source_ids、original_basis、original_evidence。角色以固定語彙序序列化，不能解讀成優先順序。
+
+身份只在已提交32會員內精確唯一核對；#316張仁瑋／林志綱的研究內外野背景與會員守位不同，依6229290387沿既有會員守位，不改會員或membership_hash，也不自動新增其他角色。工具人核准判準為2026正規賽兩個實際守位各≥9局，或三個各嚴格>2局（出局數>6），DH／PH／PR排除；實作直接用已接受結果，不重算改名單。
+
+`annotate --format roles-v2 --confirm-approval-hash <核准表SHA-256>`在同一交易鎖兩隊名單頭並追加完整版本；任一隊失敗全rollback。expected版/hash不符拒絕，同語意重送不新增。會員、來源、舊列及舊hash不改；v2以roster-annotation/v2雜湊完整角色與穩定來源，舊scalar固定unclassified相容占位。API新增tactical_roles／role_format_version及版本識別，v2的tactical_role一律null；舊外部scalar消費者無法取得多重角色，不宣稱其已支援。
+
+回復使用同一package明示最新expected基準，兩隊各給`--restore-version <roster_id>:<prewrite版號>`，只複製完整v1或v2快照成新revision。先追加基準資料、名單專用同步對帳，再退程式；保留錯版歷史與新增欄，不刪列／down migration。正式資料寫入、備份及同步仍須另授權並依唯一writer窗口。
 
 ## 身分解析與缺資料
 
@@ -300,7 +312,7 @@ official_population 的現有固定 E 名單與其來源 metadata 可作為已�
 | --- | --- |
 | series_roster | series_id、team_code、submitted_at、source_url、published_date 及精度、observed_at、raw_text、membership_hash、source_hash；提交後不可變 |
 | series_roster_member | roster_id、player_id、official_position、公告姓名；唯一 roster/player |
-| roster_annotation_revision | roster_id、player_id、tactical_role、revision、changed_at；與官方會員分開 |
+| roster_annotation_revision | roster_id、player_id、revision、changed_at、revision_hash；format1保留tactical_role，format2新增tactical_roles[]與role_provenance，舊scalar僅unclassified占位；每版32列、格式／全表核准一致，與官方會員分開 |
 | game_registration_observation | game_key、當場登錄 ID 清單、source、observed_at、completeness；無可靠來源時不製造28 人名單 |
 
 series_roster 必須保存身份；成績由左連接 [left join] 取得。沒有成績仍回完整 32 人，缺值不是 0。

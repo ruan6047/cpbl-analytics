@@ -35,6 +35,22 @@ def load(apps, cov=None, role=None):
     return wr.bullpen_load(D, apps, cov if cov is not None else full_cov(), tactical_role=role)
 
 
+@pytest.mark.parametrize("roles,expected", [(["先發"], "starter_exempt"),
+    (["先發", "長中繼"], "low"), (["中繼"], "low"), (["拆彈組"], "low"), ([], "low")])
+def test_multi_roles_only_pure_starter_exempt_at_low(roles, expected):
+    base = load([app(1, 5)])
+    result = wr.bullpen_load(D, [app(1, 5)], full_cov(), tactical_roles=roles)
+    assert result["level"] == expected
+    assert result["metrics"] == base["metrics"]
+
+
+@pytest.mark.parametrize("roles", [["先發"], ["先發", "長中繼"]])
+@pytest.mark.parametrize("pitches,expected", [(None, "unknown"), (15, "medium"), (30, "high")])
+def test_multi_starter_roles_do_not_hide_missing_or_actual_load(roles, pitches, expected):
+    result = wr.bullpen_load(D, [app(1, pitches)], full_cov(), tactical_roles=roles)
+    assert result["level"] == expected
+
+
 # —— 單日球數 P1／P0：14/15/29/30 ——————————————————————————————
 
 
@@ -352,7 +368,7 @@ def test_policy_version_and_thresholds_frozen():
 
 def test_no_threshold_parameters():
     params = set(inspect.signature(wr.bullpen_load).parameters)
-    assert params == {"target_date", "appearances", "coverage", "tactical_role"}
+    assert params == {"target_date", "appearances", "coverage", "tactical_role", "tactical_roles"}
     assert load([])["policy_version"] == wr.POLICY_VERSION
 
 

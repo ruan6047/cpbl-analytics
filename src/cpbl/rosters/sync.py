@@ -29,13 +29,21 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import shlex
 import subprocess
 import sys
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 
-from cpbl.rosters.canonical import ROSTER_SIZE, membership_hash, revision_hash, source_hash
+from cpbl.rosters.canonical import (
+    ROSTER_SIZE,
+    membership_hash,
+    revision_hash,
+    revision_hash_v2,
+    source_hash,
+    validate_roles_v2,
+)
 
 EXIT_SELF_CHECK = 67
 EXIT_NO_TABLE = 69
@@ -51,13 +59,18 @@ HEAD_COLUMNS = (
 )
 MEMBER_COLUMNS = ("roster_id", "player_id", "official_position", "announced_name")
 REVISION_COLUMNS = ("roster_id", "revision", "player_id", "tactical_role", "revision_hash",
-                    "changed_at")
+                    "changed_at", "role_format_version", "tactical_roles", "role_provenance")
 _TIMESTAMPS = ("observed_at", "identity_verified_at", "submitted_at", "changed_at")
 
 TABLES_EXIST_SQL = (
     "SELECT (to_regclass('cpbl.series_roster') IS NOT NULL"
     " AND to_regclass('cpbl.series_roster_member') IS NOT NULL"
     " AND to_regclass('cpbl.roster_annotation_revision') IS NOT NULL)::text;"
+)
+ROLE_SCHEMA_SQL = (
+    "SELECT (count(*)=3)::text FROM information_schema.columns WHERE table_schema='cpbl' "
+    "AND table_name='roster_annotation_revision' AND column_name IN "
+    "('role_format_version','tactical_roles','role_provenance');"
 )
 
 
@@ -106,18 +119,46 @@ def normalize(dump: dict) -> dict[tuple, dict]:
             "official_position": m["official_position"], "announced_name": m["announced_name"]}
     for r in dump["revisions"]:
         rev = by_id[str(r["roster_id"])]["revisions"].setdefault(
-            int(r["revision"]), {"hash": set(), "changed_at": set(), "roles": {}})
+            int(r["revision"]), {"hash": set(), "changed_at": set(), "roles": {},
+                                 "formats": set(), "details": {}})
         rev["hash"].add(r["revision_hash"])
         rev["changed_at"].add(_ts(r["changed_at"]))
         rev["roles"][r["player_id"]] = r["tactical_role"]
+        if any(k not in r for k in REVISION_COLUMNS[-3:]):
+            raise SyncError(EXIT_SELF_CHECK, "角色傾印缺format／roles／provenance欄")
+        rev["formats"].add(r["role_format_version"])
+        rev["details"][r["player_id"]] = {k: r[k] for k in REVISION_COLUMNS[-3:]}
     out = {}
     for rec in by_id.values():
         for rev in rec["revisions"].values():
             rev["hash"] = sorted(rev["hash"])
             rev["changed_at"] = sorted(rev["changed_at"])
+            rev["formats"] = sorted(rev["formats"])
         h = rec["head"]
         out[(h["year"], h["kind_code"], h["team_code"])] = rec
     return out
+
+
+def _revision_hash(rec: dict, rev: dict) -> str:
+    formats = rev.get("formats", [1])
+    if len(formats) != 1 or any(d["role_format_version"] != formats[0]
+                                for d in rev.get("details", {}).values()):
+        raise ValueError("逐列格式與同版格式不一致")
+    if formats == [1]:
+        if any(d["tactical_roles"] is not None or d["role_provenance"] is not None
+               for d in rev.get("details", {}).values()):
+            raise ValueError("v1不可包含v2角色欄")
+        return revision_hash(rev["roles"].items())
+    if formats != [2] or set(rev.get("details", {})) != set(rev["roles"]):
+        raise ValueError("未知或混合角色格式")
+    rows = []
+    for pid, d in rev["details"].items():
+        if rev["roles"][pid] != "unclassified":
+            raise ValueError("v2 scalar必須為unclassified相容占位")
+        validate_roles_v2(rec["members"][pid]["official_position"],
+                          d["tactical_roles"], d["role_provenance"])
+        rows.append((pid, d["tactical_roles"], d["role_provenance"]))
+    return revision_hash_v2(rows)
 
 
 def recomputed(rec: dict) -> dict:
@@ -129,7 +170,7 @@ def recomputed(rec: dict) -> dict:
         "source_hash": source_hash(
             h["source_url"], h["published_date"], h["published_precision"],
             [(pid, m["announced_name"]) for pid, m in rec["members"].items()]),
-        "revisions": {n: revision_hash(r["roles"].items()) for n, r in rec["revisions"].items()},
+        "revisions": {n: _revision_hash(rec, r) for n, r in rec["revisions"].items()},
     }
 
 
@@ -137,8 +178,12 @@ def self_check(bundle: dict[tuple, dict]) -> list[str]:
     """存值必須等於重算值；每份 32 人、每版 32 列且同一雜湊、版本號連續。"""
     problems = []
     for scope, rec in sorted(bundle.items()):
-        h, calc = rec["head"], recomputed(rec)
         label = "/".join(map(str, scope))
+        try:
+            h, calc = rec["head"], recomputed(rec)
+        except (ValueError, KeyError, TypeError) as exc:
+            problems.append(f"{label} 角色格式／來源不合法：{exc}")
+            continue
         if len(rec["members"]) != ROSTER_SIZE:
             problems.append(f"{label} 會員 {len(rec['members'])} ≠ 32")
         for k in ("membership_hash", "source_hash"):
@@ -185,10 +230,13 @@ def _rec_diff(local: dict, target: dict) -> dict:
     return d
 
 
-def plan(local: dict[tuple, dict], target: dict[tuple, dict]) -> Plan:
+def plan(local: dict[tuple, dict], target: dict[tuple, dict], *, scopes=None) -> Plan:
     p = Plan()
-    for scope in sorted(set(local) | set(target)):
+    for scope in sorted(scopes if scopes is not None else set(local) | set(target)):
         label = "/".join(map(str, scope))
+        if scopes is not None and (scope not in local or scope not in target):
+            p.rejects.append({"scope": label, "reason": "scoped角色同步只允許兩端既有名單，不新增會員"})
+            continue
         if scope not in local:
             p.rejects.append({"scope": label, "reason": "目標有本機沒有的名單（異常，拒絕）",
                               "target_roster_id": target[scope]["head"]["roster_id"]})
@@ -226,7 +274,7 @@ def _copy_escape(s: str) -> str:
             .replace("\t", "\\t"))
 
 
-def payload(local: dict[tuple, dict], p: Plan) -> dict:
+def payload(local: dict[tuple, dict], p: Plan, *, scopes=None) -> dict:
     rosters, members, revisions = [], [], []
     for scope in p.insert_rosters:
         rec = local[scope]
@@ -238,7 +286,10 @@ def payload(local: dict[tuple, dict], p: Plan) -> dict:
     for scope, n in p.insert_revisions:
         rec = local[scope]
         revisions += _revision_rows(rec["head"]["roster_id"], n, rec["revisions"][n])
-    return {"rosters": rosters, "members": members, "revisions": revisions}
+    doc = {"rosters": rosters, "members": members, "revisions": revisions}
+    if scopes is not None:
+        doc["scopes"] = [{"year": y, "kind_code": k, "team_code": t} for y, k, t in sorted(scopes)]
+    return doc
 
 
 def _revision_rows(rid: str, n: int, rev: dict) -> list[dict]:
@@ -247,7 +298,10 @@ def _revision_rows(rid: str, n: int, rev: dict) -> list[dict]:
     if changed is None:
         raise SyncError(EXIT_SELF_CHECK, f"{rid} 角色版本 {n} 的 changed_at 不一致")
     return [{"roster_id": rid, "revision": n, "player_id": pid, "tactical_role": role,
-             "revision_hash": h, "changed_at": changed} for pid, role in sorted(rev["roles"].items())]
+             "revision_hash": h, "changed_at": changed,
+             **rev.get("details", {}).get(pid, {"role_format_version": 1, "tactical_roles": None,
+                                               "role_provenance": None})}
+            for pid, role in sorted(rev["roles"].items())]
 
 
 def apply_script(doc: dict) -> str:
@@ -280,6 +334,27 @@ CREATE TEMP TABLE _rs_revision ON COMMIT DROP AS
 DO $roster_sync$
 DECLARE bad text;
 BEGIN
+  IF (SELECT doc ? 'scopes' FROM _roster_sync_payload) THEN
+    IF (SELECT jsonb_array_length(doc->'scopes') FROM _roster_sync_payload) <> 2
+       OR EXISTS (SELECT 1 FROM _rs_head) OR EXISTS (SELECT 1 FROM _rs_member) THEN
+      RAISE EXCEPTION 'ROSTER_SYNC_SCOPE scoped模式須兩隊既有名單且只能新增角色版本';
+    END IF;
+    IF (SELECT count(DISTINCT s) FROM _roster_sync_payload p,
+        jsonb_to_recordset(p.doc->'scopes') AS s(year integer,kind_code text,team_code text)) <> 2
+       OR (SELECT count(*) FROM cpbl.series_roster r WHERE EXISTS (
+         SELECT 1 FROM _roster_sync_payload p, jsonb_to_recordset(p.doc->'scopes')
+           AS s(year integer,kind_code text,team_code text)
+          WHERE (s.year,s.kind_code,s.team_code)=(r.year,r.kind_code,r.team_code))) <> 2 THEN
+      RAISE EXCEPTION 'ROSTER_SYNC_SCOPE allowlist須為兩份不同的既有名單';
+    END IF;
+    IF EXISTS (
+      SELECT 1 FROM _rs_revision v LEFT JOIN cpbl.series_roster r USING (roster_id)
+       WHERE r.roster_id IS NULL OR NOT EXISTS (
+         SELECT 1 FROM _roster_sync_payload p, jsonb_to_recordset(p.doc->'scopes')
+           AS s(year integer, kind_code text, team_code text)
+          WHERE (s.year,s.kind_code,s.team_code)=(r.year,r.kind_code,r.team_code))
+    ) THEN RAISE EXCEPTION 'ROSTER_SYNC_SCOPE payload包含allowlist外名單'; END IF;
+  END IF;
   SELECT string_agg(format('%s/%s/%s', s.year, s.kind_code, s.team_code), ', ') INTO bad
     FROM _rs_head h JOIN cpbl.series_roster s
       ON s.year = h.year AND s.kind_code = h.kind_code AND s.team_code = h.team_code;
@@ -340,12 +415,16 @@ class PsqlTarget:
 def read_target(target) -> dict[tuple, dict]:
     if target.read(TABLES_EXIST_SQL).strip() != "true":
         raise SyncError(EXIT_NO_TABLE, "目標尚無名單表（待部署窗口套用 schema；本同步不 migrate）")
+    if target.read(ROLE_SCHEMA_SQL).strip() != "true":
+        raise SyncError(EXIT_NO_TABLE, "目標尚無角色v2欄（待部署窗口；本同步不migrate）")
     return normalize(json.loads(target.read(DUMP_SQL)))
 
 
 def read_local(source) -> dict[tuple, dict]:
     if source.read(TABLES_EXIST_SQL).strip() != "true":
         raise SyncError(EXIT_SELF_CHECK, "本機尚無名單表")
+    if source.read(ROLE_SCHEMA_SQL).strip() != "true":
+        raise SyncError(EXIT_SELF_CHECK, "本機尚無角色v2欄")
     return normalize(json.loads(source.read(DUMP_SQL)))
 
 
@@ -405,22 +484,50 @@ def _local_checked(source) -> dict[tuple, dict]:
     return local
 
 
-def run_plan(source, target) -> tuple[dict, dict, Plan]:
+def run_plan(source, target, *, scopes=None) -> tuple[dict, dict, Plan]:
     local = _local_checked(source)
+    _require_v2_scopes(local, scopes)
     remote = read_target(target)
-    return local, remote, plan(local, remote)
+    return local, remote, plan(local, remote, scopes=scopes)
 
 
-def run_apply(source, target) -> tuple[Plan, bool, list[dict]]:
-    local, _, p = run_plan(source, target)
+def run_apply(source, target, *, scopes=None) -> tuple[Plan, bool, list[dict]]:
+    local, _, p = run_plan(source, target, scopes=scopes)
     if p.state == "reject":
         raise SyncError(EXIT_REJECT, "內容不同，拒絕同步（不寫入、不重試）", p.rejects)
     if p.state == "insert-pending":
-        out = target.run(apply_script(payload(local, p)))
+        out = target.run(apply_script(payload(local, p, scopes=scopes)))
         if "ROSTER_SYNC_STAGED" not in out:
             raise SyncError(EXIT_TARGET, f"目標未回報寫入結果：{out!r}")
-    ok, rows = reconcile(local, read_target(target))
+    remote = read_target(target)
+    ok, rows = reconcile(_scoped(local, scopes), _scoped(remote, scopes))
     return p, ok, rows
+
+
+def _scoped(bundle, scopes):
+    if scopes is not None and any(s not in bundle for s in scopes):
+        raise SyncError(EXIT_RECONCILE, "對帳缺少allowlist指定的既有名單，不能把空集合當一致")
+    return bundle if scopes is None else {s: r for s, r in bundle.items() if s in scopes}
+
+
+def _require_v2_scopes(bundle, scopes):
+    if scopes is None and any(2 in r.get("formats", [])
+                              for rec in bundle.values() for r in rec["revisions"].values()):
+        raise SyncError(EXIT_SELF_CHECK, "含v2歷史時必須明確提供兩隊--scope，禁止未限範圍同步")
+
+
+def parse_scopes(values):
+    if not values:
+        return None
+    scopes = []
+    for value in values:
+        if not re.fullmatch(r"(?:19|20)[0-9]{2}:[EC]:[A-Z0-9]{6}", value):
+            raise ValueError("scope須為YYYY:E或C:TEAM_CODE")
+        y, k, team = value.split(":")
+        scopes.append((int(y), k, team))
+    if len(scopes) != 2 or len(set(scopes)) != 2:
+        raise ValueError("scoped同步須明確指定兩個不同scope")
+    return tuple(sorted(scopes))
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -433,6 +540,8 @@ def _parser() -> argparse.ArgumentParser:
     ap.add_argument("--target-psql", required=True,
                     help="讀 stdin 腳本的 psql 指令（shlex 切分，不經 shell）")
     ap.add_argument("--json", action="store_true")
+    ap.add_argument("--scope", action="append", default=[], metavar="YEAR:KIND:TEAM",
+                    help="只追加兩個既有名單scope的角色版本；每隊各給一次")
     return ap
 
 
@@ -441,8 +550,9 @@ def main(argv: list[str] | None = None) -> int:
     source = PsqlTarget(args.local_psql)
     target = PsqlTarget(args.target_psql)
     try:
+        scopes = parse_scopes(args.scope)
         if args.action == "plan":
-            _, _, p = run_plan(source, target)
+            _, _, p = run_plan(source, target, scopes=scopes)
             if p.state == "reject":
                 raise SyncError(EXIT_REJECT, "內容不同，拒絕同步（不寫入、不重試）", p.rejects)
             print(f"insert_rosters={['/'.join(map(str, s)) for s in p.insert_rosters]}")
@@ -451,11 +561,12 @@ def main(argv: list[str] | None = None) -> int:
             print(f"ROSTER_SYNC_PLAN={p.state}")
             return 0
         if args.action == "apply":
-            p, ok, rows = run_apply(source, target)
+            p, ok, rows = run_apply(source, target, scopes=scopes)
             print(f"ROSTER_SYNC_PLAN={p.state}" + ("（無變更，未寫入）" if p.state == "no-change" else ""))
         else:
             local = _local_checked(source)
-            ok, rows = reconcile(local, read_target(target))
+            _require_v2_scopes(local, scopes)
+            ok, rows = reconcile(_scoped(local, scopes), _scoped(read_target(target), scopes))
         if args.json:
             print(json.dumps(rows, ensure_ascii=False, indent=2))
         else:
@@ -469,6 +580,9 @@ def main(argv: list[str] | None = None) -> int:
         if exc.detail:
             print(json.dumps(exc.detail, ensure_ascii=False, indent=2, default=str), file=sys.stderr)
         return exc.code
+    except (ValueError, KeyError, TypeError) as exc:
+        print(f"✗ 角色格式／scope錯誤：{exc}", file=sys.stderr)
+        return EXIT_SELF_CHECK
 
 
 if __name__ == "__main__":
