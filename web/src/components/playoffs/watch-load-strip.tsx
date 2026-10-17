@@ -6,6 +6,7 @@ import {
   LEVEL_TONE,
   appearanceText,
   offsetLabel,
+  pitcherRoles,
   shortDate,
   triggerText,
   type WatchPitcher,
@@ -99,16 +100,15 @@ export function PitcherLoadRow({ p, scaleMax }: { p: WatchPitcher; scaleMax: num
   const days = [...load.days].sort((a, b) => b.offset - a.offset);
   const streak = streakOf(p);
   const summary = streakText(streak);
+  const roles = pitcherRoles(p);
   const spoken = days.map((d) => `${dayLabel(d.offset)} ${shortDate(d.date)} ${d.complete ? `${d.pitches} 球` : d.pitches > 0 ? `已知 ${d.pitches} 球，另有未知` : "未知"}`);
   return (
     <li className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5 py-1.5 text-sm" data-level={load.level}>
       <div className="flex min-w-[9rem] flex-wrap items-center gap-x-2 gap-y-0.5">
         <span className="font-bold text-ink">{p.name ?? p.player_id}</span>
-        {p.tactical_role && p.tactical_role !== "unclassified" ? (
-          <span className="pm-tag">#{p.tactical_role}</span>
-        ) : (
-          <span className="text-[11px] text-faint">角色未標記</span>
-        )}
+        {roles.length ? roles.map((role) => (
+          <span key={role} data-role className="pm-tag">#{role}</span>
+        )) : <span className="text-[11px] text-faint">角色未標記</span>}
         <Lamp p={p} />
         {load.live ? <span className="pm-st pm-st--live">即時</span> : null}
       </div>

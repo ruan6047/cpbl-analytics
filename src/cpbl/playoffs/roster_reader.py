@@ -35,13 +35,12 @@ from datetime import UTC, datetime
 
 from cpbl.api.helpers import _dicts
 from cpbl.coverage import taipei_date
+from cpbl.rosters.canonical import role_fields
 
 CONTRACT = "playoffs-roster/v1"
 READ_ONLY_TXN = "SET TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY"
 
 POSITION_ORDER = {p: i for i, p in enumerate(("投手", "捕手", "內野手", "外野手"))}
-#: S03 「未分類」不是角色：呈現為 null（格內「—」）。
-UNCLASSIFIED = "unclassified"
 
 #: 球員頁「官方進階・百分位 PR」同一組欄（``web/src/app/players/[id]/lib.ts`` ``ADV``，同順序）；
 #: ``brl_pr`` 是 ``brlp_pr`` 的計數重複，球員頁去重不列（season.tsx ``fused``），這裡同樣不列。
@@ -220,10 +219,6 @@ def background_of(pid: str, role: str, inputs: RosterInputs) -> dict:
     return {"level": "none", "g": None, "line": None, "pr_tags": [], "arrow": arrow}
 
 
-def _role(v: str | None) -> str | None:
-    return None if v in (None, UNCLASSIFIED) else v
-
-
 def _series_games(inputs: RosterInputs) -> list[dict]:
     """所選系列已正式完賽的場次（S02 原值），依系列場序。"""
     games = [g for g in inputs.context.get("games") or []
@@ -339,7 +334,7 @@ def compute_roster(inputs: RosterInputs, *, now: datetime) -> dict:
                 "player_id": m["player_id"],
                 "name": m["announced_name"],
                 "official_position": m["official_position"],
-                "tactical_role": _role(m.get("tactical_role")),
+                **role_fields(m),
                 "role": role,
                 "background": background_of(m["player_id"], role, inputs),
                 "series": series_of(m["player_id"], role, inputs,
@@ -353,6 +348,8 @@ def compute_roster(inputs: RosterInputs, *, now: datetime) -> dict:
             "roster": None if not roster else {
                 "roster_id": roster["roster_id"], "published_date": roster.get("published_date"),
                 "source_url": roster.get("source_url"), "annotation_version": roster.get("annotation_version"),
+                "role_format_version": roster.get("role_format_version", 1),
+                "revision_hash": roster.get("revision_hash"),
             },
             "members": members,
             "series_pending_games": sc["pending_by_team"].get(code, []),
@@ -370,7 +367,8 @@ def compute_roster(inputs: RosterInputs, *, now: datetime) -> dict:
 
 ROSTER_SQL = """
     SELECT r.team_code, r.roster_id::text AS roster_id, r.published_date, r.source_url,
-           lv.rev AS annotation_version, m.player_id, m.announced_name, m.official_position, a.tactical_role
+           lv.rev AS annotation_version, m.player_id, m.announced_name, m.official_position, a.tactical_role,
+           a.role_format_version, a.tactical_roles, a.role_provenance, a.revision_hash
       FROM cpbl.series_roster r
       JOIN cpbl.series_roster_member m ON m.roster_id = r.roster_id
       LEFT JOIN LATERAL (SELECT max(x.revision) AS rev FROM cpbl.roster_annotation_revision x
@@ -475,9 +473,11 @@ def read_rosters(cur, year: int, series: str, teams: list[str]) -> dict[str, dic
     for r in _dicts(cur):
         ros = out.get(r["team_code"]) or {
             "roster_id": r["roster_id"], "published_date": str(r["published_date"]),
-            "source_url": r["source_url"], "annotation_version": r["annotation_version"], "members": []}
+            "source_url": r["source_url"], "annotation_version": r["annotation_version"],
+            "role_format_version": r.get("role_format_version", 1),
+            "revision_hash": r.get("revision_hash"), "members": []}
         ros["members"].append({"player_id": r["player_id"], "announced_name": r["announced_name"],
-                               "official_position": r["official_position"], "tactical_role": r["tactical_role"]})
+                               "official_position": r["official_position"], **role_fields(r)})
         out[r["team_code"]] = ros
     return out
 
@@ -611,7 +611,7 @@ def player_detail_in_txn(cur, year: int, series: str, player_id: str, *, now: da
         "year": year,
         "team_code": team_code,
         "player": {"player_id": player_id, "name": m["announced_name"], "official_position": m["official_position"],
-                   "tactical_role": _role(m.get("tactical_role")), "role": role, "level": level},
+                   **role_fields(m), "role": role, "level": level},
         "ability": {"season": _ability_card(cur, player_id, role, "season", year),
                     "career": _ability_card(cur, player_id, role, "career", year)},
         "trend": trend,

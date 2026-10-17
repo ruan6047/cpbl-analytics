@@ -17,6 +17,7 @@ import {
   hasSeriesScope,
   initialScope,
   lineText,
+  memberRoles,
   scopeG,
   seriesPending,
   prLabel,
@@ -81,6 +82,7 @@ function RosterBody({ data }: { data: PlayoffsRoster }) {
         onTeam={setTeam} onPos={setPos} onSort={setSort} onScope={setScope} onOpen={setOpen} />
       {current ? (
         <RosterDrawer member={current} year={data.year} series={data.series} sectionVersion={data.context_version}
+          sectionRosterVersion={data.roster_version}
           onClose={close} />
       ) : null}
     </div>
@@ -247,7 +249,9 @@ export function MemberCard({ m, scope = "background", onOpen }: {
             </span>
           </div>
           <div className="flex flex-wrap items-baseline justify-between gap-x-2 gap-y-0.5 text-xs text-muted">
-            {m.tactical_role ? <span data-role className="text-ink">{m.tactical_role}</span> : null}
+            {memberRoles(m).length ? <span className="flex flex-wrap gap-x-2">{memberRoles(m).map((role) => (
+              <span key={role} data-role className="text-ink">{role}</span>
+            ))}</span> : null}
             <span className="font-mono tabular-nums" data-line>{line ?? ROSTER_COPY.missing}</span>
           </div>
         </div>

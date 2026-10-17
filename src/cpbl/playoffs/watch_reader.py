@@ -40,12 +40,13 @@ from cpbl.completion import completed_games_sql_with_evidence
 from cpbl.coverage import taipei_date
 from cpbl.playoffs import watch_rules as rules
 from cpbl.playoffs.watch_rules import Appearance, DayCoverage
+from cpbl.rosters.canonical import role_fields
 
 CONTRACT = "playoffs-watch/v1"
 
 #: 預設展開的名單角色（PRD 4A）；其他投手可展開，不因角色未標記被刪除。
-DEFAULT_ROLES = ("終結", "勝利組", "長中繼")
-_ROLE_ORDER = {r: i for i, r in enumerate((*DEFAULT_ROLES, "輪值", "主力", "待命", "代打", "守備"))}
+DEFAULT_ROLES = ("中繼", "終結", "勝利組", "拆彈組", "長中繼")
+_ROLE_ORDER = ("先發", *DEFAULT_ROLES, "輪值", "主力", "待命", "代打", "守備")
 
 #: 負荷讀取涵蓋的正式賽別：一軍 A／E／C，加上可靠逐場紀錄的二軍 D（以 *022 隊碼對應）。
 LOAD_KINDS = ("A", "E", "C", "D")
@@ -208,14 +209,15 @@ def _appearance_json(a: Appearance) -> dict:
 
 
 def _pitcher(member: dict, apps: list[Appearance], cov: dict, target_date: date) -> dict:
-    role = member.get("tactical_role")
-    load = rules.bullpen_load(target_date, apps, cov, tactical_role=role)
+    fields = role_fields(member, position="投手")
+    roles = fields["tactical_roles"]
+    load = rules.bullpen_load(target_date, apps, cov, tactical_roles=roles)
     out = {
         "player_id": member["player_id"],
         "name": member.get("announced_name"),
-        "tactical_role": role,
+        **fields,
         "role_source": "本站註記（非官方數據）",
-        "default_visible": role in DEFAULT_ROLES,
+        "default_visible": bool(set(roles) & set(DEFAULT_ROLES)),
         "load": load,
         "recent": [_appearance_json(a) for a in rules.recent_appearances(apps, 3)],
         "registration": {"status": "unknown", "text": REGISTRATION_TEXT},
@@ -374,7 +376,8 @@ def compute_watch(inputs: WatchInputs, *, now: datetime) -> dict:
                 p = _pitcher(m, apps, pcov, target_date)
                 pitchers.append(p)
                 complete_flags.append(p["load"]["complete"])
-            pitchers.sort(key=lambda p: (not p["default_visible"], _ROLE_ORDER.get(p["tactical_role"] or "", 99),
+            pitchers.sort(key=lambda p: (not p["default_visible"],
+                                         tuple(r not in p["tactical_roles"] for r in _ROLE_ORDER),
                                          p["player_id"]))
         for d in days:
             missing.extend(d["reasons"])
@@ -385,6 +388,8 @@ def compute_watch(inputs: WatchInputs, *, now: datetime) -> dict:
             "roster": None if not roster else {
                 "roster_id": roster["roster_id"], "published_date": roster.get("published_date"),
                 "source_url": roster.get("source_url"), "annotation_version": roster.get("annotation_version"),
+                "role_format_version": roster.get("role_format_version", 1),
+                "revision_hash": roster.get("revision_hash"),
                 "note": "資格名單：不代表先發、當場 28 人登錄或可用",
             },
             "roster_text": None if roster else "32 人名單尚未提交" if roster_status == "missing"
@@ -412,7 +417,8 @@ _DONE = completed_games_sql_with_evidence("g", "%(as_of)s")
 
 ROSTER_SQL = """
     SELECT r.team_code, r.roster_id::text AS roster_id, r.published_date, r.source_url,
-           lv.rev AS annotation_version, m.player_id, m.announced_name, a.tactical_role
+           lv.rev AS annotation_version, m.player_id, m.announced_name, a.tactical_role,
+           a.role_format_version, a.tactical_roles, a.role_provenance, a.revision_hash
       FROM cpbl.series_roster r
       JOIN cpbl.series_roster_member m ON m.roster_id = r.roster_id AND m.official_position = '投手'
       LEFT JOIN LATERAL (SELECT max(x.revision) AS rev FROM cpbl.roster_annotation_revision x
@@ -516,9 +522,11 @@ def read_watch_inputs(cur, year: int, series: str, *, now: datetime, requested_g
         for r in _dicts(cur):
             ros = out.get(r["team_code"]) or {
                 "roster_id": r["roster_id"], "published_date": str(r["published_date"]),
-                "source_url": r["source_url"], "annotation_version": r["annotation_version"], "members": []}
+                "source_url": r["source_url"], "annotation_version": r["annotation_version"],
+                "role_format_version": r.get("role_format_version", 1),
+                "revision_hash": r.get("revision_hash"), "members": []}
             ros["members"].append({"player_id": r["player_id"], "announced_name": r["announced_name"],
-                                   "tactical_role": r["tactical_role"]})
+                                   **role_fields(r, position="投手")})
             out[r["team_code"]] = ros
         return out
 

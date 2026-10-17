@@ -217,7 +217,7 @@ def _show_text(r: dict) -> str:
     for m in r["members"]:
         a = "無" if m["a_games"] is None else str(m["a_games"])
         out.append(f"  {m['official_position']:<3} {m['announced_name']:<6} {m['player_id']} "
-                   f"角色={m['tactical_role']} 本季A出賽={a}")
+                   f"角色={'、'.join(m['tactical_roles']) or 'unclassified'} 本季A出賽={a}")
     ic = h["import_check"]
     out.append(f"已核洋將 {len(ic['verified_imports'])}／上限 {ic['limit']}"
                + ("" if ic["complete"] else f"；⚠ 外籍資格檢查不完整（{len(ic['unknown'])} 人身分未知）"))

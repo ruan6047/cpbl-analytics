@@ -151,3 +151,19 @@ def revision_hash_v2(rows: Iterable[tuple[str, list[str], dict]]) -> str:
         raise ValueError("v2 版本不能為空")
     return _digest({"hash": "roster-annotation/v2", "role_format_version": 2,
                     "roles": sorted(result, key=lambda r: r[0])})
+
+
+def role_fields(row: dict, *, position: str | None = None) -> dict:
+    """所有reader共用雙格式解讀；v2 scalar固定null，不挑一個角色。"""
+    fmt = row.get("role_format_version", 1)
+    if fmt == 1:
+        role = row.get("tactical_role")
+        role = None if role in (None, "", UNCLASSIFIED) else role
+        return {"role_format_version": 1, "tactical_role": role,
+                "tactical_roles": [] if role is None else [role], "role_provenance": None}
+    if fmt != 2:
+        raise ValueError(f"未知角色格式 {fmt}")
+    roles, provenance = row.get("tactical_roles"), row.get("role_provenance")
+    canonical = validate_roles_v2(position or row.get("official_position"), roles, provenance)
+    return {"role_format_version": 2, "tactical_role": None,
+            "tactical_roles": list(canonical), "role_provenance": provenance}

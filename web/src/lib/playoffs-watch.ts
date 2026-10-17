@@ -60,6 +60,9 @@ export type WatchPitcher = {
   player_id: string;
   name: string | null;
   tactical_role: string | null;
+  role_format_version?: 1 | 2;
+  tactical_roles?: string[];
+  role_provenance?: unknown;
   role_source: string;
   default_visible: boolean;
   load: Load;
@@ -73,7 +76,7 @@ export type WatchTeam = {
   team_code: string;
   roster_status: "submitted" | "missing" | "unavailable";
   roster: { roster_id: string; published_date: string | null; source_url: string | null;
-    annotation_version: number | null; note: string } | null;
+    annotation_version: number | null; role_format_version?: 1 | 2; revision_hash?: string | null; note: string } | null;
   roster_text: string | null;
   days: { date: string; offset: number; complete: boolean; reasons: string[]; text: string[]; live: boolean }[];
   pitchers: WatchPitcher[];
@@ -90,6 +93,16 @@ export type WatchStarter = {
   name: string | null;
   text: string;
 };
+
+/** 多重角色平列；只允許legacy資料讀單值，v2缺陣列不可降級。 */
+export function pitcherRoles(p: WatchPitcher): string[] {
+  if (p.role_format_version === 2) {
+    if (!Array.isArray(p.tactical_roles) || !p.tactical_roles.length) throw new Error("角色v2資料不完整");
+    return p.tactical_roles;
+  }
+  if (p.role_format_version != null && p.role_format_version !== 1) throw new Error("未知角色格式");
+  return p.tactical_roles ?? (p.tactical_role && p.tactical_role !== "unclassified" ? [p.tactical_role] : []);
+}
 
 export type PlayoffsWatch = {
   contract: "playoffs-watch/v1";

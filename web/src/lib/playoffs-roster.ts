@@ -52,6 +52,9 @@ export type RosterMember = {
   name: string;
   official_position: "投手" | "捕手" | "內野手" | "外野手" | string;
   tactical_role: string | null;
+  role_format_version?: 1 | 2;
+  tactical_roles?: string[];
+  role_provenance?: unknown;
   role: RosterRole;
   background: RosterBackground;
   /** 本系列實戰（PR2）：尚無完賽場 ⇒ null；未出賽 ⇒ g=0、line null；
@@ -63,7 +66,8 @@ export type RosterTeam = {
   team_code: string;
   team_name: string | null;
   roster_status: "submitted" | "missing" | "unavailable";
-  roster: { roster_id: string; published_date: string | null; source_url: string | null; annotation_version: number | null } | null;
+  roster: { roster_id: string; published_date: string | null; source_url: string | null; annotation_version: number | null;
+    role_format_version?: 1 | 2; revision_hash?: string | null } | null;
   members: RosterMember[];
   /** 該隊已完賽但 box（打擊或投球任一）尚未送達的系列場序（PR2）。 */
   series_pending_games?: number[];
@@ -180,10 +184,20 @@ const r3 = (v: number | null) => (v == null ? ROSTER_COPY.missing : v.toFixed(3)
 /** 出賽 G：無紀錄 ⇒「—」。 */
 export const gText = (bg: { g: number | null }) => (bg.g == null ? ROSTER_COPY.missing : `${bg.g}G`);
 
+/** v2只讀完整集合；legacy才允許單值相容，無主角色。 */
+export function memberRoles(m: Pick<RosterMember, "tactical_role" | "tactical_roles" | "role_format_version">): string[] {
+  if (m.role_format_version === 2) {
+    if (!Array.isArray(m.tactical_roles) || !m.tactical_roles.length) throw new Error("角色v2資料不完整");
+    return m.tactical_roles;
+  }
+  if (m.role_format_version != null && m.role_format_version !== 1) throw new Error("未知角色格式");
+  return m.tactical_roles ?? (m.tactical_role && m.tactical_role !== "unclassified" ? [m.tactical_role] : []);
+}
+
 /** 抽屜標頭副標：守位 · 本站角色（有值才放、只放值）· 例行賽 G（· 二軍）。
  *  需求方裁定 #286 6210276945、6210408828：角色無值整段不顯示，不帶「本站角色」字樣。 */
 export function drawerSubtitle(m: RosterMember): string {
-  return [m.official_position, m.tactical_role, gText(m.background),
+  return [m.official_position, memberRoles(m).join("、"), gText(m.background),
     m.background.level === "D" ? ROSTER_COPY.farm : null].filter(Boolean).join(" · ");
 }
 
@@ -266,6 +280,7 @@ export type RosterPlayerDetail = {
   year: number;
   team_code: string;
   player: { player_id: string; name: string; official_position: string; tactical_role: string | null;
+    role_format_version?: 1 | 2; tactical_roles?: string[]; role_provenance?: unknown;
     role: RosterRole; level: BackgroundLevel };
   ability: { season: AbilityCardData; career: AbilityCardData };
   trend: { player_id: string; role: RosterRole; items: StatRow[]; roll: number } | null;
@@ -294,10 +309,10 @@ export type DrawerState =
 
 /** 詳情與目前區資料版本不同 ⇒ stale（⛔ 拼接不同版本的摘要與詳情；契約 §2.2）。 */
 export function drawerState(detail: RosterPlayerDetail | null | undefined, failed: boolean,
-  sectionVersion: string | null): DrawerState {
+  sectionVersion: string | null, sectionRosterVersion: string): DrawerState {
   if (failed) return { kind: "error" };
   if (!detail) return { kind: "loading" };
-  if (detail.context_version !== sectionVersion) return { kind: "stale" };
+  if (detail.context_version !== sectionVersion || detail.roster_version !== sectionRosterVersion) return { kind: "stale" };
   return { kind: "ready", detail };
 }
 

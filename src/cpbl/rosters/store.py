@@ -23,6 +23,7 @@ from cpbl.rosters.canonical import (
     POSITION_ORDER,
     membership_hash,
     revision_hash,
+    role_fields,
     source_hash,
 )
 from cpbl.rosters.identity import Prepared, check, load_context
@@ -132,7 +133,8 @@ def read_roster(cur, year: int, kind_code: str, team_code: str,
     members = cur.execute(
         """
         SELECT m.player_id, m.official_position, m.announced_name, p.name AS master_name,
-               a.tactical_role, a.revision_hash, a.changed_at, g.a_games
+               a.tactical_role, a.role_format_version, a.tactical_roles, a.role_provenance,
+               a.revision_hash, a.changed_at, g.a_games
           FROM cpbl.series_roster_member m
           LEFT JOIN cpbl.players p ON p.id = m.player_id
           LEFT JOIN cpbl.roster_annotation_revision a
@@ -150,8 +152,12 @@ def read_roster(cur, year: int, kind_code: str, team_code: str,
         """,
         {"v": version, "y": year, "r": head["roster_id"]},
     ).fetchall()
+    for member in members:
+        member.update(role_fields(member))
     members.sort(key=lambda m: (POSITION_ORDER[m["official_position"]], m["player_id"]))
     return {"head": head, "members": members, "annotation_version": version,
+            "role_format_version": members[0]["role_format_version"],
+            "revision_hash": members[0]["revision_hash"],
             "annotation_versions": versions, "note": ELIGIBILITY_NOTE}
 
 

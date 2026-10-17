@@ -79,6 +79,17 @@ const A = team("AAA011", "味全", [
 ]);
 const B = team("ACN011", "兄弟", [], "missing");
 
+test("多角色平列且scalar為null：卡片與抽屜副標完整呈現，不宣告主次", () => {
+  const m = member("0000000001", "內野手", {
+    role_format_version: 2, tactical_role: null, tactical_roles: ["代打", "指定打擊"],
+  });
+  const markup = renderToStaticMarkup(<MemberCard m={m} onOpen={() => {}} />);
+  assert.equal((markup.match(/data-role=/g) ?? []).length, 2);
+  assert.match(text(<MemberCard m={m} onOpen={() => {}} />), /代打.*指定打擊/);
+  assert.match(drawerSubtitle(m), /代打、指定打擊/);
+  assert.doesNotMatch(markup, /本站角色|主角色|unclassified/);
+});
+
 test("null ⇒ 第 3 區錯誤態；標題固定", () => {
   const t = text(<RosterSection data={null} />);
   assert.match(t, /系列賽 32 人資格名單/);

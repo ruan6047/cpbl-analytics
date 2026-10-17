@@ -149,7 +149,9 @@ def test_two_team_atomic_append_idempotency_and_restore_v1(connection):
     c.execute("SET CONSTRAINTS ALL IMMEDIATE")
     assert all(t["annotation_version"] == 3 for t in restored["teams"])
     assert c.execute("SELECT count(*) FROM cpbl.roster_annotation_revision "
-                     "WHERE revision=3 AND role_format_version=1 AND tactical_roles IS NULL").fetchone()[0] == 64
+                     "WHERE revision=3 AND role_format_version=1 AND tactical_roles IS NULL "
+                     "AND roster_id IN (SELECT roster_id FROM cpbl.series_roster WHERE kind_code='E')"
+                     ).fetchone()[0] == 64
 
 
 def test_second_team_conflict_rolls_back_first_team(connection):
@@ -161,7 +163,9 @@ def test_second_team_conflict_rolls_back_first_team(connection):
     doc["teams"][1]["expected_latest_hash"] = "f" * 64
     with pytest.raises(RosterError, match="基準已變更"):
         annotate_package(c, doc, "a" * 64)
-    assert c.execute("SELECT count(*) FROM cpbl.roster_annotation_revision WHERE revision=2").fetchone()[0] == 0
+    assert c.execute("SELECT count(*) FROM cpbl.roster_annotation_revision WHERE revision=2 "
+                     "AND roster_id IN (SELECT roster_id FROM cpbl.series_roster WHERE kind_code='E')"
+                     ).fetchone()[0] == 0
 
 
 def test_approval_and_member_mutation_rejected_before_write(connection):
@@ -173,7 +177,9 @@ def test_approval_and_member_mutation_rejected_before_write(connection):
     doc["teams"][0]["members"][0]["announced_name"] += "錯"
     with pytest.raises(RosterError, match="公告姓名"):
         annotate_package(c, doc, "a" * 64)
-    assert c.execute("SELECT count(*) FROM cpbl.roster_annotation_revision WHERE revision=2").fetchone()[0] == 0
+    assert c.execute("SELECT count(*) FROM cpbl.roster_annotation_revision WHERE revision=2 "
+                     "AND roster_id IN (SELECT roster_id FROM cpbl.series_roster WHERE kind_code='E')"
+                     ).fetchone()[0] == 0
 
 
 def test_restore_v2_preserves_hash_and_full_provenance(connection):
@@ -212,4 +218,6 @@ def test_cli_v2_invalid_approval_zero_writes(connection, monkeypatch, tmp_path, 
     assert run_roster.run(["annotate", str(file), "--format", "roles-v2",
                            "--confirm-approval-hash", "f" * 64]) == 15
     assert "核准表hash" in capsys.readouterr().err
-    assert c.execute("SELECT count(*) FROM cpbl.roster_annotation_revision WHERE revision=2").fetchone()[0] == 0
+    assert c.execute("SELECT count(*) FROM cpbl.roster_annotation_revision WHERE revision=2 "
+                     "AND roster_id IN (SELECT roster_id FROM cpbl.series_roster WHERE kind_code='E')"
+                     ).fetchone()[0] == 0
