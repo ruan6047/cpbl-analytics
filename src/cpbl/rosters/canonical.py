@@ -127,6 +127,8 @@ def revision_hash_v2(rows: Iterable[tuple[str, list[str], dict]]) -> str:
     seen = set()
     approval = None
     for pid, roles, provenance in rows:
+        if not isinstance(pid, str):
+            raise ValueError("v2 球員 ID 必須為唯一十碼字串")
         pid = norm(pid)
         if not re.fullmatch(r"[0-9]{10}", pid) or pid in seen:
             raise ValueError("v2 球員 ID 必須為唯一十碼")

@@ -38,6 +38,7 @@ from cpbl.ingest._cli import cli_parser
 from cpbl.reports.official_population import load as load_official_population
 from cpbl.rosters.identity import PARTICIPANT_NOTE, STATUS_LABEL
 from cpbl.rosters.parser import ParseError, parse, render
+from cpbl.rosters.role_store import annotate_package, preview_package
 from cpbl.rosters.store import (
     ELIGIBILITY_NOTE,
     EXIT_CONFLICT,
@@ -67,12 +68,17 @@ def _parser():
         return sp
 
     pv = text_cmd("preview", "解析＋身分＋規則檢查（唯讀）")
+    pv.add_argument("--format", choices=("text-v1", "roles-v2"), default="text-v1")
     pv.add_argument("--out", help="把預覽（含草稿候選）另存成 JSON 檔")
     sm = text_cmd("submit", "原子提交（需 preview 的 membership_hash）")
     sm.add_argument("--confirm-hash", required=True, help="preview 印出的 membership_hash")
     sm.add_argument("--observed-at", type=datetime.fromisoformat,
                     help="取得官方文字的時間（ISO8601，含時區；預設＝執行時間）")
-    text_cmd("annotate", "戰術角色修訂（另存新版，不改會員）")
+    an = text_cmd("annotate", "戰術角色修訂（另存新版，不改會員）")
+    an.add_argument("--format", choices=("text-v1", "roles-v2"), default="text-v1")
+    an.add_argument("--confirm-approval-hash", help="roles-v2核准表SHA-256；寫入時必要")
+    an.add_argument("--restore-version", action="append", default=[], metavar="ROSTER_ID:N",
+                    help="roles-v2兩隊完整基準還原；每隊各給一次，不刪既有歷史")
 
     sh = sub.add_parser("show", help="唯讀摘要", allow_abbrev=False)
     for sp in (sh,):
@@ -238,6 +244,28 @@ def _official_text(year: int, series: str, team: str) -> tuple[str, Origin]:
 def run(argv: list[str] | None = None) -> int:
     args = _parser().parse_args(argv)
     try:
+        if args.cmd in ("preview", "annotate") and args.format == "roles-v2":
+            doc = json.loads(_read(args.file))
+            with db.conn() as c:
+                if args.cmd == "preview":
+                    c.execute("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY")
+                    result = preview_package(c, doc)
+                else:
+                    restore = None
+                    if args.restore_version:
+                        restore = {}
+                        for item in args.restore_version:
+                            rid, version = item.rsplit(":", 1)
+                            if rid in restore:
+                                raise ValueError("restore不得重複同一roster_id")
+                            restore[rid] = int(version)
+                    result = annotate_package(c, doc, args.confirm_approval_hash, restore)
+            if args.cmd == "preview" and args.out:
+                Path(args.out).write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
+            _emit(result, args.json, json.dumps(result, ensure_ascii=False, indent=2))
+            return 0
+        if args.cmd == "annotate" and (args.confirm_approval_hash or args.restore_version):
+            raise ValueError("核准hash／restore旗標只接受roles-v2格式")
         if args.cmd == "preview":
             return _do_preview(_read(args.file), args.json, args.out)
         if args.cmd == "submit":
@@ -273,6 +301,9 @@ def run(argv: list[str] | None = None) -> int:
         if exc.detail:
             print(json.dumps(exc.detail, ensure_ascii=False, indent=2, default=str), file=sys.stderr)
         return exc.code
+    except ValueError as exc:
+        print(f"✗ 角色輸入格式錯誤（不寫 DB）：{exc}", file=sys.stderr)
+        return EXIT_SYNTAX
     raise AssertionError(args.cmd)
 
 

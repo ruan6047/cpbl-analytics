@@ -8,12 +8,15 @@ from psycopg.conninfo import conninfo_to_dict
 from psycopg.types.json import Jsonb
 from psycopg_pool import ConnectionPool
 from roster_284_support import seed
+from test_roster_role_package import package
 from test_roster_roles_v2 import provenance
 
 from cpbl import db
+from cpbl.ingest import run_roster
 from cpbl.ingest.run_roster import _official_text
 from cpbl.rosters.canonical import revision_hash_v2
 from cpbl.rosters.parser import parse
+from cpbl.rosters.role_store import annotate_package, preview_package
 from cpbl.rosters.store import pasted_origin, prepare, submit
 
 
@@ -112,3 +115,101 @@ def test_sql_provenance_json_null_rejected(connection, key):
     p["roles"]["先發"][key] = None
     assert c.execute("SELECT cpbl.roster_roles_v2_valid(%s::text[],%s::jsonb)",
                      (["先發"], Jsonb(p))).fetchone()[0] is False
+
+
+def real_package(c):
+    parsed = parse(_official_text(2026, "E", "ADD011")[0])
+    _, h, _ = prepare(c, parsed)
+    submit(c, parsed, h["membership_hash"], pasted_origin())
+    doc = package()
+    for team in doc["teams"]:
+        head = c.execute("SELECT roster_id,membership_hash,source_hash FROM cpbl.series_roster "
+                         "WHERE year=2026 AND kind_code='E' AND team_code=%s",
+                         (team["team_code"],)).fetchone()
+        team.update(roster_id=str(head[0]), membership_hash=head[1], source_hash=head[2])
+        latest = c.execute("SELECT revision,revision_hash FROM cpbl.roster_annotation_revision "
+                           "WHERE roster_id=%s ORDER BY revision DESC LIMIT 1", (head[0],)).fetchone()
+        team.update(expected_latest_revision=latest[0], expected_latest_hash=latest[1])
+    return doc
+
+
+def test_two_team_atomic_append_idempotency_and_restore_v1(connection):
+    c, _ = connection
+    doc = real_package(c)
+    assert all(t["status"] == "revised" for t in preview_package(c, doc)["teams"])
+    result = annotate_package(c, doc, "a" * 64)
+    c.execute("SET CONSTRAINTS ALL IMMEDIATE")
+    c.execute("SET CONSTRAINTS ALL DEFERRED")
+    assert all(t["annotation_version"] == 2 for t in result["teams"])
+    assert all(t["status"] == "unchanged" for t in annotate_package(c, doc, "a" * 64)["teams"])
+    for team in doc["teams"]:
+        r = next(r for r in result["teams"] if r["roster_id"] == team["roster_id"])
+        team.update(expected_latest_revision=r["annotation_version"], expected_latest_hash=r["revision_hash"])
+    restored = annotate_package(c, doc, "a" * 64, {t["roster_id"]: 1 for t in doc["teams"]})
+    c.execute("SET CONSTRAINTS ALL IMMEDIATE")
+    assert all(t["annotation_version"] == 3 for t in restored["teams"])
+    assert c.execute("SELECT count(*) FROM cpbl.roster_annotation_revision "
+                     "WHERE revision=3 AND role_format_version=1 AND tactical_roles IS NULL").fetchone()[0] == 64
+
+
+def test_second_team_conflict_rolls_back_first_team(connection):
+    from cpbl.rosters.store import RosterError
+    c, _ = connection
+    doc = real_package(c)
+    # 依roster_id固定鎖序，讓第二隊失敗，證明第一隊也未留下半套版本。
+    doc["teams"].sort(key=lambda t: t["roster_id"])
+    doc["teams"][1]["expected_latest_hash"] = "f" * 64
+    with pytest.raises(RosterError, match="基準已變更"):
+        annotate_package(c, doc, "a" * 64)
+    assert c.execute("SELECT count(*) FROM cpbl.roster_annotation_revision WHERE revision=2").fetchone()[0] == 0
+
+
+def test_approval_and_member_mutation_rejected_before_write(connection):
+    from cpbl.rosters.store import RosterError
+    c, _ = connection
+    doc = real_package(c)
+    with pytest.raises(RosterError, match="核准表hash"):
+        annotate_package(c, doc, "f" * 64)
+    doc["teams"][0]["members"][0]["announced_name"] += "錯"
+    with pytest.raises(RosterError, match="公告姓名"):
+        annotate_package(c, doc, "a" * 64)
+    assert c.execute("SELECT count(*) FROM cpbl.roster_annotation_revision WHERE revision=2").fetchone()[0] == 0
+
+
+def test_restore_v2_preserves_hash_and_full_provenance(connection):
+    import copy
+    c, _ = connection
+    doc = real_package(c)
+    first = annotate_package(c, doc, "a" * 64)
+    newer = copy.deepcopy(doc)
+    for team in newer["teams"]:
+        old = next(t for t in first["teams"] if t["roster_id"] == team["roster_id"])
+        team.update(expected_latest_revision=2, expected_latest_hash=old["revision_hash"])
+        for m in team["members"]:
+            for p in m["role_provenance"]["roles"].values():
+                p["original_evidence"] += " 新證據"
+    second = annotate_package(c, newer, "a" * 64)
+    for team in newer["teams"]:
+        old = next(t for t in second["teams"] if t["roster_id"] == team["roster_id"])
+        team.update(expected_latest_revision=3, expected_latest_hash=old["revision_hash"])
+    restored = annotate_package(c, newer, "a" * 64, {t["roster_id"]: 2 for t in doc["teams"]})
+    c.execute("SET CONSTRAINTS ALL IMMEDIATE")
+    assert {t["revision_hash"] for t in first["teams"]} == {t["revision_hash"] for t in restored["teams"]}
+    assert all(t["annotation_version"] == 4 for t in restored["teams"])
+
+
+def test_cli_v2_invalid_approval_zero_writes(connection, monkeypatch, tmp_path, capsys):
+    import json
+    from contextlib import contextmanager
+    c, _ = connection
+    doc = real_package(c)
+    file = tmp_path / "roles.json"
+    file.write_text(json.dumps(doc, ensure_ascii=False))
+    @contextmanager
+    def same_connection():
+        yield c
+    monkeypatch.setattr(db, "conn", same_connection)
+    assert run_roster.run(["annotate", str(file), "--format", "roles-v2",
+                           "--confirm-approval-hash", "f" * 64]) == 15
+    assert "核准表hash" in capsys.readouterr().err
+    assert c.execute("SELECT count(*) FROM cpbl.roster_annotation_revision WHERE revision=2").fetchone()[0] == 0
