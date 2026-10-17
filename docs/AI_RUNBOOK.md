@@ -152,7 +152,7 @@ uv run cpbl-roster annotate restore-input.json --format roles-v2 --confirm-appro
 
 v2在同一交易鎖兩隊後追加；任一隊失敗全rollback，同內容重送unchanged。`show`同時回annotation_version／role_format_version／revision_hash與完整陣列。資料回復只能追加完整v1/v2版本，再走名單專用同步對帳，之後才退程式；不可刪歷史、關閉不可變守衛或down migration。v1 hash與會員／來源hash不變。API v2舊scalar固定null，所有本專案消費端使用角色陣列；外部scalar消費者不等同支援多重角色。
 
-`cpbl.rosters.sync`含v2歷史時要求兩次明確`--scope YEAR:KIND:TEAM`；plan／apply／reconcile必須使用同一兩隊allowlist。scoped模式只准兩端既有名單追加revision，交易內再驗scope，不插入會員或名單頭；未知格式／缺角色欄拒絕。正式入口仍只有下列ROSTER_ONLY鏈，不能用模組直接對正式寫入；#316與#293共享腳本整合完成前不可執行v2正式同步。
+`cpbl.rosters.sync`含v2歷史時要求兩次明確`--scope YEAR:KIND:TEAM`；plan／apply／reconcile必須使用同一兩隊allowlist。scoped模式只准兩端既有名單追加revision，交易內再驗scope，不插入會員或名單頭；未知格式／缺角色欄拒絕。正式入口仍只有ROSTER_ONLY鏈，不能用模組直接對正式寫入。入口以`ROSTER_SCOPES=2026:C:AAA011,2026:C:ACN011`明示兩隊，搭配`ROSTER_ONLY=1 SKIP_SCRAPE=1 BACKUP_DIR=<獨立絕對路徑>`；只在該模式接受此變數。plan的schema預檢不過回69，在備份與寫入前停止，不由同步執行migration；apply內部事後對帳沿用同一allowlist。
 
 - **不可變**：每 (year, series, team) 一份；三表 UPDATE／DELETE／TRUNCATE 由觸發器拒絕，sync_table 式 `ON CONFLICT DO UPDATE` 也會被擋；每份恰 32 人由延遲約束在提交時保證。同內容重送回原 `roster_id`、不重算提交時間；不同內容拒絕並列差異。錯匯⛔ 不 routine 修改：停止對外宣稱已核，交需求方例外裁定、另卡處理。
 - **身分**：`@id=` 或同年同隊（team_roster／一軍出賽／已提交名單）範圍內唯一精確姓名才解析；⛔ 不模糊比對、⛔ 不創假 ID。外籍三態：`players.country` 缺＝身分未知，不猜成本土，摘要標「外籍資格檢查不完整」；已核洋將 > 3 拒絕。參賽隊只驗 team_dim 存在，系列參賽資格需人工確認（S02 契約未核定）。

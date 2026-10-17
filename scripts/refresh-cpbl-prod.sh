@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # LIFECYCLE: standing · 常設工具——這就是給你跑的；不要刪
-# CPBL 線上資料手動更新（不掛 cron，避免浪費資源；要更新時自己跑）。
+# CPBL 線上資料手動更新；ROSTER_ONLY 的 v2 角色同步須以 ROSTER_SCOPES 明示兩隊。
 #
 # 為什麼要在本機跑：CPBL 官網（HiNetCDN）對海外 IP 封鎖資料路徑，VPS 爬不到，
 # 只有台灣 IP（你的 Mac）能爬。故流程＝本機爬 → 非破壞性 upsert 同步到 prod →
@@ -51,6 +51,8 @@ scripts/refresh-cpbl-prod.sh — 把本機 CPBL 資料同步到 production（四
   LINEUP_ONLY=1 SKIP_SCRAPE=1 ./scripts/refresh-cpbl-prod.sh # 有限公告；不爬、不訓練、不檢查整鏈 freshness
   ROSTER_ONLY=1 SKIP_SCRAPE=1 BACKUP_DIR=<獨立目錄> ./scripts/refresh-cpbl-prod.sh
                                                               # 季後 32 人名單三表 insert-only 同步（手動、需授權）
+  ROSTER_ONLY=1 SKIP_SCRAPE=1 ROSTER_SCOPES=2026:C:AAA011,2026:C:ACN011 BACKUP_DIR=<獨立目錄> ./scripts/refresh-cpbl-prod.sh
+                                                              # v2角色只追加這兩份既有名單，不新增會員
   TEAM_COMPARISON_ONLY=1 SKIP_SCRAPE=1 BACKUP_DIR=<獨立目錄> ./scripts/refresh-cpbl-prod.sh
                                                               # 隊伍比較摘要三表 insert-only 同步（手動、需授權）
 
@@ -65,6 +67,8 @@ scripts/refresh-cpbl-prod.sh — 把本機 CPBL 資料同步到 production（四
   ROSTER_ONLY   1＝搭配 SKIP_SCRAPE=1 與獨立 BACKUP_DIR，只做名單三表 insert-only 同步
                 （唯讀比對；無變更不備份不寫；有待插入才備份＋單交易插入＋事後對帳；
                  不 migrate、不爬、不訓練、不寫 refresh 標記、不碰其他表）
+  ROSTER_SCOPES 僅限 ROSTER_ONLY=1；兩個不同 YEAR:E或C:TEAM，以逗號分隔、無空白
+                v2歷史必填；同一allowlist交plan、apply與內部reconcile，schema未備妥69停在備份前
   TEAM_COMPARISON_ONLY
                 1＝搭配 SKIP_SCRAPE=1 與獨立 BACKUP_DIR，只做隊伍比較摘要三表 insert-only 同步
                 （與 ROSTER_ONLY 同形：唯讀比對；無變更不備份不寫；有待寫才備份＋單交易寫入＋事後對帳）
@@ -105,6 +109,11 @@ API_INFO_URL="${API_INFO_URL:-https://cpbl.ruan-ruan.com/api/info}"
 REPO_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 YEAR="$(date +%Y)"
 PREV="$((YEAR - 1))"
+
+if [ -n "${ROSTER_SCOPES:-}" ] && [ "${ROSTER_ONLY:-}" != 1 ]; then
+  echo 'FATAL: ROSTER_SCOPES 只能搭配 ROSTER_ONLY=1，不得帶入完整刷新或其他模式' >&2
+  exit 64
+fi
 
 # 原有限投影與自然鍵guard共用於正常/full及LINEUP_ONLY。
 prepare_lineup_copy() {
@@ -263,6 +272,21 @@ if [ -n "${ROSTER_ONLY:-}" ]; then
     echo 'FATAL: ROSTER_ONLY=1 必須搭配 SKIP_SCRAPE=1，且不得與 WITH_DETAIL／LINEUP_ONLY／POSTSEASON_RESULTS_ONLY 併用' >&2
     exit 64
   fi
+  if [ -n "${ROSTER_SCOPES:-}" ]; then
+    IFS=, read -r -a ROSTER_SCOPE_VALUES <<< "$ROSTER_SCOPES"
+    if [ "${#ROSTER_SCOPE_VALUES[@]}" != 2 ] \
+       || [ "$ROSTER_SCOPES" != "${ROSTER_SCOPE_VALUES[0]},${ROSTER_SCOPE_VALUES[1]}" ] \
+       || [ "${ROSTER_SCOPE_VALUES[0]}" = "${ROSTER_SCOPE_VALUES[1]}" ]; then
+      echo 'FATAL: ROSTER_SCOPES 必須為兩個不同scope，以單一逗號分隔' >&2
+      exit 64
+    fi
+    for ROSTER_SCOPE in "${ROSTER_SCOPE_VALUES[@]}"; do
+      if [[ ! "$ROSTER_SCOPE" =~ ^(19|20)[0-9]{2}:[EC]:[A-Z0-9]{6}$ ]]; then
+        echo 'FATAL: ROSTER_SCOPES 格式須為 YEAR:E或C:TEAM，不能含空白或額外字元' >&2
+        exit 64
+      fi
+    done
+  fi
   # 比的是「實際目錄」不是字串（#284 R1 F1）：尾端 /、/.、..、symlink 都可能指回每日鏈目錄，
   # 而 backup-prod-db.sh 會在該目錄輪替刪檔。故只收絕對路徑，雙方以 realpath 正規化後比較，
   # 並把正規化後的同一個值交給備份腳本（檢查的與使用的是同一個目錄）。
@@ -280,10 +304,17 @@ if [ -n "${ROSTER_ONLY:-}" ]; then
   cd "$REPO_DIR"
   ROSTER_LOCAL_PSQL="docker exec -i ${LOCAL_DB} psql -U cpbl -d cpbl"
   ROSTER_TARGET_PSQL="ssh -o BatchMode=yes ${VPS} 'cd ${DEPLOY_PATH} && set -a && . ./.env && docker exec -i prod_pg psql -U \"\$DB_USER\" -d \"\$DB_NAME\"'"
+  # Bash 3.2 的 nounset 不能直接展開空陣列；從非空基本參數建立同一命令向量。
+  ROSTER_SYNC_ARGS=(--local-psql "$ROSTER_LOCAL_PSQL" --target-psql "$ROSTER_TARGET_PSQL")
+  if [ -n "${ROSTER_SCOPES:-}" ]; then
+    for ROSTER_SCOPE in "${ROSTER_SCOPE_VALUES[@]}"; do
+      ROSTER_SYNC_ARGS+=(--scope "$ROSTER_SCOPE")
+    done
+  fi
   echo '==> 名單三表：唯讀比對本機與 production（insert-only）'
   # 非零（67／69／70／72）在 set -e 下原碼結束：拒絕不重試、不備份、不寫。
   ROSTER_PLAN="$(uv run python -m cpbl.rosters.sync plan \
-    --local-psql "$ROSTER_LOCAL_PSQL" --target-psql "$ROSTER_TARGET_PSQL")"
+    "${ROSTER_SYNC_ARGS[@]}")"
   echo "$ROSTER_PLAN"
   case "$ROSTER_PLAN" in
     *ROSTER_SYNC_PLAN=no-change*)
@@ -302,7 +333,7 @@ if [ -n "${ROSTER_ONLY:-}" ]; then
   echo "    ✓ 已驗證備份：${BACKUP_PATH}"
   echo '==> 名單三表：單交易 insert-only 寫入＋事後對帳'
   uv run python -m cpbl.rosters.sync apply \
-    --local-psql "$ROSTER_LOCAL_PSQL" --target-psql "$ROSTER_TARGET_PSQL"
+    "${ROSTER_SYNC_ARGS[@]}"
   echo '==> 名單三表：完成（只代表名單三表同步與對帳，不代表整鏈刷新）'
   exit 0
 fi

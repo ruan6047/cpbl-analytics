@@ -145,3 +145,38 @@ def test_backup_receives_canonical_dir(tmp_path):
     assert r.returncode == 0, r.stderr
     assert actions[1][0] == "backup"
     assert actions[1][1] == os.path.realpath(tmp_path / "roster-backups")
+
+
+def test_two_roster_scopes_pass_unchanged_to_plan_and_atomic_apply(tmp_path):
+    scopes = "2026:C:AAA011,2026:C:ACN011"
+    r, actions = harness(tmp_path, ROSTER_SCOPES=scopes)
+    assert r.returncode == 0, r.stderr
+    for call in _sync_calls(actions):
+        indexes = [i for i, arg in enumerate(call) if arg == "--scope"]
+        assert [call[i + 1] for i in indexes] == scopes.split(",")
+
+
+@pytest.mark.parametrize("scopes", ["2026:C:AAA011", "2026:C:AAA011,2026:C:AAA011",
+    "2026:A:AAA011,2026:C:ACN011", "2026:C:AAA011,2026:C:ACN011,",
+    "2026:C:AAA011,2026:C:ACN011,2026:E:ADD011", "2026:C:AAA011, 2026:C:ACN011"])
+def test_bad_scope_allowlist_stops_before_any_external_action(tmp_path, scopes):
+    r, actions = harness(tmp_path, ROSTER_SCOPES=scopes)
+    assert r.returncode == 64 and actions == []
+
+
+def test_roster_scope_cannot_leak_into_full_refresh(tmp_path):
+    r, actions = harness(tmp_path, ROSTER_ONLY="", ROSTER_SCOPES="2026:C:AAA011,2026:C:ACN011")
+    assert r.returncode == 64 and actions == []
+
+
+@pytest.mark.parametrize("mode", ["nochange", "notable"])
+def test_scoped_no_change_or_missing_v2_schema_never_backs_up(tmp_path, mode):
+    r, actions = harness(tmp_path, mode=mode, ROSTER_SCOPES="2026:C:AAA011,2026:C:ACN011")
+    assert r.returncode == (0 if mode == "nochange" else 69)
+    assert [a[0] for a in actions] == ["uv"]
+
+
+@pytest.mark.parametrize("other", ["TEAM_COMPARISON_ONLY", "LINEUP_ONLY", "POSTSEASON_RESULTS_ONLY"])
+def test_scoped_mode_remains_exclusive(tmp_path, other):
+    r, actions = harness(tmp_path, ROSTER_SCOPES="2026:C:AAA011,2026:C:ACN011", **{other: "1"})
+    assert r.returncode == 64 and actions == []
