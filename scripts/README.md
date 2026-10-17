@@ -164,7 +164,7 @@
 
 ## 引用完整性（不變式 3）
 
-全庫 `scripts/<name>.<ext>` 字面路徑共 **1139** 處。**只有 `enforced` 那一面強制**——其餘的過期是歷史事實不是缺陷：
+全庫 `scripts/<name>.<ext>` 字面路徑共 **1143** 處。**只有 `enforced` 那一面強制**——其餘的過期是歷史事實不是缺陷：
 
 | 面別 | 處數 | 強制？ | 為什麼 |
 |---|---:|---|---|
@@ -173,7 +173,7 @@
 | `enforced` | 191 | ✅ 強制 | `scripts/`、`src/`、活契約與設計文件——壞了就是現在的缺陷 |
 | `self` | 190 | 不適用 | 掃描器自身的說明範例 |
 | `historical` | 152 | 回報 | `docs/archive/**` 與卡片交付產物＝凍結證據，**本卡射程外** |
-| `fixture` | 45 | 不適用 | `tests/**` 的合成路徑；真實路徑壞掉 pytest 自己會紅（更強的機制） |
+| `fixture` | 49 | 不適用 | `tests/**` 的合成路徑；真實路徑壞掉 pytest 自己會紅（更強的機制） |
 
 **壞路徑——歷史面（僅回報）（3）**：
 
@@ -319,7 +319,7 @@ shell 沒有 argparse，判準原本是一條寬鬆正則（「有 `getopts`／`
 | `pa_transition_taxonomy.py` | 常設工具 | `scripts/` | ✅ | 唯讀 | ✅ --help 安全 | GAME-RECAP-PA1-TAXONOMY1 | GAME-RECAP-PA1-TAXONOMY1：canonical PA 狀態機 transition taxonomy 唯讀稽核。 | canonical taxonomy 的產生器（唯讀）；產物勿手改，改了要重跑 |
 | `postseason-evening.sh` | 常設工具 | `scripts/` | ✅ | **寫** | ✅ --help 安全 | — | 季後期間才安裝的事件觸發晚間鏈（#268 WP3）；製作≠啟用，安裝屬 P1 共享操作。 | ⚠️ 未查證 |
 | `reconcile_scoreless_streak.py` | 常設工具 | `scripts/` | ✅ | 唯讀 | ✅ --help 安全 | ML-PITCHER-SCORELESS1 | 窮舉對帳：連續無自責分局數（ML-PITCHER-SCORELESS1）＋連續無失分局數（ML-PITCHER-RUNLESS1）。 | 窮舉對帳；AI_RUNBOOK:380 寫「改動演算法後必跑」，義務靠人記得 |
-| `refresh-cpbl-prod.sh` | 常設工具 | `scripts/` | ✅ | **寫** | ✅ --help 安全 | — | CPBL 線上資料手動更新（不掛 cron，避免浪費資源；要更新時自己跑）。 | 本機爬完同步生產的主鏈；讀碼確認會呼叫 backup-prod-db.sh 與 verify_refresh_info.py |
+| `refresh-cpbl-prod.sh` | 常設工具 | `scripts/` | ✅ | **寫** | ✅ --help 安全 | — | CPBL 線上資料手動更新（不掛 cron，避免浪費資源；要更新時自己跑）。 | 本機爬完同步生產的主鏈；ROSTER_ONLY 的 v2 角色以 ROSTER_SCOPES 明示兩隊，schema不足在備份前拒絕；完整鏈呼叫 backup-prod-db.sh 與 verify_refresh_info.py |
 | `refresh_status.py` | 常設工具 | `scripts/` | ✅ | 唯讀 | ✅ --help 安全 | OPS-SCHEDULE-FAILURE-BLIND1 | Write and inspect machine-readable daily refresh status files. 兩種產物，語意不同，不要混用： 1. `logs/last-*.json`（`start`／`finish` 寫）——**最近一次**執行的完整快照，供人／AI 接手診斷。 | 每日鏈的狀態記錄輔助，唯讀 JSON 檔 |
 | `review_gate_inventory.py` | 常設工具 | `scripts/` | ✅ | 唯讀 | ✅ --help 安全 | DEV-REVIEW-PROMPT-GUARD1 | 多關卡（multi-gate）查核要求的可重現盤點——**含分類與計數**。 | ⚠️ REVIEW_GATE_CONTRACT 宣告「納管＋測試」但實測無測試載入，宣告未落實 |
 | `review_prompt.py` | 常設工具 | `scripts/` | ✅ | 唯讀 | ⚠️ --help 不安全 | DEV-BASELINE-GUARD-DECL1 | 審核提示詞產生器：從 control-plane 最新 handoff event + 卡片檔自動生成查核提示詞。 | 查核提示詞產生器；AI_RUNBOOK:433 逐字給指令，18 commits |

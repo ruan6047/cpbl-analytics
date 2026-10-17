@@ -108,8 +108,8 @@ export const COMPARISON_COPY = {
   heading: "隊伍表現",
   loadFailed: "第 2 區資料暫時無法讀取，其他區不受影響。",
   scopeTabsLabel: "比較範圍",
-  scopeLabel: { season_a: "全年（例行賽）", head_to_head_a: "兩隊例行賽對戰", series: "本系列" } as Record<ComparisonScopeKey, string>,
-  streakLabel: { season_a: "例行賽結束時", head_to_head_a: "對戰", series: "本系列" } as Record<ComparisonScopeKey, string>,
+  scopeLabel: { season_a: "例行賽", head_to_head_a: "例行賽對戰", series: "本系列" } as Record<ComparisonScopeKey, string>,
+  streakLabel: { season_a: "例行賽", head_to_head_a: "對戰", series: "本系列" } as Record<ComparisonScopeKey, string>,
   /** 方向只留箭頭（格內）；「數值高／低較好」的說明句在頁尾圖例（NOTE_COPY.directionLegend）。 */
   higherBetter: "↑",
   lowerBetter: "↓",
@@ -128,7 +128,7 @@ export const COMPARISON_COPY = {
   leagueRef: "聯盟平均",
   topTraitsLabel: "聯盟前段特徵",
   rankChip: (label: string, rank: number) => `${label} · 第 ${rank}`,
-  rawVsLeague: (raw: string, league: string) => `${raw}（聯盟平均 ${league}）`,
+  rawVsLeague: (raw: string, league: string) => `${raw}（均 ${league}）`,
   sample: {
     games: (n: number) => `${n} 場`,
     pa: (n: number) => `${n} 打席`,
@@ -136,6 +136,9 @@ export const COMPARISON_COPY = {
     ip: (outs: number) => `${outsToIp(outs)} 局`,
   },
 } as const;
+
+export const COMPARISON_METHOD_HELP =
+  "比較條兩隊共用同年例行賽六隊全距尺度（↑ 高較好、↓ 低較好）；全年與對戰只計例行賽已完成場次，本系列讀取季後賽逐場 box。";
 
 // T5：例行賽背景與本系列實際並列；⛔ 不稱預測誤差。「不是事前判斷」的說明句在頁尾（NOTE_COPY.t5）。
 export const T5_COPY = {
@@ -326,12 +329,7 @@ function metricReasonText(data: ComparisonPayload): string | null {
  * `notes(null)` 只回固定說明。純函式、同步、不讀時鐘、不讀 window、不發請求。
  */
 export function comparisonNotes(data: ComparisonPayload | null): ComparisonNote[] {
-  const notes: ComparisonNote[] = [
-    { key: "teams.direction_legend", text: NOTE_COPY.directionLegend },
-    { key: "teams.data_source", text: NOTE_COPY.source },
-    { key: "teams.sample_limit", text: NOTE_COPY.sample },
-    { key: "teams.t5_side_by_side", text: NOTE_COPY.t5 },
-  ];
+  const notes: ComparisonNote[] = [];
   if (!data) return notes;
   const season = data.scopes.season_a;
   const when = taipeiStamp(season.source?.built_at);
@@ -340,9 +338,6 @@ export function comparisonNotes(data: ComparisonPayload | null): ComparisonNote[
   } else if (season.status === "stale" && when) {
     notes.push({ key: "teams.summary_stale", text: season.source?.stale_reason === "pending_rebuild"
       ? NOTE_COPY.stalePending(when) : NOTE_COPY.staleGames(when) });
-  }
-  if (when && season.source) {
-    notes.push({ key: "teams.summary_built_at", text: NOTE_COPY.builtAt(when, season.source.completed_games) });
   }
   const series = data.scopes.series;
   if (series.status === "pending_source" && series.missing_game_keys.length) {

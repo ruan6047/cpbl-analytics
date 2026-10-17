@@ -6,6 +6,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { Tooltip } from "@/components/tooltip.tsx";
 import { WatchSection } from "./watch-section.tsx";
 import { streakOf, streakText } from "./watch-load.ts";
+import { PitcherLoadRow } from "./watch-load-strip.tsx";
 import type { Load, LoadLevel, PlayoffsWatch, RecentAppearance, WatchPitcher, WatchStarter, WatchTeam } from "@/lib/playoffs-watch.ts";
 
 // #289 S08 WP3：第 4 區各態文字（灰／綠／橘／紅／先發不套燈號）、名單缺。
@@ -61,6 +62,16 @@ function pitcher(id: string, role: string | null, l: Load, visible = true): Watc
       role_type: "中繼", pitches: 18, outs: 3, ip: "1.0" }],
     registration: { status: "unknown", text: "未知（當場登錄來源尚未接入）" } };
 }
+
+test("兼任先發與長中繼只列一位投手，完整兩標籤與原low燈號", () => {
+  const p = { ...pitcher("0000000001", null, load("low")), role_format_version: 2 as const,
+    tactical_roles: ["先發", "長中繼"] };
+  const markup = renderToStaticMarkup(<PitcherLoadRow p={p} scaleMax={1} />);
+  assert.equal((markup.match(/data-role=/g) ?? []).length, 2);
+  assert.match(text(<PitcherLoadRow p={p} scaleMax={1} />), /#先發.*#長中繼/);
+  assert.doesNotMatch(markup, /角色未標記/);
+  assert.equal((markup.match(/data-level="low"/g) ?? []).length, 1);
+});
 
 function team(code: string, pitchers: WatchPitcher[], roster = true): WatchTeam {
   return { side: code === "ACN011" ? "away" : "home", team_code: code,
@@ -166,7 +177,7 @@ test("官方先發投手：未公告 ⇒ 兩格各寫「待公告」，標題「
   const d = watch([]);
   const html = renderToStaticMarkup(<WatchSection data={d} />);
   assert.equal((html.match(/data-starter-status="pending"/g) ?? []).length, 2);
-  assert.match(visible(d), /官方先發投手 兄弟 待公告 味全 待公告 牛棚近期使用負荷/);
+  assert.match(visible(d), /官方先發投手.*兄弟 待公告.*味全 待公告 牛棚近期使用負荷/);
   assert.equal((visible(d).match(/待公告/g) ?? []).length, 2);
   assert.doesNotMatch(visible(d), /S11|未知|先發對決與看點/);
 });

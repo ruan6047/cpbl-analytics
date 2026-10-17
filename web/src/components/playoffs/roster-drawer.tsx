@@ -49,12 +49,13 @@ function useBodyScrollLock() {
   }, []);
 }
 
-export function RosterDrawer({ member, year, series, sectionVersion, onClose }: {
+export function RosterDrawer({ member, year, series, sectionVersion, sectionRosterVersion, onClose }: {
   member: RosterMember;
   year: number;
   series: "E" | "C";
   /** 目前區資料的 `context_version`（輪詢更新時會變；抽屜不關，只比對版本）。 */
   sectionVersion: string | null;
+  sectionRosterVersion: string;
   onClose: () => void;
 }) {
   const panelRef = useRef<HTMLDivElement>(null);
@@ -89,7 +90,7 @@ export function RosterDrawer({ member, year, series, sectionVersion, onClose }: 
     return () => document.removeEventListener("keydown", onKey);
   }, [onClose]);
 
-  const state = drawerState(detail, failed, sectionVersion);
+  const state = drawerState(detail, failed, sectionVersion, sectionRosterVersion);
   const headingId = `roster-drawer-${member.player_id}`;
   return createPortal(
     <div className="fixed inset-0 z-50 flex items-end md:items-stretch md:justify-end" data-roster-drawer={member.player_id}>

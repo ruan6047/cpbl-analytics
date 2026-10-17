@@ -1,10 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { MainTabs, TabPanel } from "@/components/hierarchical-tabs";
 import { SectionTitle } from "@/components/postmark";
+import { NavBarRow, StickyNavBar } from "@/components/sticky-nav-bar";
 import { ErrorState, Notice } from "@/components/ui";
 import { CLIENT_API } from "@/lib/client";
-import { orderedRegistrations, type AreaRegistration, type RegisteredAreaId } from "@/lib/playoffs-areas";
+import { orderedRegistrations, type AreaRegistration, type PlayoffsAreaId, type RegisteredAreaId } from "@/lib/playoffs-areas";
 import { PAGE_NOTES, mergeNotes, shownData, warnNoteConflicts } from "@/lib/playoffs-notes";
 import { PlayoffsPoller, fetchJson, type VersionedArea, type WatchState } from "@/lib/playoffs-poll";
 import { seriesSummaryNotes } from "@/lib/playoffs-series-summary";
@@ -21,7 +23,7 @@ import { WatchArea } from "./watch-area";
 // `/playoffs` 的 client 外殼（#285 S04）：持有 overview、第 4 區與第 2／3 區狀態並跑共用輪詢控制器（playoffs-poll.ts）。
 // 首屏 SSR 只給 overview（HTML 已含第 1 區）；掛載後立即一輪「overview → watch → 已啟用的區」，之後每 30 秒一輪。
 // watch 與各區一律 client 端自取 `CLIENT_API`：⛔ 用各卡讀 server 端 API_URL 的取數函式（瀏覽器內會退回 localhost:4001）。
-// 區塊順序固定 1→4→3→2（需求方 C2）；第 2／3 區只在 `area-registry.ts` 有登記時出現（C1），接近 viewport 才載入。
+// 區塊順序固定 1→4→3→2（需求方 C2）；第 2／3 區只在 `area-registry.ts` 有登記時出現（C1），接近 viewport 或切到該頁籤才載入。
 // 頁尾說明（6194706200）：PAGE_NOTES＋第 1 區 `seriesNotes`／#288 `seriesSummaryNotes`（畫面上那份 overview）＋
 // 各區 `notes(畫面上那份資料)`，0 條不渲染。
 // 系列（#285 批次 B）：`series`＝網址 `?series=`（未指定為 null，跟隨 S02 預設）。SSR 與輪詢用同一個值取 overview；
@@ -29,7 +31,14 @@ import { WatchArea } from "./watch-area";
 // 輪詢只換資料：區塊位置與 key 固定，⛔ 捲動、⛔ 移焦點、⛔ remount；本元件與外框 ⛔ 設 transform／filter／contain／
 // overflow-hidden（各區抽屜以 portal z-50 疊在 sticky header 之上，契約 §2.3）。
 
-export const PLAYOFFS_LIVE_CLASS = "min-w-0 space-y-6";
+export const PLAYOFFS_LIVE_CLASS = "min-w-0 space-y-4";
+
+export const PLAYOFFS_TAB_LABELS: Record<PlayoffsAreaId, string> = {
+  series: "系列賽",
+  watch: "觀戰重點",
+  roster: "資格名單",
+  teams: "隊伍表現",
+};
 
 export function PlayoffsLive({ initial, year, game, series = null, yearParam = null, revision = null, areas }: {
   initial: PlayoffsOverview | null;
@@ -45,6 +54,8 @@ export function PlayoffsLive({ initial, year, game, series = null, yearParam = n
   areas?: AreaRegistration<any>[];
 }) {
   const regs = useMemo(() => orderedRegistrations(areas ?? PLAYOFFS_AREAS), [areas]);
+  const tabIds = useMemo<PlayoffsAreaId[]>(() => ["series", "watch", ...regs.map((r) => r.id)], [regs]);
+  const [activeTab, setActiveTab] = useState<PlayoffsAreaId>("series");
   const [overview, setOverview] = useState<PlayoffsOverview | null>(initial);
   const [watchResult, setWatchResult] = useState<{ game: number | null; revision: string | null; state: WatchState<PlayoffsWatch> }>({ game, revision, state: { kind: "idle" } });
   // 同一身分離開後再回來，也先清空；避免 revision 返回 null 時復用先前的現行畫面。
@@ -60,6 +71,29 @@ export function PlayoffsLive({ initial, year, game, series = null, yearParam = n
   const selectionRef = useRef({ game, revision });
   selectionRef.current = { game, revision };
   const pendingNear = useRef(new Set<RegisteredAreaId>());
+
+  const onNear = useCallback((id: RegisteredAreaId) => {
+    if (pollerRef.current) pollerRef.current.activate(id);
+    else pendingNear.current.add(id);
+  }, []);
+
+  useEffect(() => {
+    const syncHash = () => {
+      const h = window.location.hash.replace(/^#/, "") as PlayoffsAreaId;
+      if (tabIds.includes(h)) {
+        setActiveTab(h);
+        if (h === "roster" || h === "teams") onNear(h);
+      }
+    };
+    syncHash();
+    window.addEventListener("hashchange", syncHash);
+    return () => window.removeEventListener("hashchange", syncHash);
+  }, [tabIds, onNear]);
+
+  const handleTabChange = useCallback((tab: PlayoffsAreaId) => {
+    setActiveTab(tab);
+    if (tab === "roster" || tab === "teams") onNear(tab);
+  }, [onNear]);
 
   useEffect(() => {
     const poller = new PlayoffsPoller<PlayoffsOverview, PlayoffsWatch>({
@@ -108,11 +142,6 @@ export function PlayoffsLive({ initial, year, game, series = null, yearParam = n
     pollerRef.current?.setGame(game);
   }, [game]);
 
-  const onNear = useCallback((id: RegisteredAreaId) => {
-    if (pollerRef.current) pollerRef.current.activate(id);
-    else pendingNear.current.add(id);
-  }, []);
-
   const { notes, conflicts } = mergeNotes([
     { area: "series", notes: [...PAGE_NOTES.series, ...seriesNotes(overview), ...seriesSummaryNotes(overview)] },
     { area: "watch", notes: PAGE_NOTES.watch },
@@ -122,19 +151,53 @@ export function PlayoffsLive({ initial, year, game, series = null, yearParam = n
   // eslint-disable-next-line react-hooks/exhaustive-deps -- 以內容字串為依賴，避免每次渲染重複 warn
   useEffect(() => warnNoteConflicts(conflicts), [conflictKey]);
 
+  const tabs = useMemo(
+    () => tabIds.map((id) => ({ value: id, label: PLAYOFFS_TAB_LABELS[id] })),
+    [tabIds],
+  );
+
   return (
     <div className={PLAYOFFS_LIVE_CLASS}>
       <SectionTitle as="h1" date={year} meta={overview ? <span data-as-of>{asOfText(overview)}</span> : undefined}>
         季後賽
       </SectionTitle>
-      <SeriesSwitch selected={overview?.selected_series ?? series ?? overview?.default_series ?? null} year={yearParam} />
-      {pollFailed && overview && <Notice label="暫時無法更新">{SERIES_COPY.pollFailed}</Notice>}
-      {overview ? <SeriesSection overview={overview} /> : <ErrorState>{SERIES_COPY.overviewFailed}</ErrorState>}
-      <WatchArea state={watch} overview={overview} requested={game !== null} identity={{ year, series: series ?? overview?.selected_series ?? overview?.default_series ?? null, game, revision }} />
-      {regs.map((r) => (
-        <AreaFrame key={r.id} id={r.id} state={areaStates[r.id] ?? { kind: "idle" }} Section={r.Section}
-          minHeightPx={r.minHeightPx} onNear={onNear} />
-      ))}
+      <div>
+        <StickyNavBar label="季後賽導覽" flush>
+          <NavBarRow
+            align="end"
+            main={<MainTabs items={tabs} value={activeTab} onChange={handleTabChange} label="季後賽分區" />}
+            controls={<SeriesSwitch selected={overview?.selected_series ?? series ?? overview?.default_series ?? null} year={yearParam} />}
+          />
+        </StickyNavBar>
+        <TabPanel className="space-y-4">
+          {pollFailed && overview && <Notice label="暫時無法更新">{SERIES_COPY.pollFailed}</Notice>}
+          {overview ? (
+            <SeriesSection overview={overview} hidden={activeTab !== "series"} />
+          ) : (
+            <div hidden={activeTab !== "series" || undefined}>
+              <ErrorState>{SERIES_COPY.overviewFailed}</ErrorState>
+            </div>
+          )}
+          <WatchArea
+            state={watch}
+            overview={overview}
+            requested={game !== null}
+            identity={{ year, series: series ?? overview?.selected_series ?? overview?.default_series ?? null, game, revision }}
+            hidden={activeTab !== "watch"}
+          />
+          {regs.map((r) => (
+            <AreaFrame
+              key={r.id}
+              id={r.id}
+              state={areaStates[r.id] ?? { kind: "idle" }}
+              Section={r.Section}
+              minHeightPx={r.minHeightPx}
+              onNear={onNear}
+              hidden={activeTab !== r.id}
+            />
+          ))}
+        </TabPanel>
+      </div>
       <PageNotes notes={notes} />
     </div>
   );

@@ -27,10 +27,11 @@ test("焦點陷阱：Tab 在最後回第一、Shift+Tab 在第一到最後；中
 });
 
 test("版本固定：詳情 context_version ≠ 區資料 ⇒ stale「資料已更新，請重開」；失敗、載入中各自狀態", () => {
-  assert.equal(drawerState(null, false, "v1").kind, "loading");
-  assert.equal(drawerState(null, true, "v1").kind, "error");
-  assert.equal(drawerState(detail("v1"), false, "v1").kind, "ready");
-  assert.equal(drawerState(detail("v1"), false, "v2").kind, "stale");
+  assert.equal(drawerState(null, false, "v1", "rv").kind, "loading");
+  assert.equal(drawerState(null, true, "v1", "rv").kind, "error");
+  assert.equal(drawerState(detail("v1"), false, "v1", "rv").kind, "ready");
+  assert.equal(drawerState(detail("v1"), false, "v2", "rv").kind, "stale");
+  assert.equal(drawerState(detail("v1"), false, "v1", "roles-updated").kind, "stale");
   assert.equal(DRAWER_COPY.stale, "資料已更新，請重開。");
 });
 

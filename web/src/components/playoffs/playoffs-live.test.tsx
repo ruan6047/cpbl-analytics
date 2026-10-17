@@ -55,14 +55,16 @@ test("C1：只登記一區時另一區連錨點都不出現", () => {
   assert.deepEqual(ids(out), ["series", "watch", "teams"]);
 });
 
-test("頁尾說明：未載入時用 notes(null) 的固定說明、依 C2 排序、重複 common.* 只出一次、在所有區塊之後", () => {
+test("頁尾說明：未載入時用 notes(null) 的說明、依 C2 排序、重複 common.* 只出一次、在所有區塊之後；主導覽整合 MainTabs 與 SeriesSwitch", () => {
   const out = html(<PlayoffsLive initial={REAL} year={2026} game={null} areas={[
     fake("teams", (d) => [{ key: "common.box_source", text: "共用說明" }, { key: "teams.fixed", text: "假第 2 區固定說明" },
       ...(d ? [{ key: "teams.dynamic", text: `依資料 ${d.label}` }] : [])]),
     fake("roster", () => [{ key: "roster.fixed", text: "假第 3 區固定說明" }, { key: "common.box_source", text: "共用說明" }]),
   ]} />);
+  assert.match(out, /aria-label="季後賽分區"/);
+  for (const label of ["系列賽", "觀戰重點", "資格名單", "隊伍表現"]) assert.match(out, new RegExp(`>${label}<`));
   const footer = /<section aria-labelledby="page-notes-heading"[\s\S]*?<\/section>/.exec(out)![0];
-  assert.deepEqual([...footer.matchAll(/<li id="note-([^"]+)"/g)].map((m) => m[1]), ["series.schedule_source", "roster.fixed", "common.box_source", "teams.fixed"]);
+  assert.deepEqual([...footer.matchAll(/<li id="note-([^"]+)"/g)].map((m) => m[1]), ["roster.fixed", "common.box_source", "teams.fixed"]);
   assert.match(footer, /資料說明/);
   assert.doesNotMatch(footer, /依資料/);
   assert.ok(out.indexOf('id="teams"') < out.indexOf("page-notes-heading"));

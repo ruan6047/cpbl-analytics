@@ -165,7 +165,8 @@ def _classify(metrics: Mapping[str, int]) -> tuple[str, list[dict]]:
 
 
 def bullpen_load(target_date: date, appearances: Sequence[Appearance],
-                 coverage: Mapping[date, DayCoverage], *, tactical_role: str | None) -> dict:
+                 coverage: Mapping[date, DayCoverage], *, tactical_role: str | None = None,
+                 tactical_roles: Sequence[str] | None = None) -> dict:
     """一位投手的 4A 近期使用負荷（JSON-able）。
 
     ``coverage`` 必須涵蓋 D−3～D 四個日期；缺任一日 ⇒ 該日 ``no_source`` ⇒ 灰（無來源不綠）。
@@ -234,7 +235,8 @@ def bullpen_load(target_date: date, appearances: Sequence[Appearance],
         level, triggers = _classify(metrics)
     else:
         level, triggers = "unknown", []
-    if level == "low" and tactical_role == ROTATION_ROLE:
+    roles = set(tactical_roles) if tactical_roles is not None else ({tactical_role} if tactical_role else set())
+    if level == "low" and roles in ({"先發"}, {ROTATION_ROLE}):
         level = "starter_exempt"
 
     incomplete = [{"date": v["date"], "offset": v["offset"], "reasons": v["reasons"],

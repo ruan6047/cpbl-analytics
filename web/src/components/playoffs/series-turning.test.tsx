@@ -89,15 +89,14 @@ test("舊版 API（沒有 turning_points 欄）：不出轉折標題，G2 行為
   assert.ok(!keys(s).includes("series.turning_method"));
 });
 
-test("頁尾：固定方法說明一條、key 穩定、與 PAGE_NOTES 合併無衝突、每條 ≤80 字", () => {
+test("頁尾：動態降級／部分涵蓋說明 key 穩定、與 PAGE_NOTES 合併無衝突、每條 ≤80 字", () => {
   const s = sum();
-  assert.ok(keys(s).includes("series.turning_method"));
+  assert.deepEqual(keys(s), []);
   s.current = { ...structuredClone(s.previous!), kind_code: "C", status: "partial", games_covered: 1, games_total: 2, missing_games: [2] };
   s.current.turning_points = { ...s.current.turning_points!, scope: "covered_only", degraded: true, signal: "delta_re24" };
   Object.assign(s.previous!.turning_points!, { degraded: true, signal: "delta_re24" });
   const { notes, conflicts } = mergeNotes([{ area: "series", notes: [...PAGE_NOTES.series, ...seriesSummaryNotes({ series_summary: s })] }]);
   assert.deepEqual(conflicts, []);
-  assert.equal(notes.filter((n) => n.key === "series.turning_method").length, 1);
   assert.ok(notes.some((n) => n.key === "series.turning_degraded_re24.C") && notes.some((n) => n.key === "series.turning_degraded_re24.E"));
   for (const n of notes) assert.ok([...n.text].length <= 80, `${n.key} ${[...n.text].length} 字`);
 });

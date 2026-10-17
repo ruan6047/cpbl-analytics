@@ -5,6 +5,8 @@ import { renderToStaticMarkup } from "react-dom/server";
 
 import { MemberCard, RosterSection, RosterView } from "./roster-section.tsx";
 import {
+  filterMembersByPos,
+  POS_FILTERS,
   rosterNotes,
   rosterPath,
   SORTS,
@@ -77,6 +79,17 @@ const A = team("AAA011", "味全", [
 ]);
 const B = team("ACN011", "兄弟", [], "missing");
 
+test("多角色平列且scalar為null：卡片與抽屜副標完整呈現，不宣告主次", () => {
+  const m = member("0000000001", "內野手", {
+    role_format_version: 2, tactical_role: null, tactical_roles: ["代打", "指定打擊"],
+  });
+  const markup = renderToStaticMarkup(<MemberCard m={m} onOpen={() => {}} />);
+  assert.equal((markup.match(/data-role=/g) ?? []).length, 2);
+  assert.match(text(<MemberCard m={m} onOpen={() => {}} />), /代打.*指定打擊/);
+  assert.match(drawerSubtitle(m), /代打、指定打擊/);
+  assert.doesNotMatch(markup, /本站角色|主角色|unclassified/);
+});
+
 test("null ⇒ 第 3 區錯誤態；標題固定", () => {
   const t = text(<RosterSection data={null} />);
   assert.match(t, /系列賽 32 人資格名單/);
@@ -91,14 +104,14 @@ test("小卡：守位、角色（有值才顯示）、G、二軍、無紀錄「�
   const html = renderToStaticMarkup(<RosterView data={payload([A, B], "partial")} team="all" sort="position" />);
   const t = text(<RosterView data={payload([A, B], "partial")} team="all" sort="position" />);
   assert.match(t, /球員11 外野手 120G/);
-  assert.match(t, /球員11 外野手 120G 主力 打擊率/);   // 角色有值：只顯示值
+  assert.match(t, /球員11 外野手 120G 主力 AVG/);       // 角色有值：只顯示值
   assert.doesNotMatch(t, /本站角色/);                   // PR3：不帶「本站角色」字樣
   assert.match(t, /二軍/);
   assert.match(t, /球員04 捕手 —/);
   assert.match(t, /wOBA PR 95/);
   assert.match(t, /奪三振% PR 91/);              // 投手用 pl 標籤
-  assert.match(t, /打擊率 \.300 · OPS \.800/);
-  assert.match(t, /防禦率 2\.70 · 50\.0 局/);
+  assert.match(t, /AVG \.300 · OPS \.800/);
+  assert.match(t, /ERA 2\.70 · 50\.0 IP/);
   assert.match(html, /data-roster-status="missing"/);
   assert.match(t, /兄弟 待更新/);               // 名單未提交：格內只留簡短狀態
 });
@@ -108,36 +121,27 @@ test("G05：區內不出現 28 人、登錄、先發、可出賽等說明（只�
   for (const w of ["28", "登錄", "先發", "可出賽", "資格名單不", "百分位", "代跑"]) assert.ok(!t.includes(w), w);
 });
 
-test("篩選：只顯示選中球隊；排序：出賽 G 多到少、無紀錄最後", () => {
+test("篩選：只顯示選中球隊；排序：投手／野手分組內依出賽 G 多到少、無紀錄最後", () => {
   const t = text(<RosterView data={payload([A, B], "partial")} team="ACN011" sort="position" />);
   assert.ok(!t.includes("球員11"));
   const html = renderToStaticMarkup(<RosterView data={payload([A, B])} team="AAA011" sort="games" />);
   const order = [...html.matchAll(/data-player="(\d+)"/g)].map((m) => m[1]);
-  assert.deepEqual(order, ["0000000011", "0000000002", "0000000003", "0000000004"]);
+  assert.deepEqual(order, ["0000000002", "0000000011", "0000000003", "0000000004"]);
+  assert.deepEqual(sortMembers(A.members, "games").map((m) => m.player_id),
+    ["0000000011", "0000000002", "0000000003", "0000000004"]);
   const byPos = sortMembers(A.members, "position").map((m) => m.player_id);
   assert.deepEqual(byPos, ["0000000002", "0000000004", "0000000003", "0000000011"]);
   assert.match(html, /aria-pressed="true"[^>]*>味全</);
 });
 
-test("頁尾說明：notes(null) 只回固定六條、全為 roster.*；依資料加缺名單、箭頭不足與二軍", () => {
-  const fixed = rosterNotes(null);
-  assert.deepEqual(fixed.map((n) => n.key), ["roster.registration_unknown", "roster.eligibility_not_availability",
-    "roster.appearance_g", "roster.official_pr_only", "roster.arrow_proposed", "roster.series_only"]);
-  assert.match(fixed[5].text, /只計目前所選系列已正式完賽的場次/);
-  assert.match(fixed[4].text, /本站建議值/);
-  assert.ok(fixed.every((n) => n.key.startsWith("roster.")));
-  assert.match(fixed[0].text, /28 人登錄/);
-  assert.match(fixed[1].text, /不代表當場登錄、先發或可出賽/);
-  assert.equal(fixed[3].source?.url, "https://stats.cpbl.com.tw");
+test("頁尾說明：固定說明收進 InfoDot（notes(null) 空陣列）；依資料動態加缺名單與待送達場次", () => {
+  assert.deepEqual(rosterNotes(null), []);
   const dyn = rosterNotes(payload([A, B], "partial")).map((n) => n.key);
-  assert.ok(dyn.includes("roster.roster_missing.ACN011"));
-  assert.ok(dyn.includes("roster.farm_background"));
-  assert.ok(dyn.includes("roster.arrow_unavailable"));
+  assert.deepEqual(dyn, ["roster.roster_missing.ACN011"]);
   assert.equal(new Set(dyn).size, dyn.length);
   const none = rosterNotes(payload([team("AAA011", "味全", [member("0000000001", "投手")])])).map((n) => n.key);
-  assert.ok(!none.includes("roster.farm_background"));
-  assert.ok(!none.includes("roster.arrow_unavailable"));
-  assert.ok(rosterNotes(payload([A, B])).every((n) => n.text.length <= 80));
+  assert.deepEqual(none, []);
+  assert.ok(rosterNotes(payload([A, B], "partial")).every((n) => n.text.length <= 80));
 });
 
 test("摘要路徑", () => {
@@ -147,12 +151,12 @@ test("摘要路徑", () => {
 test("冷熱箭頭：方向附文字（不只靠顏色）、OPS+／ERA+ 末段值；不足與 ERA0 顯示「—」", () => {
   const html = renderToStaticMarkup(<RosterView data={payload([A])} team="all" sort="position" />);
   const t = text(<RosterView data={payload([A])} team="all" sort="position" />);
-  assert.match(t, /末段 15 次 OPS\+ 132 ↑ 較前 15 次上升/);
-  assert.match(t, /末段 15 次 ERA\+ 88 ↓ 較前 15 次下降/);
+  assert.match(t, /近 15 場 OPS\+ 132 ↑ 升/);
+  assert.match(t, /近 15 場 ERA\+ 88 ↓ 降/);
   assert.match(html, /data-arrow="none"/);
   const z = member("0000000009", "投手", {}, { arrow: arrowOf("undefined", "pitching") });
   const tz = text(<RosterView data={payload([team("AAA011", "味全", [z])])} team="all" sort="position" />);
-  assert.match(tz, /末段 15 次 ERA\+ — —/);
+  assert.match(tz, /近 15 場 ERA\+ — —/);
   assert.ok(!/Infinity|999/.test(tz));
 });
 
@@ -259,7 +263,7 @@ test("PR3：角色無值整段不顯示（無 data-role、不多出「—」）�
   const t = text(<MemberCard m={none} />);
   assert.doesNotMatch(html, /data-role/);
   assert.doesNotMatch(t, /本站角色/);
-  assert.equal(t, "球員41 外野手 — — 末段 15 次 OPS+ — — 能力與走勢");   // G「—」、計數「—」、箭頭「—」照舊
+  assert.equal(t, "球員41 外野手 — — 近 15 場 OPS+ — —");   // G「—」、計數「—」、箭頭「—」照舊，整卡可點不再多印按鈕字
   const withRole = member("0000000042", "投手", { tactical_role: "勝利組" });
   const html2 = renderToStaticMarkup(<MemberCard m={withRole} />);
   assert.match(html2, /<span data-role="true" class="text-ink">勝利組<\/span>/);
@@ -273,21 +277,24 @@ test("PR3：抽屜標頭副標——角色有值只放值、無值整段省略�
   assert.equal(drawerSubtitle(member("0000000046", "外野手", {}, { level: "none", g: null })), "外野手 · —");
 });
 
-test("PR3：頁尾說明不受角色行改動影響（固定 key 與依資料 key 同改動前）", () => {
-  assert.deepEqual(rosterNotes(null).map((n) => n.key), ["roster.registration_unknown",
-    "roster.eligibility_not_availability", "roster.appearance_g", "roster.official_pr_only", "roster.arrow_proposed",
-    "roster.series_only"]);
-  assert.deepEqual(rosterNotes(payload([A, B], "partial")).map((n) => n.key), ["roster.registration_unknown",
-    "roster.eligibility_not_availability", "roster.appearance_g", "roster.official_pr_only", "roster.arrow_proposed",
-    "roster.series_only", "roster.roster_missing.ACN011", "roster.arrow_unavailable", "roster.farm_background"]);
+test("PR3：頁尾說明不受角色行改動影響（動態缺值 key 照常、不含本站角色）", () => {
+  assert.deepEqual(rosterNotes(null).map((n) => n.key), []);
+  assert.deepEqual(rosterNotes(payload([A, B], "partial")).map((n) => n.key), ["roster.roster_missing.ACN011"]);
   assert.ok(rosterNotes(payload([A, B], "partial")).every((n) => !n.text.includes("本站角色")));
 });
 
-test("PR3：排序鈕文字為「守位」（需求方裁定：內外野非官方分組，不冠「官方」），排序邏輯不變", () => {
-  assert.deepEqual(SORTS.map((x) => x.label), ["守位", "出賽 G", "箭頭方向"]);
-  const html = renderToStaticMarkup(<RosterView data={payload([A])} team="all" sort="position" />);
-  assert.match(html, /aria-pressed="true"[^>]*>守位</);
-  assert.doesNotMatch(html, /官方守位/);
+test("守位篩選與排序：排序移除「守位」，新增守位篩選（全部／投手／捕手／內野手／外野手），全部時投手與野手分組", () => {
+  assert.deepEqual(SORTS.map((x) => x.label), ["出賽 G", "箭頭方向"]);
+  assert.deepEqual(POS_FILTERS.map((x) => x.label), ["全部", "投手", "捕手", "內野手", "外野手"]);
+  const htmlAll = renderToStaticMarkup(<RosterView data={payload([A])} team="all" pos="all" sort="games" />);
+  assert.match(htmlAll, /aria-pressed="true"[^>]*>出賽 G</);
+  assert.match(htmlAll, /data-role-group="pitching"/);
+  assert.match(htmlAll, /data-role-group="batting"/);
+  assert.doesNotMatch(htmlAll, /官方守位/);
+  const htmlPos = renderToStaticMarkup(<RosterView data={payload([A])} team="all" pos="內野手" sort="games" />);
+  assert.doesNotMatch(htmlPos, /data-role-group="pitching"/);
+  assert.deepEqual(filterMembersByPos(A.members, "內野手").map((m) => m.player_id), ["0000000003"]);
   assert.deepEqual(sortMembers(A.members, "position").map((m) => m.player_id),
     ["0000000002", "0000000004", "0000000003", "0000000011"]);
 });
+

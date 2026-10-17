@@ -71,12 +71,13 @@ function anchorStates(parent: Element, target: Element): AnchorStates {
   return out;
 }
 
-export function AreaFrame<T>({ id, state, Section, minHeightPx, onNear }: {
+export function AreaFrame<T>({ id, state, Section, minHeightPx, onNear, hidden }: {
   id: RegisteredAreaId;
   state: WatchState<T>;
   Section: ComponentType<{ data: T | null }>;
   minHeightPx?: number;
   onNear?: (id: RegisteredAreaId) => void;
+  hidden?: boolean;
 }) {
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => { watchInteraction(); }, []);
@@ -123,7 +124,8 @@ export function AreaFrame<T>({ id, state, Section, minHeightPx, onNear }: {
   return (
     <div id={id} ref={ref} className={AREA_FRAME_CLASS}
       style={mountSection ? undefined : { minHeight: `${minHeightPx ?? DEFAULT_AREA_MIN_HEIGHT_PX}px` }}
-      data-area-state={state.kind}>
+      data-area-state={state.kind}
+      hidden={hidden || undefined}>
       {mountSection ? <Section data={shown} /> : null}
       {placeholder ? <p role="status" className="rounded bg-surface p-3 text-sm text-muted">{placeholder}</p> : null}
       {notice ? <Notice label="資料更新中" className="mt-3">{notice}</Notice> : null}

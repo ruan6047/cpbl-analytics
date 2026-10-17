@@ -87,20 +87,17 @@ test("重抓鍵：版本、場數、涵蓋、PA build 任一改變才變；路�
   assert.equal(highlightsPath(2026, "C"), "/api/v1/playoffs/highlights?season=2026&series=C");
 });
 
-test("掛載：新版 summary（帶 year／context_version）才出逐場焦點；舊版不出、也不出頁尾", () => {
+test("掛載：新版 summary（帶 year／context_version）才出逐場焦點；舊版不出", () => {
   const withK3 = { ...structuredClone(SUMMARY), year: 2026, context_version: "cv1" };
   const out = html(<SeriesSummaryBlock summary={withK3} />);
   assert.match(out, /data-highlights-block="E"/);
   assert.match(out, /三大轉折[\s\S]*逐場焦點/);                        // 放在三大轉折之後
   assert.doesNotMatch(html(<SeriesSummaryBlock summary={SUMMARY} />), /data-highlights-block/);
-  assert.ok(seriesSummaryNotes({ series_summary: withK3 }).some((n) => n.key === HIGHLIGHTS_NOTE.key));
-  assert.ok(!seriesSummaryNotes({ series_summary: SUMMARY }).some((n) => n.key === HIGHLIGHTS_NOTE.key));
 });
 
-test("頁尾：固定一條、≤80 字、與既有條目合併無衝突", () => {
+test("方法說明：≤80 字、與既有條目合併無衝突", () => {
   const withK3 = { ...structuredClone(SUMMARY), year: 2026, context_version: "cv1" };
-  const { notes, conflicts } = mergeNotes([{ area: "series", notes: [...PAGE_NOTES.series, ...seriesSummaryNotes({ series_summary: withK3 })] }]);
+  const { conflicts } = mergeNotes([{ area: "series", notes: [...PAGE_NOTES.series, ...seriesSummaryNotes({ series_summary: withK3 })] }]);
   assert.deepEqual(conflicts, []);
-  assert.equal(notes.filter((n) => n.key === "series.highlights_method").length, 1);
   assert.ok([...HIGHLIGHTS_NOTE.text].length <= 80);
 });

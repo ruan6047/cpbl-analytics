@@ -65,25 +65,27 @@ function ChipGrid({ block }: { block: OverviewSeriesBlock }) {
 function CurrentSeries({ block }: { block: OverviewSeriesBlock }) {
   const [a, b] = bigScore(block);
   return (
-    <div className="min-w-0 space-y-2" data-series={block.kind_code}>
-      <div className="rounded-md bg-surface px-3 py-2.5" data-big-score>
-        <h3 className="text-sm font-bold text-ink">{SERIES_NAME[block.kind_code]}</h3>
+    <div className="min-w-0 space-y-2.5" data-series={block.kind_code}>
+      <div className="card px-4 py-3" data-big-score>
+        <div className="flex items-center justify-between gap-2">
+          <h3 className="text-sm font-bold text-ink">{SERIES_NAME[block.kind_code]}</h3>
+          <span className="text-xs text-muted" data-series-sentence>{seriesStatusLine(block)}</span>
+        </div>
         {a && b ? (
-          <p className="mt-1 flex items-center justify-center gap-2 sm:gap-4" aria-label={`系列大比分 ${a.name} ${a.wins ?? "?"} 比 ${b.wins ?? "?"} ${b.name}`}>
-            <span className="flex min-w-0 flex-1 items-center justify-end gap-1.5 text-right text-base font-bold text-ink">
+          <p className="mt-1.5 flex items-center justify-center gap-2 sm:gap-4" aria-label={`系列大比分 ${a.name} ${a.wins ?? "?"} 比 ${b.wins ?? "?"} ${b.name}`}>
+            <span className="flex min-w-0 flex-1 items-center justify-end gap-2 text-right text-base font-bold text-ink">
               <span className="truncate">{a.name}</span>
-              <TeamLogo code={a.code} name={a.name} size={24} decorative />
+              <TeamLogo code={a.code} name={a.name} size={26} decorative />
             </span>
             <span className="shrink-0 font-mono text-3xl font-bold tabular-nums text-ink">
               {a.wins ?? "?"}<span className="mx-1.5 text-faint">:</span>{b.wins ?? "?"}
             </span>
-            <span className="flex min-w-0 flex-1 items-center gap-1.5 text-base font-bold text-ink">
-              <TeamLogo code={b.code} name={b.name} size={24} decorative />
+            <span className="flex min-w-0 flex-1 items-center gap-2 text-base font-bold text-ink">
+              <TeamLogo code={b.code} name={b.name} size={26} decorative />
               <span className="truncate">{b.name}</span>
             </span>
           </p>
         ) : null}
-        <p className="mt-1 text-center text-xs text-muted" data-series-sentence>{seriesStatusLine(block)}</p>
       </div>
       <ChipGrid block={block} />
     </div>
@@ -94,27 +96,28 @@ function NextGame({ overview }: { overview: PlayoffsOverview }) {
   const next = overview.series_section.next_game;
   const missing = nextGameMissingText(overview);
   if (!next) return missing ? <p className="text-sm text-muted">{missing}</p> : null;
-  // 目標場進行中時不叫「下一場」（狀態由 S02 target_status 給，不自行推導）
   const lead = next.target_status === "live" ? "進行中" : "下一場";
   return (
     <Link href={gameHref(next)} data-next-game
-      className="block rounded-md bg-surface-2 px-3 py-2 text-sm hover:bg-band focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent">
-      <span className="font-bold text-ink">{lead}：{gameTitle(next)}</span>
-      <span className="mt-0.5 block text-ink">
-        {dateText(next.game_date)} {startText(next)}・{next.venue ?? "球場本站尚未取得"}
+      className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 rounded-md bg-surface-2 px-3.5 py-2.5 text-sm hover:bg-band focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent">
+      <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+        <span className="font-bold text-ink">{lead}：{gameTitle(next)}</span>
+        <span className="text-ink">
+          {teamLabel(next.away_team_code)}（客）<span className="text-faint"> @ </span>{teamLabel(next.home_team_code)}（主）
+        </span>
       </span>
-      <span className="block text-ink">
-        {teamLabel(next.away_team_code)}（客）<span className="text-faint"> @ </span>{teamLabel(next.home_team_code)}（主）
+      <span className="text-xs text-muted tabular-nums">
+        {dateText(next.game_date)} {startText(next)}・{next.venue ?? "球場本站尚未取得"}
       </span>
     </Link>
   );
 }
 
-export function SeriesSection({ overview }: { overview: PlayoffsOverview }) {
+export function SeriesSection({ overview, hidden }: { overview: PlayoffsOverview; hidden?: boolean }) {
   const ss = overview.series_section;
   const notices = seriesNotices(overview);
   return (
-    <section id="series" aria-labelledby="series-heading" className="min-w-0 scroll-mt-[70px] space-y-3 md:scroll-mt-[76px]">
+    <section id="series" aria-labelledby="series-heading" className="min-w-0 scroll-mt-[70px] space-y-3 md:scroll-mt-[76px]" hidden={hidden || undefined}>
       <h2 id="series-heading" className="sr-only">系列賽表現</h2>
       {notices.map((n) => <Notice key={n} label="待更新">{n}</Notice>)}
       {/* 整區空態只在整年 E／C 都沒有場次時。前一系列（C 頁的挑戰賽）不畫：E 的資料只放 E 頁，切換列就在上方

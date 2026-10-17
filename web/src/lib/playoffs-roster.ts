@@ -52,6 +52,9 @@ export type RosterMember = {
   name: string;
   official_position: "投手" | "捕手" | "內野手" | "外野手" | string;
   tactical_role: string | null;
+  role_format_version?: 1 | 2;
+  tactical_roles?: string[];
+  role_provenance?: unknown;
   role: RosterRole;
   background: RosterBackground;
   /** 本系列實戰（PR2）：尚無完賽場 ⇒ null；未出賽 ⇒ g=0、line null；
@@ -63,7 +66,8 @@ export type RosterTeam = {
   team_code: string;
   team_name: string | null;
   roster_status: "submitted" | "missing" | "unavailable";
-  roster: { roster_id: string; published_date: string | null; source_url: string | null; annotation_version: number | null } | null;
+  roster: { roster_id: string; published_date: string | null; source_url: string | null; annotation_version: number | null;
+    role_format_version?: 1 | 2; revision_hash?: string | null } | null;
   members: RosterMember[];
   /** 該隊已完賽但 box（打擊或投球任一）尚未送達的系列場序（PR2）。 */
   series_pending_games?: number[];
@@ -106,11 +110,26 @@ export const ROSTER_COPY = {
   pending: "待更新",
   missing: "—",
   teamFilterLabel: "球隊篩選",
+  posFilterLabel: "守位篩選",
   sortLabel: "排序",
   all: "全部",
   farm: "二軍",
   scopeLabel: "資料範圍",
 } as const;
+
+export type RosterPosFilter = "all" | "投手" | "捕手" | "內野手" | "外野手";
+export const POS_FILTERS: { key: RosterPosFilter; label: string }[] = [
+  { key: "all", label: "全部" },
+  { key: "投手", label: "投手" },
+  { key: "捕手", label: "捕手" },
+  { key: "內野手", label: "內野手" },
+  { key: "外野手", label: "外野手" },
+];
+
+export function filterMembersByPos(members: readonly RosterMember[], pos: RosterPosFilter = "all"): RosterMember[] {
+  if (pos === "all") return [...members];
+  return members.filter((m) => m.official_position === pos);
+}
 
 /** 第 3 區兩種 scope（PRD 第 3 區用語）。切換是元件內狀態，端點一次帶齊（契約 §2.1）。 */
 export type RosterScope = "background" | "series";
@@ -126,9 +145,8 @@ export const hasSeriesScope = (d: PlayoffsRoster) => d.scopes.series.status !== 
 export const initialScope = (d: PlayoffsRoster): RosterScope =>
   d.default_scope === "series" && hasSeriesScope(d) ? "series" : "background";
 
-export type RosterSort = "position" | "games" | "arrow";
-export const SORTS: { key: RosterSort; label: string }[] = [
-  { key: "position", label: "守位" },   // 需求方裁定 #286：內外野依例行賽主守位拆分、非官方分組，按鈕不冠「官方」
+export type RosterSort = "games" | "arrow" | "position";
+export const SORTS: { key: "games" | "arrow"; label: string }[] = [
   { key: "games", label: "出賽 G" },
   { key: "arrow", label: "箭頭方向" },
 ];
@@ -166,36 +184,46 @@ const r3 = (v: number | null) => (v == null ? ROSTER_COPY.missing : v.toFixed(3)
 /** 出賽 G：無紀錄 ⇒「—」。 */
 export const gText = (bg: { g: number | null }) => (bg.g == null ? ROSTER_COPY.missing : `${bg.g}G`);
 
+/** v2只讀完整集合；legacy才允許單值相容，無主角色。 */
+export function memberRoles(m: Pick<RosterMember, "tactical_role" | "tactical_roles" | "role_format_version">): string[] {
+  if (m.role_format_version === 2) {
+    if (!Array.isArray(m.tactical_roles) || !m.tactical_roles.length) throw new Error("角色v2資料不完整");
+    return m.tactical_roles;
+  }
+  if (m.role_format_version != null && m.role_format_version !== 1) throw new Error("未知角色格式");
+  return m.tactical_roles ?? (m.tactical_role && m.tactical_role !== "unclassified" ? [m.tactical_role] : []);
+}
+
 /** 抽屜標頭副標：守位 · 本站角色（有值才放、只放值）· 例行賽 G（· 二軍）。
  *  需求方裁定 #286 6210276945、6210408828：角色無值整段不顯示，不帶「本站角色」字樣。 */
 export function drawerSubtitle(m: RosterMember): string {
-  return [m.official_position, m.tactical_role, gText(m.background),
+  return [m.official_position, memberRoles(m).join("、"), gText(m.background),
     m.background.level === "D" ? ROSTER_COPY.farm : null].filter(Boolean).join(" · ");
 }
 
-/** 一行傳統計數（後端已算率）：打者打擊率／OPS、投手防禦率／局數。scope＝series 時用本系列計數。無紀錄 ⇒ null。 */
+/** 一行傳統計數（後端已算率）：打者 AVG／OPS、投手 ERA／IP。scope＝series 時用本系列計數。無紀錄 ⇒ null。 */
 export function lineText(m: RosterMember, scope: RosterScope = "background"): string | null {
   const l = scope === "series" ? m.series?.line ?? null : m.background.line;
   if (!l) return null;
   if (m.role === "pitching") {
     const p = l as PitchingLine;
-    return `防禦率 ${p.era == null ? ROSTER_COPY.missing : p.era.toFixed(2)} · ${p.ip} 局`;
+    return `ERA ${p.era == null ? ROSTER_COPY.missing : p.era.toFixed(2)} · ${p.ip} IP`;
   }
   const b = l as BattingLine;
-  return `打擊率 ${r3(b.avg)} · OPS ${r3(b.ops)}`;
+  return `AVG ${r3(b.avg)} · OPS ${r3(b.ops)}`;
 }
 
 /** 小卡冷熱箭頭：末段 15 次的 OPS+／ERA+ 與方向（方向一律附文字，⛔ 只靠顏色）。無箭頭 ⇒ 方向 null、值「—」。 */
 export function arrowView(m: RosterMember): { label: string; value: string; dir: "up" | "down" | "flat" | null; text: string } {
   const a = m.background.arrow;
-  const label = a?.metric === "era_plus" ? "末段 15 次 ERA+" : "末段 15 次 OPS+";
+  const label = a?.metric === "era_plus" ? "近 15 場 ERA+" : "近 15 場 OPS+";
   const v = a?.w1?.value;
   const value = a && (a.status === "up" || a.status === "down" || a.status === "flat") && v != null
     ? String(Math.round(v)) : ROSTER_COPY.missing;
   if (!a || !(a.status === "up" || a.status === "down" || a.status === "flat")) {
     return { label, value, dir: null, text: ROSTER_COPY.missing };
   }
-  const text = a.status === "up" ? "↑ 較前 15 次上升" : a.status === "down" ? "↓ 較前 15 次下降" : "→ 平穩";
+  const text = a.status === "up" ? "↑ 升" : a.status === "down" ? "↓ 降" : "→ 平";
   return { label, value, dir: a.status, text };
 }
 
@@ -218,43 +246,26 @@ export function teamLabel(t: RosterTeam): string {
   return t.team_name ?? t.team_code;
 }
 
-// —— 頁尾說明（契約 §2.4、§2.5、§9；交 #285 對齊的文字） ——————————————————————————
+// —— 頁尾說明（僅留動態缺值／待更新提示；固定方法說明收進區塊標題 ⓘ Tooltip） ——————————————————
 
-const FIXED: RosterNote[] = [
-  { key: "roster.registration_unknown", text: "當場 28 人登錄本站尚未取得。" },
-  { key: "roster.eligibility_not_availability",
-    text: "名單是官方公布的系列賽 32 人資格名單，不代表當場登錄、先發或可出賽。" },
-  { key: "roster.appearance_g", text: "出賽 G 依官方逐場紀錄計算，代跑、守備出場也算一場；保留續賽與原比賽算同一場。" },
-  { key: "roster.official_pr_only",
-    text: "PR≥90 標籤只採官方進階數據的百分位（本季一軍例行賽、同角色）；官方沒有提供的球員不標，本站不自行排名。",
-    source: { label: "官方進階數據", url: "https://stats.cpbl.com.tw" } },
-  { key: "roster.arrow_proposed",
-    text: "冷熱箭頭比較一軍例行賽最近與再前各 15 次出賽：打者 OPS+ 差 15 以上、投手 ERA+ 差 20 以上才標示，門檻為本站建議值，不代表未來表現。" },
-  { key: "roster.series_only", text: "本系列實戰數據只計目前所選系列已正式完賽的場次，不混入其他系列或例行賽。" },
-];
+export const ROSTER_METHOD_HELP = [
+  "官方公布的系列賽 32 人資格名單（非當場 28 人登錄或先發名單）。",
+  "近 15 場箭頭比較例行賽最近與再前各 15 次出賽（打者 OPS+ 差 ≥15、投手 ERA+ 差 ≥20）；PR≥90 採官方進階數據。",
+] as const;
 
-/** 純函式、同步、不讀時鐘／window。`notes(null)` 只回固定說明；依資料者隨畫面上那份資料重算。 */
+/** 純函式、同步、不讀時鐘／window。只回動態缺資料／待更新說明。 */
 export function rosterNotes(data: PlayoffsRoster | null): RosterNote[] {
-  const out = [...FIXED];
-  if (!data) return out;
+  if (!data) return [];
+  const out: RosterNote[] = [];
   for (const t of data.teams) {
     if (t.roster_status === "missing") {
       out.push({ key: `roster.roster_missing.${t.team_code}`,
         text: `${teamLabel(t)} 的系列賽名單尚未提交，暫不列出該隊球員。` });
     }
   }
-  if (data.teams.some((t) => t.members.some((m) => m.background.arrow
-    && (m.background.arrow.status === "insufficient" || m.background.arrow.status === "undefined")))) {
-    out.push({ key: "roster.arrow_unavailable",
-      text: "未滿 30 次出賽、任一段打者打數或投手局數不足（打數 30、10 局），或防禦率為 0 無法計算 ERA+ 時，不顯示箭頭。" });
-  }
   if (data.scopes.series.status === "pending_source" && data.scopes.series.pending_games?.length) {
     out.push({ key: "roster.series_box_pending",
       text: `本系列第 ${data.scopes.series.pending_games.join("、")} 場的逐場紀錄尚未送達，本系列實戰數據暫不含這幾場。` });
-  }
-  if (data.teams.some((t) => t.members.some((m) => m.background.level === "D"))) {
-    out.push({ key: "roster.farm_background",
-      text: "本季一軍沒有出賽紀錄的球員仍列在名單，改列二軍成績並標「二軍」，不換算一軍 PR 或 OPS+。" });
   }
   return out;
 }
@@ -269,6 +280,7 @@ export type RosterPlayerDetail = {
   year: number;
   team_code: string;
   player: { player_id: string; name: string; official_position: string; tactical_role: string | null;
+    role_format_version?: 1 | 2; tactical_roles?: string[]; role_provenance?: unknown;
     role: RosterRole; level: BackgroundLevel };
   ability: { season: AbilityCardData; career: AbilityCardData };
   trend: { player_id: string; role: RosterRole; items: StatRow[]; roll: number } | null;
@@ -297,10 +309,10 @@ export type DrawerState =
 
 /** 詳情與目前區資料版本不同 ⇒ stale（⛔ 拼接不同版本的摘要與詳情；契約 §2.2）。 */
 export function drawerState(detail: RosterPlayerDetail | null | undefined, failed: boolean,
-  sectionVersion: string | null): DrawerState {
+  sectionVersion: string | null, sectionRosterVersion: string): DrawerState {
   if (failed) return { kind: "error" };
   if (!detail) return { kind: "loading" };
-  if (detail.context_version !== sectionVersion) return { kind: "stale" };
+  if (detail.context_version !== sectionVersion || detail.roster_version !== sectionRosterVersion) return { kind: "stale" };
   return { kind: "ready", detail };
 }
 

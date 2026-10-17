@@ -21,27 +21,19 @@ const html = (node: ReactElement) => render(<AppRouterContext.Provider value={ro
 const text = (s: string) => s.replace(/<[^>]+>/g, "");
 const LONG = ["比分以本站已同步的為準", "公告）"];
 
-test("seriesNotes：null ⇒ 空；covered＋有公告開賽時刻 ⇒ 只有 schedule_source（官方連結可過白名單）", () => {
+test("seriesNotes：null 或 covered ⇒ 空陣列（正常狀態無頁尾免責小字）；官方連結白名單照常", () => {
   assert.deepEqual(seriesNotes(null), []);
-  const n = seriesNotes(REAL);
-  assert.deepEqual(n.map((x) => x.key), ["series.schedule_source"]);
-  assert.equal(n[0].text, "開賽時間依官方 10/5 公告。");
-  assert.equal(n[0].source?.label, "官方公告");
-  assert.equal(n[0].source?.url, REAL.schedule_source!.url);
-  assert.ok(isAllowedSourceUrl(n[0].source!.url));
+  assert.deepEqual(seriesNotes(REAL), []);
+  assert.ok(isAllowedSourceUrl(REAL.schedule_source!.url));
 });
 
-test("seriesNotes：pending_update／unknown 各出原句；無公告或下一場無開賽時刻 ⇒ 無 schedule_source；⛔ common.*", () => {
+test("seriesNotes：pending_update／unknown 各出動態說明；⛔ common.*", () => {
   const p = clone(); p.coverage = "pending_update";
   assert.deepEqual(seriesNotes(p).map((x) => [x.key, x.text]), [
     ["series.coverage_pending_update", "最新完賽結果更新中，比分以本站已同步的為準。"],
-    ["series.schedule_source", "開賽時間依官方 10/5 公告。"]]);
+  ]);
   const u = clone(); u.coverage = "unknown"; u.schedule_source = null;
   assert.deepEqual(seriesNotes(u).map((x) => [x.key, x.text]), [["series.coverage_unknown", "本站資料完整度未知，比分以本站已同步的為準。"]]);
-  const s = clone(); s.series_section.next_game = { ...s.series_section.next_game!, start: null };
-  assert.deepEqual(seriesNotes(s), []);
-  const g = clone(); g.series_section.next_game = null;
-  assert.deepEqual(seriesNotes(g), []);
   for (const o of [REAL, p, u]) for (const x of seriesNotes(o)) assert.match(x.key, /^series\.[a-z_]+$/);
 });
 
@@ -55,13 +47,12 @@ test("SeriesSection 格內只留短狀態，三句說明原文都不在第 1 區
   }
 });
 
-test("PlayoffsLive 頁尾：series 群組依序 seriesNotes → #288 seriesSummaryNotes；來源連結渲染成官方新分頁連結", () => {
+test("PlayoffsLive 頁尾：series 群組依序 seriesNotes → #288 seriesSummaryNotes；頁尾在所有區塊之後", () => {
   const o = clone(); o.coverage = "pending_update";
   o.series_summary = { contract: "x", algorithm: "x", current: null, previous: null } as never;   // 無累計榜 ⇒ #288 無條目
   const out = html(<PlayoffsLive initial={o} year={2026} game={null} areas={[]} />);
   const ids = [...out.matchAll(/<li id="note-([^"]+)"/g)].map((m) => m[1]);
-  assert.deepEqual(ids, ["series.coverage_pending_update", "series.schedule_source"]);
-  assert.match(out, new RegExp(`<a href="${REAL.schedule_source!.url.replace(/[?]/g, "\\?")}"[^>]*target="_blank"[^>]*>官方公告</a>`));
+  assert.deepEqual(ids, ["series.coverage_pending_update"]);
   // 頁尾在所有區塊之後
   assert.ok(out.indexOf('id="watch"') < out.indexOf("page-notes-heading"));
 });

@@ -140,6 +140,20 @@ uv run cpbl-roster annotate roster.txt                      # 只改戰術角色
 uv run cpbl-roster show --year 2026 --series C --team ACN011
 ```
 
+#316多重角色使用獨立`roles-v2` JSON package，舊文字單值輸入保留。核准表與manifest不覆寫；姓名／ID／官方守位須在已提交會員內唯一核對，兩隊各32列，會員／來源hash完全相同。package包含預期最新版/hash及逐角色來源；角色固定順序只供序列化，不分主次。正式寫入前另依資源與唯一writer窗口核准，不把本機預覽當正式資料已更新。
+
+```bash
+uv run cpbl-roster preview approved-roles-v2.json --format roles-v2 --json --out role-preview.json
+uv run cpbl-roster annotate approved-roles-v2.json --format roles-v2 --confirm-approval-hash <核准表SHA-256>
+# 回復前以prewrite完整快照核對兩隊基準，package的expected版/hash須反映目前最新。
+uv run cpbl-roster annotate restore-input.json --format roles-v2 --confirm-approval-hash <核准表SHA-256> \
+  --restore-version <roster_id1>:<prewrite版本1> --restore-version <roster_id2>:<prewrite版本2>
+```
+
+v2在同一交易鎖兩隊後追加；任一隊失敗全rollback，同內容重送unchanged。`show`同時回annotation_version／role_format_version／revision_hash與完整陣列。資料回復只能追加完整v1/v2版本，再走名單專用同步對帳，之後才退程式；不可刪歷史、關閉不可變守衛或down migration。v1 hash與會員／來源hash不變。API v2舊scalar固定null，所有本專案消費端使用角色陣列；外部scalar消費者不等同支援多重角色。
+
+`cpbl.rosters.sync`含v2歷史時要求兩次明確`--scope YEAR:KIND:TEAM`；plan／apply／reconcile必須使用同一兩隊allowlist。scoped模式只准兩端既有名單追加revision，交易內再驗scope，不插入會員或名單頭；未知格式／缺角色欄拒絕。正式入口仍只有ROSTER_ONLY鏈，不能用模組直接對正式寫入。入口以`ROSTER_SCOPES=2026:C:AAA011,2026:C:ACN011`明示兩隊，搭配`ROSTER_ONLY=1 SKIP_SCRAPE=1 BACKUP_DIR=<獨立絕對路徑>`；此變數只在該模式使用，其他模式維持原行為。plan的schema預檢不過回69，在備份與寫入前停止，不由同步執行migration；apply內部事後對帳沿用同一allowlist。
+
 - **不可變**：每 (year, series, team) 一份；三表 UPDATE／DELETE／TRUNCATE 由觸發器拒絕，sync_table 式 `ON CONFLICT DO UPDATE` 也會被擋；每份恰 32 人由延遲約束在提交時保證。同內容重送回原 `roster_id`、不重算提交時間；不同內容拒絕並列差異。錯匯⛔ 不 routine 修改：停止對外宣稱已核，交需求方例外裁定、另卡處理。
 - **身分**：`@id=` 或同年同隊（team_roster／一軍出賽／已提交名單）範圍內唯一精確姓名才解析；⛔ 不模糊比對、⛔ 不創假 ID。外籍三態：`players.country` 缺＝身分未知，不猜成本土，摘要標「外籍資格檢查不完整」；已核洋將 > 3 拒絕。參賽隊只驗 team_dim 存在，系列參賽資格需人工確認（S02 契約未核定）。
 - **資格≠可用**：名單與角色不代表先發、當場 28 人登錄或可用；`show` 的本季 A 出賽以 LEFT JOIN 取得，沒有就是「無」，不是 0。
