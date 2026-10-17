@@ -75,26 +75,26 @@ function Lamp({ p }: { p: WatchPitcher }) {
   const gap = load.level === "unknown" && load.incomplete.length > 0;
   const face = (
     <>
-      <span aria-hidden className={`inline-block h-2.5 w-2.5 rounded-full ${tone.dot}`} />
+      <span aria-hidden className={`inline-block h-2 w-2 shrink-0 rounded-full ${tone.dot}`} />
       {LEVEL_TEXT[load.level]}
       {gap ? <span className="rounded border border-dashed border-line-strong px-1 text-xs font-normal text-muted">資料不完整</span> : null}
     </>
   );
   const detail = levelDetail(p);
   if (detail == null) {
-    return <span data-lamp className={`inline-flex items-center gap-1 font-bold ${tone.text}`}>{face}</span>;
+    return <span data-lamp className={`inline-flex shrink-0 items-center gap-1 text-xs font-bold ${tone.text}`}>{face}</span>;
   }
   return (
     <Tooltip content={detail} suppressUnderline>
       <button type="button" data-lamp aria-label={`${LEVEL_TEXT[load.level]}${gap ? "，資料不完整" : ""}：顯示理由`}
-        className={`relative inline-flex min-h-6 touch-manipulation items-center gap-1 rounded font-bold ${tone.text} before:absolute before:-inset-x-1 before:-inset-y-2.5 before:content-[''] hover:bg-surface-2`}>
+        className={`relative inline-flex min-h-6 shrink-0 touch-manipulation items-center gap-1 rounded text-xs font-bold ${tone.text} before:absolute before:-inset-x-1 before:-inset-y-2.5 before:content-[''] hover:bg-surface-2`}>
         {face}
       </button>
     </Tooltip>
   );
 }
 
-/** 每位投手一列：名字＋角色籤＋燈號（左）＋ 4 格球數日條＋連投摘要（右），緊湊表列排法。 */
+/** 每位投手一列：左欄（上列名字＋燈號、下列角色籤）＋右欄（4 格球數日條＋連投摘要），避免多角色籤擠斷日條或「3 天前」折行。 */
 export function PitcherLoadRow({ p, scaleMax }: { p: WatchPitcher; scaleMax: number }) {
   const { load } = p;
   const days = [...load.days].sort((a, b) => b.offset - a.offset);
@@ -103,29 +103,33 @@ export function PitcherLoadRow({ p, scaleMax }: { p: WatchPitcher; scaleMax: num
   const roles = pitcherRoles(p);
   const spoken = days.map((d) => `${dayLabel(d.offset)} ${shortDate(d.date)} ${d.complete ? `${d.pitches} 球` : d.pitches > 0 ? `已知 ${d.pitches} 球，另有未知` : "未知"}`);
   return (
-    <li className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5 py-1.5 text-sm" data-level={load.level}>
-      <div className="flex min-w-[9rem] flex-wrap items-center gap-x-2 gap-y-0.5">
-        <span className="font-bold text-ink">{p.name ?? p.player_id}</span>
-        {roles.length ? roles.map((role) => (
-          <span key={role} data-role className="pm-tag">#{role}</span>
-        )) : <span className="text-[11px] text-faint">角色未標記</span>}
-        <Lamp p={p} />
-        {load.live ? <span className="pm-st pm-st--live">即時</span> : null}
+    <li className="flex flex-wrap items-center justify-between gap-x-2.5 gap-y-1.5 py-2 text-sm sm:flex-nowrap" data-level={load.level}>
+      <div className="min-w-0 flex-1 space-y-1">
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+          <span className="font-bold text-ink">{p.name ?? p.player_id}</span>
+          <Lamp p={p} />
+          {load.live ? <span className="pm-st pm-st--live">即時</span> : null}
+        </div>
+        <div className="flex flex-wrap items-center gap-1">
+          {roles.length ? roles.map((role) => (
+            <span key={role} data-role className="pm-tag">#{role}</span>
+          )) : <span className="text-[11px] text-faint">角色未標記</span>}
+        </div>
       </div>
       <Tooltip content={loadDetail(p)} suppressUnderline>
         <button type="button" data-strip
           aria-label={`近 4 日球數：${spoken.join("、")}${load.unattributed.length ? "；另有保留賽球數日期未定" : ""}；${summary}；顯示詳情`}
-          className="flex min-h-9 touch-manipulation flex-wrap items-center gap-x-2.5 gap-y-1 rounded px-1.5 py-0.5 text-left hover:bg-surface-2">
+          className="flex min-h-9 shrink-0 touch-manipulation flex-wrap items-center gap-x-2.5 gap-y-1 rounded px-1.5 py-0.5 text-left hover:bg-surface-2">
           <span className="flex items-end gap-1" aria-hidden>
             {days.map((d) => {
               const pct = scaleMax > 0 ? Math.round((Math.max(d.pitches, 0) / scaleMax) * 100) : 0;
               return (
-                <span key={d.date} data-day={d.offset} data-complete={d.complete ? "1" : "0"} className="flex w-7 flex-col items-center">
+                <span key={d.date} data-day={d.offset} data-complete={d.complete ? "1" : "0"} className="flex w-8 flex-col items-center">
                   <span className={`text-[11px] leading-4 tabular-nums ${d.complete ? "text-ink" : "text-muted"}`}>{dayPitchesText(d)}</span>
-                  <span className={`relative h-6 w-full overflow-hidden rounded-sm border bg-surface-2 ${d.complete ? "border-line" : "border-dashed border-line-strong"}`}>
+                  <span className={`relative h-6 w-7 overflow-hidden rounded-sm border bg-surface-2 ${d.complete ? "border-line" : "border-dashed border-line-strong"}`}>
                     {pct > 0 ? <span className="absolute inset-x-0 bottom-0 bg-muted" style={{ height: `${pct}%` }} /> : null}
                   </span>
-                  <span className="text-[11px] text-muted">{dayLabel(d.offset)}</span>
+                  <span className="whitespace-nowrap leading-4 text-[11px] text-muted">{dayLabel(d.offset)}</span>
                 </span>
               );
             })}
@@ -133,7 +137,7 @@ export function PitcherLoadRow({ p, scaleMax }: { p: WatchPitcher; scaleMax: num
               <span data-unattributed className="self-center rounded border border-dashed border-line-strong px-1 text-[11px] text-muted">保留賽 +?</span>
             ) : null}
           </span>
-          <span data-streak={streak.kind} className={`text-xs font-bold ${streak.kind === "streak" ? "text-ink" : "text-muted"}`}>{summary}</span>
+          <span data-streak={streak.kind} className={`whitespace-nowrap text-xs font-bold ${streak.kind === "streak" ? "text-ink" : "text-muted"}`}>{summary}</span>
         </button>
       </Tooltip>
     </li>
