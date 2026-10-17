@@ -1,6 +1,7 @@
 """#316 放行回歸：純替身比較兩個既有模式與固定 main 基準；不連線、不寫 DB。"""
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 import subprocess
@@ -34,8 +35,34 @@ def _outside_roster(data):
     return data[:start], data[end:]
 
 
+# ROSTER_ONLY 區塊以外的位元組，以內容雜湊釘住「放行基準 BASE（67269ad9）＋ #293（PR #307）」的版本
+# （需求方裁定 #293 issuecomment-6230423989：#293 在本卡調整比對基準，保護不減）。
+# ⛔ 不改成「只比對 ROSTER_ONLY 區塊」：那會丟掉區塊以外的保護（減弱）。
+# ⛔ 不釘某個分支 commit 的 SHA：合併方式若不是 merge commit，那個 SHA 不會留在 main 的歷史裡。
+# 保護強度與原本相同：區塊以外任何一個位元組改變都會紅。日後有卡要合法改區塊以外，須在該卡更新這兩個值並說明。
+# LINEUP_ONLY／POSTSEASON_RESULTS_ONLY 的行為仍由下方測試對 BASE 逐項比對（未改）。
+OUTSIDE_ROSTER_SHA256 = (
+    "8bb65a65c9d990f0ddb7c52b0a71f333074a81c347892dfb66972a50cc76ae90",   # 區塊之前（16517 bytes）
+    "0c0143d881ca14f6cf16759317d2073983cc6e93337ab023580d86077f4a08ed",   # 區塊之後（57789 bytes）
+)
+# #316 的成果（ROSTER_ONLY 區塊本身）以 main 上合併後的版本為準：#293 不得改動它。
+ROSTER_RESULT = "a473695dfca536e365b08c44aa2e85374e8f3e69"
+
+
+def _roster_block(data):
+    start = data.index(b'if [ -n "${ROSTER_ONLY:-}" ]; then\n')
+    end = data.index(b'if [ -n "${LINEUP_ONLY:-}" ]; then\n', start)
+    return data[start:end]
+
+
 def test_refresh_bytes_outside_roster_only_are_identical_to_release_base():
-    assert _outside_roster(SCRIPT.read_bytes()) == _outside_roster(_baseline())
+    current = SCRIPT.read_bytes()
+    prefix, suffix = _outside_roster(current)
+    got = (hashlib.sha256(prefix).hexdigest(), hashlib.sha256(suffix).hexdigest())
+    assert got == OUTSIDE_ROSTER_SHA256, "ROSTER_ONLY 區塊以外的位元組與放行基準（BASE＋#293）不同"
+    roster_result = subprocess.check_output(
+        ["git", "show", f"{ROSTER_RESULT}:scripts/refresh-cpbl-prod.sh"], cwd=ROOT)
+    assert _roster_block(current) == _roster_block(roster_result), "ROSTER_ONLY 區塊與 #316 合併結果不同"
 
 
 def _run(tmp_path, script_bytes, mode, scopes, failure):
