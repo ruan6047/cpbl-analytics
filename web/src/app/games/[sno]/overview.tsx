@@ -7,6 +7,7 @@ import type { WpPoint } from "@/components/win-prob-chart";
 import { Card, ENTITY_LINK, Eyebrow, PlayerLink, TeamLogo } from "@/components/ui";
 import { contrastText, teamColor } from "@/lib/teams";
 import { displayWp, isTerminalWpPoint } from "@/lib/win-prob-display";
+import { HIGHLIGHTS_PENDING_TEXT } from "@/lib/game-highlights-source";
 
 const num = (v: StatRow[string]) => Number(v) || 0;
 
@@ -97,11 +98,13 @@ function MomentRow({ m, homeName, awayName, homeColor, awayColor, onJump }: {
 import type { DecItem } from "./game-summary";
 export type { DecItem };
 
-export function GameOverview({ wp, log, homeName, awayName, homeColor, awayColor, onJump, highlights, milestones, info, mvp, decisions }: {
+export function GameOverview({ wp, log, homeName, awayName, homeColor, awayColor, onJump, highlights, highlightsPending = false, milestones, info, mvp, decisions }: {
   wp: WpPoint[]; log: StatRow[]; homeName: string; awayName: string;
   homeColor: string; awayColor: string;
   onJump: (evt: string) => void;
   highlights: { text: string; team: string | null }[];
+  /** #337：DB 列未到齊 ⇒ 焦點位置顯示「待更新」，不出部分標籤（與 /playoffs 同判準）。 */
+  highlightsPending?: boolean;
   milestones: { text: string; team: string | null }[];
   info: [string, React.ReactNode][];
   mvp: { name: string; line: string; count?: number | null; pid?: string } | null;
@@ -119,7 +122,7 @@ export function GameOverview({ wp, log, homeName, awayName, homeColor, awayColor
     </span>
   );
 
-  if (!key.length && !highlights.length && !milestones.length && !info.length && !mvp && !decisions.length) return null;
+  if (!key.length && !highlights.length && !highlightsPending && !milestones.length && !info.length && !mvp && !decisions.length) return null;
   return (
     <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
       {key.length > 0 && (
@@ -141,7 +144,7 @@ export function GameOverview({ wp, log, homeName, awayName, homeColor, awayColor
           </div>
         </Card>
       )}
-      {(highlights.length > 0 || info.length > 0 || mvp || decisions.length > 0) && (
+      {(highlights.length > 0 || highlightsPending || info.length > 0 || mvp || decisions.length > 0) && (
         <Card className="flex min-w-0 flex-col gap-4">
           {mvp && (
             <div className="flex items-center gap-3 rounded-md bg-surface-2 px-3 py-2.5">
@@ -153,12 +156,16 @@ export function GameOverview({ wp, log, homeName, awayName, homeColor, awayColor
               </div>
             </div>
           )}
-          {highlights.length > 0 && (
+          {(highlights.length > 0 || highlightsPending) && (
             <section>
               <Eyebrow className="mb-2">本場焦點</Eyebrow>
-              <div className="flex flex-wrap gap-1.5">
-                {highlights.map((h, i) => chip(h.text, h.team, i))}
-              </div>
+              {highlightsPending ? (
+                <p data-testid="highlights-pending" className="text-sm text-muted">{HIGHLIGHTS_PENDING_TEXT}</p>
+              ) : (
+                <div className="flex flex-wrap gap-1.5">
+                  {highlights.map((h, i) => chip(h.text, h.team, i))}
+                </div>
+              )}
             </section>
           )}
           {milestones.length > 0 && (
