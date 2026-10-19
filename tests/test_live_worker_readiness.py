@@ -495,7 +495,12 @@ def test_socket_rejects_anything_but_a_nonce(evidence_dir):
             client.settimeout(2)
             client.connect(str(evidence_dir / SOCKET_FILE))
             client.sendall(request)
-            assert client.recv(10) == b""
+            try:
+                reply = client.recv(10)
+            except ConnectionResetError:
+                # Linux：伺服器在未讀完超長請求時關閉＝RST；同樣是「不回覆」。
+                reply = b""
+            assert reply == b""
             client.close()
     finally:
         h.observer.close()
