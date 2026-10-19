@@ -5,10 +5,12 @@
 import { useEffect, useMemo, useState } from "react";
 import { Bar, CartesianGrid, ComposedChart, Line, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { Card, EmptyState } from "@/components/ui";
+import { type Column, DataTable } from "@/components/table";
 import { type StatRow } from "@/lib/client";
 import { chartAxis, chartTooltip, useChartTheme } from "@/lib/chart-theme";
-import { BAT_METRICS, type Metric, PIT_METRICS, type Role } from "./lib";
+import { BAT_METRICS, type Metric, n0, PIT_METRICS, type Role } from "./lib";
 import { VsTeamTable } from "./parts";
+import { MIN_TREND_POINTS, gameLogMetrics, gameLogRows, gameLogSummary, showGameLog } from "./season-trend";
 
 /** 指標下拉：各卡獨立持有選擇，role 變更時回到該 role 的預設指標。 */
 function useMetric(role: Role) {
@@ -74,6 +76,36 @@ function TrendChart({ data, metric, categorical }: {
 
 // ---- L1 總覽：本季走勢 ----
 
+/**
+ * 所選滾動指標可畫的點少於 2 時取代折線（#318 方案一）：一行說明＋本季累計摘要＋逐場小表。
+ * 高度固定為 CHART_H，與折線圖同高，切換指標時卡片高度不變（REVIEW-005 P1）；列多時在表內捲動。
+ * 文案只陳述「畫不出走勢」，⛔ 不斷言原因是出賽太少（二軍背景的 OPS+／ERA+ 恆為 null，樣本充足也會觸發）。
+ */
+function SeasonGameLog({ rows, role, metric }: { rows: StatRow[]; role: Role; metric: Metric }) {
+  const sum = gameLogSummary(rows, role);
+  const cols: Column<StatRow>[] = [
+    { header: "日期", cell: (r) => String(r.name), nowrap: true },
+    ...gameLogMetrics(role).map((m): Column<StatRow> => ({
+      header: m.label, align: "right", cell: (r) => n0(m.get(r)),
+    })),
+  ];
+  return (
+    <div className="flex flex-col gap-1.5" style={{ height: CHART_H }} data-testid="season-game-log">
+      <p className="text-xs text-muted">
+        {metric.label} 以近 15 場滾動計算，目前可畫的點不足 {MIN_TREND_POINTS} 個、連不成走勢，改列本季逐場紀錄。
+      </p>
+      <p className="text-xs text-ink">
+        本季 {sum.games} 場（{sum.first === sum.last ? sum.first : `${sum.first}–${sum.last}`}）
+        {sum.totals.map((t) => <span key={t.key}> · {t.label} <span className="font-mono tabular-nums">{n0(t.value)}</span></span>)}
+      </p>
+      <div className="relative min-h-0 flex-1">
+        <DataTable columns={cols} rows={gameLogRows(rows)} rowKey={(r, i) => `${String(r.date)}-${i}`}
+          dense bare maxHeight="100%" className="absolute inset-0" />
+      </div>
+    </div>
+  );
+}
+
 export function SeasonTrendCard({ trend, role, isRetired }: {
   trend: StatRow[] | null; role: Role; isRetired: boolean;
 }) {
@@ -100,6 +132,7 @@ export function SeasonTrendCard({ trend, role, isRetired }: {
   }, [trend, metric]);
 
   const data = metric.roll ? rollData : bars;
+  const gameLog = trend !== null && showGameLog(trend, metric);
   return (
     <Card className="h-full">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
@@ -115,7 +148,8 @@ export function SeasonTrendCard({ trend, role, isRetired }: {
               {isRetired ? "本季無出賽紀錄（已退役／轉任教練），逐年表現請見「生涯」。" : "本季尚無足夠出賽場次可繪製走勢。"}
             </EmptyState>
           </ChartSlot>
-        ) : <TrendChart data={data} metric={metric} categorical={false} />}
+        ) : gameLog ? <SeasonGameLog rows={trend} role={role} metric={metric} />
+        : <TrendChart data={data} metric={metric} categorical={false} />}
     </Card>
   );
 }
