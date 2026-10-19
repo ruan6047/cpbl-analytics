@@ -41,8 +41,9 @@ import { StickyNavBar } from "@/components/sticky-nav-bar";
 import { ProvisionalBadge } from "./parts/data-state-notice";
 import { RecapMain } from "./states/recap-main";
 import {
-  buildDecisions, buildHighlights, buildMilestoneChips, delayNoteOf, num, summaryLine,
+  buildDecisions, buildMilestoneChips, delayNoteOf, num, summaryLine,
 } from "./game-summary";
+import { gameHighlightsSource } from "@/lib/game-highlights-source";
 import { isProvisional, isRecapReady, type GameFacts } from "@/lib/game-facts";
 import {
   applyLiveSnapshot,
@@ -86,6 +87,8 @@ export default function GameLivePage() {
   const kind = sp.get("kind") || "A";
   const year = sp.get("year") ? Number(sp.get("year")) : undefined;
   const [data, setData] = useState<Live | null>(null);
+  // #337：snapshot 覆蓋**前**的原始回應，只給「本場焦點」用（與 /playoffs 同一份 DB 列；見 game-highlights-source）。
+  const [dbRows, setDbRows] = useState<Live | null>(null);
   const [err, setErr] = useState(false);
   const [refreshIssue, setRefreshIssue] = useState<"network" | "source" | null>(null);
   const snapshotRef = useRef<LiveSnapshot | null>(null);
@@ -118,6 +121,7 @@ export default function GameLivePage() {
     const loadFull = async () => {
       const raw = await detail.gameLive(Number(sno), kind, year);
       if (disposed) return;
+      setDbRows(raw as unknown as Live);
       const next = applyLiveSnapshot(raw);
       const dd = next as unknown as Live;
       const nextSnapshot = next.live_snapshot;
@@ -290,11 +294,13 @@ export default function GameLivePage() {
       document.getElementById("pbp-section")?.scrollIntoView({ behavior: "smooth", block: "start" }));
   };
 
-  // 判決標籤（#285 批次 G）由後端 /facts 判定，併進同一個 buildHighlights 排字
-  const highlights = buildHighlights({ ...data, umpire_call: facts?.umpire_call ?? null }, completed);
+  // #337：焦點只吃覆蓋前的 DB 列；未到齊顯示「待更新」，與 /playoffs 同一判準、同一函式。
+  // 判決標籤（#338，#285 批次 G）由後端 /facts 判定，作為第三參數併進同一個 buildHighlights 排字。
+  const highlightSource = gameHighlightsSource(dbRows, completed, facts?.umpire_call ?? null);
+  const visibleHighlights = highlightSource.tags;
+  const highlightsPending = highlightSource.status === "pending";
   const { items: decisionItems, mvp } = buildDecisions(data, completed);
   const milestoneItems = buildMilestoneChips(data, milestones);
-  const visibleHighlights = completed ? highlights : [];
 
   // 賽事資訊（渲染於總覽右卡／recap 兩隊表現行）：天氣/觀眾/時長併一列，裁判獨立一列
   const info: [string, React.ReactNode][] = [];
@@ -389,14 +395,16 @@ export default function GameLivePage() {
               )}
               {showRecap ? (
                 <RecapMain facts={facts} decisions={decisionItems} mvp={mvp}
-                  highlights={visibleHighlights} milestones={milestoneItems} info={info}
+                  highlights={visibleHighlights} highlightsPending={highlightsPending}
+                  milestones={milestoneItems} info={info}
                   onJump={jumpToPa} onPlayByPlay={() => setView("pbp")} />
               ) : (
                 <GameOverview wp={wp ?? []} log={data.livelog}
                   homeName={String(g.home_team_name)} awayName={String(g.away_team_name)}
                   homeColor={teamColor(String(g.home_team_code ?? ""))}
                   awayColor={teamColor(String(g.away_team_code ?? ""))}
-                  onJump={jumpToPa} highlights={visibleHighlights} milestones={milestoneItems} info={info}
+                  onJump={jumpToPa} highlights={visibleHighlights} highlightsPending={highlightsPending}
+                  milestones={milestoneItems} info={info}
                   mvp={completed ? mvp : null} decisions={decisionItems} />
               )}
               {liveSnapshot

@@ -7,6 +7,7 @@
 // recap **正式文案**」，焦點區既有用法不在此限；結論行事實句才是正式文案。
 
 import { Card, Eyebrow, TeamLogo } from "@/components/ui";
+import { HIGHLIGHTS_PENDING_TEXT } from "@/lib/game-highlights-source";
 import type { Highlight } from "../game-summary";
 
 // #218 身分標籤：隊色只在印記，不鋪底；帶隊的焦點前置該隊印記。
@@ -18,20 +19,26 @@ function Chip({ text, team }: Highlight) {
   );
 }
 
-export function TeamLines({ highlights, milestones, info }: {
+export function TeamLines({ highlights, highlightsPending = false, milestones, info }: {
   highlights: Highlight[];
+  /** #337：DB 列未到齊 ⇒ 焦點位置顯示「待更新」，不出部分標籤（與 /playoffs 同判準）。 */
+  highlightsPending?: boolean;
   milestones: Highlight[];
   info: [string, React.ReactNode][];
 }) {
-  if (!highlights.length && !milestones.length && !info.length) return null;
+  if (!highlights.length && !highlightsPending && !milestones.length && !info.length) return null;
   return (
     <Card className="flex min-w-0 flex-col gap-4">
-      {highlights.length > 0 && (
+      {(highlights.length > 0 || highlightsPending) && (
         <section>
           <Eyebrow className="mb-2">本場焦點</Eyebrow>
-          <div className="flex flex-wrap gap-1.5">
-            {highlights.map((h, i) => <Chip key={i} {...h} />)}
-          </div>
+          {highlightsPending ? (
+            <p data-testid="highlights-pending" className="text-sm text-muted">{HIGHLIGHTS_PENDING_TEXT}</p>
+          ) : (
+            <div className="flex flex-wrap gap-1.5">
+              {highlights.map((h, i) => <Chip key={i} {...h} />)}
+            </div>
+          )}
         </section>
       )}
       {milestones.length > 0 && (

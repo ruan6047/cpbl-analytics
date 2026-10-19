@@ -36,6 +36,9 @@ class Settings(BaseSettings):
     live_game_lock_ttl_seconds: int = 300
     live_game_max_games_per_cycle: int = 8
     live_game_stale_after_seconds: int = 45
+    # #332：worker 同程序就緒證據（latest.json＋worker.sock）。容器內 /tmp 隨容器生命週期，
+    # 即「同實例」界線；目錄須為 worker euid 擁有且 0700，否則證據停用＝讀取端 unknown。
+    live_worker_readiness_dir: Path = Path("/tmp/cpbl-live-readiness")
     # #237 Phase B：2026+ 季後賽別（逗號分隔，只接受 E、C）。預設空＝維持原本行為：
     # live worker 只追 A、每日鏈只抓 A／D。值打錯在入口解析時就炸開，不靜默落回預設。
     live_game_postseason_kinds: str = ""
