@@ -70,6 +70,20 @@ def main(argv: list[str] | None = None) -> None:
         from cpbl.ingest.lineup_announcements import observe
 
         observation_sink = owner.observe if owner else observe
+    readiness = None
+    if not args.once:
+        # #332：常駐模式才有就緒證據（--once 輸出與退出碼維持原樣）。
+        from cpbl.ingest.live_worker_readiness import LiveWorkerReadiness
+
+        readiness = LiveWorkerReadiness(
+            directory=settings.live_worker_readiness_dir,
+            redis_client=redis_client,
+            prefix=settings.live_game_cache_prefix,
+            cache=cache,
+            max_games=settings.live_game_max_games_per_cycle,
+        )
+        readiness.start()
+        source.payload_observer = readiness.partition_payload
     worker = LiveGameWorker(
         cache=cache,
         fetch_schedule=source.fetch_schedule,
@@ -77,6 +91,7 @@ def main(argv: list[str] | None = None) -> None:
         max_games_per_cycle=settings.live_game_max_games_per_cycle,
         postseason_kinds=postseason_kinds,
         observation_sink=observation_sink,
+        readiness_observer=readiness,
     )
     stopping = False
 
@@ -89,6 +104,8 @@ def main(argv: list[str] | None = None) -> None:
     failures = 0
     try:
         while not stopping:
+            if readiness:
+                readiness.begin_attempt(datetime.now(UTC))
             try:
                 result = worker.run_cycle(datetime.now(UTC))
             except Exception as exc:  # noqa: BLE001 — process boundary，記錄後退避
@@ -114,11 +131,15 @@ def main(argv: list[str] | None = None) -> None:
                 failures=failures,
                 jitter=lambda: random.uniform(0.9, 1.1),
             )
+            if readiness:
+                readiness.end_attempt(result, delay, datetime.now(UTC))
             for _ in range(delay):
                 if stopping:
                     break
                 time.sleep(1)
     finally:
+        if readiness:
+            readiness.close()
         try:
             source.close()
         finally:
