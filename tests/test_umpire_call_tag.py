@@ -108,3 +108,20 @@ def test_playoffs_highlights_carries_umpire_call_per_ready_game_outside_input():
     assert by[4]["umpire_call"] is None                     # 有資料但未算（未給）⇒ None
     assert "umpire_call" not in by[3]["input"]              # 不進 input（input 欄位集合不變）
     assert sh.compute_payload(ctx, "E", _rows([1]), {})["games"][0]["umpire_call"] is None
+
+
+def test_playoffs_router_passes_umpire_for(monkeypatch):
+    """正式 router 帶 connect=conn，series_highlights 不會自取判決標籤 ⇒ router 必須明確傳 umpire_for。"""
+    import cpbl.playoffs.series_highlights as sh
+    from cpbl.api.routers.playoffs_highlights import playoffs_highlights
+    from cpbl.models.umpire_call_tag import game_umpire_call
+
+    seen = {}
+
+    def fake(season, series, **kw):
+        seen.update(kw)
+        return {}
+
+    monkeypatch.setattr(sh, "series_highlights", fake)
+    playoffs_highlights(season=2026, series="C")
+    assert seen["umpire_for"] is game_umpire_call

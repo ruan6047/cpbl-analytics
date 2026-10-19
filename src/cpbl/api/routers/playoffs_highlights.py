@@ -24,11 +24,14 @@ def playoffs_highlights(
     series: str = Query(..., pattern="^(E|C)$"),
 ) -> dict:
     from cpbl.api.live_cache import get_public_live_snapshot
+    from cpbl.models.umpire_call_tag import game_umpire_call
     from cpbl.playoffs.series_highlights import series_highlights
 
     try:
         # live_reader 與 overview 同一個：S02 context_version 含 live 來源狀態，不同就永遠版本不一致。
-        return series_highlights(season, series, connect=conn, live_reader=get_public_live_snapshot)
+        # 判決標籤（#285 批次 G）由後端判定：注入 connect 時 series_highlights 不會自取，正式路徑必須明確傳入。
+        return series_highlights(season, series, connect=conn, live_reader=get_public_live_snapshot,
+                                 umpire_for=game_umpire_call)
     except Exception as exc:  # noqa: BLE001 — 讀取面獨立失敗降級；前端顯示待更新，不影響其他區
         log.exception("playoffs highlights failed for %s/%s", season, series)
         raise HTTPException(503, "逐場焦點暫時無法讀取") from exc

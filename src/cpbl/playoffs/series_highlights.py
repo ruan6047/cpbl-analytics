@@ -111,8 +111,8 @@ def series_highlights(year: int, kind: str, *, now: datetime | None = None, conn
                       umpire_for: Callable[[int, str, int], dict] | None = None) -> dict:
     """單一唯讀交易讀 S02＋五表投影；交易外逐場取 decisions 與判決標籤（同單場端點）。
 
-    判決標籤預設只在正式路徑（未注入 ``connect``）計算；注入 ``connect``（隔離測試）而未注入 ``umpire_for`` 時不算，
-    免得另開連線讀到非受測資料庫。
+    判決標籤由 ``umpire_for`` 計算；正式 router 注入 ``connect`` 時一併明確傳入 ``umpire_for``。只注入 ``connect``
+    （隔離測試）而未傳 ``umpire_for`` 時不算，免得另開連線讀到非受測資料庫；兩者都未注入才用預設。
     """
     if umpire_for is None and connect is None:
         from cpbl.models.umpire_call_tag import game_umpire_call as umpire_for
