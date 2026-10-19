@@ -12,6 +12,9 @@
   它自開連線，**不在**上述交易內——與單場頁行為一致（單場頁也是分開取）。
 - ``data_status``：``ok``＝scoreboard、livelog、batting、pitching 四表都有列；否則 ``pending``（不送 input，
   前端顯示「待更新」）。這是「資料到了沒」的判斷，不是焦點條件。
+- **例外：判決標籤**（#285 批次 G，需求方 G-Q2「判定放在後端」）：逐打席 ΔWP 只能由後端解算器算，所以這一個
+  標籤由 :mod:`cpbl.models.umpire_call_tag` 判定，每場以 ``umpire_call``（與單場 ``/facts`` 同一條權威源路徑、
+  逐場自開連線，同 decisions，不在上述交易內）送出；前端只排字。其餘焦點仍只在前端判斷。
 
 GET 只讀、不寫、不觸發爬取（G13）；⛔ 從 ``playoffs/__init__`` import（排程不載入本模組）。
 """
@@ -76,8 +79,8 @@ def read_rows(cur, year: int, kind: str, snos: list[int]) -> dict[str, dict[int,
 
 
 def compute_payload(context: dict, kind: str, rows: dict[str, dict[int, list[dict]]],
-                    decisions: dict[int, dict[str, str]]) -> dict:
-    """``playoffs-highlights/v1``（純函式）。"""
+                    decisions: dict[int, dict[str, str]], umpire: dict[int, dict] | None = None) -> dict:
+    """``playoffs-highlights/v1``（純函式）。``umpire``＝game_sno → 判決標籤結果（#285 批次 G）；未給或該場未算 ⇒ None。"""
     games = series_games(context, kind)
     out_games = []
     for g in games:
@@ -90,6 +93,7 @@ def compute_payload(context: dict, kind: str, rows: dict[str, dict[int, list[dic
             "game_key": g["game_key"],
             "data_status": "ok" if ready else "pending",
             "input": ({"game": game_row, **tables, "decisions": decisions.get(sno, {})} if ready else None),
+            "umpire_call": (umpire or {}).get(sno) if ready else None,
         })
     return {
         "contract": CONTRACT,
@@ -103,8 +107,15 @@ def compute_payload(context: dict, kind: str, rows: dict[str, dict[int, list[dic
 
 
 def series_highlights(year: int, kind: str, *, now: datetime | None = None, connect: Callable | None = None,
-                      live_reader=None, decisions_for: Callable[[int, str, int], dict] | None = None) -> dict:
-    """單一唯讀交易讀 S02＋五表投影；交易外逐場取 decisions（同單場端點）。"""
+                      live_reader=None, decisions_for: Callable[[int, str, int], dict] | None = None,
+                      umpire_for: Callable[[int, str, int], dict] | None = None) -> dict:
+    """單一唯讀交易讀 S02＋五表投影；交易外逐場取 decisions 與判決標籤（同單場端點）。
+
+    判決標籤預設只在正式路徑（未注入 ``connect``）計算；注入 ``connect``（隔離測試）而未注入 ``umpire_for`` 時不算，
+    免得另開連線讀到非受測資料庫。
+    """
+    if umpire_for is None and connect is None:
+        from cpbl.models.umpire_call_tag import game_umpire_call as umpire_for
     if connect is None:
         from cpbl.db import conn as connect
     if decisions_for is None:
@@ -121,4 +132,5 @@ def series_highlights(year: int, kind: str, *, now: datetime | None = None, conn
     ready = [s for s in snos if rows["game"].get(s) and all(rows[t].get(s) for t in
                                                             ("scoreboard", "livelog", "batting", "pitching"))]
     decisions = {s: decisions_for(year, kind, s) for s in ready}
-    return compute_payload(context, kind, rows, decisions)
+    umpire = {s: umpire_for(year, kind, s) for s in ready} if umpire_for is not None else None
+    return compute_payload(context, kind, rows, decisions, umpire)
