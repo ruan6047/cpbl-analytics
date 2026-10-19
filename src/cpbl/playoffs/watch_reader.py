@@ -16,8 +16,12 @@
 6. 官方先發投手（#314）：讀 S11（#292）已送達的 ``game_schedule_status_revisions`` 目標場**現行列**
    （選列＝``OFFICIAL_SCHEDULE_ORDER_BY``／:func:`cpbl.api.helpers.official_status` 同一份規則）。
    現行列不是賽前（延賽／保留／終場／未知）、日期或主客隊不符、先發欄空 ⇒「待公告」；讀取失敗 ⇒
-   ``unknown``「暫時無法取得」（⛔ 冒充待公告或已公告）。只顯示最新一筆，⛔ 標更換、⛔ 呈現歷程；官方
-   沒有公告時刻欄，``fetched_at``／``last_seen_at`` 只是本站觀測時刻 ⇒ 回應 ⛔ 帶任何公告時間。
+   ``unknown``「暫時無法取得」（⛔ 冒充待公告或已公告）。畫面顯示現行列的先發；另依目標場**賽前歷程**標
+   ``classification``（announced／changed／retracted／pending／unknown，規則在
+   :mod:`cpbl.playoffs.starter_classification`）：更換＝「{姓名}（已更換）」、撤回＝「待公告（先前公告已撤回）」
+   （#320 A2，需求方裁定 6261389955 取代 #314 Q3「不標更換」；字樣 6261490040）。``status`` 值域
+   （announced／pending／unknown）不變。官方沒有公告時刻欄，``fetched_at``／``last_seen_at`` 只是本站觀測
+   時刻 ⇒ 回應 ⛔ 帶任何公告時間。
    本模組 ⛔ 讀 074（只有打序、沒有先發投手）、⛔ 讀 ``games.*_starter_id``（原地覆寫、看不出屬哪一版官方
    狀態）、⛔ 推測。姓名順位：官方列姓名 → ``players.name`` → ``pitching_gamelog.pitcher_name``；
    三者皆無 ⇒「已公告（姓名待更新）」，⛔ 顯示 acnt。
@@ -38,6 +42,7 @@ from datetime import UTC, date, datetime, timedelta
 from cpbl.api.helpers import OFFICIAL_SCHEDULE_ORDER_BY, _dicts, official_status
 from cpbl.completion import completed_games_sql_with_evidence
 from cpbl.coverage import taipei_date
+from cpbl.playoffs import starter_classification as sc
 from cpbl.playoffs import watch_rules as rules
 from cpbl.playoffs.watch_rules import Appearance, DayCoverage
 from cpbl.rosters.canonical import role_fields
@@ -235,15 +240,19 @@ def _clean(v) -> str | None:
 
 def official_starters(rows: list[dict] | None, *, target_date: date | None, teams: list[str],
                       names: dict[str, dict]) -> tuple[list[dict], list[str]]:
-    """官方賽程現行列 → 兩隊（客、主）先發投手狀態＋missing_reason（純，紅線 6）。
+    """官方賽程現行列＋賽前歷程 → 兩隊（客、主）先發投手狀態＋missing_reason（純，紅線 6）。
 
     - ``rows`` 為 None（讀取失敗）⇒ 兩隊 ``unknown``「暫時無法取得」。
-    - 現行列（:func:`official_status` 選列）不是 ``scheduled``、日期≠目標日、主客隊碼≠目標場 ⇒ 兩隊「待公告」。
-    - 否則逐隊：先發欄空 ⇒「待公告」；有 acnt ⇒ ``announced``，姓名依三順位，皆無 ⇒「已公告（姓名待更新）」。
+    - 現行列（:func:`official_status` 選列）不是 ``scheduled``、日期≠目標日、主客隊碼≠目標場 ⇒ 兩隊「待公告」
+      （``classification`` ``pending``，不看歷程）。
+    - 否則逐隊：先發欄空 ⇒「待公告」，賽前歷程曾有先發 ⇒ ``retracted``「待公告（先前公告已撤回）」；
+      有 acnt ⇒ ``announced``，姓名依三順位，皆無 ⇒「已公告（姓名待更新）」；賽前歷程出現過其他先發 ⇒
+      ``classification`` ``changed``，``text`` 加「（已更換）」。
     """
     if rows is None:
         return ([{"team_code": t, "status": "unknown", "reason": "starter_source_unavailable", "player_id": None,
-                  "name": None, "text": STARTER_UNAVAILABLE_TEXT} for t in teams], ["starter_source_unavailable"])
+                  "name": None, "text": STARTER_UNAVAILABLE_TEXT, "classification": sc.UNKNOWN} for t in teams],
+                ["starter_source_unavailable"])
     status, row = official_status(rows)
     gate = None
     if row is None:
@@ -254,20 +263,26 @@ def official_starters(rows: list[dict] | None, *, target_date: date | None, team
         gate = "official_schedule_date_mismatch"
     elif [row.get("visiting_team_code"), row.get("home_team_code")] != list(teams):
         gate = "official_schedule_team_mismatch"
+    pregame = [] if gate else sc.pregame_rows(rows, target_date=target_date, teams=teams)
     out: list[dict] = []
     missing: list[str] = []
     for side, code in zip(("visiting", "home"), teams, strict=True):
         acnt = None if gate else _clean(row.get(f"{side}_pitcher_acnt"))
+        cls = sc.PENDING if gate else sc.classify_side(acnt, sc.history_acnts(pregame, side))
         if acnt is None:
             out.append({"team_code": code, "status": "pending", "reason": gate or "starter_not_announced",
-                        "player_id": None, "name": None, "text": STARTER_PENDING_TEXT})
+                        "player_id": None, "name": None,
+                        "text": sc.RETRACTED_TEXT if cls == sc.RETRACTED else STARTER_PENDING_TEXT,
+                        "classification": cls})
             missing.append(f"starter_not_announced:{code}")
             continue
         n = names.get(acnt) or {}
         name = (_clean(row.get(f"{side}_pitcher_name")) or _clean(n.get("player_name"))
                 or _clean(n.get("gamelog_name")))
+        text = name or STARTER_NAME_MISSING_TEXT
         out.append({"team_code": code, "status": "announced", "reason": None if name else "starter_name_missing",
-                    "player_id": acnt, "name": name, "text": name or STARTER_NAME_MISSING_TEXT})
+                    "player_id": acnt, "name": name,
+                    "text": text + sc.CHANGED_SUFFIX if cls == sc.CHANGED else text, "classification": cls})
         if name is None:
             missing.append(f"starter_name_missing:{code}")
     return out, missing
@@ -407,6 +422,7 @@ def compute_watch(inputs: WatchInputs, *, now: datetime) -> dict:
         target={"game_key": st.get("target_game_key"), "game_date": target_date.isoformat() if target_date else None,
                 "target_status": target_status, "away_team_code": teams[0], "home_team_code": teams[1]},
         starters=starters,
+        starters_classification=sc.classify_game(s["classification"] for s in starters),
         teams=team_out,
     )
 
@@ -461,8 +477,10 @@ APPEARANCES_SQL = """
 
 # 官方先發（紅線 6）：目標場全部修訂列（單場通常 1–3 列，走 idx_game_schedule_status_revisions_latest），
 # 以同一份選列規則排序；選列在 :func:`official_starters` 經 :func:`official_status` 再做一次（防呆，同構全序）。
+# ``is_play_ball`` 只供賽前歷程篩選（:mod:`cpbl.playoffs.starter_classification`），不影響選列。
 OFFICIAL_SCHEDULE_SQL = f"""
     SELECT raw_present_status, raw_game_result, raw_game_date, payload_hash, fetched_at, last_seen_at,
+           raw_payload->>'IsPlayBall' AS is_play_ball,
            raw_payload->>'VisitingTeamCode' AS visiting_team_code,
            raw_payload->>'HomeTeamCode' AS home_team_code,
            NULLIF(btrim(raw_payload->>'VisitingPitcherAcnt'), '') AS visiting_pitcher_acnt,

@@ -51,7 +51,8 @@ export type OverviewGameCard = {
   starters?: OverviewStarter[];
 };
 
-/** S11 官方先發（客、主順序）；畫面只用 `text`（姓名／「待公告」／「已公告（姓名待更新）」／「暫時無法取得」）。 */
+/** S11 官方先發（客、主順序）；畫面只用 `text`（姓名／「待公告」／「已公告（姓名待更新）」／「暫時無法取得」，
+ *  #320 A2 起另有「{姓名}（已更換）」與「待公告（先前公告已撤回）」）。`classification` 同第 4 區。 */
 export type OverviewStarter = {
   team_code: string;
   status: "announced" | "pending" | "unknown";
@@ -59,6 +60,7 @@ export type OverviewStarter = {
   player_id: string | null;
   name: string | null;
   text: string;
+  classification?: "announced" | "changed" | "retracted" | "pending" | "unknown";
 };
 
 export type OverviewSeriesBlock = {

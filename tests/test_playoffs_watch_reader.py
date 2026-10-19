@@ -299,18 +299,22 @@ def test_starters_one_side_announced():
         assert missing == ["starter_not_announced:ACN011"]
 
 
-def test_starters_latest_only_a_b_a():
-    """A→B→A：官網改回 A 時，同 payload 的 A 列 last_seen_at 更新 ⇒ 選 A（只顯示最新、⛔ 標更換）。"""
+def test_starters_a_b_a_selects_latest_and_marks_changed():
+    """A→B→A：官網改回 A 時，同 payload 的 A 列 last_seen_at 更新 ⇒ 選 A；賽前歷程出現過 B ⇒ 標更換
+    （#320 A2，需求方裁定 6261389955 取代 #314 Q3「不標更換」）。``status`` 值域不變、⛔ 帶任何時間欄。"""
     a = rev("2026-10-11", "ADD011", "ACN011", "0000006848", "0000005151", h="a",
             fetched="2026-10-10T10:00:00+00:00", seen="2026-10-11T08:30:00+00:00")
     b = rev("2026-10-11", "ADD011", "ACN011", "0000009999", "0000005151", h="b",
             fetched="2026-10-11T02:10:00+00:00")
+    a, b = dict(a, is_play_ball="N"), dict(b, is_play_ball="N")
     out, _ = starters_of([b, a], NAMES)
-    assert [s["player_id"] for s in out] == ["0000006848", "0000005151"]
+    assert [(s["player_id"], s["status"], s["classification"], s["text"]) for s in out] == [
+        ("0000006848", "announced", "changed", "林詔恩（已更換）"), ("0000005151", "announced", "announced", "羅戈")]
     out, _ = starters_of([dict(a, last_seen_at=a["fetched_at"]), b], NAMES)  # 停在 B
-    assert out[0]["player_id"] == "0000009999" and out[0]["text"] == "已公告（姓名待更新）"
+    assert out[0]["player_id"] == "0000009999" and out[0]["text"] == "已公告（姓名待更新）（已更換）"
     for s in out:
-        assert set(s) == {"team_code", "status", "reason", "player_id", "name", "text"}  # 無時間、無更換欄
+        assert set(s) == {"team_code", "status", "reason", "player_id", "name", "text", "classification"}
+        assert s["status"] in {"announced", "pending", "unknown"}
 
 
 def test_starters_pending_when_not_pregame_or_mismatch():
