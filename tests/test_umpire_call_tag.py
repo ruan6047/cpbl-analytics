@@ -1,7 +1,7 @@
 """#285 批次 G 判決標籤（``cpbl.models.umpire_call_tag``）。
 
 純函式以合成落點驗規則（容差邊界、單方／兩方、資料不足）；黃金值（2026 E3 獅捨、C1 成全）與 2026 一軍命中率
-以本機共享庫唯讀重算，證據見 #285 exec-8（probe/hitrate-2026A.json），不在單元測試內連庫。
+以本機共享庫唯讀重算，證據見 #338 exec-1（golden.json），不在單元測試內連庫。
 """
 
 from __future__ import annotations
