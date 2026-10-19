@@ -92,7 +92,7 @@ export function buildHighlights(data: HighlightInput, completed: boolean): Highl
     if (hs !== aw && maxInn0 < 9) H(`${maxInn0} 局裁定比賽`);
   }
   // 賽事級焦點數量錨點：稀有成就（extra）插在其後、常見焦點之前，
-  // 確保稀有標籤不被 splice(12) 擠掉。
+  // 確保稀有標籤不被 splice(16) 擠掉。
   const nGameLevel = highlights.length;
 
   // 魯閣（網路用語，源自大魯閣打擊場＝投手像發球機一樣好打）：
@@ -208,7 +208,9 @@ export function buildHighlights(data: HighlightInput, completed: boolean): Highl
     for (let i = highlights.length - 1; i >= 0; i--) if (dup(highlights[i].text)) highlights.splice(i, 1);
   }
   highlights.splice(nGameLevel, 0, ...extra);
-  highlights.splice(12);
+  // 上限 16（需求方 #285 批次 F 裁定，原 12）：加入失誤類新標籤後全庫 2018–2026 共 4,509 場 P99＝14、最大 20；
+  // 16 時既有標籤 0 擠出（exec-7 cap/cap.json）。
+  highlights.splice(16);
   return highlights;
 }
 
@@ -347,5 +349,222 @@ function buildRareHighlights(data: HighlightInput, completed: boolean): Highligh
   for (const [h, c] of Object.entries(hbpBy))
     if (c >= 2) extra.push({ text: `${hName.get(h) ?? ""} 萬磁王（${c} 觸身）`, team: hTeam.get(h) ?? null });
 
+  // #285 批次 F 五個新標籤（道歉全壘打／道歉野球／一棒逆轉／一棒追平／致命失誤）：排在既有稀有組之後。
+  extra.push(...buildErrorHighlights(data));
   return extra;
+}
+
+// —— #285 批次 F：失誤事件表與五個新標籤（plan-7 r1＋需求方 F-Q1 因果版、F-Q2 全部套用、F-Q3）——————————————
+//
+// 資料：livelog 敘述（`content`）的具名守位失誤＋記分板逐局 `error_cnt`＋box `errors`。原則：時點或歸屬不明一律不標。
+// - 偵測：非換人列的 `content` 以「守位詞＋（接球／漏接／傳X／傳球）失誤」取該列具名守位集合（同列跑者重述去重）；
+//   泛稱「因野手失誤進壘」不帶守位，不計入具名。
+// - 半局對帳：該半局具名失誤數＝守備方該局 `error_cnt` 才算通過；不等 ⇒ 該半局所有失誤時點與歸屬視為不明。
+// - 歸屬：投手＝該列 pitcher_acnt；捕手＝該列 catcher_acnt；其他守位＝守備方 box `errors>0` 且其守位
+//   （livelog `defend_station_code`，排除 PH／PR／DH）含該守位者恰一人；某人被歸屬次數超過 box `errors` ⇒ 全改不明。
+// - 受影響跑者（致命失誤因果版）：打者因具名失誤上壘＝打者；「X壘跑者NAME 因<守位>…失誤」＝NAME；同列泛稱
+//   「X壘跑者NAME 因野手失誤進壘」只在該列恰一個具名失誤時歸給它；失誤未造成進壘（例：界外接球失誤）＝無；
+//   其他形狀 ⇒ 不明（該半局不標致命失誤）。
+// - 致命失誤：半局對帳通過、守備方半局開始不落後、結束落後；自「由不落後變落後」那一列（含）起各列的失分，
+//   每分的得分者姓名都解析得到（`回本壘得分`／全壘打打者）才判；其中至少一人屬某失誤（不晚於其得分列）的
+//   受影響跑者 ⇒ 標；半局內任一失誤的失誤者不明（playerAcnt＝null）⇒ 整個半局不標（plan-7 r2）。
+// 全庫可判定比例與 2026 季後黃金值見 #285 exec-7 證據（probe/causal.json、wpf5）。
+
+const ERR_POS: Record<string, string> = {
+  投手: "P", 捕手: "C", 一壘手: "1B", 二壘手: "2B", 三壘手: "3B", 游擊手: "SS", 左外野手: "LF", 中外野手: "CF", 右外野手: "RF",
+};
+const POS_WORD = "(?:投手|捕手|一壘手|二壘手|三壘手|游擊手|左外野手|中外野手|右外野手)";
+const ERR_RE = new RegExp(`(${POS_WORD})\\s*(?:接球|漏接|傳\\S{2,5}?(?:傳球)?|傳球)?\\s*失誤`, "g");
+const RUNNER_NAMED_RE = new RegExp(`[一二三本]壘跑者\\s*\\*?([^\\s因回上*]+?)\\s*(?:盜壘\\S*?-)?因\\s*${POS_WORD}[^。]*?失誤`);
+const RUNNER_GENERIC_RE = /[一二三本]壘跑者\s*\*?([^\s因回上*]+?)\s*(?:盜壘\S*?-)?因野手失誤進壘/;
+const SCORER_RE = /跑者\s*\*?([^\s因回上*。]+)[^。]*?回本壘得分/g;
+const RBI_RE = /(\d+)分打點/g;
+
+const cleanName = (v: unknown) => String(v ?? "").replace(/\*/g, "").trim();
+
+export type ErrorEvent = {
+  /** 在「非換人列」序列中的位置。 */
+  rowIndex: number;
+  inning: number;
+  /** 守備方 visiting_home_type（"1"＝客隊）。 */
+  fieldingSide: string;
+  position: string;
+  /** 失誤者；半局對帳不過、捕手列缺 catcher_acnt、守位候選不唯一、超過 box 數 ⇒ null。 */
+  playerAcnt: string | null;
+  /** 受此列失誤影響（上壘或進壘）的跑者姓名；null＝不明。 */
+  affected: Set<string> | null;
+};
+
+/** 失誤事件表（純函式）。回傳事件與「半局（`${inning}|${fieldingSide}`）→ 是否對帳通過」。 */
+export function errorEvents(data: HighlightInput): { events: ErrorEvent[]; halfOk: Map<string, boolean>; rows: StatRow[] } {
+  const rows = data.livelog.filter((r) => !r.is_change_player);
+  const events: ErrorEvent[] = [];
+  const named = new Map<string, number>();
+  rows.forEach((r, i) => {
+    const content = String(r.content ?? "");
+    const ps = new Set<string>();
+    for (const m of content.matchAll(ERR_RE)) ps.add(ERR_POS[m[1]]);
+    if (!ps.size) return;
+    const fieldingSide = String(r.visiting_home_type) === "1" ? "2" : "1";
+    const inning = num(r.inning_seq);
+    const key = `${inning}|${fieldingSide}`;
+    named.set(key, (named.get(key) ?? 0) + ps.size);
+    let affected: Set<string> | null = new Set<string>();
+    const generic: string[] = [];
+    for (const sentence of content.split("。")) {
+      if (!sentence.includes("失誤")) continue;
+      const hasNamed = new RegExp(ERR_RE.source).test(sentence);
+      if (!sentence.includes("跑者") && hasNamed && /失誤(?:上[一二三]壘|上壘)/.test(sentence)) {
+        affected.add(cleanName(r.hitter_name));              // 打者因具名失誤上壘
+        continue;
+      }
+      const mn = sentence.match(RUNNER_NAMED_RE);
+      if (mn) { affected.add(cleanName(mn[1])); continue; }
+      const mg = sentence.match(RUNNER_GENERIC_RE);
+      if (mg) { generic.push(cleanName(mg[1])); continue; }
+      if (hasNamed && !/失誤(?:上|回|進壘)/.test(sentence)) continue;   // 失誤未造成進壘
+      affected = null;
+      break;
+    }
+    if (affected && generic.length) {
+      if (ps.size === 1) for (const n of generic) affected.add(n);
+      else affected = null;
+    }
+    for (const position of ps) {
+      events.push({ rowIndex: i, inning, fieldingSide, position, playerAcnt: null,
+        affected: affected ? new Set(affected) : null });
+    }
+  });
+  // 半局對帳（記分板 vht＝該隊；該隊守備時犯的失誤）
+  const sb = new Map<string, number>();
+  for (const r of data.scoreboard) {
+    const key = `${num(r.inning_seq)}|${String(r.visiting_home_type)}`;
+    sb.set(key, (sb.get(key) ?? 0) + num(r.error_cnt));
+  }
+  const halfOk = new Map<string, boolean>();
+  for (const [key, n] of named) halfOk.set(key, n === (sb.get(key) ?? 0));
+  // 歸屬
+  const posOf = new Map<string, Set<string>>();
+  for (const r of data.livelog) {
+    if (r.is_change_player || !r.hitter_acnt) continue;
+    const pos = String(r.defend_station_code ?? "");
+    if (!pos || pos === "PH" || pos === "PR" || pos === "DH") continue;
+    const k = String(r.hitter_acnt);
+    if (!posOf.has(k)) posOf.set(k, new Set());
+    posOf.get(k)!.add(pos);
+  }
+  const boxErrors = new Map<string, { side: string; errors: number }>();
+  for (const row of data.batting) {
+    if (row.errors === undefined || row.errors === null) continue;
+    boxErrors.set(String(row.hitter_acnt), { side: String(row.visiting_home_type), errors: num(row.errors) });
+  }
+  const counted = new Map<string, number>();
+  for (const ev of events) {
+    if (!halfOk.get(`${ev.inning}|${ev.fieldingSide}`)) continue;
+    const row = rows[ev.rowIndex];
+    if (ev.position === "P") ev.playerAcnt = row.pitcher_acnt ? String(row.pitcher_acnt) : null;
+    else if (ev.position === "C") ev.playerAcnt = row.catcher_acnt ? String(row.catcher_acnt) : null;
+    else {
+      const cand = [...boxErrors].filter(([acnt, b]) => b.side === ev.fieldingSide && b.errors > 0
+        && (posOf.get(acnt)?.has(ev.position) ?? false)).map(([acnt]) => acnt);
+      ev.playerAcnt = cand.length === 1 ? cand[0] : null;
+      if (ev.playerAcnt) counted.set(ev.playerAcnt, (counted.get(ev.playerAcnt) ?? 0) + 1);
+    }
+  }
+  for (const ev of events) {
+    if (ev.playerAcnt && ev.position !== "P" && ev.position !== "C"
+        && (counted.get(ev.playerAcnt) ?? 0) > (boxErrors.get(ev.playerAcnt)?.errors ?? 0)) ev.playerAcnt = null;
+  }
+  return { events, halfOk, rows };
+}
+
+/** 五個新標籤（純函式；呼叫端已確認完賽）。 */
+function buildErrorHighlights(data: HighlightInput): Highlight[] {
+  const g = data.game;
+  if (!g || data.livelog.length === 0) return [];
+  const out: { at: number; h: Highlight }[] = [];
+  const teamOfSide = (side: string) => String((side === "1" ? g.away_team_code : g.home_team_code) ?? "");
+  const { events, halfOk, rows } = errorEvents(data);
+  // 事件前／後比分（比分欄＝事件後；null 延用上一列）
+  const pre: [number, number][] = [], post: [number, number][] = [];
+  let pv = 0, ph = 0;
+  for (const r of rows) {
+    pre.push([pv, ph]);
+    pv = r.visiting_score != null ? num(r.visiting_score) : pv;
+    ph = r.home_score != null ? num(r.home_score) : ph;
+    post.push([pv, ph]);
+  }
+  const lead = ([v, h]: [number, number], side: string) => (side === "1" ? v - h : h - v);
+
+  // 打席島（連續同打者、非換人）
+  const islands: number[][] = [];
+  let curIsland: number[] = [];
+  rows.forEach((r, i) => {
+    if (!r.hitter_acnt) return;
+    if (curIsland.length && String(rows[curIsland[0]].hitter_acnt) !== String(r.hitter_acnt)) {
+      islands.push(curIsland); curIsland = [];
+    }
+    curIsland.push(i);
+  });
+  if (curIsland.length) islands.push(curIsland);
+
+  for (const isl of islands) {
+    const f = isl[0], l = isl[isl.length - 1];
+    const r = rows[l];
+    const side = String(r.visiting_home_type ?? "");
+    const team = teamOfSide(side);
+    const hitter = String(r.hitter_acnt ?? "");
+    const name = cleanName(r.hitter_name);
+    const hr = String(r.action_name ?? "").includes("全壘打");
+    // 一棒逆轉／追平取「content 含全壘打那一列」的事件前後比分（plan-7 r2，review-15 R1）：打席內在全壘打之前
+    // 因暴投、捕逸、盜壘等得的分不算這一棒；找不到那一列 ⇒ 不標。
+    const hrRow = [...isl].reverse().find((i) => String(rows[i].content ?? "").includes("全壘打"));
+    // 道歉全壘打／道歉野球（F-Q3：全壘打只出道歉全壘打）
+    const owed = events.some((ev) => ev.playerAcnt === hitter && ev.rowIndex < f);
+    if (owed) {
+      let rbi = 0;
+      for (const i of isl) for (const m of String(rows[i].content ?? "").matchAll(RBI_RE)) rbi = Math.max(rbi, Number(m[1]));
+      if (hr) out.push({ at: l, h: { text: `${name} 道歉全壘打`, team } });
+      else if (rbi >= 1) out.push({ at: l, h: { text: `${name} 道歉野球`, team } });
+    }
+    // 一棒逆轉／一棒追平
+    if (hr && hrRow !== undefined) {
+      const before = lead(pre[hrRow], side), after = lead(post[hrRow], side);
+      if (before < 0 && after > 0) out.push({ at: l, h: { text: `${name} 一棒逆轉`, team } });
+      if (before < 0 && after === 0) out.push({ at: l, h: { text: `${name} 一棒追平`, team } });
+    }
+  }
+
+  // 致命失誤（因果版）
+  const halves = new Set(events.map((ev) => `${ev.inning}|${ev.fieldingSide}`));
+  for (const key of halves) {
+    if (!halfOk.get(key)) continue;
+    const [innS, fv] = key.split("|");
+    const inning = Number(innS);
+    const hevs = events.filter((ev) => ev.inning === inning && ev.fieldingSide === fv);
+    // 共通 fail-closed（plan-7 r2，review-15 R2；6259751815）：半局內任一具名失誤的受影響跑者或失誤者不明 ⇒ 不標
+    if (hevs.some((ev) => ev.affected === null || ev.playerAcnt === null)) continue;
+    const idx = rows.map((r, i) => (num(r.inning_seq) === inning && String(r.visiting_home_type) !== fv ? i : -1))
+      .filter((i) => i >= 0);
+    if (!idx.length) continue;
+    if (!(lead(pre[idx[0]], fv) >= 0 && lead(post[idx[idx.length - 1]], fv) < 0)) continue;
+    let behind = -1;
+    for (const i of idx) if (lead(pre[i], fv) >= 0 && lead(post[i], fv) < 0) behind = i;
+    if (behind < 0) continue;
+    let determinable = true, hit = false;
+    for (const i of idx) {
+      if (i < behind) continue;
+      const r = rows[i];
+      const runs = lead(pre[i], fv) - lead(post[i], fv);
+      const scorers = [...String(r.content ?? "").matchAll(SCORER_RE)].map((m) => cleanName(m[1]));
+      if (String(r.content ?? "").includes("全壘打") && String(r.action_name ?? "").includes("全壘打")) scorers.push(cleanName(r.hitter_name));
+      if (runs !== scorers.length) { determinable = false; break; }
+      if (scorers.some((n) => hevs.some((ev) => ev.rowIndex <= i && ev.affected!.has(n)))) hit = true;
+    }
+    if (determinable && hit) {
+      const code = teamOfSide(fv);
+      out.push({ at: idx[idx.length - 1], h: { text: `${teamShort(code)} 致命失誤（${inning} 局）`, team: code } });
+    }
+  }
+  return out.sort((a, b) => a.at - b.at).map((o) => o.h);
 }

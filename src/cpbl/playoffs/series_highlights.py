@@ -32,9 +32,11 @@ GAME_COLS = ("away_team_code", "home_team_code", "home_score", "away_score", "aw
 SCOREBOARD_COLS = ("inning_seq", "visiting_home_type", "score_cnt", "error_cnt")
 LIVELOG_COLS = ("main_event_no", "inning_seq", "visiting_home_type", "out_cnt", "pitch_cnt", "content",
                 "action_name", "hitter_acnt", "hitter_name", "pitcher_acnt", "first_base", "second_base",
-                "third_base", "is_score", "is_change_player", "visiting_score", "home_score")
+                "third_base", "is_score", "is_change_player", "visiting_score", "home_score",
+                # #285 批次 F 失誤類標籤：捕手失誤歸屬、守位歸屬
+                "catcher_acnt", "defend_station_code")
 BATTING_COLS = ("hitter_name", "visiting_home_type", "role_type", "hits", "home_runs", "grand_slam", "rbi", "sb",
-                "hitter_acnt")
+                "hitter_acnt", "errors")
 PITCHING_COLS = ("pitcher_name", "visiting_home_type", "pitcher_acnt", "is_shutout", "is_complete_game", "so",
                  "inning_pitched_cnt", "inning_pitched_div3", "earned_runs", "hits", "bb", "hbp", "runs", "max_speed")
 
