@@ -55,7 +55,10 @@ def test_series_e_switches_axis_and_matches_c_page_previous():
     # 6214203757：E 頁與 C 頁 previous 位置同源
     assert ss_e["current"] == c["series_section"]["previous"]
     assert e["series_summary"]["current"]["kind_code"] == "E" and e["series_summary"]["previous"] is None
-    assert e["series_summary"]["current"] == c["series_summary"]["previous"]
+    # 批次 E 方案 A：C 頁不再帶挑戰賽累計榜；E 頁 current 自證為 E 的累計榜
+    assert c["series_summary"]["previous"] is None
+    assert e["series_summary"]["current"] == ss.summary_json(i.series_summary, i.summary_names, current="E",
+                                                             previous=None)["current"]
 
 
 def test_context_version_and_manifest_do_not_depend_on_series():
