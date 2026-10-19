@@ -221,6 +221,9 @@ class StatsLiveSource:
     """已驗證的 stats schedule + single-game JSON endpoints。"""
 
     def __init__(self, client: httpx.Client | None = None) -> None:
+        # #332：壓縮 ``Games or []`` 前的原始 JSON 觀測點；None＝原行為。回呼例外一律吞掉，
+        # ⛔ 不得影響本方法的回傳值或例外。
+        self.payload_observer: Callable[[str, int, int, Any], None] | None = None
         self.client = client or httpx.Client(
             base_url=_BASE,
             timeout=20.0,
@@ -239,7 +242,13 @@ class StatsLiveSource:
             params={"kindCode": kind_code, "year": str(year), "month": str(month)},
         )
         response.raise_for_status()
-        games = (response.json().get("Data") or {}).get("Games") or []
+        payload = response.json()
+        if self.payload_observer is not None:
+            try:
+                self.payload_observer(kind_code, year, month, payload)
+            except Exception:  # noqa: BLE001 — 觀測失敗由 observer 自行記為 unknown
+                pass
+        games = (payload.get("Data") or {}).get("Games") or []
         if not isinstance(games, list):
             raise ValueError("stats schedule schema drift: Games 不是 list")
         return games
@@ -530,8 +539,11 @@ class LiveGameWorker:
         postseason_kinds: tuple[str, ...] = (),
         observation_sink: Callable[[str, dict, datetime], Any] | None = None,
         observation_clock: Callable[[], datetime] | None = None,
+        readiness_observer: Any | None = None,
     ) -> None:
         self.cache = cache
+        # #332：同程序就緒觀測；None＝原行為。hook 只讀，例外吞掉並記 fault。
+        self.readiness_observer = readiness_observer
         self.fetch_schedule = fetch_schedule
         self.fetch_game = fetch_game
         self.enabled = enabled
@@ -544,6 +556,18 @@ class LiveGameWorker:
         if unsupported:
             raise ValueError(f"postseason_kinds 只接受 E／C：{unsupported}")
         self.postseason_kinds = tuple(postseason_kinds)
+
+    def _observe(self, name: str, *args: Any) -> None:
+        observer = self.readiness_observer
+        if observer is None:
+            return
+        try:
+            getattr(observer, name)(*args)
+        except Exception:  # noqa: BLE001 — 觀測不得改變 worker 行為
+            try:
+                observer.mark_fault(name)
+            except Exception:  # noqa: BLE001
+                pass
 
     def _postseason_rows(
         self, month_keys: set[tuple[int, int]], errors: list[dict[str, Any]],
@@ -559,11 +583,13 @@ class LiveGameWorker:
             for year, month in sorted(month_keys):
                 if not requires_official_completion(kind, year):
                     continue
+                self._observe("partition_requested", kind, year, month)
                 try:
                     fetched = self.fetch_schedule(year, month, kind)
                 except (OSError, ValueError, httpx.HTTPError) as exc:
                     errors.append({"kind": kind, "year": year, "month": month,
                                    "error_type": type(exc).__name__})
+                    self._observe("partition_failed", kind, year, month, type(exc).__name__)
                     continue
                 for row in fetched:
                     identity = _identity(row) if isinstance(row, dict) else None
@@ -590,18 +616,21 @@ class LiveGameWorker:
             month_keys = {(local.year, local.month)}
             edge = local + timedelta(hours=30)
             month_keys.add((edge.year, edge.month))
-            schedule_rows = [
-                row
-                for year, month in sorted(month_keys)
-                for row in self.fetch_schedule(year, month)
-            ]
+            schedule_rows = []
+            for year, month in sorted(month_keys):
+                self._observe("partition_requested", "A", year, month)
+                schedule_rows.extend(self.fetch_schedule(year, month))
             schedule_errors: list[dict[str, Any]] = []
             postseason_rows, rejected_rows = self._postseason_rows(month_keys, schedule_errors)
             # A 候選排在前面：季後列再多也不能把 A 擠出 max_games_per_cycle。
-            selected = (
+            candidates = (
                 _select_candidates(schedule_rows, now)
                 + _select_candidates(postseason_rows, now)
-            )[: self.max_games_per_cycle]
+            )
+            selected = candidates[: self.max_games_per_cycle]
+            self._observe("candidates_selected",
+                          [str(row.get("GameId")) for row in candidates],
+                          [str(row.get("GameId")) for row in selected])
             phases: Counter[str] = Counter()
             game_summaries: list[dict[str, Any]] = []
             cached = errors = skipped_final = 0
@@ -617,10 +646,12 @@ class LiveGameWorker:
                 try:
                     previous = self.cache.get_snapshot(year, kind, sno)
                     if (previous or {}).get("phase") == "final":
+                        self._observe("game_reused_final", game_id, previous)
                         skipped_final += 1
                         phases["final"] += 1
                         continue
                     raw_game = self.fetch_game(game_id)
+                    self._observe("game_payload", game_id, raw_game)
                     if kind in self.postseason_kinds and (
                         raw_game.get("GameId") != game_id
                         or raw_game.get("KindCode") != kind
@@ -643,6 +674,8 @@ class LiveGameWorker:
                         detail_starts_at is None
                         or not _within_observation_window(detail_starts_at, now)
                     ):
+                        self._observe("game_time_unknown" if detail_starts_at is None
+                                      else "game_moved_out", game_id)
                         continue
                     snapshot = build_snapshot(
                         raw_game,
@@ -650,7 +683,9 @@ class LiveGameWorker:
                         previous=previous,
                     )
                     self.cache.set_snapshot(snapshot)
+                    self._observe("game_written", game_id, snapshot)
                 except (OSError, ValueError, httpx.HTTPError) as exc:
+                    self._observe("game_failed", game_id, type(exc).__name__)
                     self.cache.record_source_error(
                         year, kind, sno,
                         observed_at=now,
