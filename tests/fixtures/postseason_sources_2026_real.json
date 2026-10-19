@@ -1,0 +1,146 @@
+{
+  "_provenance": {
+    "extracted_at": "2026-10-15T04:10:24.445224+00:00",
+    "keys": [
+      "2026-E-1",
+      "2026-E-2",
+      "2026-E-3",
+      "2026-E-4",
+      "2026-C-1"
+    ],
+    "note": "#293 WP1 真實樣本（memory：真實樣本非自造）；E1–E4 為 2026 季後挑戰賽實際完賽場、C1 為台灣大賽 G1 賽前（未開打）",
+    "source": "本機 cpbl（cpbl-analytics-db-1）唯讀查詢 cpbl.postseason_sources.load_local_facts"
+  },
+  "games": {
+    "2026-C-1": {
+      "box_counts": {
+        "batting_gamelog": 0,
+        "game_detail": 0,
+        "game_livelog": 0,
+        "game_scoreboard": 0,
+        "pitch_tracking": 0,
+        "pitching_game_flags": 0,
+        "pitching_gamelog": 0
+      },
+      "box_local_at": null,
+      "completed": false,
+      "final_first_seen": null,
+      "game_date": "2026-10-17",
+      "key": "2026-C-1",
+      "pa_counts": {
+        "game_pa_events": 0,
+        "game_pa_pitch_mappings": 0,
+        "game_plate_appearances": 0,
+        "game_recap_builds": 0,
+        "game_recap_source_revisions": 0
+      },
+      "published_at": null,
+      "published_build": null,
+      "reconciliation_outstanding": 0
+    },
+    "2026-E-1": {
+      "box_counts": {
+        "batting_gamelog": 22,
+        "game_detail": 1,
+        "game_livelog": 281,
+        "game_scoreboard": 18,
+        "pitch_tracking": 264,
+        "pitching_game_flags": 7,
+        "pitching_gamelog": 7
+      },
+      "box_local_at": "2026-10-10T10:10:59.317907+08:00",
+      "completed": true,
+      "final_first_seen": "2026-10-10T03:09:23.958006+08:00",
+      "game_date": "2026-10-09",
+      "key": "2026-E-1",
+      "pa_counts": {
+        "game_pa_events": 281,
+        "game_pa_pitch_mappings": 264,
+        "game_plate_appearances": 71,
+        "game_recap_builds": 1,
+        "game_recap_source_revisions": 2
+      },
+      "published_at": "2026-10-10T03:09:33.274119+08:00",
+      "published_build": "9021f22e-5451-437c-bff5-69a7264e46cf",
+      "reconciliation_outstanding": 0
+    },
+    "2026-E-2": {
+      "box_counts": {
+        "batting_gamelog": 20,
+        "game_detail": 1,
+        "game_livelog": 254,
+        "game_scoreboard": 18,
+        "pitch_tracking": 238,
+        "pitching_game_flags": 5,
+        "pitching_gamelog": 5
+      },
+      "box_local_at": "2026-10-11T10:11:02.535759+08:00",
+      "completed": true,
+      "final_first_seen": "2026-10-11T10:10:10.252590+08:00",
+      "game_date": "2026-10-10",
+      "key": "2026-E-2",
+      "pa_counts": {
+        "game_pa_events": 254,
+        "game_pa_pitch_mappings": 238,
+        "game_plate_appearances": 64,
+        "game_recap_builds": 1,
+        "game_recap_source_revisions": 2
+      },
+      "published_at": "2026-10-11T10:11:02.663601+08:00",
+      "published_build": "154353d3-0649-4086-9d88-eedf6abddca1",
+      "reconciliation_outstanding": 0
+    },
+    "2026-E-3": {
+      "box_counts": {
+        "batting_gamelog": 22,
+        "game_detail": 1,
+        "game_livelog": 307,
+        "game_scoreboard": 18,
+        "pitch_tracking": 285,
+        "pitching_game_flags": 8,
+        "pitching_gamelog": 8
+      },
+      "box_local_at": "2026-10-12T10:11:27.930347+08:00",
+      "completed": true,
+      "final_first_seen": "2026-10-12T10:10:27.041750+08:00",
+      "game_date": "2026-10-11",
+      "key": "2026-E-3",
+      "pa_counts": {
+        "game_pa_events": 307,
+        "game_pa_pitch_mappings": 285,
+        "game_plate_appearances": 78,
+        "game_recap_builds": 1,
+        "game_recap_source_revisions": 2
+      },
+      "published_at": "2026-10-12T10:11:28.816643+08:00",
+      "published_build": "0e9135a9-5602-42f2-8fe7-9108b724bc56",
+      "reconciliation_outstanding": 0
+    },
+    "2026-E-4": {
+      "box_counts": {
+        "batting_gamelog": 23,
+        "game_detail": 1,
+        "game_livelog": 355,
+        "game_scoreboard": 18,
+        "pitch_tracking": 332,
+        "pitching_game_flags": 11,
+        "pitching_gamelog": 11
+      },
+      "box_local_at": "2026-10-13T10:11:04.462803+08:00",
+      "completed": true,
+      "final_first_seen": "2026-10-13T10:10:11.463834+08:00",
+      "game_date": "2026-10-12",
+      "key": "2026-E-4",
+      "pa_counts": {
+        "game_pa_events": 355,
+        "game_pa_pitch_mappings": 332,
+        "game_plate_appearances": 82,
+        "game_recap_builds": 1,
+        "game_recap_source_revisions": 2
+      },
+      "published_at": "2026-10-13T10:11:04.673242+08:00",
+      "published_build": "9b516bb6-d228-47d0-84bb-be8d959c47a9",
+      "reconciliation_outstanding": 0
+    }
+  }
+}
