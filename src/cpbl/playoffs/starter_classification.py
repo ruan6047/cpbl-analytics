@@ -10,7 +10,8 @@
   目標場相同的列（與 ``between_games.pregame_schedule`` 賽前候選同形；改期後只看新日期的列）。
 - 每隊 S＝賽前歷程中該側**不同的非空 acnt**（以 acnt 去重，⛔ 以列數或 payload 數判斷：同一先發會因其他
   欄位變動對應多列）。
-- 目前有值：S∪{目前值} 只有一人 ⇒ ``announced``；多於一人 ⇒ ``changed``（含 A→B→A，目前是 A）。
+- 目前有值：|S|≤1 ⇒ ``announced``；|S|>1 ⇒ ``changed``（含 A→B→A，目前是 A）。只看 S、⛔ 把目前值併入 S
+  （審核第 1 輪 #320 6262922767：照核定定義；目前值來自非賽前列時不另判更換）。
 - 目前空：S 非空 ⇒ ``retracted``；S 空 ⇒ ``pending``。來源讀取失敗 ⇒ ``unknown``（由呼叫端判定）。
 - 整場：任一隊 ``unknown`` ⇒ ``unknown``；剛好一隊屬 {announced, changed} ⇒ ``partial``；兩隊皆屬 ⇒
   ``announced``；否則 ``pending``。
@@ -70,7 +71,7 @@ def classify_side(current_acnt: str | None, history: frozenset[str]) -> str:
     """單隊分類；``current_acnt`` 為 gate 之後的目前值（空 ⇒ None）。"""
     current = _clean(current_acnt)
     if current is not None:
-        return CHANGED if len(history | {current}) > 1 else ANNOUNCED
+        return CHANGED if len(history) > 1 else ANNOUNCED
     return RETRACTED if history else PENDING
 
 

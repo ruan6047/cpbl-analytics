@@ -125,11 +125,23 @@ def test_rows_after_first_pitch_not_in_history():
     assert [c for _, c, _ in view([pre, live_a])] == ["announced", "announced"]
 
 
-def test_current_not_in_pregame_history_is_changed():
-    """局部調整（plan-1 §1.1 的 |S|>1 以 S∪{目前值} 計）：賽前只見 A、目前（開打後列）是 B ⇒ changed。"""
+def test_changed_judged_on_pregame_history_only():
+    """plan-1 §1.1 核定定義：只依賽前歷程 S 判斷。賽前只見 A、目前（開打後 IsPlayBall=Y 列）是 B ⇒
+    |S|=1 ⇒ announced，顯示 B（審核第 1 輪 #320 6262922767）。"""
     pre = rev(A, H_SIDE, h="pre", fetched="2026-10-20T08:35:00+00:00")
     live_b = rev(B, H_SIDE, h="live", ipb="Y", fetched="2026-10-20T10:40:00+00:00")
-    assert view([pre, live_b])[0] == ("announced", "changed", "王某（已更換）")
+    assert view([pre, live_b])[0] == ("announced", "announced", "王某")
+
+
+def test_a_retracted_a_is_announced_known_limit():
+    """plan-1 §1.1 已列限制：A→撤回→A，A 的 payload 相同 ⇒ 只更新舊列 last_seen_at；目前值 A、S={A}
+    ⇒ announced，撤回歷程不呈現。"""
+    a = rev(A, H_SIDE, h="a", fetched="2026-10-20T08:35:00+00:00", seen="2026-10-20T09:35:00+00:00")
+    empty = rev(None, H_SIDE, h="e", fetched="2026-10-20T09:05:00+00:00")
+    assert view([a, empty]) == [("announced", "announced", "林詔恩"), ("announced", "announced", "羅戈")]
+    # 對照：停在撤回（A 列未再被看到）⇒ retracted
+    assert view([dict(a, last_seen_at=a["fetched_at"]), empty])[0] == (
+        "pending", "retracted", "待公告（先前公告已撤回）")
 
 
 def test_other_team_codes_not_in_history():
@@ -168,6 +180,7 @@ def test_no_time_fields_in_output():
 def test_classify_side_and_game_table():
     assert sc.classify_side(A, frozenset()) == "announced"
     assert sc.classify_side(A, frozenset({A})) == "announced"
+    assert sc.classify_side(B, frozenset({A})) == "announced"   # 只看 S，⛔ 併入目前值
     assert sc.classify_side(A, frozenset({A, B})) == "changed"
     assert sc.classify_side(None, frozenset({A})) == "retracted"
     assert sc.classify_side("  ", frozenset()) == "pending"
