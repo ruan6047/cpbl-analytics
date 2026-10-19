@@ -4,13 +4,15 @@
 //   node --no-warnings --experimental-strip-types scripts/check-highlights-parity.ts --season 2026 --series C
 //   選項：--base <url>（預設 https://cpbl.ruan-ruan.com）、--json（輸出完整比對 JSON）
 //
-// 流程：GET highlights → 逐場循序 GET /live → 再 GET 一次 highlights。兩次 context_version 不同＝資料正在更新，
+// 流程：GET highlights → 逐場循序 GET /live、/facts（判決標籤 umpire_call，#338）→ 再 GET 一次 highlights。兩次 context_version 不同＝資料正在更新，
 // 本次不判（rc=2），請隔 ≥1 分鐘重跑；⛔ 本程式內不自動重試（單次最多 系列場數＋2 個 GET）。
 // 判定用頁面實際的函式（src/lib/highlights-parity.ts），不另寫規則。只做 GET；⛔ 不打 stats.cpbl.com.tw。
 //
 // 結束碼：0＝全部一致；1＝至少一場不一致（印差異）；2＝資料移動中或讀取失敗（不判）；64＝參數錯誤。
 
 import { checkSeriesParity, type GameParity } from "../src/lib/highlights-parity.ts";
+import type { GameFacts } from "../src/lib/game-facts.ts";
+import type { UmpireCallInput } from "../src/lib/game-highlights-source.ts";
 import type { LiveApiResponse } from "../src/lib/live-game.ts";
 import { highlightsPath, type HighlightsPayload } from "../src/lib/playoffs-series-highlights.ts";
 
@@ -61,6 +63,7 @@ async function main(): Promise<number> {
   let first: HighlightsPayload;
   let second: HighlightsPayload;
   const lives = new Map<number, LiveApiResponse>();
+  const umpires = new Map<number, UmpireCallInput>();
   try {
     first = await getJson<HighlightsPayload>(hlUrl);
     if (first.contract !== "playoffs-highlights/v1") throw new Error(`未知 contract：${String(first.contract)}`);
@@ -68,6 +71,10 @@ async function main(): Promise<number> {
       const sno = g.game_key.game_sno;
       lives.set(sno, await getJson<LiveApiResponse>(
         `${base}/api/v1/games/${sno}/live?kind_code=${g.game_key.kind_code}&season=${g.game_key.year}`));
+      // 單場頁的判決標籤來自 /facts（舊 API 沒有該欄 ⇒ 視為無）
+      const facts = await getJson<GameFacts>(
+        `${base}/api/v1/games/${sno}/facts?kind_code=${g.game_key.kind_code}&season=${g.game_key.year}`);
+      umpires.set(sno, facts.umpire_call ?? null);
     }
     second = await getJson<HighlightsPayload>(hlUrl);
   } catch (e) {
@@ -80,7 +87,7 @@ async function main(): Promise<number> {
     console.log(`context_version 前後不同（${first.context_version} → ${second.context_version}）：資料更新中，本次不判（rc=2）`);
     return 2;
   }
-  const result = checkSeriesParity(first, lives);
+  const result = checkSeriesParity(first, lives, undefined, umpires);
   console.log(header);
   console.log(`context_version=${first.context_version} games=${result.games.length}`);
   for (const g of result.games) {

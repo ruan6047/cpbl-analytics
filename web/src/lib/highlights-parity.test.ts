@@ -103,7 +103,31 @@ test("到齊判準守衛：前端四表清單＝後端 series_highlights.py 的 
 
 test("單場頁接線守衛：焦點只走 gameHighlightsSource(覆蓋前 DB 列)，頁面不再直接呼叫 buildHighlights", () => {
   const page = readFileSync(new URL("../app/games/[sno]/game-live-page.tsx", import.meta.url), "utf8");
-  assert.match(page, /gameHighlightsSource\(dbRows, completed\)/);
+  // #338：允許第三參數（/facts 的判決標籤 umpire_call）；前兩參數仍須是覆蓋前 DB 列與頁面完賽判定
+  assert.match(page, /gameHighlightsSource\(dbRows, completed(?:, [^()]+)?\)/);
   assert.match(page, /setDbRows\(raw as unknown as Live\);\s*\n\s*const next = applyLiveSnapshot\(raw\);/);
   assert.doesNotMatch(page, /buildHighlights\(/);
+});
+
+// #338 E3 正控：判決標籤（後端判定）兩頁都要出、且逐字一致；單場頁側漏接 /facts 必須判不一致。
+// 輸入＝2026 E3 真實 DB 投影（批次 F 夾具）；umpire_call＝本機黃金值（#338 exec-1：E3 ⇒ ADD011 獅捨）。
+test("E3 正控：/facts 判決標籤併入後兩頁一致（含獅捨）；單場頁漏接 umpire_call ⇒ 不一致", () => {
+  const BF = JSON.parse(readFileSync(new URL("./__fixtures__/game-highlights_2026-batchF.json", import.meta.url), "utf8")) as {
+    input: Record<string, HighlightInput>;
+  };
+  const raw = { ...BF.input.E3, live_snapshot: null } as unknown as LiveApiResponse;
+  assert.equal(pageCompletedOf(raw), true);
+  const ump = { team_code: "ADD011", reason: null };
+  const payload = {
+    contract: "playoffs-highlights/v1", context_version: "e3", series: "E", series_id: {}, as_of: {}, status: "ok",
+    games: [{ series_game_no: 3, game_key: { year: 2026, kind_code: "E", game_sno: 3 }, data_status: "ok",
+      input: BF.input.E3, umpire_call: ump }],
+  } as unknown as HighlightsPayload;
+  const ok = checkSeriesParity(payload, new Map([[3, raw]]), undefined, new Map([[3, ump]]));
+  assert.equal(ok.ok, true, JSON.stringify(ok.games));
+  assert.ok(ok.games[0].page.tags.includes("獅捨［ADD011］"));
+  assert.deepEqual(ok.games[0].page.tags, ok.games[0].playoffs.tags);
+  const miss = checkSeriesParity(payload, new Map([[3, raw]]));
+  assert.equal(miss.ok, false);
+  assert.ok(!miss.games[0].page.tags.includes("獅捨［ADD011］"));
 });
