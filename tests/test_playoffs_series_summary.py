@@ -273,7 +273,7 @@ def test_overview_attaches_summary_without_touching_context_version():
     assert full["source_manifest"][-2]["source"] == "pa_published"
     assert full["source_manifest"][-1] == plain["source_manifest"][-1]
     assert full["series_summary"]["current"]["kind_code"] == "C"
-    assert full["series_summary"]["previous"]["kind_code"] == "E"
+    assert full["series_summary"]["previous"] is None      # 批次 E 方案 A：累計榜只給所選系列
     assert plain["series_summary"] is None
 
 

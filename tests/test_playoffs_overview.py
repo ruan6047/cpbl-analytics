@@ -100,11 +100,13 @@ def test_mvp_name_missing_or_players_unavailable_degrades_per_card():
     assert all(c["mvp_missing_reason"] == "player_name_unavailable" for c in down["series_section"]["previous"]["games"])
 
 
-def test_unfinished_scores_are_null_and_no_starter_fields_anywhere():
+def test_unfinished_scores_are_null_and_starters_only_on_next_game():
     o = _overview()
     assert all(c["away_score"] is None and c["home_score"] is None and c["mvp"] is None
                for c in o["series_section"]["current"]["games"])
-    # D7：第 1 區不顯示先發投手 ⇒ overview 任何層都沒有 starter 欄位（S02 teams[].starter_status 也不轉出）
+    # 批次 E E-Q2 甲（接 S11）：先發只在 series_section.next_game.starters 一處；精簡卡、S02 teams[].starter_status 不轉出
+    nxt = o["series_section"].pop("next_game")
+    assert "starters" in nxt
     assert not [k for k in _keys(o) if "starter" in k]
 
 

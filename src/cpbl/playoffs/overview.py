@@ -10,22 +10,27 @@
 
 1. 只組裝、不重算：勝場、完賽、目標場、覆蓋全取 S02 ``compute_series_context`` 原值；
    ⛔ 在這裡或前端重算勝場／完賽／T 狀態。
-2. ⛔ 讀 ``games.*_starter_id``：第 1 區預告不顯示先發投手（需求方裁定 D7，issuecomment-6184623087），
-   先發只由第 4 區灰列呈現；S11 定案後兩處一起接。
+2. 先發投手只讀 S11 官方賽程現行列（#292 ``game_schedule_status_revisions``），與第 4 區同一份 SQL 與純函式
+   （import :mod:`cpbl.playoffs.watch_reader`，不改該檔），只放在 ``series_section.next_game.starters``；
+   ⛔ 讀 ``games.*_starter_id``／074（D7 6184623087 的「S11 定案後一起接」，#285 批次 E E-Q2 甲）。
+   場次精簡卡不帶先發；先發不進 ``context_version``。
 3. ⛔ 讀 ``reports/background``／``reports/assembler``（#272 共享區）；GET ⛔ 寫入、⛔ 觸發爬取。
 4. 系列一句只給原值（勝場、規則勝、勝隊），中文句由前端組；後端不產文案。
 5. ``context_version`` 原樣轉出 S02 的值，與 #289 watch 同源可比；姓名不進版本。
+6. 累計榜只給所選系列（需求方 6222200191，#285 批次 E 方案 A）：``series_summary.previous`` 恆 null，
+   C 頁不再帶挑戰賽累計榜；``series_section.previous`` 照送（E-Q1 不停送，前端批次 D 起不畫）。
 """
 
 from __future__ import annotations
 
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
 
 from cpbl import postseason_contract as contract
-from cpbl.api.helpers import _dicts
+from cpbl.api.helpers import _dicts, official_status
 from cpbl.playoffs import series_summary as summary
+from cpbl.playoffs import watch_reader as starters_src
 
 CONTRACT = "playoffs-overview/v1"
 SERIES_ORDER = ("E", "C")
@@ -42,6 +47,8 @@ class OverviewInputs:
     # #288 系列累計榜（series_summary.aggregate_all）；None ⇒ 未計算（只見於直接構造的測試）。
     series_summary: dict[str, summary.SeriesAggregate] | None = None
     summary_names: dict[str, str] | None = None   # 榜上／MVP 次數清單姓名（與 names 同一次批次查詢）
+    # S11 官方先發：系列代碼 → (官方賽程修訂列 | None＝讀取失敗, 先發姓名)；只含有讀的系列（目標場未完賽）。
+    starters: dict[str, tuple[list[dict] | None, dict[str, dict]]] = field(default_factory=dict)
 
 
 def _key(gk: dict | None) -> tuple[int, str, int] | None:
@@ -145,7 +152,12 @@ def compute_overview(inputs: OverviewInputs, series: str | None = None) -> dict:
         elif card["completed"]:
             next_reason = "series_decided" if blocks[current]["series_status"] == "decided" else "target_completed"
         else:
-            next_game = card
+            # 複製一份再加先發：精簡卡（blocks 內同一 dict）不帶先發
+            rows, snames = inputs.starters.get(current, (None, {}))
+            starters, _ = starters_src.official_starters(
+                rows, target_date=starters_src._as_date(card["game_date"]),
+                teams=[card["away_team_code"], card["home_team_code"]], names=snames)
+            next_game = {**card, "starters": starters}
 
     series_missing: list[str] = []
     if not has_games[current]:
@@ -159,6 +171,7 @@ def compute_overview(inputs: OverviewInputs, series: str | None = None) -> dict:
     ids = mvp_ids(ctx)
     aggs = inputs.series_summary
     manifest = [*ctx["source_manifest"],
+                *([_starters_manifest(inputs.starters, observed_at=ctx["as_of"]["now"])] if inputs.starters else []),
                 *([summary.manifest_entry(aggs, observed_at=ctx["as_of"]["now"])] if aggs is not None else []),
                 {"source": "players", "scope": f"mvp:{len(ids)}",
                  "version_or_hash": contract._hash(sorted((names or {}).items())) if names is not None else None,
@@ -186,8 +199,7 @@ def compute_overview(inputs: OverviewInputs, series: str | None = None) -> dict:
             "next_game": next_game,
             "next_game_missing_reason": next_reason,
         },
-        "series_summary": (summary.summary_json(aggs, inputs.summary_names, current=current,
-                                                previous=prior[-1] if prior else None)
+        "series_summary": (summary.summary_json(aggs, inputs.summary_names, current=current, previous=None)
                            if aggs is not None else None),
         "sections": {
             "series": {"status": section_status, "missing_reason": series_missing},
@@ -197,16 +209,53 @@ def compute_overview(inputs: OverviewInputs, series: str | None = None) -> dict:
     }
 
 
+def _starters_manifest(starters: dict, *, observed_at) -> dict:
+    """``official_starters`` 一筆（不進 ``context_version``）；scope／版本只依讀到的目標場，與所選系列無關。"""
+    sel = {k: (official_status(rows)[1] or {}).get("payload_hash") if rows else None
+           for k, (rows, _n) in sorted(starters.items())}
+    return {"source": "official_starters", "scope": "targets:" + ";".join(sorted(starters)),
+            "version_or_hash": contract._hash(sorted(sel.items())), "observed_at": observed_at,
+            "status": "unavailable" if any(rows is None for rows, _n in starters.values()) else "ok"}
+
+
+def _read_starters(cur, context: dict) -> dict[str, tuple[list[dict] | None, dict[str, dict]]]:
+    """各系列 S02 目標場（未完賽者）的 S11 官方先發；SQL 與選列沿用第 4 區（watch_reader），失敗只降級。"""
+    out: dict[str, tuple[list[dict] | None, dict[str, dict]]] = {}
+    games = {_key(g["game_key"]): g for g in context["games"]}
+    for kind in SERIES_ORDER:
+        target = _key(((context["state"].get("by_series") or {}).get(kind) or {}).get("target_game_key"))
+        g = games.get(target) if target else None
+        if g is None or g["completed"]:
+            continue
+
+        def read(t=target):
+            cur.execute(starters_src.OFFICIAL_SCHEDULE_SQL, {"year": t[0], "kind": t[1], "sno": t[2]})
+            rows = _dicts(cur)
+            _, sel = official_status(rows)
+            acnts = sorted({a for a in ((sel or {}).get("visiting_pitcher_acnt"), (sel or {}).get("home_pitcher_acnt"))
+                            if a})
+            names: dict[str, dict] = {}
+            if acnts:
+                cur.execute(starters_src.STARTER_NAMES_SQL, {"ids": acnts})
+                names = {r["acnt"]: r for r in _dicts(cur)}
+            return rows, names
+
+        got = contract._optional(cur, read)
+        out[kind] = got if got is not None else (None, {})
+    return out
+
+
 def read_overview_inputs(cur, year: int, *, now: datetime, live_reader=None) -> OverviewInputs:
-    """薄 I/O：S02 inputs＋一次姓名批次查詢，皆在呼叫端開好的同一交易內。"""
+    """薄 I/O：S02 inputs＋一次姓名批次查詢＋S11 先發，皆在呼叫端開好的同一交易內。"""
     context = contract.compute_series_context(
         contract.read_series_inputs(cur, year, now=now, live_reader=live_reader), now=now)
     aggs = summary.aggregate_all(context, contract._optional(cur, lambda: summary.read_series_rows(cur, context)),
                                  scorer_for=summary.scorer_for)
+    starters = _read_starters(cur, context)
     mvp = mvp_ids(context)
     ids = list(dict.fromkeys([*mvp, *summary.player_ids(aggs)]))
     if not ids:
-        return OverviewInputs(context=context, names={}, series_summary=aggs, summary_names={})
+        return OverviewInputs(context=context, names={}, series_summary=aggs, summary_names={}, starters=starters)
 
     def names_read():
         cur.execute(PLAYERS_SQL, {"ids": ids})
@@ -216,7 +265,7 @@ def read_overview_inputs(cur, year: int, *, now: datetime, live_reader=None) -> 
     # 第 1 區 MVP 姓名只取 MVP id（其版本雜湊不因累計榜擴充 id 集合而變）
     keep = set(mvp)
     names = None if found is None else {k: v for k, v in found.items() if k in keep}
-    return OverviewInputs(context=context, names=names, series_summary=aggs, summary_names=found)
+    return OverviewInputs(context=context, names=names, series_summary=aggs, summary_names=found, starters=starters)
 
 
 READ_ONLY_TXN = contract.READ_ONLY_TXN
