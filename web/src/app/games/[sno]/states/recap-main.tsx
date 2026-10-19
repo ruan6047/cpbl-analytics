@@ -21,12 +21,14 @@ import { KeyPlays } from "../recap/key-plays";
 import { TeamLines } from "../recap/team-lines";
 import type { DecItem, Highlight, MvpLine } from "../game-summary";
 
-export function RecapMain({ facts, decisions, mvp, highlights, milestones, info,
+export function RecapMain({ facts, decisions, mvp, highlights, highlightsPending = false, milestones, info,
                             onJump, onPlayByPlay }: {
   facts: GameFacts | null;
   decisions: DecItem[];
   mvp: MvpLine | null;
   highlights: Highlight[];
+  /** #337：DB 列未到齊 ⇒ 焦點顯示「待更新」（與 /playoffs 同判準）。 */
+  highlightsPending?: boolean;
   milestones: Highlight[];
   info: [string, React.ReactNode][];
   onJump: (eventNo: string) => void;
@@ -56,7 +58,7 @@ export function RecapMain({ facts, decisions, mvp, highlights, milestones, info,
             homeCode={facts.teams?.home.code ?? null} awayCode={facts.teams?.away.code ?? null}
             onJump={onJump} />
         )}
-        <TeamLines highlights={highlights} milestones={milestones} info={info} />
+        <TeamLines highlights={highlights} highlightsPending={highlightsPending} milestones={milestones} info={info} />
       </div>
       <JumpLinks onPlayByPlay={onPlayByPlay} />
     </div>
