@@ -367,7 +367,7 @@ function buildRareHighlights(data: HighlightInput, completed: boolean): Highligh
 //   其他形狀 ⇒ 不明（該半局不標致命失誤）。
 // - 致命失誤：半局對帳通過、守備方半局開始不落後、結束落後；自「由不落後變落後」那一列（含）起各列的失分，
 //   每分的得分者姓名都解析得到（`回本壘得分`／全壘打打者）才判；其中至少一人屬某失誤（不晚於其得分列）的
-//   受影響跑者 ⇒ 標。
+//   受影響跑者 ⇒ 標；半局內任一失誤的失誤者不明（playerAcnt＝null）⇒ 整個半局不標（plan-7 r2）。
 // 全庫可判定比例與 2026 季後黃金值見 #285 exec-7 證據（probe/causal.json、wpf5）。
 
 const ERR_POS: Record<string, string> = {
@@ -516,7 +516,9 @@ function buildErrorHighlights(data: HighlightInput): Highlight[] {
     const hitter = String(r.hitter_acnt ?? "");
     const name = cleanName(r.hitter_name);
     const hr = String(r.action_name ?? "").includes("全壘打");
-    const before = lead(pre[f], side), after = lead(post[l], side);
+    // 一棒逆轉／追平取「content 含全壘打那一列」的事件前後比分（plan-7 r2，review-15 R1）：打席內在全壘打之前
+    // 因暴投、捕逸、盜壘等得的分不算這一棒；找不到那一列 ⇒ 不標。
+    const hrRow = [...isl].reverse().find((i) => String(rows[i].content ?? "").includes("全壘打"));
     // 道歉全壘打／道歉野球（F-Q3：全壘打只出道歉全壘打）
     const owed = events.some((ev) => ev.playerAcnt === hitter && ev.rowIndex < f);
     if (owed) {
@@ -526,8 +528,11 @@ function buildErrorHighlights(data: HighlightInput): Highlight[] {
       else if (rbi >= 1) out.push({ at: l, h: { text: `${name} 道歉野球`, team } });
     }
     // 一棒逆轉／一棒追平
-    if (hr && before < 0 && after > 0) out.push({ at: l, h: { text: `${name} 一棒逆轉`, team } });
-    if (hr && before < 0 && after === 0) out.push({ at: l, h: { text: `${name} 一棒追平`, team } });
+    if (hr && hrRow !== undefined) {
+      const before = lead(pre[hrRow], side), after = lead(post[hrRow], side);
+      if (before < 0 && after > 0) out.push({ at: l, h: { text: `${name} 一棒逆轉`, team } });
+      if (before < 0 && after === 0) out.push({ at: l, h: { text: `${name} 一棒追平`, team } });
+    }
   }
 
   // 致命失誤（因果版）
@@ -537,7 +542,8 @@ function buildErrorHighlights(data: HighlightInput): Highlight[] {
     const [innS, fv] = key.split("|");
     const inning = Number(innS);
     const hevs = events.filter((ev) => ev.inning === inning && ev.fieldingSide === fv);
-    if (hevs.some((ev) => ev.affected === null)) continue;
+    // 共通 fail-closed（plan-7 r2，review-15 R2；6259751815）：半局內任一具名失誤的受影響跑者或失誤者不明 ⇒ 不標
+    if (hevs.some((ev) => ev.affected === null || ev.playerAcnt === null)) continue;
     const idx = rows.map((r, i) => (num(r.inning_seq) === inning && String(r.visiting_home_type) !== fv ? i : -1))
       .filter((i) => i >= 0);
     if (!idx.length) continue;

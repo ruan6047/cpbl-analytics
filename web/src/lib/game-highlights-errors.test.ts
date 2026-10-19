@@ -96,3 +96,25 @@ test("上限 16（需求方批次 F 裁定，原 12）：超過時只留前 16 �
   const hit3 = all.filter((h) => h.text.endsWith("猛打賞")).map((h) => h.text);
   assert.deepEqual(hit3, hit3.slice().sort((a, b) => Number(a.match(/\d+/)![0]) - Number(b.match(/\d+/)![0])));
 });
+
+// —— review-15 反例（審核者 reviewer-evidence/review-regressions.test.ts 移入；plan-7 r2）——————————————————————————
+
+test("review-15 R1：打席前落後，但全壘打之前已因暴投追平 ⇒ 陽春砲不是一棒逆轉（取全壘打那一列的前後比分）", () => {
+  const r = (home_score: number, action_name: string, content: string) => ({ hitter_acnt: "H", hitter_name: "打者", inning_seq: 9,
+    visiting_home_type: "2", visiting_score: 1, home_score, action_name, content });
+  const d = { game: { away_team_code: "ACN011", home_team_code: "AAA011", away_score: 1, home_score: 2 }, batting: [], pitching: [],
+    scoreboard: [], livelog: [
+      { ...r(0, "好球", "好球沒揮棒。"), hitter_acnt: "A", visiting_home_type: "1" }, r(0, "好球", "好球沒揮棒。"),
+      r(1, "暴投", "投手暴投。三壘跑者跑者甲回本壘得分。"), r(2, "全壘打", "擊出全壘打。1分打點。")] } as unknown as HighlightInput;
+  assert.ok(!buildHighlights(d, true).some((h) => h.text.includes("一棒逆轉")));
+});
+
+test("review-15 R2：失誤者不唯一（playerAcnt＝null）⇒ 致命失誤也不標（6259751815 時點或歸屬不明一律不標）", () => {
+  const d = clone("C2");
+  const ev = errorEvents(d).events.find((e) => e.inning === 5 && e.position === "1B")!;
+  const other = d.batting.find((r) => String(r.visiting_home_type) === ev.fieldingSide && String(r.hitter_acnt) !== ev.playerAcnt)!;
+  other.errors = 1;
+  d.livelog.find((r) => String(r.hitter_acnt) === String(other.hitter_acnt))!.defend_station_code = "1B";
+  assert.equal(errorEvents(d).events.find((e) => e.rowIndex === ev.rowIndex)!.playerAcnt, null);
+  assert.ok(!buildHighlights(d, true).some((h) => h.text === "兄弟 致命失誤（5 局）"));
+});
