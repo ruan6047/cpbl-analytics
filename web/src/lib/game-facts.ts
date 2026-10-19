@@ -93,6 +93,8 @@ export type GameFacts = {
   key_play_selection: KeyPlaySelection | null;
   half_innings: Record<string, PaFact[]>;
   re_matrix: { span: string; kind_code: string };
+  /** 本場焦點判決標籤（#285 批次 G；只在 authoritative 計算，舊 API 沒有）。 */
+  umpire_call?: { team_code: string | null; reason: string | null };
 };
 
 /** recap 五塊可完整呈現的狀態（其餘走簡版或不進賽後態）。 */

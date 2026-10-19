@@ -1,6 +1,7 @@
 // `/playoffs` 第 1 區「逐場焦點」（#288 S07 WP-K3）：端點型別鏡像＋純函式（列模型、版本比對、重抓鍵）。
 // 唯一來源是 `src/cpbl/playoffs/series_highlights.py`（只投影欄位）；標籤由單場頁同一個函式
 // `buildHighlights`（`./game-highlights.ts`）在瀏覽器算，⛔ 在這裡或後端複製任何條件。
+// 例外：判決標籤（#285 批次 G）由後端判定，每場 `umpire_call` 併進 input 後交同一個 buildHighlights 排字。
 //
 // 需求方裁定（#288 6218173554）：系列總結區逐場列出該場「本場焦點」標籤（含球迷用語），沒有標籤顯示「—」。
 // 資料未到（data_status=pending）或讀取失敗／版本不一致且沒有上一份 ⇒「待更新」。未完賽場不列。
@@ -14,6 +15,8 @@ export type HighlightsGame = {
   game_key: { year: number; kind_code: PlayoffsSeriesCode; game_sno: number };
   data_status: "ok" | "pending";
   input: HighlightInput | null;
+  /** 判決標籤後端結果（#285 批次 G；舊 API 沒有）。 */
+  umpire_call?: { team_code: string | null; reason?: string | null } | null;
 };
 
 export type HighlightsPayload = {
@@ -72,7 +75,7 @@ export function highlightsRows(data: HighlightsPayload): HighlightsRow[] {
     label: `G${g.series_game_no}`,
     href: gameHref(g),
     status: g.data_status === "ok" && g.input ? "ok" : "pending",
-    tags: g.data_status === "ok" && g.input ? buildHighlights(g.input, true) : [],
+    tags: g.data_status === "ok" && g.input ? buildHighlights({ ...g.input, umpire_call: g.umpire_call ?? null }, true) : [],
   }));
 }
 

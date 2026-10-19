@@ -295,7 +295,8 @@ export default function GameLivePage() {
   };
 
   // #337：焦點只吃覆蓋前的 DB 列；未到齊顯示「待更新」，與 /playoffs 同一判準、同一函式。
-  const highlightSource = gameHighlightsSource(dbRows, completed);
+  // 判決標籤（#338，#285 批次 G）由後端 /facts 判定，作為第三參數併進同一個 buildHighlights 排字。
+  const highlightSource = gameHighlightsSource(dbRows, completed, facts?.umpire_call ?? null);
   const visibleHighlights = highlightSource.tags;
   const highlightsPending = highlightSource.status === "pending";
   const { items: decisionItems, mvp } = buildDecisions(data, completed);

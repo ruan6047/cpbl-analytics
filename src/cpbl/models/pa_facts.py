@@ -865,6 +865,7 @@ def _empty(season: int, kind_code: str, game_sno: int, state: str, reason: str,
         "key_play_selection": None,
         "scoring_chain": [], "half_innings": {},
         "re_matrix": {"span": RE_SPAN, "kind_code": kind_code},
+        "umpire_call": {"team_code": None, "reason": "not_authoritative"},
     }
 
 
@@ -890,7 +891,7 @@ def _assemble(*, season: int, kind_code: str, game_sno: int, source: str, render
               reason: str | None, game: dict, facts: list[dict], decisions: dict,
               inning_runs: dict[tuple[int, str], int], simple: bool = False,
               wp_by_index: dict[int, dict[str, Any]] | None = None,
-              wp_reason: str | None = None) -> dict:
+              wp_reason: str | None = None, umpire_call: dict | None = None) -> dict:
     home_score = int(game.get("home_score") or 0)
     away_score = int(game.get("away_score") or 0)
     result = ("home_win" if home_score > away_score
@@ -912,6 +913,8 @@ def _assemble(*, season: int, kind_code: str, game_sno: int, source: str, render
         "scoring_chain": scoring_chain(facts) if facts else [],
         "half_innings": {} if simple else half_inning_breakdown(facts),
         "re_matrix": {"span": RE_SPAN, "kind_code": kind_code},
+        # 本場焦點判決標籤（#285 批次 G，cpbl.models.umpire_call_tag）：只在權威源計算，其他路徑一律不出。
+        "umpire_call": umpire_call or {"team_code": None, "reason": "not_authoritative"},
     }
     if not simple:
         payload["conclusion"] = conclusion(
@@ -990,12 +993,16 @@ def build_game_facts(season: int, kind_code: str, game_sno: int,
                 swings, wp_reason = _load_wp_swings(
                     facts, season=season, kind_code=kind_code,
                     home_score=game.get("home_score"), away_score=game.get("away_score"))
+                from cpbl.models.umpire_call_tag import compute_from_facts
+                umpire_call = compute_from_facts(
+                    cur, season=season, kind_code=kind_code, game_sno=game_sno, facts=facts,
+                    swings=swings, wp_reason=wp_reason, game=game)
                 return _assemble(
                     season=season, kind_code=kind_code, game_sno=game_sno,
                     source="authoritative", render_state=STATE_AUTHORITATIVE, reason=None,
                     game=game, facts=facts, decisions=_db_decisions(game, names),
                     inning_runs=load_inning_runs(cur, season, kind_code, game_sno),
-                    wp_by_index=swings, wp_reason=wp_reason)
+                    wp_by_index=swings, wp_reason=wp_reason, umpire_call=umpire_call)
             # 階 7：有 build 但待對帳 → 走簡版並揭露（不可靜默當成「沒有打席」）
             if has_reconciliation_build(cur, season, kind_code, game_sno):
                 return _assemble(
