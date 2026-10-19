@@ -8,7 +8,7 @@
 // ⚠️ 球迷用語（魯閣／中計／煮粥／問天／劇場／萬磁王）只用於焦點標籤，觸發條件早已量化；recap 正式文案禁用暱稱。
 
 import type { StatRow } from "./client.ts";
-import { fanNick, teamShort } from "./teams.ts";
+import { fanNick, franchiseOf, teamShort } from "./teams.ts";
 
 export const num = (v: number | string | null | undefined) =>
   (v === null || v === undefined ? 0 : Number(v)) || 0;
@@ -23,6 +23,11 @@ export type HighlightInput = {
   batting: StatRow[];
   pitching: StatRow[];
   decisions?: Record<string, "W" | "L" | "SV" | "HLD">;
+  /**
+   * 判決標籤（#285 批次 G）：**後端判定**（`cpbl.models.umpire_call_tag`；單場頁取 `/facts`、/playoffs 取 highlights
+   * 每場欄位），本檔只排字。`team_code`＝單方得利的隊；null／未給＝不出。
+   */
+  umpire_call?: { team_code: string | null } | null;
 };
 
 /**
@@ -351,8 +356,17 @@ function buildRareHighlights(data: HighlightInput, completed: boolean): Highligh
 
   // #285 批次 F 五個新標籤（道歉全壘打／道歉野球／一棒逆轉／一棒追平／致命失誤）：排在既有稀有組之後。
   extra.push(...buildErrorHighlights(data));
+  // #285 批次 G 判決標籤：後端已判定（|ΔWP|≥0.10 打席內、身高帶＋球半徑、容差 1 吋、只有單方得利）；
+  // 一場最多一個，只寫該隊的詞，不帶局數、打者（需求方 6260092225）。看球感受的賽事標籤，不是裁判分析。
+  const ump = data.umpire_call?.team_code ? franchiseOf(data.umpire_call.team_code) : undefined;
+  if (ump && UMPIRE_CALL_WORD[ump]) extra.push({ text: UMPIRE_CALL_WORD[ump], team: data.umpire_call!.team_code });
   return extra;
 }
+
+/** 判決標籤字樣（需求方 6260009450）：現役 franchise → 該隊的詞。 */
+export const UMPIRE_CALL_WORD: Record<string, string> = {
+  ACN011: "識象", AJL011: "猿夢", ADD011: "獅捨", AEO011: "邦忙", AAA011: "成全", AKP011: "鷹明",
+};
 
 // —— #285 批次 F：失誤事件表與五個新標籤（plan-7 r1＋需求方 F-Q1 因果版、F-Q2 全部套用、F-Q3）——————————————
 //

@@ -290,7 +290,8 @@ export default function GameLivePage() {
       document.getElementById("pbp-section")?.scrollIntoView({ behavior: "smooth", block: "start" }));
   };
 
-  const highlights = buildHighlights(data, completed);
+  // 判決標籤（#285 批次 G）由後端 /facts 判定，併進同一個 buildHighlights 排字
+  const highlights = buildHighlights({ ...data, umpire_call: facts?.umpire_call ?? null }, completed);
   const { items: decisionItems, mvp } = buildDecisions(data, completed);
   const milestoneItems = buildMilestoneChips(data, milestones);
   const visibleHighlights = completed ? highlights : [];
