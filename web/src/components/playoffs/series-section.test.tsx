@@ -35,9 +35,17 @@ test("E 已決＋C 未開打：大比分、精簡卡、G1 預告；C 頁不含�
   assert.match(t, /中信兄弟（客） @ 味全龍（主）/);
 });
 
-test("D7：第 1 區不出現先發投手字樣", () => {
-  const t = text(html(<SeriesSection overview={REAL} />));
-  assert.doesNotMatch(t, /先發/);
+test("批次 E：先發只在下一場預告內（一行、用 starters[].text）；無 starters 時不出現；精簡卡內不出現", () => {
+  assert.doesNotMatch(text(html(<SeriesSection overview={REAL} />)), /先發/);
+  const o = clone();
+  o.series_section.next_game = { ...o.series_section.next_game!, starters: [
+    { team_code: "ACN011", status: "announced", reason: null, player_id: "0000005604", name: "勝騎士", text: "勝騎士" },
+    { team_code: "AAA011", status: "pending", reason: "starter_not_announced", player_id: null, name: null, text: "待公告" }] };
+  const out = html(<SeriesSection overview={o} />);
+  const next = /<a [^>]*data-next-game[\s\S]*?<\/a>/.exec(out)![0];
+  assert.match(text(next), /先發：中信兄弟 勝騎士・味全龍 待公告/);
+  assert.equal((text(out).match(/先發/g) ?? []).length, 1);
+  for (const chip of out.match(/<li class="min-w-0" data-game="[EC]\d+">[\s\S]*?<\/li>/g) ?? []) assert.doesNotMatch(text(chip), /先發/);
 });
 
 test("Q3：第 2／3／4 區整區不渲染（無標題、無占位、無 #watch）", () => {

@@ -31,6 +31,12 @@ from cpbl.playoffs import series_highlights as sh
 GOLD = json.loads((Path(__file__).resolve().parents[1] / "web" / "src" / "lib" / "__fixtures__"
                    / "game-highlights_2026E.json").read_text("utf-8"))
 E1 = GOLD["input"]
+# #285 批次 F（需求方 F-Q4：只補夾具欄位、不改斷言）：E1 夾具早於投影新增的 catcher_acnt／defend_station_code／
+# errors，這三欄補成 None（夾具檔本身不改，前端黃金測試照用）。
+for _table, _cols in (("livelog", sh.LIVELOG_COLS), ("batting", sh.BATTING_COLS)):
+    for _row in E1[_table]:
+        for _col in _cols:
+            _row.setdefault(_col, None)
 
 
 def _type(values) -> str:

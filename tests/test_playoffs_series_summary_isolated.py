@@ -173,7 +173,8 @@ def test_same_transaction_fixed_query_count_and_real_e_board(dsn, monkeypatch):
     assert sum(1 for sql, _ in qs if "cpbl.run_expectancy" in sql) == 1
     assert sum(1 for sql, _ in qs if "cpbl.players" in sql) == 1           # 姓名只批次查一次
 
-    e = o["series_summary"]["previous"]
+    # 批次 E 方案 A：C 頁不再帶挑戰賽累計榜 ⇒ E 真實榜改由 E 頁讀
+    e = ov.playoffs_overview(2026, series="E", now=_NOW, connect=lambda: _connect(dsn))["series_summary"]["current"]
     assert (e["kind_code"], e["status"], e["games_covered"], e["games_total"]) == ("E", "ok", 4, 4)
     # 期望值＝執行階段真實對帳 artifact（RECON-E1-E4.json）的前 3／前 2
     assert [(b["player_id"], b["re24_raw"], b["pa"]) for b in e["batters"]] == [
@@ -194,7 +195,7 @@ def test_same_transaction_fixed_query_count_and_real_e_board(dsn, monkeypatch):
 def test_pa_table_failure_only_degrades_summary(dsn, monkeypatch):
     monkeypatch.setattr(ss, "PA_SQL", ss.PA_SQL.replace("cpbl.game_plate_appearances", "cpbl.pa_missing"))
     o = ov.playoffs_overview(2026, now=_NOW, connect=lambda: _connect(dsn))
-    e = o["series_summary"]["previous"]
+    e = ov.playoffs_overview(2026, series="E", now=_NOW, connect=lambda: _connect(dsn))["series_summary"]["current"]
     assert e["status"] == "unavailable" and e["batters"] == [] and len(e["mvp_counts"]) == 4
     assert {m["source"]: m["status"] for m in o["source_manifest"]}["pa_published"] == "unavailable"
     prev = o["series_section"]["previous"]["games"]
@@ -204,7 +205,7 @@ def test_pa_table_failure_only_degrades_summary(dsn, monkeypatch):
 
 def test_turning_points_real_scorer_path_on_real_e(dsn, monkeypatch):
     o, _seen = _run(dsn, monkeypatch)
-    tp = o["series_summary"]["previous"]["turning_points"]
+    tp = ov.playoffs_overview(2026, series="E", now=_NOW, connect=lambda: _connect(dsn))["series_summary"]["current"]["turning_points"]
     assert (tp["signal"], tp["degraded"], tp["reason"], tp["scope"]) == ("delta_wp", False, None, "full")
     # 期望值＝執行階段在本機共用庫（同一份 run_dist）上的真實輸出（RECON-TURNING-E1-E4.json）
     assert [(t["series_game_no"], t["pa_index"], t["delta_wp"], t["delta_re24"]) for t in tp["items"]] == [
@@ -215,9 +216,9 @@ def test_turning_points_real_scorer_path_on_real_e(dsn, monkeypatch):
 
 def test_missing_wp_artifact_degrades_turning_to_re24(dsn, monkeypatch):
     monkeypatch.setattr(ws, "get_dist", lambda kind: None)                # 分布未建置
-    o = ov.playoffs_overview(2026, now=_NOW, connect=lambda: _connect(dsn))
-    tp = o["series_summary"]["previous"]["turning_points"]
+    o_e = ov.playoffs_overview(2026, series="E", now=_NOW, connect=lambda: _connect(dsn))
+    tp = o_e["series_summary"]["current"]["turning_points"]
     assert (tp["signal"], tp["degraded"], tp["reason"]) == ("delta_re24", True, "winprob_model_not_built")
     assert tp["degraded_games"] == [1, 2, 3, 4]
     assert all(abs(t["delta_re24"]) >= 0.30 and t["delta_wp"] is None for t in tp["items"])
-    assert o["series_summary"]["previous"]["status"] == "ok"            # 累計榜不受影響
+    assert o_e["series_summary"]["current"]["status"] == "ok"           # 累計榜不受影響

@@ -1,7 +1,8 @@
 // `playoffs-overview/v1`（#285 S04）的 TS 型別鏡像與取數。唯一來源是 `src/cpbl/playoffs/overview.py`；
 // 本檔只鏡射形狀與組 URL，不含勝場／完賽／目標場邏輯（那些全在 S02，前端只讀）。
 //
-// - 第 1 區預告不含先發投手（需求方 D7）：型別刻意沒有 starter 欄位。
+// - 先發投手只在 `series_section.next_game.starters`（S11 官方先發，與第 4 區同一份純函式與字樣；#285 批次 E）；
+//   場次精簡卡沒有。
 // - `context_version` 是 S02 原值，與 #289 watch 回應同源可比；不一致時由輪詢控制器（playoffs-poll.ts）重取。
 // - server 取數 `no-store`：控制狀態快取不得超過 30 秒輪詢（⛔ 用 api.ts 的 600 秒 revalidate）。
 
@@ -46,6 +47,20 @@ export type OverviewGameCard = {
   /** 只在完賽卡；`name` 為 null 時看 `mvp_missing_reason`。 */
   mvp: { id: string; name: string | null } | null;
   mvp_missing_reason: OverviewMvpMissing | null;
+  /** 只在 `series_section.next_game`：客、主兩隊官方先發（`watch_reader.official_starters` 原樣；舊 API 沒有）。 */
+  starters?: OverviewStarter[];
+};
+
+/** S11 官方先發（客、主順序）；畫面只用 `text`（姓名／「待公告」／「已公告（姓名待更新）」／「暫時無法取得」，
+ *  #320 A2 起另有「{姓名}（已更換）」與「待公告（先前公告已撤回）」）。`classification` 同第 4 區。 */
+export type OverviewStarter = {
+  team_code: string;
+  status: "announced" | "pending" | "unknown";
+  reason: string | null;
+  player_id: string | null;
+  name: string | null;
+  text: string;
+  classification?: "announced" | "changed" | "retracted" | "pending" | "unknown";
 };
 
 export type OverviewSeriesBlock = {

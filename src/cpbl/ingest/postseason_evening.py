@@ -9,6 +9,12 @@
     python -m cpbl.ingest.postseason_evening sync-due      # 三表沒變時，異動訊號表是否仍需同步
     python -m cpbl.ingest.postseason_evening record-sync --code N
     python -m cpbl.ingest.postseason_evening finish
+    # #293 S12：結果鏈之後的目標場 box／PA 階段（見「#293 目標場 box／PA 階段」一節）
+    python -m cpbl.ingest.postseason_evening boxpa-plan [--dry]
+    python -m cpbl.ingest.postseason_evening boxpa-detail --games 2026-C-2
+    python -m cpbl.ingest.postseason_evening boxpa-prepare --games 2026-C-2
+    python -m cpbl.ingest.postseason_evening boxpa-record --games 2026-C-2 --code N --manifest F --elapsed S
+    python -m cpbl.ingest.postseason_evening boxpa-status
 
 設計（核定規劃 revision4 §4）：
 
@@ -46,7 +52,8 @@ import json
 import logging
 import os
 import sys
-from collections.abc import Callable, Iterable, Mapping
+from collections.abc import Callable, Iterable, Iterator, Mapping
+from contextlib import contextmanager
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime, time, timedelta
 from pathlib import Path
@@ -561,6 +568,19 @@ def with_signal_sync(state: Mapping, now: datetime, action: str, reason: str) ->
     return action, reason
 
 
+def note_challenge(state: dict, now: datetime, errors: Iterable[Mapping]) -> bool:
+    """挑戰類失敗入帳（結果鏈 www 與 #293 box／PA 明細 www 共用同一個「當晚兩次即停」計數）。"""
+    challenge = any(_is_challenge(e) for e in errors)
+    if challenge:
+        state.setdefault("challenge_failures", []).append(_iso(now))
+        # 「當晚」＝尚未到該次失敗的釋放時刻（隔日中午）的那幾次。
+        tonight = [t for t in state["challenge_failures"] if www_blocked({"www_blocked_at": t}, now)]
+        state["challenge_failures"] = tonight
+        if len(tonight) >= CHALLENGE_LIMIT:
+            state["www_blocked_at"] = _iso(now)
+    return challenge
+
+
 def record_scrape(state: dict, now: datetime, *, errors: list[dict], changed: bool,
                   stats_has_c: bool, local_c_rows: int, kinds: Iterable[str] = KINDS) -> str:
     """一次 www 嘗試的結果入帳。回 changed／unchanged／failed。
@@ -577,13 +597,7 @@ def record_scrape(state: dict, now: datetime, *, errors: list[dict], changed: bo
     for rec in open_events(state).values():
         if _kind_of(rec["key"]) in kinds:
             rec.setdefault("attempts", []).append(_iso(now))
-    if any(_is_challenge(e) for e in errors):
-        state.setdefault("challenge_failures", []).append(_iso(now))
-        # 「當晚」＝尚未到該次失敗的釋放時刻（隔日中午）的那幾次。
-        tonight = [t for t in state["challenge_failures"] if www_blocked({"www_blocked_at": t}, now)]
-        state["challenge_failures"] = tonight
-        if len(tonight) >= CHALLENGE_LIMIT:
-            state["www_blocked_at"] = _iso(now)
+    note_challenge(state, now, errors)
     if changed:
         state["pending_sync"] = True
     c_error = any(e.get("kind") == "C" for e in errors)
@@ -685,7 +699,461 @@ def timeline(state: Mapping) -> list[dict]:
     return sorted(out, key=lambda r: (r["t1_stats_first_seen"] or "", r["key"]))
 
 
+# =========================================================================== #293 目標場 box／PA 階段（純函式）
+#
+# 結果鏈（上面）只同步 games／狀態軌跡／訊號表；本段在其後對「本機已完賽、box 或 PA 尚未送達
+# production」的目標場做兩步（核定規劃 PLAN r2 §5 WP3）：
+#   1. 明細 www（既有 _postseason_detail_step）：每場每晚 ≤3 次、間隔 ≥20 分鐘；挑戰類失敗與結果鏈共用
+#      「當晚兩次即停」（note_challenge）；讓位 10:10（DAILY_GUARD）。
+#      ⭐ 賽別冷卻也與結果鏈／#292 先發時點共用同一本帳（kind_cooled／www_requests；需求方裁定 C2，
+#      #293 issuecomment-6186074916）：同賽別任兩次 www 冷啟動間隔 ≥20 分鐘，不論是誰發的。
+#   2. 本機明細到齊 → PA build（既有 build_scope）→ **之後**才決定這次送哪些來源 → scoped 同步
+#      （refresh-cpbl-prod.sh POSTSEASON_BOXPA_ONLY）。剛 build 出的 PA 與 box 在同一次同步送出
+#      （#293 再審 R1）。額度**以場計**（需求方裁定 6196379928）：每場每晚最多 2 次 production 同步
+#      （1 次同步＋1 次重送），重送只送尚未送達的來源。
+# 錯誤語意沿操作包 v2：psql／schema／備份／本機自檢失敗 → halted（與結果鏈同一個 halted，bootout 交人工）；
+# 對帳不等在重送後仍不等 → 只把該場該來源記 delivered_conflict，不擋結果鏈。
+# 目標場只取「台北今日」的場，以及「昨日、且尚未到 DAILY_GUARD」的場；過了 09:45 仍未終態的場交給
+# 隔日 10:10 每日鏈（handed_to_daily_chain，照實記同晚未達）。沒有鐘點截止：24:00 後照常處理。
+
+BOXPA_WWW_MAX_ATTEMPTS = WWW_MAX_ATTEMPTS        # 每場每晚 www 明細 ≤3 次（A2 上限）
+BOXPA_WWW_COOLDOWN = WWW_COOLDOWN                # 間隔 ≥20 分鐘
+BOXPA_MAX_SENDS = 2                              # 每場每晚 production 同步 1 次＋1 次重送（以場計）
+BOXPA_RESEND_CODES = (68, 72)                    # 對帳不等／ssh 連線失敗
+BOXPA_NOT_FINAL = 73                             # production 尚未完賽：不算一次嘗試
+BOXPA_MAX_SECONDS = 20 * 60                      # scoped 同步超過 20 分鐘即停（PLAN §13 停止條件 4）
+BOXPA_TERMINAL = ("delivered", "correction_pending", "conflict", "unreached")
+# 來源同晚又變時可重新打開的終態（#293 fix-4，需求方裁定 6204889879「本機記『更正待同步』」）。
+BOXPA_REOPENABLE = ("delivered", "correction_pending")
+_NEEDS_SEND = ("no_prod_evidence", "not_synced", "reconcile_mismatch_retrying", "local_changed_since_sync")
+
+
+def boxpa_window(game_date: str | None, now: datetime) -> bool:
+    """這場是不是今晚的目標（台北今日；或昨日且尚未到 10:10 讓位窗）。"""
+    if not game_date:
+        return False
+    local = taipei(now)
+    today = local.date()
+    d = datetime.fromisoformat(game_date).date()
+    return d == today or (d == today - timedelta(days=1) and local.time() < DAILY_GUARD[0])
+
+
+def _boxpa_rec(state: dict, key: str, game_date: str | None) -> dict:
+    return state.setdefault("boxpa", {}).setdefault(key, {
+        "key": key, "game_date": game_date, "state": "open", "reason": None,
+        "detail_attempts": [], "sends": [], "manifest": None, "final_prod_at": None, "sources": None})
+
+
+def boxpa_sends(rec: Mapping, source: str) -> list[dict]:
+    return [s for s in rec.get("sends") or [] if source in s.get("sources", ()) and s.get("code") != BOXPA_NOT_FINAL]
+
+
+def boxpa_syncs(rec: Mapping) -> list[dict]:
+    """這一場今晚實際發生的 production 同步（73＝production 未完賽、未備份未寫入，不算）。"""
+    return [s for s in rec.get("sends") or [] if s.get("code") != BOXPA_NOT_FINAL]
+
+
+def boxpa_exhausted(rec: Mapping) -> set[str]:
+    """額度以場計：該場兩次同步都用了，仍未送達的來源就不會再送。"""
+    return {"box", "pa"} if len(boxpa_syncs(rec)) >= BOXPA_MAX_SENDS else set()
+
+
+def boxpa_game_can_sync(rec: Mapping) -> bool:
+    syncs = boxpa_syncs(rec)
+    if not syncs:
+        return True
+    if len(syncs) >= BOXPA_MAX_SENDS:
+        return False
+    return syncs[-1].get("code") in (0, *BOXPA_RESEND_CODES)
+
+
+def boxpa_can_send(rec: Mapping, source: str) -> bool:
+    """相容舊呼叫：額度以場計，與來源無關。"""
+    return boxpa_game_can_sync(rec)
+
+
+def boxpa_wants(rec: Mapping) -> list[str]:
+    """這一場此刻要送的來源（尚未送達者）；該場同步額度（1 次＋1 次重送，以場計）用完就回空。"""
+    if not boxpa_game_can_sync(rec):
+        return []
+    src = rec.get("sources") or {}
+    return [s for s in ("box", "pa") if (src.get(s) or {}).get("reason") in _NEEDS_SEND]
+
+
+def boxpa_box_ready(rec: Mapping) -> bool:
+    """本機 box 核心表已到齊（不論是否已送達）；未完賽或缺表都不是。"""
+    reason = str(((rec.get("sources") or {}).get("box") or {}).get("reason") or "")
+    return bool(rec.get("sources")) and not reason.startswith("local_box_incomplete") and reason != "not_final"
+
+
+def boxpa_pa_build_candidates(open_recs: Mapping[str, Mapping]) -> list[str]:
+    """這次喚醒要交給既有 PA builder 的場：今晚開著、box 已到齊的**所有**目標場（#293 再審 G1）。
+
+    ⛔ 不得只挑「尚無 published」的場：已 published 的場在 box 更新（livelog 官方更正、tracking 晚到）後，
+    要由 builder 自己判斷是 republish 還是記 reconciliation_required（``_pa_build_targets`` 的當日窗不論
+    published 一律重選，正是為此）。builder 對來源未變的場冪等略過。不看同步額度：額度用完也要讓分類照實。"""
+    return [k for k, r in sorted(open_recs.items()) if boxpa_box_ready(r)]
+
+
+def boxpa_needs_pa_build(rec: Mapping) -> bool:
+    """plan 的 build 動作：box 已到齊而本機還沒有 published PA、且仍有同步額度——沒有來源要送時仍值得喚醒
+    builder。實際交給 builder 的場見 :func:`boxpa_pa_build_candidates`（範圍更大）。"""
+    pa = ((rec.get("sources") or {}).get("pa") or {})
+    return boxpa_game_can_sync(rec) and pa.get("reason") == "no_local_published_build" and boxpa_box_ready(rec)
+
+
+def _final_prod_at(state: Mapping, rec: Mapping) -> str | None:
+    """production 完賽時刻：scoped 自檢通過的時刻，或結果鏈對該場的 T3（取較早者）。"""
+    stamps = [rec.get("final_prod_at")]
+    stamps += [e.get("t3_synced") for e in (state.get("events") or {}).values() if e.get("key") == rec["key"]]
+    parsed = [_parse(s) for s in stamps if s]
+    return _iso(min(parsed)) if parsed else None
+
+
+def boxpa_refresh(state: dict, now: datetime, local: Mapping[str, LocalGame],
+                  facts: Mapping[str, Any]) -> dict[str, dict]:
+    """把今晚目標場併進狀態並重算三來源分類；過窗未終態者交給隔日每日鏈。回傳仍開著的紀錄。"""
+    from cpbl.postseason_sources import as_dict, classify
+
+    for key, g in local.items():
+        if g.completed and boxpa_window(g.game_date, now):
+            _boxpa_rec(state, key, g.game_date)
+    out = {}
+    for key, rec in (state.get("boxpa") or {}).items():
+        if key in facts:
+            m = rec.get("manifest")
+            rec["sources"] = as_dict(classify(facts[key], m, now, exhausted=boxpa_exhausted(rec),
+                                              final_prod_at=_final_prod_at(state, rec)))
+        # 已送達（或已記更正待同步）的場若某來源同晚又有新版本（新的 published PA、box 列數變），一律
+        # 重新打開（#293 審核席 1 F2；fix-4 B1）。仍有同步額度 → 照常送；額度已用完（A3 以場計）→ 不再同步
+        # production，只讓本機 PA builder 重判，狀態記「來源已變、待隔日 10:10 每日鏈補上」——⛔ 不得停在已送達。
+        changed = [x for x in ("box", "pa")
+                   if ((rec.get("sources") or {}).get(x) or {}).get("reason") in _NEEDS_SEND]
+        if rec["state"] in BOXPA_REOPENABLE and changed and boxpa_window(rec.get("game_date"), now):
+            rec["state"] = "open"
+            rec["reason"] = ("reopened_source_changed" if boxpa_game_can_sync(rec)
+                             else "source_changed_after_quota")
+        if rec["state"] in BOXPA_TERMINAL:
+            continue
+        if not boxpa_window(rec.get("game_date"), now):
+            rec["state"], rec["reason"] = "unreached", "handed_to_daily_chain"
+            continue
+        # 終態在這裡就定（#293 fix-4 終態時序）：最後一次同步後，下一次喚醒的 `boxpa-plan --dry` 不寫
+        # 狀態檔、shell 隨即退出，若只在 plan 裡定終態，送達的場會一直停在 open、隔天被誤記成未達。
+        # boxpa_refresh 由 boxpa-record／boxpa-prepare 呼叫並存檔，所以同步一入帳就轉終態。
+        if not boxpa_wants(rec) and _boxpa_done(rec):
+            rec["state"] = _boxpa_terminal_state(rec)
+            continue
+        out[key] = rec
+    return out
+
+
+def _boxpa_terminal_state(rec: Mapping) -> str:
+    src = rec.get("sources") or {}
+    if any((src.get(s) or {}).get("status") == "delivered_conflict" for s in ("box", "pa")):
+        return "conflict"
+    if (src.get("pa") or {}).get("reason") == "official_correction_pending":
+        return "correction_pending"   # 更正待同步：本機已判出官方更正，交隔日每日鏈
+    return "delivered"
+
+
+def boxpa_plan(state: dict, now: datetime,
+               open_recs: Mapping[str, dict]) -> tuple[str, list[str], list[str]]:
+    """回 ``(action, keys, parts)``；action ∈ idle／detail／sync。**不連 www、不寫 DB**。
+
+    ``parts``＝這次 scoped 同步實際要送的來源（``box``／``pa``；#293 審核席 1 F3）：只放尚未送達的來源
+    （該場額度以場計），shell 照它決定跑不跑 box 七表、PA 五表；同一次只合併「要送的來源相同」的場。
+    ``build``＝box 已到齊但本機還沒有 published PA：shell 先跑 PA build 再重新判斷（#293 再審 R1）。
+    shell 的次序是 plan →（detail）→ PA build → plan → sync，所以真正決定 parts 的那次 plan 已看得到剛
+    build 出的 PA。
+
+    * detail：本機 box 核心表仍缺、且該場 www 次數未用盡、該場與該賽別共用帳本的冷卻都已過、
+      當晚未被挑戰封鎖。
+    * sync：本機 box 已到齊（或 PA 已 published）而該來源尚未送達、且仍可送（1＋1 重送）。
+    * 已用盡 www 次數而 box 仍缺 → 記 unreached（www_detail_incomplete_after_max_attempts）。
+    """
+    if state.get("halted") or in_daily_guard(now):
+        return "idle", [], []
+    detail: list[str] = []
+    build: list[str] = []
+    sync: list[tuple[str, list[str]]] = []
+    for key, rec in sorted(open_recs.items()):
+        src = rec.get("sources") or {}
+        box = src.get("box") or {}
+        box_missing = str(box.get("reason") or "").startswith("local_box_incomplete")
+        if box_missing:
+            attempts = [_parse(a) for a in rec.get("detail_attempts") or []]
+            if len(attempts) >= BOXPA_WWW_MAX_ATTEMPTS:
+                rec["state"], rec["reason"] = "unreached", "www_detail_incomplete_after_max_attempts"
+                continue
+            if www_blocked(state, now):
+                continue
+            if attempts and now - max(attempts) < BOXPA_WWW_COOLDOWN:
+                continue
+            if not kind_cooled(state, _kind_of(key), now):   # C2：與結果鏈／先發時點共用賽別冷卻
+                continue
+            detail.append(key)
+            continue
+        wants = boxpa_wants(rec)
+        # build：(a) box 到齊而 PA 尚未 published；(b) 有來源變了但該場同步額度已用完——不再送，但仍讓
+        # builder 判斷官方更正，分類才照實（#293 fix-3 組合矩陣 m9）。
+        changed = [x for x in ("box", "pa") if (src.get(x) or {}).get("reason") in _NEEDS_SEND]
+        if boxpa_needs_pa_build(rec) or (changed and not wants and boxpa_box_ready(rec)):
+            build.append(key)
+        if wants:
+            sync.append((key, wants))
+    # 次序：detail > sync > build。sync 優先於 build：PA build 沒產出 published 時 box 仍照送；
+    # shell 在任何非 idle 動作後都先跑 PA build 再重新 plan，所以決定 parts 的那次已看得到新 PA（R1）。
+    if detail:
+        return "detail", detail, []
+    if sync:
+        parts = sync[0][1]
+        return "sync", [k for k, w in sync if w == parts], parts
+    if build:
+        return "build", build, []
+    return "idle", [], []
+
+
+def _boxpa_done(rec: Mapping) -> bool:
+    """box 與 PA 都到終態（送達／衝突），或 PA 停在需人工的官方更正。PA 尚未 published 不是終態。"""
+    src = rec.get("sources") or {}
+    terminal = ("delivered", "delivered_conflict")
+    box = (src.get("box") or {}).get("status") in terminal
+    pa = src.get("pa") or {}
+    return box and (pa.get("status") in terminal or pa.get("reason") == "official_correction_pending")
+
+
+def boxpa_record_detail(state: dict, now: datetime, keys: Iterable[str], errors: list[dict]) -> str:
+    keys = list(keys)
+    requests = state.setdefault("www_requests", {})
+    for kind in {_kind_of(k) for k in keys}:
+        requests[kind] = _iso(now)   # C2：寫進共用賽別冷卻帳本，結果鏈與先發時點據此冷卻
+    for key in keys:
+        state["boxpa"][key].setdefault("detail_attempts", []).append(_iso(now))
+    note_challenge(state, now, errors)
+    return "failed" if errors else "ok"
+
+
+def boxpa_record_sync(state: dict, now: datetime, keys: Iterable[str], code: int,
+                      manifest: Mapping | None, elapsed: float,
+                      parts: Iterable[str] = ("box", "pa")) -> str:
+    """scoped 同步結果入帳。回 ``ok``／``retry``／``waiting``／``halted``。
+
+    * 0／68／72：記一次送出，來源＝這次**實際送出**的 ``parts``（#293 審核席 1 F3；manifest 顯示
+      PA 未送的場不記 PA）；0／68 代表 production 自檢已通過（已完賽）。
+    * manifest 依來源合併：沒送的來源保留上一次的對帳結果與時刻（``box_at``／``pa_at``）。
+    * 73：production 尚未完賽，不算嘗試，等下一次喚醒。
+    * 其他非零（64／67／74、備份、psql／schema）或耗時超過 20 分鐘 → halted（bootout 交人工）。
+    """
+    keys = list(keys)
+    if elapsed > BOXPA_MAX_SECONDS:
+        state["halted"] = {"at": _iso(now), "reason": f"boxpa_sync_over_{BOXPA_MAX_SECONDS}s"}
+        return "halted"
+    if code not in (0, BOXPA_NOT_FINAL, *BOXPA_RESEND_CODES):
+        state["halted"] = {"at": _iso(now), "reason": f"boxpa_sync_exit_{code}"}
+        return "halted"
+    games = (manifest or {}).get("games") or {}
+    parts = [p for p in ("box", "pa") if p in set(parts)]
+    synced_at = (manifest or {}).get("at") or _iso(now)
+    for key in keys:
+        rec = state["boxpa"][key]
+        game = games.get(key)
+        sent = [p for p in parts if not (p == "pa" and game is not None and not game.get("pa_sent"))]
+        rec.setdefault("sends", []).append({"at": _iso(now), "code": code, "elapsed": round(elapsed, 1),
+                                            "sources": sent})
+        if code in (0, SYNC_RECONCILE_MISMATCH) and not rec.get("final_prod_at"):
+            rec["final_prod_at"] = _iso(now)
+        if game is not None:
+            rec["manifest"] = _merge_manifest(rec.get("manifest"), game, sent, synced_at)
+        if code == 72 and len(boxpa_syncs(rec)) >= BOXPA_MAX_SENDS:
+            rec["state"], rec["reason"] = "unreached", "sync_transient_failure_after_resend"
+    if code == BOXPA_NOT_FINAL:
+        return "waiting"
+    return "ok" if code == 0 else "retry"
+
+
+_BOX_MANIFEST_KEYS = ("box", "box_ok")
+_PA_MANIFEST_KEYS = ("pa", "pa_ok", "pa_sent", "published_build_local", "published_build_prod")
+
+
+def _merge_manifest(old: Mapping | None, game: Mapping, sent: list[str], at: str) -> dict:
+    """依來源合併 manifest：這次送的來源取新結果與時刻，沒送的保留舊的（沒有舊的就照新結果，不帶時刻）。"""
+    out = dict(old or {})
+    for part, keys in (("box", _BOX_MANIFEST_KEYS), ("pa", _PA_MANIFEST_KEYS)):
+        if part in sent or not old:
+            out.update({k: game.get(k) for k in keys})
+            if part in sent:
+                out[f"{part}_at"] = at
+            else:
+                out[f"{part}_ok"] = None     # 本次沒送這個來源：不得把對帳結果當成已送達
+    out["at"] = at
+    return out
+
+
+def boxpa_timeline(state: Mapping) -> list[dict]:
+    out = []
+    for rec in (state.get("boxpa") or {}).values():
+        src = rec.get("sources") or {}
+        out.append({"key": rec["key"], "game_date": rec.get("game_date"), "state": rec.get("state"),
+                    "reason": rec.get("reason"), "detail_attempts": rec.get("detail_attempts") or [],
+                    "sends": rec.get("sends") or [],
+                    **{f"{s}_{f}": (src.get(s) or {}).get(f) for s in ("final", "box", "pa")
+                       for f in ("status", "reason", "local_at", "prod_at", "same_night")}})
+    return sorted(out, key=lambda r: r["key"])
+
+
 # =========================================================================== 本機 DB（唯讀＋本機 refresh_log）
+
+# —— #293 box／PA 階段的本機 DB 讀寫（明細／PA build 寫本機；同步由 shell 呼叫 refresh-cpbl-prod.sh）——
+
+def _keys_tuple(keys: Iterable[str]) -> list[tuple[int, str, int]]:
+    out = []
+    for key in keys:
+        y, k, sno = key.split("-")
+        out.append((int(y), k, int(sno)))
+    return out
+
+
+def boxpa_load_facts(keys: Iterable[str]) -> dict:
+    from cpbl.db import conn
+    from cpbl.postseason_sources import load_local_facts
+
+    with conn() as c:
+        return load_local_facts(c.cursor(), _keys_tuple(keys))
+
+
+def _boxpa_prepare_state(state: dict, now: datetime, year: int) -> dict[str, dict]:
+    local = load_local_games(year, now)
+    keys = {k for k, g in local.items() if g.completed and boxpa_window(g.game_date, now)}
+    keys |= {k for k, r in (state.get("boxpa") or {}).items() if r.get("state") not in BOXPA_TERMINAL}
+    return boxpa_refresh(state, now, local, boxpa_load_facts(keys))
+
+
+def boxpa_detail(year: int, keys: list[str], state: Mapping | None = None, *, delay: float = 1.2) -> dict:
+    """只對傳入的目標場抓明細（#293 審核席 1 F1）：gamelog＋觀眾裁判時長（www）＋逐球（stats）。
+
+    ⛔ 不呼叫 ``_postseason_detail_step``：那支是每日補洞用，候選＝賽事日完賽場 ∪ 全賽別缺明細的完賽場，
+    會把非目標的歷史場一起抓、一起寫。這裡改為逐場呼叫它內部用的同一批葉函式（``scrape_gamelogs``、
+    ``scrape_game_details``、``scrape_game_pitches``、``_postseason_detail_gaps``），場次只來自 ``keys``；
+    逐球也不帶入 ``_lagging_pitch_games``。判定與錯誤形狀與 ``_postseason_detail_step`` 相同。
+
+    www 標記（PLAN r3.1 §16.1）：每場一個 ``www_marker`` 區塊＝一次邏輯抓取；區塊內第一個導頁記
+    ``box``（該場本晚已抓過則 ``retry``），其後的導頁記 ``retry``。"""
+    from cpbl.ingest import run_refresh_recent as rr
+    from cpbl.ingest._browser import www_marker
+    from cpbl.ingest.cpbl_pitch_tracking import is_frozen, scrape_game_pitches
+
+    recs = (state or {}).get("boxpa") or {}
+    out: dict[str, Any] = {"games": {}, "errors": []}
+    for y, kind, sno in _keys_tuple(keys):
+        key = f"{y}-{kind}-{sno}"
+        if kind not in KINDS:
+            raise ValueError(f"季後賽別只接受 E／C：{kind!r}")
+        issues: list[str] = []
+        summary: dict[str, Any] = {}
+        try:
+            first = "retry" if (recs.get(key) or {}).get("detail_attempts") else "box"
+            with www_marker(first, "293", f"{y}/{kind}/{sno}"):
+                gamelog = rr._tolerate_gamelog_gap(
+                    rr.scrape_gamelogs(y, [sno], kind, allow_partial=True),
+                    f"季後明細 gamelog kind={kind}")
+                for part in ("scoreboard", "livelog", "batting_box", "pitching_box"):
+                    if gamelog.get(part, 0) == 0:
+                        issues.append(f"{key}:gamelog.{part}=0")
+                detail_rows = rr.scrape_game_details(y, [sno], kind)
+                if detail_rows < 1:
+                    issues.append(f"{key}:game_details={detail_rows}")
+            summary = {"gamelog": gamelog, "detail_rows": detail_rows}
+            if is_frozen(y, kind, sno):
+                summary["pitches"] = {"skipped_frozen": 1}
+            else:
+                pitches = scrape_game_pitches([(y, kind, sno)], delay=delay)
+                summary["pitches"] = pitches
+                if pitches.get("games", 0) < 1:
+                    issues.append(f"{key}:pitch_games=0")
+                elif not pitches.get("pitcher_flags"):
+                    issues.append(f"{key}:pitcher_flags=0")
+            gaps = rr._postseason_detail_gaps(y, kind, [sno], rr._POSTSEASON_CORE_DETAIL_TABLES)
+            summary["missing"] = gaps.get(sno, [])
+            if gaps:
+                out["errors"].append({"kind": kind, "stage": "detail_missing",
+                                      "error": f"{sno}:{'/'.join(gaps[sno])}"})
+            if issues:
+                out["errors"].append({"kind": kind, "stage": "detail_source", "error": "；".join(issues)})
+        except Exception as exc:  # noqa: BLE001 — 單場失敗照實記錄，不連坐其他目標場
+            log.exception("季後 box 明細失敗 %s", key)
+            out["errors"].append({"kind": kind, "stage": "detail", "error": str(exc)})
+        out["games"][key] = summary
+    return out
+
+
+def scrape_marker_args(state: Mapping, kind: str) -> tuple[str, str]:
+    """#293 r3（PLAN r3.1 §16.1）：一次賽別賽程抓取的 (kind, src)。
+
+    * 該賽別有未結事件 → src=293；任一事件先前已試過 www → ``retry``，否則 ``event``。
+    * 沒有未結事件（只由 #292 先發時點觸發）→ ``other``／src=292。"""
+    evs = [e for e in open_events(state).values() if _kind_of(e["key"]) == kind]
+    if not evs:
+        return "other", "292"
+    return ("retry" if any(e.get("attempts") for e in evs) else "event"), "293"
+
+
+@contextmanager
+def marking_scrape_games(state: Mapping, year: int) -> Iterator[None]:
+    """呼叫期間把 ``run_refresh_recent.scrape_games`` 換成「每個賽別一個 www 標記區塊
+    （``<year>/<kind>/-``）」的包裝，結束後原樣還原。模組沒有 ``scrape_games``（測試替身）就不包。"""
+    import importlib
+
+    from cpbl.ingest._browser import www_marker
+
+    rr = importlib.import_module("cpbl.ingest.run_refresh_recent")
+    original = getattr(rr, "scrape_games", None)
+    if original is None:
+        yield
+        return
+
+    def call(start_year: int, end_year: int, kind_code: str = "A"):
+        kind, src = scrape_marker_args(state, kind_code)
+        with www_marker(kind, src, f"{year}/{kind_code}/-"):
+            return original(start_year, end_year, kind_code)
+
+    rr.scrape_games = call
+    try:
+        yield
+    finally:
+        rr.scrape_games = original
+
+
+def boxpa_game_dates(keys: Iterable[str]) -> list[str]:
+    from cpbl.db import conn
+
+    out = []
+    with conn() as c:
+        for y, k, sno in _keys_tuple(keys):
+            row = c.execute("SELECT game_date FROM cpbl.games WHERE year = %s AND kind_code = %s AND game_sno = %s",
+                            (y, k, sno)).fetchone()
+            if row and row[0]:
+                out.append(row[0].isoformat())
+    return out
+
+
+def boxpa_pa_build(year: int, keys: list[str]) -> dict:
+    """既有 PA builder：以 _pa_build_targets 的守衛（只收官方 final 等）選場，再與目標場取交集。"""
+    from datetime import date as _date
+
+    from cpbl.ingest.pa_build import build_scope
+    from cpbl.ingest.run_refresh_recent import _pa_build_targets
+
+    kinds = sorted({k.split("-")[1] for k in keys})
+    days = sorted({_date.fromisoformat(d) for d in boxpa_game_dates(keys)})
+    wanted = set(_keys_tuple(keys))
+    games = [g for g in _pa_build_targets(year, kinds, days) if g in wanted]
+    if not games:
+        return {"games": 0, "skipped": "no_build_target"}
+    result = build_scope(year, year, kinds, only_games=games)
+    return {"games": result.get("games"), "actions": result.get("actions"),
+            "build_states": result.get("build_states"), "errors": result.get("errors")}
+
 
 def load_local_games(year: int, now: datetime) -> dict[str, LocalGame]:
     from cpbl.completion import completed_games_sql_with_evidence
@@ -865,6 +1333,19 @@ def _parser():
     rs = sub.add_parser("record-sync", help="記錄 refresh-cpbl-prod.sh 的結果")
     rs.add_argument("--code", type=int, required=True)
     sub.add_parser("finish", help="寫最終狀態檔（與必要時的本機 refresh_log）")
+    bp = sub.add_parser("boxpa-plan", help="#293：印 idle／detail <場>／sync <場>（不連 www）")
+    bp.add_argument("--dry", action="store_true", help="只判斷不寫狀態檔（取鎖前的預檢）")
+    bd = sub.add_parser("boxpa-detail", help="#293：目標場明細 www（既有 _postseason_detail_step）")
+    bd.add_argument("--games", required=True)
+    bb = sub.add_parser("boxpa-prepare", help="#293：目標場 PA build（既有 builder；不連網）")
+    bb.add_argument("--games", default="", help="省略＝今晚開著、box 已到齊的所有場（含已 published）")
+    br = sub.add_parser("boxpa-record", help="#293：記錄 POSTSEASON_BOXPA_ONLY 同步結果")
+    br.add_argument("--games", required=True)
+    br.add_argument("--code", type=int, required=True)
+    br.add_argument("--manifest", required=True)
+    br.add_argument("--elapsed", type=float, required=True)
+    br.add_argument("--parts", required=True, help="這次實際交給 scoped 同步的來源（box,pa／box／pa）")
+    sub.add_parser("boxpa-status", help="#293：印目標場 box／PA 時間線（唯讀狀態檔）")
     return p
 
 
@@ -926,7 +1407,10 @@ def main(argv: list[str] | None = None) -> int:
             print("unchanged")
             return 0
         before = local_signature(year)
-        result = _postseason_games_step(year, kinds)
+        # #293 r3：每個賽別的賽程抓取包一層 www 標記（src／kind 見 scrape_marker_args）；
+        # 呼叫介面不變，只在這次呼叫期間包住 run_refresh_recent.scrape_games。
+        with marking_scrape_games(state, year):
+            result = _postseason_games_step(year, kinds)
         after = local_signature(year)
         stats_has_c = any(g.get("kind_code") == "C" for g in state.get("schedule") or [])
         local_c = sum(1 for k in load_local_games(year, now) if k.split("-")[1] == "C")
@@ -945,6 +1429,68 @@ def main(argv: list[str] | None = None) -> int:
         state["last_run"] = {"at": _iso(now), "action": "scrape", "outcome": outcome,
                              "errors": result.get("errors") or []}
         publish_signals(state, year, now)
+        save_json(path, state)
+        print(outcome)
+        return 0
+
+    if args.command == "boxpa-status":
+        print(json.dumps(boxpa_timeline(state), ensure_ascii=False, indent=2))
+        return 0
+
+    if args.command == "boxpa-plan":
+        open_recs = _boxpa_prepare_state(state, now, year)
+        action, keys, parts = boxpa_plan(state, now, open_recs)
+        if not args.dry:
+            state["boxpa_last"] = {"at": _iso(now), "action": action, "games": keys, "parts": parts}
+            save_json(path, state)
+        print(" ".join(x for x in (action, ",".join(keys), ",".join(parts)) if x))
+        return 0
+
+    if args.command == "boxpa-detail":
+        keys = [k for k in args.games.split(",") if k]
+        try:
+            result = boxpa_detail(year, keys, state)
+            errors = result.get("errors") or []
+        except Exception as exc:  # noqa: BLE001 — www 失敗照實記錄、不吞成成功
+            log.exception("box／PA 明細失敗")
+            result, errors = {"error": str(exc)}, [{"stage": "detail", "error": str(exc)}]
+        outcome = boxpa_record_detail(state, now, keys, errors)
+        state["boxpa_last"] = {"at": _iso(now), "action": "detail", "games": keys, "outcome": outcome,
+                               "errors": errors}
+        save_json(path, state)
+        print(outcome)
+        return 0
+
+    if args.command == "boxpa-prepare":
+        # 未給 --games：今晚仍開著、box 已到齊的所有場（含已有 published 者；#293 再審 G1）。shell 在決定
+        # 這次送哪些來源之前先跑本步驟（R1）。
+        if args.games:
+            keys = [k for k in args.games.split(",") if k]
+        else:
+            keys = boxpa_pa_build_candidates(_boxpa_prepare_state(state, now, year))
+        if not keys:
+            print(json.dumps({"games": 0, "skipped": "no_pa_build_candidate"}))
+            return 0
+        try:
+            result = boxpa_pa_build(year, keys)
+        except Exception as exc:  # noqa: BLE001 — PA build 失敗不擋 box 同步（PA 照實維持 pending）
+            log.exception("box／PA 階段 PA build 失敗")
+            result = {"error": str(exc)}
+        state["boxpa_last"] = {"at": _iso(now), "action": "prepare", "games": keys, "pa_build": result}
+        save_json(path, state)
+        print(json.dumps(result, ensure_ascii=False, default=str))
+        return 0
+
+    if args.command == "boxpa-record":
+        keys = [k for k in args.games.split(",") if k]
+        mpath = Path(args.manifest)
+        manifest = json.loads(mpath.read_text(encoding="utf-8")) if mpath.exists() else None
+        _boxpa_prepare_state(state, now, year)          # 先以送出前的分類決定「這次送了哪些來源」
+        parts = [p for p in args.parts.split(",") if p]
+        outcome = boxpa_record_sync(state, now, keys, args.code, manifest, args.elapsed, parts)
+        _boxpa_prepare_state(state, now, year)          # 再以新 manifest 重算分類
+        state["boxpa_last"] = {"at": _iso(now), "action": "sync", "games": keys, "code": args.code,
+                               "outcome": outcome, "elapsed": args.elapsed, "manifest": str(mpath)}
         save_json(path, state)
         print(outcome)
         return 0
@@ -968,7 +1514,8 @@ def main(argv: list[str] | None = None) -> int:
                "needs_owner_decision": state.get("needs_owner_decision"),
                "signals_error": state.get("signals_error"),
                "pending_sync": state.get("pending_sync"), "timeline": timeline(state),
-               "starter_checkpoints": sc.timeline(state.get("starter_checkpoints") or {})}
+               "starter_checkpoints": sc.timeline(state.get("starter_checkpoints") or {}),
+               "boxpa": boxpa_timeline(state), "boxpa_last": state.get("boxpa_last")}
     save_json(status_path(), summary)
     if attempted:
         ok = not state.get("halted") and last.get("outcome") in ("changed", "unchanged", "synced")

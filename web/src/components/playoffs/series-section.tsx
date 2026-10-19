@@ -26,7 +26,8 @@ import { SeriesSummaryBlock } from "./series-summary";
 //   大比分放最上面，一眼看到；第 4 區往下捲才看到。
 // - 場次卡改格狀（不橫捲）：手機 4 欄、桌機 7 欄；每張只放場序、日期、兩隊（分數或客主）、一行補充。
 // - 整張卡就是單場連結（D3 的「單場連結」），卡內不再另放連結文字。
-// - 預告只放日期、開賽時刻＋來源、球場、主客；⛔ 先發投手（需求方 D7）。
+// - 預告放日期、開賽時刻、球場、主客，以及一行先發「先發：客隊 text・主隊 text」（S11 官方先發，字樣與第 4 區
+//   同源；#285 批次 E E-Q2 甲）。精簡卡不放先發。
 // - 第 2／3 區 10/17 整區隱藏（Q3），本元件不留它們的標題或占位。
 
 function GameChip({ card }: { card: OverviewGameCard }) {
@@ -109,6 +110,11 @@ function NextGame({ overview }: { overview: PlayoffsOverview }) {
       <span className="text-xs text-muted tabular-nums">
         {dateText(next.game_date)} {startText(next)}・{next.venue ?? "球場本站尚未取得"}
       </span>
+      {next.starters?.length ? (
+        <span className="basis-full text-xs text-ink" data-next-starters>
+          先發：{next.starters.map((s) => `${teamLabel(s.team_code)} ${s.text}`).join("・")}
+        </span>
+      ) : null}
     </Link>
   );
 }

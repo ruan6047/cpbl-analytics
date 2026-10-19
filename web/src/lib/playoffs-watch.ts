@@ -82,9 +82,15 @@ export type WatchTeam = {
   pitchers: WatchPitcher[];
 };
 
-/** 官方先發投手（#314）：後端讀官方賽程現行列判定，前端只排 `text`。
- *  announced＝已公告（`text` 為姓名，查無姓名時為「已公告（姓名待更新）」）；pending＝「待公告」；
- *  unknown＝來源讀取失敗「暫時無法取得」。⛔ 無公告時間、⛔ 無更換標示（需求方裁定 Q1／Q3）。 */
+/** 官方先發的賽前歷程分類（#320 A2；後端 `cpbl.playoffs.starter_classification`）。
+ *  changed＝賽前出現過其他先發（`text`「{姓名}（已更換）」）；retracted＝先前公告後清空（`text`
+ *  「待公告（先前公告已撤回）」）；`status` 值域不變。舊 API 沒有此欄。 */
+export type StarterClassification = "announced" | "changed" | "retracted" | "pending" | "unknown";
+
+/** 官方先發投手（#314、#320）：後端讀官方賽程現行列判定，前端只排 `text`。
+ *  announced＝已公告（`text` 為姓名，查無姓名時為「已公告（姓名待更新）」，更換時加「（已更換）」）；
+ *  pending＝「待公告」（撤回時為「待公告（先前公告已撤回）」）；unknown＝來源讀取失敗「暫時無法取得」。
+ *  ⛔ 無公告時間（需求方裁定 #314 Q1）；更換標示依 #320 6261389955（取代 #314 Q3）。 */
 export type WatchStarter = {
   team_code: string;
   status: "announced" | "pending" | "unknown";
@@ -92,6 +98,7 @@ export type WatchStarter = {
   player_id: string | null;
   name: string | null;
   text: string;
+  classification?: StarterClassification;
 };
 
 /** 多重角色平列；只允許legacy資料讀單值，v2缺陣列不可降級。 */
@@ -125,6 +132,8 @@ export type PlayoffsWatch = {
   source_manifest: { source: string; status: string }[];
   registration: { status: string; reason: string; text: string };
   starters?: WatchStarter[];
+  /** 整場先發分類（#320 A2）：剛好一隊已公告（含更換）＝partial；畫面不另加標籤。舊 API 沒有。 */
+  starters_classification?: "announced" | "partial" | "pending" | "unknown";
   teams: WatchTeam[];
 };
 

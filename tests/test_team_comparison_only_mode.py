@@ -161,7 +161,8 @@ def _body() -> str:
 def test_full_chain_calls_summary_sync_after_gamelog_and_never_blocks():
     body = _body()
     detail = body[body.index('if [ -n "${WITH_DETAIL:-}" ]; then\n  sync_table batter_pitcher_matchups'):]
-    i_pit = detail.index("sync_table pitching_gamelog")
+    # #293 把 box 七表的 sync_table 清單抽成 sync_box_<表>（完整鏈呼叫順序不變），這裡定位該呼叫。
+    i_pit = detail.index("sync_box_pitching_gamelog")
     i_call = detail.index("if team_comparison_sync apply; then")
     assert i_pit < i_call < detail.index("sync_table batting_seasons")
     block = detail[i_call:detail.index("fi", i_call) + 2]
