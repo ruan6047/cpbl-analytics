@@ -194,7 +194,7 @@ test("官方先發投手：已公告顯示姓名（客、主順序），查無�
   assert.match(one, /待公告/);
 });
 
-test("官方先發投手：讀取失敗寫「暫時無法取得」；不顯示公告時間、更換標示或負荷連結", () => {
+test("官方先發投手：讀取失敗寫「暫時無法取得」；不顯示公告時間或負荷連結，未更換時不出更換標示", () => {
   const fail = watch([], { starters: ["ACN011", "AAA011"].map((t) => ({ team_code: t, status: "unknown" as const,
     reason: "starter_source_unavailable", player_id: null, name: null, text: "暫時無法取得" })) });
   assert.equal((visible(fail).match(/暫時無法取得/g) ?? []).length, 2);
@@ -202,6 +202,22 @@ test("官方先發投手：讀取失敗寫「暫時無法取得」；不顯示�
   const html = renderToStaticMarkup(<WatchSection data={d} />);
   const starterBlock = html.slice(html.indexOf("官方先發投手"), html.indexOf("牛棚近期使用負荷"));
   assert.doesNotMatch(starterBlock, /公告時間|更新於|\d{1,2}:\d{2}|已更換|更換|<a /);
+});
+
+test("官方先發投手（#320 A2）：更換顯示「{姓名}（已更換）」、撤回顯示「待公告（先前公告已撤回）」，不出時間", () => {
+  const changed: WatchStarter = { ...announced("ACN011", "0000005151", "羅戈"), classification: "changed", text: "羅戈（已更換）" };
+  const retracted: WatchStarter = { ...pending("AAA011"), classification: "retracted", text: "待公告（先前公告已撤回）" };
+  const d = watch([], { starters: [changed, retracted], starters_classification: "partial" });
+  const html = renderToStaticMarkup(<WatchSection data={d} />);
+  const v = visible(d);
+  assert.match(v, /官方先發投手.*兄弟 羅戈（已更換）.*味全 待公告（先前公告已撤回） 牛棚近期使用負荷/);
+  // status 值域不變：更換仍是 announced、撤回仍是 pending（#314 守門意圖保留）。
+  assert.equal((html.match(/data-starter-status="announced"/g) ?? []).length, 1);
+  assert.equal((html.match(/data-starter-status="pending"/g) ?? []).length, 1);
+  const starterBlock = html.slice(html.indexOf("官方先發投手"), html.indexOf("牛棚近期使用負荷"));
+  assert.doesNotMatch(starterBlock, /公告時間|更新於|\d{1,2}:\d{2}|0000005151|<a /);
+  // 部分公告逐隊呈現、不另加標籤。
+  assert.doesNotMatch(starterBlock, /部分公告|partial/);
 });
 
 test("名單未提交：不列投手", () => {
