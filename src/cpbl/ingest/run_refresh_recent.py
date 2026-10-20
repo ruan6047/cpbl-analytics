@@ -75,6 +75,7 @@ from cpbl.ingest.cpbl_transactions import scrape_transactions
 from cpbl.ingest.game_source_revisions import record_source_revision
 from cpbl.ingest.pa_build import build_scope
 from cpbl.ingest.splits_calc import build_career, build_splits
+from cpbl.pitch_coverage import lagging_pitch_games_sql
 
 log = logging.getLogger("cpbl.refresh")
 
@@ -181,33 +182,13 @@ def _lagging_pitch_games(year: int, kind_code: str, days_back: int = 3) -> set[i
 
     舊判準為「**本季曾**達 0.80」，其前提（設備狀態不隨時間變化）已被實測推翻——
     一個已停止產出的球場會因早季那幾場而永久通過測試、其死場次被每日重抓且永遠補不上。
+
+    SQL 本體在 :func:`cpbl.pitch_coverage.lagging_pitch_games_sql`（#293 fix-5 原樣抽出）：晚間鏈
+    box／PA 階段判「逐球待更新」共用同一支，⛔ 不得在別處另寫一套。
     """
     with conn() as c:
         rows = c.execute(
-            f"""
-            WITH cov AS (
-              SELECT gm.venue, gm.game_sno, gm.game_date,
-                (SELECT count(*) FROM cpbl.game_livelog ll WHERE ll.year=gm.year
-                   AND ll.kind_code=gm.kind_code AND ll.game_sno=gm.game_sno
-                   AND (ll.is_ball OR ll.is_strike)) AS pitches,
-                (SELECT count(*) FROM cpbl.pitch_tracking pt WHERE pt.year=gm.year
-                   AND pt.kind_code=gm.kind_code AND pt.game_sno=gm.game_sno) AS tracked
-              FROM cpbl.games gm
-              WHERE gm.year=%s AND gm.kind_code=%s AND {daily_chain_completed_games_sql('gm')}),
-            r AS (SELECT *, row_number() OVER (PARTITION BY venue
-                    ORDER BY game_date DESC, game_sno DESC) rn FROM cov),
-            equipped AS (
-              SELECT venue FROM (
-                SELECT venue, bool_or(pitches>=50 AND tracked>=pitches*0.80) AS equipped
-                FROM r WHERE rn<=10 GROUP BY venue
-              ) e WHERE e.equipped
-            )
-            SELECT cov.game_sno FROM cov
-            JOIN equipped ON equipped.venue = cov.venue
-            WHERE cov.game_date >= (CURRENT_DATE - %s::int)
-              AND cov.pitches >= 50 AND cov.tracked < cov.pitches * 0.85
-            ORDER BY cov.game_sno
-            """,
+            lagging_pitch_games_sql(daily_chain_completed_games_sql('gm')),
             (year, kind_code, days_back),
         ).fetchall()
     return {r[0] for r in rows}
