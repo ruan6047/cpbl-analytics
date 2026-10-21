@@ -73,6 +73,44 @@ test("兼任先發與長中繼只列一位投手，完整兩標籤與原low燈�
   assert.equal((markup.match(/data-level="low"/g) ?? []).length, 1);
 });
 
+// #347 續修：版面契約測試（靜態 markup 的 class 代理指標）。
+// 能抓到：版面 class 被改回去（燈號回到 shrink-0、第 1 輪列結構被拆）而測試照樣通過的情境。
+// ⛔ 抓不到實際幾何：globals.css／token 改動、新增更長文字、字型改變都要真的排版才看得出來，不能取代正式站截圖。
+const classOf = (html: string, attr: string): string[] =>
+  [...html.matchAll(new RegExp(`<[^>]*\\b${attr}(?![-\\w])(?:="[^"]*")?[^>]*>`, "g"))].map((m) => / class="([^"]*)"/.exec(m[0])?.[1] ?? "");
+const tokens = (cls: string) => cls.split(/\s+/);
+
+test("版面契約（#347）：先發與「未知＋資料不完整」燈號可在左欄內換行，文字原封不動", () => {
+  const unknownGap = load("unknown", { incomplete: [{ date: "2026-10-15", offset: 2, reasons: ["box_missing"], text: ["尚未送達"] }] });
+  for (const p of [pitcher("1", "先發", load("starter_exempt")), pitcher("2", "中繼", unknownGap)]) {
+    const html = renderToStaticMarkup(<PitcherLoadRow p={p} scaleMax={1} />);
+    const lamps = classOf(html, "data-lamp");
+    assert.equal(lamps.length, 1);
+    const lamp = tokens(lamps[0]);
+    assert.ok(!lamp.includes("shrink-0"), `燈號不得 shrink-0：${lamps[0]}`);
+    for (const c of ["min-w-0", "max-w-full"]) assert.ok(lamp.includes(c), `燈號須含 ${c}：${lamps[0]}`);
+    const lampText = classOf(html, "data-lamp-text");
+    assert.equal(lampText.length, 1);
+    assert.ok(!/whitespace-nowrap|shrink-0/.test(lampText[0]), `燈號文字須可換行：${lampText[0]}`);
+    assert.ok(tokens(classOf(html, "data-name")[0]).includes("[overflow-wrap:anywhere]"));
+  }
+  assert.match(text(<PitcherLoadRow p={pitcher("1", "先發", load("starter_exempt"))} scaleMax={1} />), /先發投手，不套用牛棚負荷燈號/);
+  assert.match(text(<PitcherLoadRow p={pitcher("2", "中繼", unknownGap)} scaleMax={1} />), /未知.*資料不完整/);
+});
+
+test("版面契約（#347）：第 1 輪列結構不退化（li flex-wrap、左欄 basis-20 min-w-0、日條 w-56 shrink-0、摘要可換行）", () => {
+  const html = renderToStaticMarkup(<PitcherLoadRow p={pitcher("1", "中繼", load("low"))} scaleMax={1} />);
+  const li = tokens(classOf(html, "data-level")[0]);
+  assert.ok(li.includes("flex-wrap"), li.join(" "));
+  const left = tokens(/<li[^>]*><div class="([^"]*)"/.exec(html)?.[1] ?? "");
+  for (const c of ["basis-20", "min-w-0"]) assert.ok(left.includes(c), `左欄須含 ${c}：${left.join(" ")}`);
+  const strip = tokens(classOf(html, "data-strip")[0]);
+  for (const c of ["w-56", "shrink-0"]) assert.ok(strip.includes(c), `日條須含 ${c}：${strip.join(" ")}`);
+  const summary = classOf(html, "data-streak");
+  assert.equal(summary.length, 1);
+  assert.ok(!tokens(summary[0]).includes("whitespace-nowrap"), summary[0]);
+});
+
 function team(code: string, pitchers: WatchPitcher[], roster = true): WatchTeam {
   return { side: code === "ACN011" ? "away" : "home", team_code: code,
     roster_status: roster ? "submitted" : "missing",

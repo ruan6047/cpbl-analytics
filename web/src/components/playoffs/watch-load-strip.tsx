@@ -73,21 +73,27 @@ function Lamp({ p }: { p: WatchPitcher }) {
   const { load } = p;
   const tone = LEVEL_TONE[load.level];
   const gap = load.level === "unknown" && load.incomplete.length > 0;
+  // #347 續修：燈號刻意允許在左欄（80px）內換行，⛔ 不得改回 shrink-0／不換行。
+  // 「先發投手，不套用牛棚負荷燈號」約 168px、「未知＋資料不完整」約 110px，不換行時溢出左欄、被右欄日條蓋住。
+  // 圓點對齊第一行（mt-1：text-xs 行高 16px、圓點 8px）；文字與「資料不完整」小籤各為可換行的 flex 項目，放不下時小籤換到下一行。
+  // 文字、aria-label、Tooltip 不變（#300 只換層不刪內容）。
   const face = (
     <>
-      <span aria-hidden className={`inline-block h-2 w-2 shrink-0 rounded-full ${tone.dot}`} />
-      {LEVEL_TEXT[load.level]}
-      {gap ? <span className="rounded border border-dashed border-line-strong px-1 text-xs font-normal text-muted">資料不完整</span> : null}
+      <span aria-hidden className={`mt-1 inline-block h-2 w-2 shrink-0 rounded-full ${tone.dot}`} />
+      <span className="flex min-w-0 flex-wrap items-center gap-x-1 gap-y-0.5">
+        <span data-lamp-text className="min-w-0">{LEVEL_TEXT[load.level]}</span>
+        {gap ? <span className="rounded border border-dashed border-line-strong px-1 text-xs font-normal text-muted">資料不完整</span> : null}
+      </span>
     </>
   );
   const detail = levelDetail(p);
   if (detail == null) {
-    return <span data-lamp className={`inline-flex shrink-0 items-center gap-1 text-xs font-bold ${tone.text}`}>{face}</span>;
+    return <span data-lamp className={`inline-flex min-w-0 max-w-full items-start gap-1 text-xs font-bold ${tone.text}`}>{face}</span>;
   }
   return (
     <Tooltip content={detail} suppressUnderline>
       <button type="button" data-lamp aria-label={`${LEVEL_TEXT[load.level]}${gap ? "，資料不完整" : ""}：顯示理由`}
-        className={`relative inline-flex min-h-6 shrink-0 touch-manipulation items-center gap-1 rounded text-xs font-bold ${tone.text} before:absolute before:-inset-x-1 before:-inset-y-2.5 before:content-[''] hover:bg-surface-2`}>
+        className={`relative inline-flex min-h-6 min-w-0 max-w-full touch-manipulation items-start gap-1 rounded text-left text-xs font-bold ${tone.text} before:absolute before:-inset-x-1 before:-inset-y-2.5 before:content-[''] hover:bg-surface-2`}>
         {face}
       </button>
     </Tooltip>
@@ -99,6 +105,8 @@ function Lamp({ p }: { p: WatchPitcher }) {
  * 右欄刻意固定寬（w-56＝日條 4 格＋「保留賽 +?」標籤＋內距），摘要在固定寬內換行：
  * 各列日條起點因此不隨摘要長度位移（#347：摘要不換行時「連投 1 天・N 球・N 局」把按鈕撐寬、日條左移）。
  * 左欄 basis-20（80px）讓窄螢幕放不下時右欄整塊換到下一行，不再把左欄壓扁成姓名直排（#347）。
+ * 左欄內容必須能在 80px 內換行（#347 續修）：燈號見 `Lamp` 註解；姓名加 overflow-wrap:anywhere，
+ * 防 name 為 null 時退回的 10 碼 player_id（不可斷的數字串）溢出到日條底下。
  */
 export function PitcherLoadRow({ p, scaleMax }: { p: WatchPitcher; scaleMax: number }) {
   const { load } = p;
@@ -111,7 +119,7 @@ export function PitcherLoadRow({ p, scaleMax }: { p: WatchPitcher; scaleMax: num
     <li className="flex flex-wrap items-center justify-between gap-x-2.5 gap-y-1.5 py-2 text-sm sm:flex-nowrap" data-level={load.level}>
       <div className="min-w-0 flex-1 basis-20 space-y-1">
         <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
-          <span className="font-bold text-ink">{p.name ?? p.player_id}</span>
+          <span data-name className="min-w-0 font-bold text-ink [overflow-wrap:anywhere]">{p.name ?? p.player_id}</span>
           <Lamp p={p} />
           {load.live ? <span className="pm-st pm-st--live">即時</span> : null}
         </div>
