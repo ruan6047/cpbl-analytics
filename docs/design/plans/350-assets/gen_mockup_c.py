@@ -24,8 +24,10 @@ for it in fld:
     if it["pos"] in FIELD_POS:
         POS_G[it["player_id"]][it["pos"]] = POS_G[it["player_id"]].get(it["pos"], 0) + (it["g"] or 0)
 
-esc = lambda s: html.escape(str(s))
-r3 = lambda v: "—" if v is None else f"{v:.3f}".lstrip("0") if v < 1 else f"{v:.3f}"
+def esc(s):
+    return html.escape(str(s))
+def r3(v):
+    return "—" if v is None else f"{v:.3f}".lstrip("0") if v < 1 else f"{v:.3f}"
 
 
 def roles(m):
@@ -54,7 +56,7 @@ def block(title, cols, hdr, cells, note=""):
     counts = " · ".join(f"{len(c)}" for c in cells)
     out = [f'<div class="blk"><div class="bh"><b>{esc(title)}</b><span class="cnt">{counts}</span>'
            f'{f"<span class=bn>{esc(note)}</span>" if note else ""}</div><div class="two">']
-    for t, c in zip(teams, cells):
+    for t, c in zip(teams, cells, strict=False):
         out.append(f'<div class="col"><div class="r hd"><span class="n tn">{logo(t["team_code"], 14)} {esc(t["team_name"])}</span>{hdr}</div>'
                    + ("".join(c) or '<div class="r"><span class="n faint">—</span></div>') + "</div>")
     out.append("</div></div>")

@@ -35,7 +35,8 @@ def line(m):
         return "—"
     if m["role"] == "pitching":
         return f"ERA {l['era']:.2f} · {l['ip']} IP" if l["era"] is not None else f"ERA — · {l['ip']} IP"
-    r3 = lambda v: "—" if v is None else f"{v:.3f}".lstrip("0")
+    def r3(v):
+        return "—" if v is None else f"{v:.3f}".lstrip("0")
     return f"AVG {r3(l['avg'])} · OPS {r3(l['ops'])}"
 
 
@@ -227,7 +228,8 @@ def mock_b():
     t0, t1 = teams
     mx = max(sum(1 for m in t['members'] if m['role'] == gr) for t in teams for gr in ('pitching', 'batting'))
     def r(label, n0, n1, cls=""):
-        w = lambda n: f"{n / mx * 100:.1f}%"
+        def w(n):
+            return f"{n / mx * 100:.1f}%"
         return (f'<tr class="{cls}"><td>{esc(label)}</td>'
                 f'<td class="b"><div class="mb r" style="width:{w(n0)}"></div></td><td class="n">{n0}</td>'
                 f'<td class="n" style="text-align:left">{n1}</td><td class="b"><div class="mb" style="width:{w(n1)}"></div></td></tr>')

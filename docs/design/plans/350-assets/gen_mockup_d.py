@@ -35,7 +35,8 @@ def primary(pid):
     return max(FIELD_POS, key=lambda p: (d.get(p, 0), -FIELD_POS.index(p))) if any(d.values()) else None
 
 
-esc = lambda s: html.escape(str(s))
+def esc(s):
+    return html.escape(str(s))
 
 
 def r3(v):
@@ -111,7 +112,7 @@ def names(ms):
 
 def block(title, per_team, note=""):
     cols = "".join(f'<div class="col"><div class="comp">{logo(t["team_code"], 14)} {comp}</div>'
-                   f'<div class="names">{nm}</div></div>' for t, (comp, nm) in zip(teams, per_team))
+                   f'<div class="names">{nm}</div></div>' for t, (comp, nm) in zip(teams, per_team, strict=False))
     return (f'<section class="blk"><h4>{esc(title)}'
             f'{f"<span class=bn>{esc(note)}</span>" if note else ""}</h4><div class="two">{cols}</div></section>')
 
