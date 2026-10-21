@@ -94,7 +94,12 @@ function Lamp({ p }: { p: WatchPitcher }) {
   );
 }
 
-/** 每位投手一列：左欄（上列名字＋燈號、下列角色籤）＋右欄（4 格球數日條＋連投摘要），避免多角色籤擠斷日條或「3 天前」折行。 */
+/**
+ * 每位投手一列：左欄（上列名字＋燈號、下列角色籤）＋右欄（4 格球數日條，下方另起一行連投摘要），避免多角色籤擠斷日條或「3 天前」折行。
+ * 右欄刻意固定寬（w-56＝日條 4 格＋「保留賽 +?」標籤＋內距），摘要在固定寬內換行：
+ * 各列日條起點因此不隨摘要長度位移（#347：摘要不換行時「連投 1 天・N 球・N 局」把按鈕撐寬、日條左移）。
+ * 左欄 basis-20（80px）讓窄螢幕放不下時右欄整塊換到下一行，不再把左欄壓扁成姓名直排（#347）。
+ */
 export function PitcherLoadRow({ p, scaleMax }: { p: WatchPitcher; scaleMax: number }) {
   const { load } = p;
   const days = [...load.days].sort((a, b) => b.offset - a.offset);
@@ -104,7 +109,7 @@ export function PitcherLoadRow({ p, scaleMax }: { p: WatchPitcher; scaleMax: num
   const spoken = days.map((d) => `${dayLabel(d.offset)} ${shortDate(d.date)} ${d.complete ? `${d.pitches} 球` : d.pitches > 0 ? `已知 ${d.pitches} 球，另有未知` : "未知"}`);
   return (
     <li className="flex flex-wrap items-center justify-between gap-x-2.5 gap-y-1.5 py-2 text-sm sm:flex-nowrap" data-level={load.level}>
-      <div className="min-w-0 flex-1 space-y-1">
+      <div className="min-w-0 flex-1 basis-20 space-y-1">
         <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
           <span className="font-bold text-ink">{p.name ?? p.player_id}</span>
           <Lamp p={p} />
@@ -119,7 +124,7 @@ export function PitcherLoadRow({ p, scaleMax }: { p: WatchPitcher; scaleMax: num
       <Tooltip content={loadDetail(p)} suppressUnderline>
         <button type="button" data-strip
           aria-label={`近 4 日球數：${spoken.join("、")}${load.unattributed.length ? "；另有保留賽球數日期未定" : ""}；${summary}；顯示詳情`}
-          className="flex min-h-9 shrink-0 touch-manipulation flex-wrap items-center gap-x-2.5 gap-y-1 rounded px-1.5 py-0.5 text-left hover:bg-surface-2">
+          className="flex min-h-9 w-56 shrink-0 touch-manipulation flex-col items-start gap-1 rounded px-1.5 py-0.5 text-left hover:bg-surface-2">
           <span className="flex items-end gap-1" aria-hidden>
             {days.map((d) => {
               const pct = scaleMax > 0 ? Math.round((Math.max(d.pitches, 0) / scaleMax) * 100) : 0;
@@ -137,7 +142,7 @@ export function PitcherLoadRow({ p, scaleMax }: { p: WatchPitcher; scaleMax: num
               <span data-unattributed className="self-center rounded border border-dashed border-line-strong px-1 text-[11px] text-muted">保留賽 +?</span>
             ) : null}
           </span>
-          <span data-streak={streak.kind} className={`whitespace-nowrap text-xs font-bold ${streak.kind === "streak" ? "text-ink" : "text-muted"}`}>{summary}</span>
+          <span data-streak={streak.kind} className={`text-xs font-bold ${streak.kind === "streak" ? "text-ink" : "text-muted"}`}>{summary}</span>
         </button>
       </Tooltip>
     </li>
