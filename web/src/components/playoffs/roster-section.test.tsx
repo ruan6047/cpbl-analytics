@@ -340,3 +340,16 @@ test("抽屜標頭個人數值：本範圍 G、AVG·OPS 或 ERA·局數、主守
   const pend = pitcher("1000000010", ["先發"], 25, undefined, { g: null, line: null, pending: true });
   assert.equal(drawerStatLine(pend, "series"), "本系列 待更新");
 });
+
+test("審核 F1：抽屜保留 DH 未知狀態，與主視圖「待更新」一致（⛔ 顯示確定場數）", () => {
+  const s = (dh: number | null, unknown: number) => ({ g: 1, line: { ...bat(4, 1, 0, 0, 0, 1), avg: 0.25, ops: 0.5 },
+    pending: false, dh_starts: dh, dh_starts_unknown: unknown });
+  const u = fielder("8100000001", "游擊手", { g: 70, dh_starts: 3, dh_starts_unknown: 1, positions: [{ pos: "游擊手", g: 35 }],
+    line: { ...bat(100, 26, 10, 0, 0, 40), avg: 0.26, ops: 0.636 } }, s(0, 1));
+  assert.equal(dhStatus(u, "background"), "uncertain");
+  assert.equal(drawerStatLine(u, "background"), "例行賽 70G · AVG .260 · OPS .636 · 游擊手 35G · DH 先發 3（另 1 場待更新）");
+  assert.equal(drawerStatLine(u, "series"), "本系列 1G · AVG .250 · OPS .500 · DH 先發 0（另 1 場待更新）");
+  const nullDh = fielder("8100000002", "捕手", {}, s(null, 0));
+  assert.match(drawerStatLine(nullDh, "series"), /DH 先發 待更新$/);
+  assert.doesNotMatch(drawerStatLine(fielder("8100000003", "捕手", { dh_starts: 0 }), "background"), /DH/);
+});

@@ -171,7 +171,8 @@ export function drawerSubtitle(m: RosterMember): string {
 }
 
 /** 抽屜標頭的個人數值（#350：主視圖只列人名，個人數值點開才看）。
- *  例：「例行賽 120G · AVG .263 · OPS .664 · 游擊手 35G · DH 先發 22」；本系列來源未齊 ⇒「本系列 待更新」。 */
+ *  例：「例行賽 120G · AVG .263 · OPS .664 · 游擊手 35G · DH 先發 22」；本系列來源未齊 ⇒「本系列 待更新」；
+ *  DH 有判不出守位的場 ⇒「DH 先發 3（另 1 場待更新）」。 */
 export function drawerStatLine(m: RosterMember, scope: RosterScope = "background"): string {
   const series = scope === "series";
   const label = series ? "本系列" : "例行賽";
@@ -188,8 +189,13 @@ export function drawerStatLine(m: RosterMember, scope: RosterScope = "background
   if (m.role === "batting") {
     const top = m.background.positions?.[0];
     if (!series && top) parts.push(`${top.pos} ${top.g}G`);
-    const dh = series ? m.series?.dh_starts : m.background.dh_starts;
-    if (dh != null && dh > 0) parts.push(`DH 先發 ${dh}`);
+    // 未知不可省略：判不出守位的場數照列「待更新」，與主視圖 DH 區一致（⛔ 只給已知數；#350 審核 F1）。
+    const src = series ? m.series : m.background;
+    const dh = src?.dh_starts;
+    const unknown = src?.dh_starts_unknown ?? 0;
+    if (src && dh === null) parts.push(`DH 先發 ${ROSTER_COPY.pending}`);
+    else if (dh != null && unknown > 0) parts.push(`DH 先發 ${dh}（另 ${unknown} 場${ROSTER_COPY.pending}）`);
+    else if (dh != null && dh > 0) parts.push(`DH 先發 ${dh}`);
   }
   return parts.join(" · ");
 }
