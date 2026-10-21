@@ -2,7 +2,8 @@
 
 底層是 **G3 真實樣本**（``tests/fixtures/postseason_g3_tracking_late_2026.json``）：
 2026-10-20 台灣大賽 G3（大巨蛋），21:47 明細時 stats 回 0 球，21:49:53 box＋PA 以真實 manifest 送達；
-22:48 stats 已有 291 筆帶 Trackman。來源與「未觀測」項見 fixture 的 ``_provenance``。
+22:48 stats 已有 291 筆帶 Trackman；隔日 10:10 每日鏈補抓後 pitch_tracking＝291、builder 乾淨 republish
+（映射 291）。來源與「未觀測」項見 fixture 的 ``_provenance``。
 
 驅動器照 ``scripts/postseason-evening.sh`` 的實際次序呼叫真狀態機；只有 stats 逐球重抓、PA builder 與
 scoped 同步是替身。⛔ 這些是狀態機情境，不是真實當晚事件的證據。
@@ -32,8 +33,9 @@ FIXTURE = json.loads((Path(__file__).parent / "fixtures" / "postseason_g3_tracki
 LOCAL = {KEY: pe.LocalGame(2026, "C", 3, "2026-10-20", "AAA011", "ACN011", "大巨蛋", True)}
 G3 = ps.facts_from_json(FIXTURE["facts"][KEY])          # 21:47 明細後的真實本機事實（逐球 0）
 REAL_MANIFEST = FIXTURE["manifest"]                      # 21:49:53 真實對帳 manifest
-ARRIVED = FIXTURE["stats_trackman_after"]                # 22:48 stats 帶 Trackman 的筆數（291）
-REBUILT = "55555555-5555-5555-5555-555555555555"         # 逐球入庫後 PA 重建的 build（替身；未觀測）
+AFTER = FIXTURE["after_daily_chain"]                    # 隔日每日鏈補抓後的真實結果
+ARRIVED = AFTER["pitch_tracking"]                        # 291（＝22:48 stats 帶 Trackman 的筆數）
+REBUILT = AFTER["published_build"]                       # builder 乾淨 republish 的真實 build
 
 
 def at(hh, mm, day=20):
@@ -50,8 +52,8 @@ def rebuild(f: ps.LocalFacts) -> ps.LocalFacts:
     """既有 builder 對 tracking-only 變動的處置：乾淨 republish 帶新映射（pa_build 模組契約）。"""
     if f.box_counts["pitch_tracking"] == 0 or f.published_build == REBUILT:
         return f
-    return dataclasses.replace(f, published_build=REBUILT,
-                               pa_counts={**f.pa_counts, "game_pa_pitch_mappings": ARRIVED})
+    return dataclasses.replace(f, published_build=REBUILT, published_at=AFTER["published_at"],
+                               pa_counts={**f.pa_counts, "game_pa_pitch_mappings": AFTER["game_pa_pitch_mappings"]})
 
 
 def manifest(f: ps.LocalFacts, now: datetime, parts) -> dict:
@@ -166,6 +168,7 @@ def test_g3_lagging_judgement_comes_from_existing_coverage_rule():
     assert FIXTURE["facts"]["2026-C-1"]["tracking_lagging"] is False
     assert FIXTURE["facts"]["2026-C-2"]["tracking_lagging"] is False
     assert ARRIVED >= FIXTURE["livelog_pitches"] * 0.85 and FIXTURE["livelog_pitches"] >= 50
+    assert ARRIVED == FIXTURE["stats_trackman_after"], "入庫列數＝stats 帶 Trackman 的筆數"
 
 
 # ------------------------------------------------------------------ 狀態機路徑
@@ -298,12 +301,12 @@ def test_load_local_facts_marks_lagging_from_the_shared_sql():
 
         def execute(self, sql, params=None):
             self._last = sql
-            if sql == pitch_coverage.lagging_pitch_games_sql():
+            if sql == pitch_coverage.lagging_pitch_games_sql(equipment_kinds=True):
                 self.lagging_params.append(params)
             return self
 
         def fetchall(self):
-            return [(3,)] if self._last == pitch_coverage.lagging_pitch_games_sql() else []
+            return [(3,)] if self._last == pitch_coverage.lagging_pitch_games_sql(equipment_kinds=True) else []
 
         def fetchone(self):
             s = self._last
@@ -320,7 +323,36 @@ def test_load_local_facts_marks_lagging_from_the_shared_sql():
     cur = Cur()
     out = ps.load_local_facts(cur, [(2026, "C", 3), (2026, "C", 2)])
     assert out["2026-C-3"].tracking_lagging is True and out["2026-C-2"].tracking_lagging is False
-    assert cur.lagging_params == [(2026, "C", 1)], "每個 (year, kind) 只跑一次、days_back=1 涵蓋昨日場"
+    assert cur.lagging_params == [(2026, "C", 2026, ["A", "E", "C"], 1)], \
+        "每個 (year, kind) 只跑一次；設備證據取同年一軍 A／E／C；days_back=1 涵蓋昨日場"
+
+
+# ------------------------------------------------------------------ 設備證據跨一軍賽別（需求方 2026-10-21 裁定）
+
+DAILY_CHAIN_SQL_SHA256 = "4f7d6147bef6157690c6902d01ca70c5e55dc1f75e06debbd517f9fb4d259c67"   # 抽出前 inline 原文
+
+
+def test_daily_chain_lagging_sql_is_byte_identical_to_the_pre_extraction_text():
+    """每日鏈的判準與設備母體（同賽別）不得被晚間鏈的改動帶動：預設 SQL 逐字等於抽出前的原文。"""
+    import hashlib
+
+    sql = pitch_coverage.lagging_pitch_games_sql()
+    assert hashlib.sha256(sql.encode()).hexdigest() == DAILY_CHAIN_SQL_SHA256
+    assert "ANY(%s)" not in sql and " ev AS (" not in sql
+
+
+def test_evening_equipment_evidence_spans_first_team_kinds_with_same_constants():
+    sql = pitch_coverage.lagging_pitch_games_sql(equipment_kinds=True)
+    flat = " ".join(sql.split())
+    assert "WHERE gm.year=%s AND gm.kind_code=%s AND" in flat, "受測場仍只取該賽別"
+    assert "ev AS ( SELECT gm.venue, gm.game_sno, gm.game_date," in flat
+    assert "WHERE gm.year=%s AND gm.kind_code = ANY(%s) AND" in flat, "設備證據取多個賽別"
+    assert "rn FROM ev)" in flat and "rn FROM cov)" not in flat
+    assert "FROM r WHERE rn<=10 GROUP BY venue" in flat
+    assert "bool_or(pitches>=50 AND tracked>=pitches*0.80)" in flat
+    assert "cov.pitches >= 50 AND cov.tracked < cov.pitches * 0.85" in flat
+    assert sql.count("%s") == pitch_coverage.lagging_pitch_games_sql().count("%s") + 2
+    assert ps.EQUIPMENT_EVIDENCE_KINDS == ("A", "E", "C"), "一軍例行賽＋季後；⛔ 不含二軍 D"
 
 
 def test_shell_precheck_admits_tracking_and_runs_it_without_www_then_replans(tmp_path):

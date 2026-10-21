@@ -7,7 +7,8 @@
 * **box**：本機 box 核心六表（與 ``run_refresh_recent._POSTSEASON_CORE_DETAIL_TABLES`` 同一組）是否都有列；
   逐球 ``pitch_tracking`` 官方可能 0 球，不列入「到齊」條件（不擋 box 核心先送），但照樣對帳列數。
   ⭐ 逐球晚到（#293 fix-5，需求方裁定 6293763437）：box 核心已送達、但該場依既有逐球覆蓋判準
-  （:func:`cpbl.pitch_coverage.lagging_pitch_games_sql`：近期實證有設備的球場、逐球覆蓋 < 85%）仍落後
+  （:func:`cpbl.pitch_coverage.lagging_pitch_games_sql`：近期實證有設備的球場、逐球覆蓋 < 85%；設備證據取
+  同年一軍 A／E／C 在該球場的近 10 場，見 ``EQUIPMENT_EVIDENCE_KINDS``）仍落後
   → ``pending_update``／``tracking_pending``，⛔ 不得判 ``delivered``（G3 實例：box 送出時 0 球、官方事後
   才發布 291 球）。球場近期沒有設備的場不落後，照常判送達、不等。
 * **PA**：本機是否有 published build；有待收尾的 ``reconciliation_required``（官方更正）時照實記
@@ -43,6 +44,10 @@ PA_TABLES: tuple[str, ...] = (
     "game_recap_source_revisions", "game_recap_builds", "game_plate_appearances",
     "game_pa_events", "game_pa_pitch_mappings",
 )
+
+# 逐球設備證據的母體（#293 fix-5，需求方 2026-10-21 依執行者建議裁定）：同年一軍例行賽＋季後賽。
+# 季後新系列在某球場的第一場沒有同賽別歷史，只看同賽別會判「無設備」而不等逐球。⛔ 不含二軍 D。
+EQUIPMENT_EVIDENCE_KINDS: tuple[str, ...] = ("A", "E", "C")
 
 DELIVERED = "delivered"
 PENDING = "pending_update"
@@ -200,7 +205,10 @@ def load_local_facts(cur: Any, keys: Iterable[tuple[int, str, int]]) -> dict[str
     out: dict[str, LocalFacts] = {}
     done = completed_games_sql_with_evidence("g")
     # 逐球落後：每個 (year, kind) 跑一次既有判準；days_back=1 涵蓋晚間鏈的目標窗（台北今日／昨日）。
-    lagging = {(y, k): {int(r[0]) for r in cur.execute(lagging_pitch_games_sql(), (y, k, 1)).fetchall()}
+    # 設備證據跨一軍賽別（EQUIPMENT_EVIDENCE_KINDS）：新系列 G1 也看得到該球場的近期設備。
+    lag_sql = lagging_pitch_games_sql(equipment_kinds=True)
+    lagging = {(y, k): {int(r[0]) for r in cur.execute(
+                   lag_sql, (y, k, y, list(EQUIPMENT_EVIDENCE_KINDS), 1)).fetchall()}
                for y, k in sorted({(y, k) for y, k, _ in keys})}
     for year, kind, sno in keys:
         p = (year, kind, sno)

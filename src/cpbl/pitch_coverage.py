@@ -13,8 +13,12 @@ from __future__ import annotations
 from cpbl.completion import daily_chain_completed_games_sql
 
 
-def lagging_pitch_games_sql(completed_sql: str | None = None) -> str:
-    """回傳查詢字串；參數依序為 ``(year, kind_code, days_back)``，結果每列一個 ``game_sno``。
+def lagging_pitch_games_sql(completed_sql: str | None = None, *,
+                            equipment_kinds: bool = False) -> str:
+    """回傳查詢字串，結果每列一個 ``game_sno``。
+
+    參數：預設 ``(year, kind_code, days_back)``；``equipment_kinds=True`` 時為
+    ``(year, kind_code, year, equipment_kind_codes, days_back)``（``equipment_kind_codes`` 為 list）。
 
     ``completed_sql``＝完成場選場條件（別名 ``gm``）；省略即 ``daily_chain_completed_games_sql('gm')``。
     每日鏈在 ``run_refresh_recent`` 內顯式傳入同一支（該檔的選場點計數由
@@ -22,21 +26,36 @@ def lagging_pitch_games_sql(completed_sql: str | None = None) -> str:
 
     落後＝該場所在球場**近期實證有設備**（最近 10 場完成場至少一場 ``pitches >= 50 AND
     tracked >= pitches * 0.80``），且該場 ``game_date >= CURRENT_DATE - days_back``、
-    ``pitches >= 50 AND tracked < pitches * 0.85``。設備判準以同一 ``(year, kind_code)`` 的完成場計。"""
+    ``pitches >= 50 AND tracked < pitches * 0.85``。
+
+    設備證據的母體：預設＝同一 ``(year, kind_code)`` 的完成場（每日鏈；⛔ 不得改動，sha256 由測試釘住）。
+    ``equipment_kinds=True``＝同年、``equipment_kind_codes`` 內所有賽別的完成場（晚間鏈；#293 fix-5 需求方
+    2026-10-21 依執行者建議裁定）：季後某賽別在某球場的第一場（新系列 G1）沒有同賽別歷史，改以同年一軍
+    例行賽＋季後賽在該球場的近 10 場作設備證據；兩個常數與「近 10 場」窗口不變。"""
     if completed_sql is None:
         completed_sql = daily_chain_completed_games_sql("gm")
-    return f"""
-            WITH cov AS (
-              SELECT gm.venue, gm.game_sno, gm.game_date,
+    counts = """
                 (SELECT count(*) FROM cpbl.game_livelog ll WHERE ll.year=gm.year
                    AND ll.kind_code=gm.kind_code AND ll.game_sno=gm.game_sno
                    AND (ll.is_ball OR ll.is_strike)) AS pitches,
                 (SELECT count(*) FROM cpbl.pitch_tracking pt WHERE pt.year=gm.year
-                   AND pt.kind_code=gm.kind_code AND pt.game_sno=gm.game_sno) AS tracked
+                   AND pt.kind_code=gm.kind_code AND pt.game_sno=gm.game_sno) AS tracked"""
+    evidence = "cov"
+    extra = ""
+    if equipment_kinds:
+        evidence = "ev"
+        extra = f"""
+            ev AS (
+              SELECT gm.venue, gm.game_sno, gm.game_date,{counts}
               FROM cpbl.games gm
-              WHERE gm.year=%s AND gm.kind_code=%s AND {completed_sql}),
+              WHERE gm.year=%s AND gm.kind_code = ANY(%s) AND {completed_sql}),"""
+    return f"""
+            WITH cov AS (
+              SELECT gm.venue, gm.game_sno, gm.game_date,{counts}
+              FROM cpbl.games gm
+              WHERE gm.year=%s AND gm.kind_code=%s AND {completed_sql}),{extra}
             r AS (SELECT *, row_number() OVER (PARTITION BY venue
-                    ORDER BY game_date DESC, game_sno DESC) rn FROM cov),
+                    ORDER BY game_date DESC, game_sno DESC) rn FROM {evidence}),
             equipped AS (
               SELECT venue FROM (
                 SELECT venue, bool_or(pitches>=50 AND tracked>=pitches*0.80) AS equipped

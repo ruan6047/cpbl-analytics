@@ -1,11 +1,19 @@
 {
   "_provenance": {
+    "after_daily_chain_source": "本機 cpbl-analytics-db-1 唯讀查詢 2026-10-21 11:1x：每日鏈 10/21 10:10 補抓後 pitch_tracking=291、builder 乾淨 republish（舊 1bffba2b → superseded）、game_pa_pitch_mappings=291",
     "facts_source": "本機 cpbl-analytics-db-1 唯讀 load_local_facts（READ ONLY 交易，read_at 2026-10-20 22:59:04.095607+08:00）；當時本機 G3 仍是 21:47 明細的狀態（逐球 0）",
     "livelog_pitches": "本機 G3 game_livelog (is_ball OR is_strike) = 292；C-1 219／218、C-2 242／241（pitches／tracked，同在大巨蛋）",
     "manifest_source": "logs/postseason-boxpa-manifest-20261020-214740.json（G3 21:49:53 scoped 同步的真實對帳 manifest，原樣）",
-    "not_observed": "逐球入庫後 pitch_tracking 的實際列數與 PA 重建的 build_id／映射數未觀測（⛔ 未補抓 G3）；測試以 stats 的 291 筆作為入庫列數，重建 build_id 為測試替身",
+    "not_observed": "逐球由晚間鏈重抓後的同晚時刻未觀測（舊碼不重抓）；入庫後的列數、重建 build 與映射數改取隔日每日鏈的實際結果（after_daily_chain）",
     "note": "#293 fix-5 G3 真實樣本：box 送出時逐球 0 球、官方事後才發布（需求方裁定 6293763437 列缺口）",
     "tracking_after_source": "stats.cpbl.com.tw /api/proxy/v1/games/2026-C-3 於 2026-10-20 22:48:11 唯讀 GET：LiveLog 312 筆，其中帶 Trackman 291 筆（g3-evidence/stats-game-2026-C-3-now.json）"
+  },
+  "after_daily_chain": {
+    "game_pa_pitch_mappings": 291,
+    "pitch_tracking": 291,
+    "published_at": "2026-10-21T02:10:51.032902+00:00",
+    "published_build": "4c66dafd-5d73-4ee7-a9bc-7779f68ebb21",
+    "superseded_build": "1bffba2b-9d38-4238-8e7c-f803a74fc881"
   },
   "detail_attempt": "2026-10-20T13:47:27.606400+00:00",
   "facts": {
