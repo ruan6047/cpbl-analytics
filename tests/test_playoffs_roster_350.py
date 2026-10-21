@@ -6,9 +6,12 @@
 
 from __future__ import annotations
 
+from contextlib import ExitStack
 from datetime import UTC, datetime
 
+import psycopg
 import pytest
+from psycopg_pool import PoolClosed, PoolTimeout
 
 from cpbl.playoffs import roster_reader as rr
 from cpbl.playoffs.roster_reader import RosterInputs, compute_roster
@@ -138,19 +141,26 @@ _LOG = ("(VALUES (2026, 'A', 1, '0110001000', NULL, 'P1'), (2026, 'A', 1, '01100
         " AS l(year, kind_code, game_sno, main_event_no, defend_station_code, hitter_acnt)")
 
 
+_DB_UNAVAILABLE = (PoolClosed, PoolTimeout, psycopg.OperationalError)
+
+
 def _run_dh(monkeypatch, kind, snos):
     from cpbl.db import conn
 
     sql = rr.DH_STARTS_SQL.replace("cpbl.batting_gamelog b", _BOX).replace("cpbl.game_livelog l", _LOG)
     assert "cpbl." not in sql                      # 兩張實表都已換掉，下方只讀 VALUES
     monkeypatch.setattr(rr, "DH_STARTS_SQL", sql)
-    try:
-        with conn() as c, c.transaction():
+    with ExitStack() as stack:
+        # 只有「借不到連線」才跳過（CI 無 Postgres：conftest 換成未開啟的池 ⇒ PoolClosed）；
+        # 借到連線後的 SQL／解析錯誤一律讓測試失敗，⛔ 被吞成 skip（#350 審核 F2）。
+        try:
+            c = stack.enter_context(conn())
+        except _DB_UNAVAILABLE as exc:
+            pytest.skip(f"需本機 DB：{exc}")
+        with c.transaction():
             cur = c.cursor()
             cur.execute(rr.READ_ONLY_TXN)
             return rr.read_dh_starts(cur, 2026, kind, ["P1", "P2"], snos)
-    except Exception as exc:  # noqa: BLE001 — 無 DB 時跳過（CI 無 Postgres）
-        pytest.skip(f"需本機 DB：{exc}")
 
 
 def test_dh_sql_first_coded_event_rules_on_real_postgres(monkeypatch):
