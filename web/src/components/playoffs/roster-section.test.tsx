@@ -92,7 +92,9 @@ test("多角色平列且scalar為null：卡片與抽屜副標完整呈現，不�
 
 test("null ⇒ 第 3 區錯誤態；標題固定", () => {
   const t = text(<RosterSection data={null} />);
-  assert.match(t, /系列賽 32 人資格名單/);
+  const markup = renderToStaticMarkup(<RosterSection data={null} />);
+  assert.match(markup, /<h2 id="roster-heading"[^>]*>系列賽名單<\/h2>/);
+  assert.match(markup, /aria-label="系列賽名單說明"/);
   assert.match(t, /第 3 區資料暫時無法讀取/);
 });
 

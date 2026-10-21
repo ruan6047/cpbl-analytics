@@ -104,7 +104,7 @@ export type PlayoffsRoster = {
 export type RosterNote = { key: string; text: string; source?: { label: string; url: string } };
 
 export const ROSTER_COPY = {
-  heading: "系列賽 32 人資格名單",
+  heading: "系列賽名單",
   loadFailed: "第 3 區資料暫時無法讀取，其他區不受影響。",
   seriesUnknown: "對戰組合尚未確定。",
   pending: "待更新",

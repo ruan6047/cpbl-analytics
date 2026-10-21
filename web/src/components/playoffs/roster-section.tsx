@@ -37,7 +37,7 @@ export function RosterSection({ data }: { data: PlayoffsRoster | null }) {
       <div className="flex items-center gap-2">
         <h2 id="roster-heading" className="text-sm font-bold text-ink">{ROSTER_COPY.heading}</h2>
         <InfoDot
-          label="資格名單說明"
+          label="系列賽名單說明"
           content={
             <div className="space-y-1">
               {ROSTER_METHOD_HELP.map((line) => <p key={line}>{line}</p>)}
