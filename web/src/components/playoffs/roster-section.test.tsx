@@ -273,6 +273,30 @@ test("切換資料範圍：DH 區成員與門檻說明跟著改；本系列依�
   assert.ok(fielderBlocks(d.teams, "series").find((b) => b.label === "游擊手")!.columns[0].members.some((x) => x.m.player_id === "8000000001"));
 });
 
+test("審核 F3：本系列 DH 區依本系列出賽排序（⛔ 依 DH 先發數）；例行賽 DH 區依 DH 先發數", () => {
+  const s = (g: number, dh: number) => ({ g, line: bat(g * 4, g, 0, 0, 0, g), pending: false, dh_starts: dh, dh_starts_unknown: 0 });
+  const jia = fielder("8200000001", "游擊手", { dh_starts: 4 }, s(3, 1));   // 3G、DH 1；例行賽 DH 4
+  const yi = fielder("8200000002", "一壘手", { dh_starts: 9 }, s(2, 2));    // 2G、DH 2；例行賽 DH 9
+  const d = seriesPayload([team("AAA011", "味全", [yi, jia]), team("ACN011", "兄弟", [])]);
+  const order = (scope: "background" | "series") => fielderBlocks(d.teams, scope).find((b) => b.key === "fld-DH")!
+    .columns[0].members.map((x) => x.m.player_id);
+  assert.deepEqual(order("series"), ["8200000001", "8200000002"]);        // 甲→乙（DH 先發排序會是乙→甲）
+  assert.deepEqual(order("background"), ["8200000002", "8200000001"]);    // 例行賽：DH 先發 9 → 4
+  // 同類自查：投手區、守位區的本系列排序也依本系列出賽，與例行賽排序相反時各自正確
+  const pl = { outs: 3, ip: "1.0", er: 0, so: 0, bb: 0, era: 0 };
+  const pa = pitcher("8200000011", ["中繼"], 10, undefined, { g: 3, line: pl, pending: false });
+  const pb = pitcher("8200000012", ["中繼"], 50, undefined, { g: 1, line: pl, pending: false });
+  const fa = fielder("8200000021", "捕手", { positions: [{ pos: "捕手", g: 10 }] }, s(3, 0));
+  const fb = fielder("8200000022", "捕手", { positions: [{ pos: "捕手", g: 90 }] }, s(1, 0));
+  const dd = seriesPayload([team("AAA011", "味全", [pb, pa, fb, fa]), team("ACN011", "兄弟", [])]);
+  const ids = (blocks: ReturnType<typeof pitcherBlocks>, key: string) =>
+    blocks.find((b) => b.key === key)!.columns[0].members.map((x) => x.m.player_id);
+  assert.deepEqual(ids(pitcherBlocks(dd.teams, "series"), "pit-中繼"), ["8200000011", "8200000012"]);
+  assert.deepEqual(ids(pitcherBlocks(dd.teams, "background"), "pit-中繼"), ["8200000012", "8200000011"]);
+  assert.deepEqual(ids(fielderBlocks(dd.teams, "series"), "fld-捕手"), ["8200000021", "8200000022"]);
+  assert.deepEqual(ids(fielderBlocks(dd.teams, "background"), "fld-捕手"), ["8200000022", "8200000021"]);
+});
+
 test("本系列：來源未齊 ⇒ 該欄綜合成績「待更新」、隊名旁標待更新（⛔ 當 0）；尚無完賽場 ⇒「—」", () => {
   const pend = pitcher("9000000001", ["先發"], 20, undefined, { g: null, line: null, pending: true });
   const okp = pitcher("9000000002", ["先發"], 20, undefined, { g: 1, line: { outs: 15, ip: "5.0", er: 2, so: 3, bb: 1, era: 3.6 }, pending: false });

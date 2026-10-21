@@ -353,7 +353,7 @@ export function dhStatus(m: RosterMember, scope: RosterScope): "in" | "out" | "u
 }
 
 /** 野手段：依主守位分區（每人只出現在主守位區）＋DH 區（隨資料範圍切換；列入者仍在主守位區）。
- *  區內排序：背景＝該守位出賽多到少（DH 區＝DH 先發多到少）；本系列＝本系列出賽多到少。 */
+ *  區內排序：背景＝該守位出賽多到少（DH 區＝DH 先發多到少）；本系列＝各區（含 DH 區）都依本系列出賽多到少。 */
 export function fielderBlocks(teams: readonly RosterTeam[], scope: RosterScope): RosterBlock[] {
   const legacy = teams.some((t) => t.members.some((m) => m.role === "batting" && m.background.positions === undefined));
   const areas: string[] = legacy ? ["捕手", "內野手", "外野手"] : [...FIELD_POSITIONS, NO_FIELDING_LABEL];
@@ -367,7 +367,8 @@ export function fielderBlocks(teams: readonly RosterTeam[], scope: RosterScope):
       columns: teams.map((t, i) => column(t, cols[i].sort(sort), scope, "batting")) });
   }
   if (!legacy) {
-    const sort = scope === "series" ? desc((m) => m.series?.dh_starts ?? null) : desc((m) => m.background.dh_starts);
+    // 規劃 §1.1 第 4 點：本系列一律依本系列出賽排序（⛔ 依 DH 先發數）；例行賽 DH 區的「該守位出賽」＝DH 先發數。
+    const sort = scope === "series" ? desc((m) => scopeG(m, scope)) : desc((m) => m.background.dh_starts);
     const cols = teams.map((t) => {
       const bat = submittedMembers(t, "batting");
       const st = new Map(bat.map((m) => [m.player_id, dhStatus(m, scope)]));
