@@ -1,0 +1,179 @@
+{
+  "_provenance": {
+    "after_daily_chain_source": "本機 cpbl-analytics-db-1 唯讀查詢 2026-10-21 11:1x：每日鏈 10/21 10:10 補抓後 pitch_tracking=291、builder 乾淨 republish（舊 1bffba2b → superseded）、game_pa_pitch_mappings=291",
+    "facts_source": "本機 cpbl-analytics-db-1 唯讀 load_local_facts（READ ONLY 交易，read_at 2026-10-20 22:59:04.095607+08:00）；當時本機 G3 仍是 21:47 明細的狀態（逐球 0）",
+    "livelog_pitches": "本機 G3 game_livelog (is_ball OR is_strike) = 292；C-1 219／218、C-2 242／241（pitches／tracked，同在大巨蛋）",
+    "manifest_source": "logs/postseason-boxpa-manifest-20261020-214740.json（G3 21:49:53 scoped 同步的真實對帳 manifest，原樣）",
+    "not_observed": "逐球由晚間鏈重抓後的同晚時刻未觀測（舊碼不重抓）；入庫後的列數、重建 build 與映射數改取隔日每日鏈的實際結果（after_daily_chain）",
+    "note": "#293 fix-5 G3 真實樣本：box 送出時逐球 0 球、官方事後才發布（需求方裁定 6293763437 列缺口）",
+    "tracking_after_source": "stats.cpbl.com.tw /api/proxy/v1/games/2026-C-3 於 2026-10-20 22:48:11 唯讀 GET：LiveLog 312 筆，其中帶 Trackman 291 筆（g3-evidence/stats-game-2026-C-3-now.json）"
+  },
+  "after_daily_chain": {
+    "game_pa_pitch_mappings": 291,
+    "pitch_tracking": 291,
+    "published_at": "2026-10-21T02:10:51.032902+00:00",
+    "published_build": "4c66dafd-5d73-4ee7-a9bc-7779f68ebb21",
+    "superseded_build": "1bffba2b-9d38-4238-8e7c-f803a74fc881"
+  },
+  "detail_attempt": "2026-10-20T13:47:27.606400+00:00",
+  "facts": {
+    "2026-C-1": {
+      "box_counts": {
+        "batting_gamelog": 20,
+        "game_detail": 1,
+        "game_livelog": 224,
+        "game_scoreboard": 18,
+        "pitch_tracking": 218,
+        "pitching_game_flags": 4,
+        "pitching_gamelog": 4
+      },
+      "box_local_at": "2026-10-18T10:11:00.060497+08:00",
+      "completed": true,
+      "final_first_seen": "2026-10-17T19:29:48.704465+08:00",
+      "game_date": "2026-10-17",
+      "key": "2026-C-1",
+      "pa_counts": {
+        "game_pa_events": 224,
+        "game_pa_pitch_mappings": 218,
+        "game_plate_appearances": 62,
+        "game_recap_builds": 1,
+        "game_recap_source_revisions": 2
+      },
+      "published_at": "2026-10-18T10:11:00.169448+08:00",
+      "published_build": "168c7a95-27cb-4eac-b416-187b5bf53bca",
+      "reconciliation_outstanding": 0,
+      "tracking_lagging": false
+    },
+    "2026-C-2": {
+      "box_counts": {
+        "batting_gamelog": 23,
+        "game_detail": 1,
+        "game_livelog": 258,
+        "game_scoreboard": 18,
+        "pitch_tracking": 241,
+        "pitching_game_flags": 8,
+        "pitching_gamelog": 8
+      },
+      "box_local_at": "2026-10-19T11:09:55.298286+08:00",
+      "completed": true,
+      "final_first_seen": "2026-10-18T23:36:55.698826+08:00",
+      "game_date": "2026-10-18",
+      "key": "2026-C-2",
+      "pa_counts": {
+        "game_pa_events": 258,
+        "game_pa_pitch_mappings": 241,
+        "game_plate_appearances": 65,
+        "game_recap_builds": 1,
+        "game_recap_source_revisions": 2
+      },
+      "published_at": "2026-10-19T11:09:55.373477+08:00",
+      "published_build": "ccf8fb7a-a93f-4370-8ec6-9649419cbc93",
+      "reconciliation_outstanding": 0,
+      "tracking_lagging": false
+    },
+    "2026-C-3": {
+      "box_counts": {
+        "batting_gamelog": 22,
+        "game_detail": 1,
+        "game_livelog": 311,
+        "game_scoreboard": 18,
+        "pitch_tracking": 0,
+        "pitching_game_flags": 9,
+        "pitching_gamelog": 9
+      },
+      "box_local_at": "2026-10-20T21:47:40.344561+08:00",
+      "completed": true,
+      "final_first_seen": "2026-10-20T21:25:14.179171+08:00",
+      "game_date": "2026-10-20",
+      "key": "2026-C-3",
+      "pa_counts": {
+        "game_pa_events": 311,
+        "game_pa_pitch_mappings": 0,
+        "game_plate_appearances": 68,
+        "game_recap_builds": 1,
+        "game_recap_source_revisions": 1
+      },
+      "published_at": "2026-10-20T21:47:40.715501+08:00",
+      "published_build": "1bffba2b-9d38-4238-8e7c-f803a74fc881",
+      "reconciliation_outstanding": 0,
+      "tracking_lagging": true
+    }
+  },
+  "final_prod_at": "2026-10-20T13:27:19.794904+00:00",
+  "first_send": {
+    "at": "2026-10-20T13:49:54.020499+00:00",
+    "code": 0,
+    "elapsed": 133.0,
+    "sources": [
+      "box",
+      "pa"
+    ]
+  },
+  "livelog_pitches": 292,
+  "manifest": {
+    "at": "2026-10-20T13:49:53.923371+00:00",
+    "games": {
+      "2026-C-3": {
+        "box": {
+          "batting_gamelog": {
+            "local": 22,
+            "prod": 22
+          },
+          "game_detail": {
+            "local": 1,
+            "prod": 1
+          },
+          "game_livelog": {
+            "local": 311,
+            "prod": 311
+          },
+          "game_scoreboard": {
+            "local": 18,
+            "prod": 18
+          },
+          "pitch_tracking": {
+            "local": 0,
+            "prod": 0
+          },
+          "pitching_game_flags": {
+            "local": 9,
+            "prod": 9
+          },
+          "pitching_gamelog": {
+            "local": 9,
+            "prod": 9
+          }
+        },
+        "box_ok": true,
+        "pa": {
+          "game_pa_events": {
+            "local": 311,
+            "prod": 311
+          },
+          "game_pa_pitch_mappings": {
+            "local": 0,
+            "prod": 0
+          },
+          "game_plate_appearances": {
+            "local": 68,
+            "prod": 68
+          },
+          "game_recap_builds": {
+            "local": 1,
+            "prod": 1
+          },
+          "game_recap_source_revisions": {
+            "local": 1,
+            "prod": 1
+          }
+        },
+        "pa_ok": true,
+        "pa_sent": true,
+        "published_build_local": "1bffba2b-9d38-4238-8e7c-f803a74fc881",
+        "published_build_prod": "1bffba2b-9d38-4238-8e7c-f803a74fc881"
+      }
+    },
+    "ok": true
+  },
+  "stats_trackman_after": 291
+}

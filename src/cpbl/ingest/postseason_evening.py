@@ -12,6 +12,7 @@
     # #293 S12：結果鏈之後的目標場 box／PA 階段（見「#293 目標場 box／PA 階段」一節）
     python -m cpbl.ingest.postseason_evening boxpa-plan [--dry]
     python -m cpbl.ingest.postseason_evening boxpa-detail --games 2026-C-2
+    python -m cpbl.ingest.postseason_evening boxpa-tracking --games 2026-C-2
     python -m cpbl.ingest.postseason_evening boxpa-prepare --games 2026-C-2
     python -m cpbl.ingest.postseason_evening boxpa-record --games 2026-C-2 --code N --manifest F --elapsed S
     python -m cpbl.ingest.postseason_evening boxpa-status
@@ -722,6 +723,10 @@ BOXPA_MAX_SENDS = 2                              # 每場每晚 production 同�
 BOXPA_RESEND_CODES = (68, 72)                    # 對帳不等／ssh 連線失敗
 BOXPA_NOT_FINAL = 73                             # production 尚未完賽：不算一次嘗試
 BOXPA_MAX_SECONDS = 20 * 60                      # scoped 同步超過 20 分鐘即停（PLAN §13 停止條件 4）
+# 逐球晚到的重抓間隔（#293 fix-5）：沿用明細的 20 分鐘節奏。只打 stats 單場端點（無 HiNet 挑戰），
+# ⛔ 不連 www、不寫 C2 賽別冷卻帳本、不佔明細 www 的 3 次額度；次數不另設上限，由目標窗（隔日 09:45
+# 讓位每日鏈）收尾。
+BOXPA_TRACKING_POLL = BOXPA_WWW_COOLDOWN
 BOXPA_TERMINAL = ("delivered", "correction_pending", "conflict", "unreached")
 # 來源同晚又變時可重新打開的終態（#293 fix-4，需求方裁定 6204889879「本機記『更正待同步』」）。
 BOXPA_REOPENABLE = ("delivered", "correction_pending")
@@ -741,7 +746,8 @@ def boxpa_window(game_date: str | None, now: datetime) -> bool:
 def _boxpa_rec(state: dict, key: str, game_date: str | None) -> dict:
     return state.setdefault("boxpa", {}).setdefault(key, {
         "key": key, "game_date": game_date, "state": "open", "reason": None,
-        "detail_attempts": [], "sends": [], "manifest": None, "final_prod_at": None, "sources": None})
+        "detail_attempts": [], "tracking_attempts": [], "sends": [], "manifest": None, "final_prod_at": None,
+        "sources": None})
 
 
 def boxpa_sends(rec: Mapping, source: str) -> list[dict]:
@@ -833,6 +839,13 @@ def boxpa_refresh(state: dict, now: datetime, local: Mapping[str, LocalGame],
             rec["state"] = "open"
             rec["reason"] = ("reopened_source_changed" if boxpa_game_can_sync(rec)
                              else "source_changed_after_quota")
+        # 逐球晚到（#293 fix-5）：已記送達的場若逐球仍落後（例：舊碼判的 delivered）→ 打開等逐球。
+        elif (rec["state"] in BOXPA_REOPENABLE and boxpa_tracking_pending(rec)
+              and boxpa_window(rec.get("game_date"), now)):
+            rec["state"], rec["reason"] = "open", "reopened_tracking_pending"
+        # 仍開著（逐球待更新等）而額度已用完時來源才變：同樣照實記「待隔日每日鏈補上」（6204889879）。
+        elif rec["state"] == "open" and changed and not boxpa_game_can_sync(rec):
+            rec["reason"] = "source_changed_after_quota"
         if rec["state"] in BOXPA_TERMINAL:
             continue
         if not boxpa_window(rec.get("game_date"), now):
@@ -848,6 +861,19 @@ def boxpa_refresh(state: dict, now: datetime, local: Mapping[str, LocalGame],
     return out
 
 
+def boxpa_tracking_pending(rec: Mapping) -> bool:
+    """box 核心已送達、但逐球依既有覆蓋判準仍落後（``postseason_sources`` 的 ``tracking_pending``）。"""
+    return ((rec.get("sources") or {}).get("box") or {}).get("reason") == "tracking_pending"
+
+
+def boxpa_tracking_due(rec: Mapping, now: datetime) -> bool:
+    """逐球待更新的場是否該再向 stats 重抓：距上次明細或逐球重抓已滿 ``BOXPA_TRACKING_POLL``。"""
+    if not boxpa_tracking_pending(rec):
+        return False
+    stamps = [_parse(a) for a in (rec.get("detail_attempts") or []) + (rec.get("tracking_attempts") or [])]
+    return not stamps or now - max(stamps) >= BOXPA_TRACKING_POLL
+
+
 def _boxpa_terminal_state(rec: Mapping) -> str:
     src = rec.get("sources") or {}
     if any((src.get(s) or {}).get("status") == "delivered_conflict" for s in ("box", "pa")):
@@ -859,7 +885,7 @@ def _boxpa_terminal_state(rec: Mapping) -> str:
 
 def boxpa_plan(state: dict, now: datetime,
                open_recs: Mapping[str, dict]) -> tuple[str, list[str], list[str]]:
-    """回 ``(action, keys, parts)``；action ∈ idle／detail／sync。**不連 www、不寫 DB**。
+    """回 ``(action, keys, parts)``；action ∈ idle／detail／sync／tracking／build。**不連 www、不寫 DB**。
 
     ``parts``＝這次 scoped 同步實際要送的來源（``box``／``pa``；#293 審核席 1 F3）：只放尚未送達的來源
     （該場額度以場計），shell 照它決定跑不跑 box 七表、PA 五表；同一次只合併「要送的來源相同」的場。
@@ -871,10 +897,14 @@ def boxpa_plan(state: dict, now: datetime,
       當晚未被挑戰封鎖。
     * sync：本機 box 已到齊（或 PA 已 published）而該來源尚未送達、且仍可送（1＋1 重送）。
     * 已用盡 www 次數而 box 仍缺 → 記 unreached（www_detail_incomplete_after_max_attempts）。
+    * tracking：box 核心已送達但逐球仍落後（#293 fix-5）、距上次明細／逐球重抓已滿 20 分鐘 → 只向 stats
+      重抓逐球（不連 www）；shell 之後照常 PA build → plan → sync，逐球與重建的 PA 映射同一次送出。
+      不看同步額度：額度用完後才到的逐球照 6204889879（範圍 6205405581）只在本機重建、記待更新、交隔日。
     """
     if state.get("halted") or in_daily_guard(now):
         return "idle", [], []
     detail: list[str] = []
+    tracking: list[str] = []
     build: list[str] = []
     sync: list[tuple[str, list[str]]] = []
     for key, rec in sorted(open_recs.items()):
@@ -894,6 +924,8 @@ def boxpa_plan(state: dict, now: datetime,
                 continue
             detail.append(key)
             continue
+        if boxpa_tracking_due(rec, now):
+            tracking.append(key)
         wants = boxpa_wants(rec)
         # build：(a) box 到齊而 PA 尚未 published；(b) 有來源變了但該場同步額度已用完——不再送，但仍讓
         # builder 判斷官方更正，分類才照實（#293 fix-3 組合矩陣 m9）。
@@ -902,13 +934,15 @@ def boxpa_plan(state: dict, now: datetime,
             build.append(key)
         if wants:
             sync.append((key, wants))
-    # 次序：detail > sync > build。sync 優先於 build：PA build 沒產出 published 時 box 仍照送；
+    # 次序：detail > sync > tracking > build。sync 優先於 build：PA build 沒產出 published 時 box 仍照送；
     # shell 在任何非 idle 動作後都先跑 PA build 再重新 plan，所以決定 parts 的那次已看得到新 PA（R1）。
     if detail:
         return "detail", detail, []
     if sync:
         parts = sync[0][1]
         return "sync", [k for k, w in sync if w == parts], parts
+    if tracking:
+        return "tracking", tracking, []
     if build:
         return "build", build, []
     return "idle", [], []
@@ -931,6 +965,14 @@ def boxpa_record_detail(state: dict, now: datetime, keys: Iterable[str], errors:
     for key in keys:
         state["boxpa"][key].setdefault("detail_attempts", []).append(_iso(now))
     note_challenge(state, now, errors)
+    return "failed" if errors else "ok"
+
+
+def boxpa_record_tracking(state: dict, now: datetime, keys: Iterable[str], errors: list[dict]) -> str:
+    """逐球重抓入帳（#293 fix-5）：只記該場 ``tracking_attempts``。⛔ 不寫 ``www_requests``（C2 帳本只記 www）、
+    ⛔ 不計挑戰（stats 無 HiNet 挑戰）、⛔ 不佔 ``detail_attempts``（明細 www 的 3 次額度）。"""
+    for key in keys:
+        state["boxpa"][key].setdefault("tracking_attempts", []).append(_iso(now))
     return "failed" if errors else "ok"
 
 
@@ -1084,6 +1126,28 @@ def boxpa_detail(year: int, keys: list[str], state: Mapping | None = None, *, de
             log.exception("季後 box 明細失敗 %s", key)
             out["errors"].append({"kind": kind, "stage": "detail", "error": str(exc)})
         out["games"][key] = summary
+    return out
+
+
+def boxpa_tracking(year: int, keys: list[str], *, delay: float = 1.2) -> dict:
+    """逐球晚到的重抓（#293 fix-5）：只對傳入的目標場打 stats 單場逐球端點（既有 ``scrape_game_pitches``，
+    冪等 UPSERT）。⛔ 不連 www（沒有 gamelog／觀眾裁判時長）、不帶入 ``_lagging_pitch_games`` 的其他場；
+    凍結例外場照既有紅線略過。"""
+    from cpbl.ingest.cpbl_pitch_tracking import is_frozen, scrape_game_pitches
+
+    out: dict[str, Any] = {"games": {}, "errors": []}
+    for y, kind, sno in _keys_tuple(keys):
+        key = f"{y}-{kind}-{sno}"
+        if kind not in KINDS:
+            raise ValueError(f"季後賽別只接受 E／C：{kind!r}")
+        if is_frozen(y, kind, sno):
+            out["games"][key] = {"skipped_frozen": 1}
+            continue
+        try:
+            out["games"][key] = scrape_game_pitches([(y, kind, sno)], delay=delay)
+        except Exception as exc:  # noqa: BLE001 — 單場失敗照實記錄，不連坐其他目標場
+            log.exception("季後逐球重抓失敗 %s", key)
+            out["errors"].append({"kind": kind, "stage": "tracking", "error": str(exc)})
     return out
 
 
@@ -1337,6 +1401,8 @@ def _parser():
     bp.add_argument("--dry", action="store_true", help="只判斷不寫狀態檔（取鎖前的預檢）")
     bd = sub.add_parser("boxpa-detail", help="#293：目標場明細 www（既有 _postseason_detail_step）")
     bd.add_argument("--games", required=True)
+    bt = sub.add_parser("boxpa-tracking", help="#293 fix-5：逐球晚到，只向 stats 重抓目標場逐球（不連 www）")
+    bt.add_argument("--games", required=True)
     bb = sub.add_parser("boxpa-prepare", help="#293：目標場 PA build（既有 builder；不連網）")
     bb.add_argument("--games", default="", help="省略＝今晚開著、box 已到齊的所有場（含已 published）")
     br = sub.add_parser("boxpa-record", help="#293：記錄 POSTSEASON_BOXPA_ONLY 同步結果")
@@ -1456,6 +1522,21 @@ def main(argv: list[str] | None = None) -> int:
             result, errors = {"error": str(exc)}, [{"stage": "detail", "error": str(exc)}]
         outcome = boxpa_record_detail(state, now, keys, errors)
         state["boxpa_last"] = {"at": _iso(now), "action": "detail", "games": keys, "outcome": outcome,
+                               "errors": errors}
+        save_json(path, state)
+        print(outcome)
+        return 0
+
+    if args.command == "boxpa-tracking":
+        keys = [k for k in args.games.split(",") if k]
+        try:
+            result = boxpa_tracking(year, keys)
+            errors = result.get("errors") or []
+        except Exception as exc:  # noqa: BLE001 — 失敗照實記錄、不吞成成功
+            log.exception("box／PA 逐球重抓失敗")
+            result, errors = {"error": str(exc)}, [{"stage": "tracking", "error": str(exc)}]
+        outcome = boxpa_record_tracking(state, now, keys, errors)
+        state["boxpa_last"] = {"at": _iso(now), "action": "tracking", "games": keys, "outcome": outcome,
                                "errors": errors}
         save_json(path, state)
         print(outcome)

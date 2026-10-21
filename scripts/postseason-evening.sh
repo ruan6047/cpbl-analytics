@@ -32,6 +32,8 @@ scripts/postseason-evening.sh — 季後事件觸發晚間鏈（#268；launchd �
      b. 本機到齊：既有 PA build → POSTSEASON_BOXPA_ONLY=1 SKIP_SCRAPE=1 scripts/refresh-cpbl-prod.sh
         ＝已驗證備份 → box 七表目標鍵 upsert → PA 五表目標鍵單交易替換 → 逐表逐場對帳
         （同來源 1 次＋1 次重送；不 TRUNCATE、不 CASCADE、不 migrate、不呼叫 prod_cpbl_api）。
+     c. box 已送達但逐球晚到（既有逐球覆蓋判準：設備球場、覆蓋 < 85%）：狀態記待更新、不判送達；
+        每 20 分鐘只向 stats 重抓逐球（不連 www）→ PA build → 同一次送 box＋PA（仍以場計 ≤2 次）。
   5. 寫狀態檔與（有嘗試時）本機 refresh_log（scope postseason-evening）。
   #293 r3：本鏈每次官網 www 導頁在 log 留一行 `WWW_REQ card=293 kind=… src=<292|293> at=… game=… status=…`
   （同頁 POST 不記＝導頁次數下限），另以 Playwright 導頁事件寫 `WWW_NAV card=293 …` 供獨立對帳；
@@ -133,8 +135,9 @@ BOXPA_PRE="$(py boxpa-plan --dry)" || BOXPA_PRE="error"
 note "boxpa-plan --dry → ${BOXPA_PRE}"
 if [ "$ACTION" = "idle" ] || [ "$ACTION" = "halted" ]; then
   # build 也要進來（#293 fix-4 B1）：已送達或額度用完後來源才更新時，只跑本機 PA builder、不同步。
+  # tracking 也要進來（#293 fix-5）：box 已送達但逐球晚到，只向 stats 重抓逐球（不連 www）。
   case "$BOXPA_PRE" in
-    detail*|sync*|build*) ;;
+    detail*|sync*|tracking*|build*) ;;
     *) exit 0 ;;
   esac
 fi
@@ -216,8 +219,14 @@ if [ "$EXIT_CODE" -ne 69 ]; then
       --games "$BOXPA_GAMES" 2>>"$LOG")" || BOXPA_OUT="failed"
     note "boxpa-detail ${BOXPA_GAMES} → ${BOXPA_OUT}"
   fi
+  # #293 fix-5：逐球晚到 → 只打 stats（httpx，不需 --group scrape、不連 www）；之後照常 PA build → plan → sync。
+  if [ "$BOXPA_ACT" = "tracking" ]; then
+    BOXPA_OUT="$(py boxpa-tracking --games "$BOXPA_GAMES")" || BOXPA_OUT="failed"
+    note "boxpa-tracking ${BOXPA_GAMES} → ${BOXPA_OUT}"
+  fi
   # #293 再審 R1：先 PA build，再決定這次送哪些來源——剛 build 出的 PA 與 box 在同一次同步送出。
-  if [ "$BOXPA_ACT" = "detail" ] || [ "$BOXPA_ACT" = "build" ] || [ "$BOXPA_ACT" = "sync" ]; then
+  if [ "$BOXPA_ACT" = "detail" ] || [ "$BOXPA_ACT" = "tracking" ] || [ "$BOXPA_ACT" = "build" ] \
+     || [ "$BOXPA_ACT" = "sync" ]; then
     BOXPA_OUT="$(py boxpa-prepare)" || BOXPA_OUT="prepare_failed"
     note "boxpa-prepare → ${BOXPA_OUT}"
     BOXPA_PLAN="$(py boxpa-plan)" || BOXPA_PLAN="error"

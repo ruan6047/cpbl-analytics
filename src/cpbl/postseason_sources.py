@@ -5,7 +5,12 @@
 * **final**：``cpbl.completion``（:func:`~cpbl.completion.completed_games_sql_with_evidence`，與 API 同一支）。
   ⛔ 非零比分、日期已過、refresh 成功都**不等於**完賽（G03）——本模組根本不讀那些訊號。
 * **box**：本機 box 核心六表（與 ``run_refresh_recent._POSTSEASON_CORE_DETAIL_TABLES`` 同一組）是否都有列；
-  逐球 ``pitch_tracking`` 官方可能 0 球，不列入「到齊」條件，但照樣對帳列數。
+  逐球 ``pitch_tracking`` 官方可能 0 球，不列入「到齊」條件（不擋 box 核心先送），但照樣對帳列數。
+  ⭐ 逐球晚到（#293 fix-5，需求方裁定 6293763437）：box 核心已送達、但該場依既有逐球覆蓋判準
+  （:func:`cpbl.pitch_coverage.lagging_pitch_games_sql`：近期實證有設備的球場、逐球覆蓋 < 85%；設備證據取
+  同年一軍 A／E／C 在該球場的近 10 場，見 ``EQUIPMENT_EVIDENCE_KINDS``）仍落後
+  → ``pending_update``／``tracking_pending``，⛔ 不得判 ``delivered``（G3 實例：box 送出時 0 球、官方事後
+  才發布 291 球）。球場近期沒有設備的場不落後，照常判送達、不等。
 * **PA**：本機是否有 published build；有待收尾的 ``reconciliation_required``（官方更正）時照實記
   ``official_correction_pending``，不算完成（舊 published 保留）。
 * **production 端**：只認 scoped 同步的對帳 manifest（``cpbl.ingest.boxpa_sync reconcile`` 的輸出）。
@@ -40,6 +45,10 @@ PA_TABLES: tuple[str, ...] = (
     "game_pa_events", "game_pa_pitch_mappings",
 )
 
+# 逐球設備證據的母體（#293 fix-5，需求方 2026-10-21 依執行者建議裁定）：同年一軍例行賽＋季後賽。
+# 季後新系列在某球場的第一場沒有同賽別歷史，只看同賽別會判「無設備」而不等逐球。⛔ 不含二軍 D。
+EQUIPMENT_EVIDENCE_KINDS: tuple[str, ...] = ("A", "E", "C")
+
 DELIVERED = "delivered"
 PENDING = "pending_update"
 CONFLICT = "delivered_conflict"
@@ -59,6 +68,8 @@ class LocalFacts:
     published_at: str | None
     reconciliation_outstanding: int = 0
     pa_counts: Mapping[str, int] = field(default_factory=dict)
+    # 依既有逐球覆蓋判準（cpbl.pitch_coverage）此場逐球仍落後：設備球場、覆蓋 < 85%（#293 fix-5）。
+    tracking_lagging: bool = False
 
 
 @dataclass(frozen=True)
@@ -128,6 +139,11 @@ def classify(facts: LocalFacts, manifest: Mapping[str, Any] | None, now: datetim
         box = _prod_side(facts, manifest, sync_at, now, "box" in exhausted, kind="box",
                          local_at=facts.box_local_at,
                          local_counts={t: facts.box_counts.get(t, 0) for t in BOX_ALL_TABLES})
+        # 逐球晚到（#293 fix-5）：box 核心已送達而逐球仍落後 → 待更新，⛔ 不判送達（假齊備）。
+        # 只覆寫 delivered：尚未送過的 box 照常送（逐球不擋 box 核心先到）。
+        if facts.tracking_lagging and box.status == DELIVERED:
+            box = SourceStatus(PENDING, "tracking_pending", box.local_at, None,
+                               same_night(facts.game_date, None, now))
     # ---- PA（只有真正依賴 PA 的讀取面看這一格）
     if not facts.completed:
         pa = SourceStatus(PENDING, "not_final", None, None, same_night(facts.game_date, None, now))
@@ -181,12 +197,19 @@ def as_dict(statuses: Mapping[str, SourceStatus]) -> dict[str, dict]:
 def load_local_facts(cur: Any, keys: Iterable[tuple[int, str, int]]) -> dict[str, LocalFacts]:
     """讀本機既有資料組成 :class:`LocalFacts`。``cur`` 為一般 psycopg cursor（tuple row）。只 SELECT。"""
     from cpbl.completion import completed_games_sql_with_evidence
+    from cpbl.pitch_coverage import lagging_pitch_games_sql
 
     keys = sorted(set(keys))
     if not keys:
         return {}
     out: dict[str, LocalFacts] = {}
     done = completed_games_sql_with_evidence("g")
+    # 逐球落後：每個 (year, kind) 跑一次既有判準；days_back=1 涵蓋晚間鏈的目標窗（台北今日／昨日）。
+    # 設備證據跨一軍賽別（EQUIPMENT_EVIDENCE_KINDS）：新系列 G1 也看得到該球場的近期設備。
+    lag_sql = lagging_pitch_games_sql(equipment_kinds=True)
+    lagging = {(y, k): {int(r[0]) for r in cur.execute(
+                   lag_sql, (y, k, y, list(EQUIPMENT_EVIDENCE_KINDS), 1)).fetchall()}
+               for y, k in sorted({(y, k) for y, k, _ in keys})}
     for year, kind, sno in keys:
         p = (year, kind, sno)
         row = cur.execute(
@@ -232,7 +255,8 @@ def load_local_facts(cur: Any, keys: Iterable[tuple[int, str, int]]) -> dict[str
             box_local_at=_latest(*(x.isoformat() if x else None for x in (rev_at, detail_at, flags_at))),
             published_build=pub[0] if pub else None,
             published_at=pub[1].isoformat() if pub else None,
-            reconciliation_outstanding=int(recon), pa_counts=pa_counts)
+            reconciliation_outstanding=int(recon), pa_counts=pa_counts,
+            tracking_lagging=sno in lagging[(year, kind)])
     return out
 
 
