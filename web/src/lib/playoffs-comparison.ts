@@ -6,7 +6,7 @@
 //
 // 規則（PLAN r3 §4、§8；需求方 D1／D2／F1 與跨卡頁尾裁定 #281 6194693029）：
 // 1. 比較條＝共享尺度＋方向：同一指標同一 scope 一條軸，兩隊共用軸域；缺值格只寫「—」，不畫成 0。
-// 2. 排名標籤只在全年 A；對戰／本系列只顯示原始值＋同年聯盟平均參考（D2）；樣本數值（n 場、n 打席…）留格內（F1）。
+// 2. 排名標籤只在全年 A；對戰／本系列只並列兩隊原始值、不顯示聯盟平均（#347 需求方裁定，取代 D2 的平均參考）；樣本數值（n 場、n 打席…）留格內（F1）。
 // 3. 連續紀錄同 scope、不跨賽別；全年 A 標「例行賽結束時」，不稱「進行中」。
 // 4. T5 並列「例行賽背景 vs 本系列實際」，文案零「預測／預期／誤差」（測試逐字掃描文案表與頁尾說明）。
 // 5. **說明性注意事項不在區內就地顯示**（#285 契約 r3 §2、§2.4、§2.5）：資料來源、樣本限制、方向圖例、
@@ -125,10 +125,8 @@ export const COMPARISON_COPY = {
   streakHeading: "連續紀錄",
   styleHeading: "球風",
   metricsHeading: "攻守指標",
-  leagueRef: "聯盟平均",
   topTraitsLabel: "聯盟前段特徵",
   rankChip: (label: string, rank: number) => `${label} · 第 ${rank}`,
-  rawVsLeague: (raw: string, league: string) => `${raw}（均 ${league}）`,
   sample: {
     games: (n: number) => `${n} 場`,
     pa: (n: number) => `${n} 打席`,
@@ -216,7 +214,7 @@ function rawText(axis: TeamStyleAxisKey, comp: string, v: number | null | undefi
 
 /**
  * 全年 A：沿球隊頁「聯盟前段特徵」——名次 ≤ 2 的軸給 chip（名次＋語意徽章）。
- * 對戰／本系列：⛔ 不出排名；每軸原始值＋同年聯盟平均參考（選球紀律分列 BB%／K%）。
+ * 對戰／本系列：⛔ 不出排名、⛔ 不帶聯盟平均（#347）；每軸只給原始值（選球紀律分列 BB%／K%）。
  */
 export function styleTagsVM(scope: ComparisonScopeKey, view: ComparisonTeamView,
   axes: ComparisonPayload["style_axes"]): StyleTag[] {
@@ -229,8 +227,7 @@ export function styleTagsVM(scope: ComparisonScopeKey, view: ComparisonTeamView,
   }
   return axes.map((a) => {
     const e = view.style?.[a.key];
-    const text = a.components.map((c) =>
-      COMPARISON_COPY.rawVsLeague(rawText(a.key, c, e?.raw[c]), rawText(a.key, c, e?.league_raw_mean[c]))).join("・");
+    const text = a.components.map((c) => rawText(a.key, c, e?.raw[c])).join("・");
     return { axis: a.key, label: a.label, text, badge: null };
   });
 }

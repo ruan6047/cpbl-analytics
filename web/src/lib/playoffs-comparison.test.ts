@@ -42,7 +42,7 @@ test("shared scale covers both teams: domain includes every scope value (no clip
   }
 });
 
-test("D2: rank chips only in season_a; h2h and series show raw + league reference without ranks", () => {
+test("D2: rank chips only in season_a; h2h and series show raw values only, no ranks and no league mean", () => {
   const axes = p2025.style_axes;
   const season = styleTagsVM("season_a", p2025.scopes.season_a.teams[L], axes);
   for (const tag of season) assert.match(tag.text, /第 [12]$/);
@@ -51,7 +51,7 @@ test("D2: rank chips only in season_a; h2h and series show raw + league referenc
     assert.equal(tags.length, 7);
     for (const tag of tags) {
       assert.doesNotMatch(tag.text, /第 \d/);
-      assert.match(tag.text, /（均 /);
+      assert.doesNotMatch(tag.text, /（均 /);
     }
     const disc = tags.find((t) => t.axis === "discipline")!;
     assert.match(disc.text, /BB% .*K% /);

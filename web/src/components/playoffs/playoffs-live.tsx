@@ -36,7 +36,7 @@ export const PLAYOFFS_LIVE_CLASS = "min-w-0 space-y-4";
 export const PLAYOFFS_TAB_LABELS: Record<PlayoffsAreaId, string> = {
   series: "系列賽",
   watch: "觀戰重點",
-  roster: "資格名單",
+  roster: "系列賽名單",
   teams: "隊伍表現",
 };
 

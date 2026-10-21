@@ -62,7 +62,7 @@ test("頁尾說明：未載入時用 notes(null) 的說明、依 C2 排序、重
     fake("roster", () => [{ key: "roster.fixed", text: "假第 3 區固定說明" }, { key: "common.box_source", text: "共用說明" }]),
   ]} />);
   assert.match(out, /aria-label="季後賽分區"/);
-  for (const label of ["系列賽", "觀戰重點", "資格名單", "隊伍表現"]) assert.match(out, new RegExp(`>${label}<`));
+  for (const label of ["系列賽", "觀戰重點", "系列賽名單", "隊伍表現"]) assert.match(out, new RegExp(`>${label}<`));
   const footer = /<section aria-labelledby="page-notes-heading"[\s\S]*?<\/section>/.exec(out)![0];
   assert.deepEqual([...footer.matchAll(/<li id="note-([^"]+)"/g)].map((m) => m[1]), ["roster.fixed", "common.box_source", "teams.fixed"]);
   assert.match(footer, /資料說明/);
