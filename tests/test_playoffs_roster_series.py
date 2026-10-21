@@ -81,7 +81,8 @@ def test_member_series_counts_and_pinch_runner_g():
 def test_member_without_series_appearance_is_zero_g():
     i = inp([g("C", 1, 1)], series_counts={}, series_box={1: FULL})
     m = {x["player_id"]: x for t in compute_roster(i, now=NOW)["teams"] for x in t["members"]}
-    assert m["0000000001"]["series"] == {"g": 0, "line": None, "pending": False}
+    assert m["0000000001"]["series"] == {"g": 0, "line": None, "pending": False,
+                                         "dh_starts": 0, "dh_starts_unknown": 0}
 
 
 def test_default_scope_series_only_when_t5():
@@ -99,6 +100,9 @@ class _Cur:
         if "UNION" in sql:
             self.description = [("game_sno",), ("vht",), ("source",)]
             self._rows = [(1, "1", "batting"), (1, "1", "pitching"), (1, "2", "batting"), (1, "2", "pitching")]
+        elif "DISTINCT ON" in sql:
+            self.description = [("pid",), ("dh",), ("unknown",)]
+            self._rows = [("0000000001", 1, 0)]
         elif "hitter_acnt" in sql:
             self.description = [(c,) for c in ("pid", "g", "pa", "ab", "h", "bb", "hbp", "sf", "tb", "hr", "so")]
             self._rows = [("0000000001", 1, 4, 4, 2, 0, 0, 0, 3, 0, 1)]
@@ -114,7 +118,7 @@ def test_read_series_queries_only_selected_series_completed_snos_and_is_size_ind
     cur = _Cur()
     i = inp([g("E", 4, 4), g("C", 1, 1), g("C", 2, 2, completed=False)])
     rr.read_series(cur, i)
-    assert len(cur.calls) == 3
+    assert len(cur.calls) == 4                     # box＋打擊＋投球＋DH 先發（#350）
     assert all(p["kind"] == "C" and p["snos"] == [1] for _, p in cur.calls)
     assert i.series_box == {1: FULL}
     assert i.series_counts[("0000000001", "batting")]["h"] == 2
