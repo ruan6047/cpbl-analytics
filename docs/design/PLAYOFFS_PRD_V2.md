@@ -282,7 +282,7 @@ ERA+ 高代表較好；不能反向畫箭頭。任一窗 ERA=0 導致現有 ERA+
 
 使用`cpbl-roster preview <package.json> --format roles-v2`唯讀預覽；輸入format為roster-roles/v2，含年度／賽別、核准表與manifest SHA-256／核准留言URL、兩隊team_code／roster_id／membership_hash／source_hash／expected_latest_revision／expected_latest_hash，以及各32列player_id／announced_name／official_position／tactical_roles[]／role_provenance。來源逐角色含origin（human或research）、source_ids、original_basis、original_evidence。角色以固定語彙序序列化，不能解讀成優先順序。
 
-身份只在已提交32會員內精確唯一核對；#316張仁瑋／林志綱的研究內外野背景與會員守位不同，依6229290387沿既有會員守位，不改會員或membership_hash，也不自動新增其他角色。工具人核准判準為2026正規賽兩個實際守位各≥9局，或三個各嚴格>2局（出局數>6），DH／PH／PR排除；實作直接用已接受結果，不重算改名單。
+身份只在已提交32會員內精確唯一核對；#316張仁瑋／林志綱的研究內外野背景與會員守位不同，依6229290387沿既有會員守位，不改會員或membership_hash，也不自動新增其他角色。工具人核准判準（#349起，6309496703）為2026正規賽LF／CF／RF合併為一個外野守位、出局數合計後，兩個實際守位各≥9局，或三個各嚴格>2局（出局數>6）；捕手、一壘、二壘、三壘、游擊仍各自為不同守位，不比照合併；DH／PH／PR排除；實作直接用已接受結果，不重算改名單。
 
 `annotate --format roles-v2 --confirm-approval-hash <核准表SHA-256>`在同一交易鎖兩隊名單頭並追加完整版本；任一隊失敗全rollback。expected版/hash不符拒絕，同語意重送不新增。會員、來源、舊列及舊hash不改；v2以roster-annotation/v2雜湊完整角色與穩定來源，舊scalar固定unclassified相容占位。API新增tactical_roles／role_format_version及版本識別，v2的tactical_role一律null；舊外部scalar消費者無法取得多重角色，不宣稱其已支援。
 
