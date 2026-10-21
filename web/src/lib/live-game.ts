@@ -166,6 +166,46 @@ export const canShowPostgameConclusions = (
   ? officialCompleted
   : scoreTotal > 0 && (snapshot === null || snapshot.phase === "final");
 
+/** #345：DB 列與即時快照對同一場「是否終場」說法不一時，單場頁採哪一邊。
+ *  - `db_final`：DB `completed === true`（官方 final／證據）而快照不是 final——快照停更了
+ *    （G4 2026-10-21：DB 4:5 完賽、快照停在 live 4:4 下11局約 21 分鐘）。不疊快照，走 DB 完賽路徑。
+ *  - `final_pending`：快照 final 但快照比分 0:0、DB 未完賽——終場比分未經證實（G3 形狀）。
+ *    頁面顯示「已結束、資料更新中」，⛔ 不畫 0:0。
+ *  - `as_is`：其餘一律照舊。
+ *  只管轄 2026 起 E／C（`officialCompletionOf` 同一判準，以快照身分判管轄、`completed` 取 DB）；
+ *  A／D／歷史年份永遠 `as_is`。⛔ 不以時間或比分推斷完賽，DB 側只認嚴格 true。 */
+export type SnapshotReconciliation = "db_final" | "final_pending" | "as_is";
+
+export function reconcileLiveSnapshot(
+  game: { completed?: unknown } | null | undefined,
+  snapshot: LiveSnapshot | null | undefined,
+): SnapshotReconciliation {
+  if (!snapshot) return "as_is";
+  const dbCompleted = officialCompletionOf({
+    kind_code: snapshot.kind_code, year: snapshot.game_id.slice(0, 4), completed: game?.completed,
+  });
+  if (dbCompleted === undefined) return "as_is";
+  if (dbCompleted && snapshot.phase !== "final") return "db_final";
+  if (!dbCompleted && snapshot.phase === "final"
+      && (Number(snapshot.away.score) || 0) + (Number(snapshot.home.score) || 0) === 0) return "final_pending";
+  return "as_is";
+}
+
+/** 快照停更（stale／來源錯誤）或終場比分待確認時，開著的頁面重抓完整 `/live` 的最短間隔。
+ *  `/status` 只帶快照，快照不動時看不到 DB 已完賽（#345 G4），故須定期重抓 DB 列。 */
+export const LIVE_REFETCH_MS = 60_000;
+
+export function liveRefetchDue(
+  snapshot: LiveSnapshot | null,
+  finalPending: boolean,
+  lastFullAtMs: number,
+  nowMs: number,
+): boolean {
+  const stalled = snapshot !== null && snapshot.phase !== "final"
+    && (snapshot.freshness === "stale" || snapshot.source_status === "error");
+  return (finalPending || stalled) && nowMs - lastFullAtMs >= LIVE_REFETCH_MS;
+}
+
 /** 局數是否為真值。worker 對未開打場次仍回 `inning=1／half=1` 佔位（生產實測
  *  SCHEDULED 場 inning=1、event_count=0；FINISHED 場 inning=9、half=2 為真值），
  *  故不可只判 `inning` truthy，否則未開賽會顯示「▲ 1 局」。判準＝比賽確實打過：
@@ -188,7 +228,9 @@ export const inningLabel = (
 /** status 輪詢的 snapshot 決策。`incoming` 為 null 時一般視為來源中斷並保留 last-known-good；
  *  唯一例外（#237）是最近成功的完整 payload 明確 `completed === true` 且本頁從未取得 snapshot
  *  （`previous === null`）——完賽場本就沒有即時快照，屬正常缺失而非中斷。
- *  ⛔ 只認嚴格布林 true，不以比分／時間推斷完賽，也不合成 snapshot。 */
+ *  ⛔ 只認嚴格布林 true，不以比分／時間推斷完賽，也不合成 snapshot。
+ *  #345：DB 已完賽時收到非 final 快照（`db_final`）一律不接回，也不算中斷——
+ *  頁面已走 DB 完賽路徑，停更的賽中快照不得再把它拉回「進行中」。 */
 export function resolveStatusSnapshot(
   previous: LiveSnapshot | null,
   incoming: LiveSnapshot | null,
@@ -197,6 +239,9 @@ export function resolveStatusSnapshot(
   if (!incoming) {
     const expectedAbsence = previous === null && context.completed === true;
     return { accepted: false, interrupted: !expectedAbsence, snapshot: previous };
+  }
+  if (reconcileLiveSnapshot(context, incoming) === "db_final") {
+    return { accepted: false, interrupted: false, snapshot: previous };
   }
   return {
     accepted: true,
@@ -248,8 +293,11 @@ export function lineupMessage(
   return "尚未公布";
 }
 
-export function nextPollDelay(snapshot: LiveSnapshot | null, visible: boolean): number | null {
-  if (!visible || snapshot?.phase === "final") return null;
+/** `finalPending`（#345）：快照 final 但終場比分待確認時不停輪詢，改每 `LIVE_REFETCH_MS` 一次。 */
+export function nextPollDelay(snapshot: LiveSnapshot | null, visible: boolean, finalPending = false): number | null {
+  if (!visible) return null;
+  if (finalPending) return LIVE_REFETCH_MS;
+  if (snapshot?.phase === "final") return null;
   if (snapshot?.phase === "live") return Math.max(10, snapshot.poll_after_seconds ?? 12) * 1_000;
   return 60_000;
 }
@@ -469,11 +517,50 @@ function withBlankTeamNames(response: LiveApiResponse): LiveApiResponse {
   return Object.keys(patch).length ? { ...response, game: { ...game, ...patch } } : response;
 }
 
-/** 將 Redis canonical snapshot 疊到既有 DB payload；沒有 snapshot 時只補空白隊名（見上），其餘完全向後相容。 */
+/** 將 Redis canonical snapshot 疊到既有 DB payload；沒有 snapshot 時只補空白隊名（見上），其餘完全向後相容。
+ *  #345：DB 已完賽而快照非 final（`db_final`）時丟棄快照，頁面與 #337 焦點檢查都走 DB 完賽路徑。 */
 export function applyLiveSnapshot(response: LiveApiResponse): LiveApiResponse {
   const snapshot = response.live_snapshot;
   if (!snapshot) return withBlankTeamNames(response);
+  if (reconcileLiveSnapshot(response.game, snapshot) === "db_final") {
+    return withBlankTeamNames({ ...response, live_snapshot: null });
+  }
   return withBlankTeamNames(overlaySnapshot(response, snapshot));
+}
+
+/** #345 修正前的疊加（不對帳，有快照就疊）：只給 W3 負控用，⛔ 頁面不得呼叫。 */
+export function applyLiveSnapshotUnreconciled(response: LiveApiResponse): LiveApiResponse {
+  const snapshot = response.live_snapshot;
+  return withBlankTeamNames(snapshot ? overlaySnapshot(response, snapshot) : response);
+}
+
+/** 單場頁頂部對這一場陳述的事實（#345 W3 機械檢查用）：逐條照 game-live-page.tsx 的分支——
+ *  終場比分待確認（`final_pending`）→ 頁面完賽判定（`canShowPostgameConclusions`）→ 快照 phase。
+ *  `overlay` 只給負控換成修正前的疊加函式，證明檢查抓得到原缺陷。 */
+export type GamePageStatus =
+  | { kind: "final_pending"; label: string }
+  | { kind: "final" | "live" | "other"; label: string; away: number; home: number; interrupted: boolean };
+
+export const FINAL_PENDING_LABEL = "已結束、資料更新中";
+
+export function gamePageStatus(
+  raw: LiveApiResponse,
+  overlay: (response: LiveApiResponse) => LiveApiResponse = applyLiveSnapshot,
+  reconcile: typeof reconcileLiveSnapshot = reconcileLiveSnapshot,
+): GamePageStatus {
+  const data = overlay(raw);
+  const snapshot = data.live_snapshot ?? null;
+  if (reconcile(raw.game, snapshot) === "final_pending") return { kind: "final_pending", label: FINAL_PENDING_LABEL };
+  const g = data.game ?? {};
+  const away = Number(g.away_score) || 0;
+  const home = Number(g.home_score) || 0;
+  const interrupted = snapshot?.freshness === "stale" || snapshot?.source_status === "error";
+  const completed = canShowPostgameConclusions(snapshot, away + home, officialCompletionOf(g));
+  // 有快照時記分條狀態章照快照 phase 寫（game-board ScoreBar）；完賽而無快照時中央格寫「終場」。
+  const kind = snapshot?.phase === "final" || (completed && !snapshot) ? "final"
+    : snapshot?.phase === "live" ? "live" : "other";
+  const label = snapshot ? phaseLabel(snapshot.phase) : completed ? "終場" : "—";
+  return { kind, label, away, home, interrupted };
 }
 
 function overlaySnapshot(response: LiveApiResponse, snapshot: LiveSnapshot): LiveApiResponse {
