@@ -2,34 +2,30 @@
 
 import { useCallback, useRef, useState } from "react";
 
-import { Card, InfoDot, TeamLogo } from "@/components/ui";
+import { ENTITY_LINK, InfoDot, TeamLogo } from "@/components/ui";
 import { RosterDrawer } from "./roster-drawer";
 import {
   DRAWER_COPY,
-  POS_FILTERS,
   ROSTER_COPY,
   ROSTER_METHOD_HELP,
   SCOPES,
-  SORTS,
-  arrowView,
-  filterMembersByPos,
-  gText,
+  compositeParts,
+  fielderBlocks,
   hasSeriesScope,
   initialScope,
-  lineText,
-  memberRoles,
-  scopeG,
-  seriesPending,
-  prLabel,
-  sortMembers,
+  pitcherBlocks,
+  teamComposition,
   teamLabel,
+  type BlockColumn,
   type PlayoffsRoster,
+  type RosterBlock,
   type RosterMember,
-  type RosterPosFilter,
   type RosterScope,
-  type RosterSort,
   type RosterTeam,
 } from "@/lib/playoffs-roster";
+
+// #350 方案 D：兩隊並列；投手依角色、野手依主守位分區（另設 DH 區）；每區先列灰底綜合成績、下方只列人名，
+// 個人數值點人名開抽屜才看（需求方裁定 6309977252 ①、6310146254）。
 
 export function RosterSection({ data }: { data: PlayoffsRoster | null }) {
   return (
@@ -62,28 +58,34 @@ export function RosterSection({ data }: { data: PlayoffsRoster | null }) {
 
 export default RosterSection;
 
-/** 持有篩選／排序／抽屜 state；預設選第一支球隊（不再一次攤開 64 張卡），輪詢換 `data` 時保留使用者選擇。 */
+/** 持有資料範圍與抽屜 state；輪詢換 `data` 時保留使用者選擇。 */
 function RosterBody({ data }: { data: PlayoffsRoster }) {
-  const [team, setTeam] = useState<string>(() => data.teams[0]?.team_code ?? "all");
-  const [pos, setPos] = useState<RosterPosFilter>("all");
-  const [sort, setSort] = useState<RosterSort>("games");
   const [scope, setScope] = useState<RosterScope>(() => initialScope(data));
   const [open, setOpen] = useState<RosterMember | null>(null);
+  const trigger = useRef<HTMLElement | null>(null);
   const root = useRef<HTMLDivElement>(null);
+  const onOpen = useCallback((m: RosterMember, el?: HTMLElement) => {
+    trigger.current = el ?? null;
+    setOpen(m);
+  }, []);
+  // 同一人會出現在多區（多角色、主守位＋DH），焦點要還給「實際被點的那顆」按鈕，⛔ 以 player_id 找第一顆。
   const close = useCallback(() => {
     const id = open?.player_id;
+    const el = trigger.current;
     setOpen(null);
-    if (id) requestAnimationFrame(() => root.current?.querySelector<HTMLElement>(`[data-open-player="${id}"]`)?.focus());
+    requestAnimationFrame(() => {
+      if (el?.isConnected) el.focus();
+      else if (id) root.current?.querySelector<HTMLElement>(`[data-open-player="${id}"]`)?.focus();
+    });
   }, [open]);
+  const shownScope: RosterScope = hasSeriesScope(data) ? scope : "background";
   const current = open ? data.teams.flatMap((t) => t.members).find((m) => m.player_id === open.player_id) ?? open : null;
   return (
     <div ref={root}>
-      <RosterView data={data} team={team} pos={pos} sort={sort} scope={scope}
-        onTeam={setTeam} onPos={setPos} onSort={setSort} onScope={setScope} onOpen={setOpen} />
+      <RosterBlocks data={data} scope={scope} onScope={setScope} onOpen={onOpen} />
       {current ? (
-        <RosterDrawer member={current} year={data.year} series={data.series} sectionVersion={data.context_version}
-          sectionRosterVersion={data.roster_version}
-          onClose={close} />
+        <RosterDrawer member={current} scope={shownScope} year={data.year} series={data.series}
+          sectionVersion={data.context_version} sectionRosterVersion={data.roster_version} onClose={close} />
       ) : null}
     </div>
   );
@@ -95,190 +97,130 @@ const segBtnClass = (on: boolean) =>
     on ? "bg-ink font-bold text-paper" : "text-muted hover:text-ink"
   }`;
 
-/** 純呈現（無 hooks，測試可直接以任一篩選／排序渲染）。 */
-export function RosterView({ data, team, pos = "all", sort = "games", scope: scopeIn = "background", onTeam, onPos, onSort, onScope, onOpen }: {
-  data: PlayoffsRoster; team: string; pos?: RosterPosFilter; sort?: RosterSort; scope?: RosterScope;
-  onTeam?: (t: string) => void; onPos?: (p: RosterPosFilter) => void; onSort?: (s: RosterSort) => void; onScope?: (s: RosterScope) => void;
-  onOpen?: (m: RosterMember) => void;
+/** 純呈現（無 hooks，測試可直接以任一資料範圍渲染）。 */
+export function RosterBlocks({ data, scope: scopeIn = "background", onScope, onOpen }: {
+  data: PlayoffsRoster; scope?: RosterScope; onScope?: (s: RosterScope) => void;
+  onOpen?: (m: RosterMember, el?: HTMLElement) => void;
 }) {
-  const shown = data.teams.filter((t) => team === "all" || t.team_code === team);
   const scope: RosterScope = hasSeriesScope(data) ? scopeIn : "background";
+  const teams = data.teams;
   return (
-    <div className="min-w-0 space-y-3" data-area-status={data.status} data-scope={scope} data-pos={pos}>
-      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
-        <div className="flex flex-wrap items-center gap-2">
-          <div role="group" aria-label={ROSTER_COPY.teamFilterLabel} className={SEG_TRACK}>
-            {[...data.teams.map((t) => ({ code: t.team_code, label: teamLabel(t) })), { code: "all", label: ROSTER_COPY.all }]
-              .map((o) => (
-                <button key={o.code} type="button" aria-pressed={team === o.code} onClick={() => onTeam?.(o.code)}
-                  className={segBtnClass(team === o.code)}>
-                  {o.label}
-                </button>
-              ))}
-          </div>
-          {hasSeriesScope(data) ? (
-            <div role="group" aria-label={ROSTER_COPY.scopeLabel} className={SEG_TRACK}>
-              {SCOPES.map((o) => (
-                <button key={o.key} type="button" aria-pressed={scope === o.key} onClick={() => onScope?.(o.key)}
-                  className={segBtnClass(scope === o.key)}>
-                  {o.label}
-                </button>
-              ))}
-            </div>
-          ) : null}
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <div role="group" aria-label={ROSTER_COPY.posFilterLabel} className={SEG_TRACK}>
-            {POS_FILTERS.map((p) => (
-              <button key={p.key} type="button" aria-pressed={pos === p.key} onClick={() => onPos?.(p.key)}
-                className={segBtnClass(pos === p.key)}>
-                {p.label}
+    <div className="card min-w-0 space-y-5 p-3 sm:p-4" data-area-status={data.status} data-scope={scope}>
+      <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
+        <ul className="min-w-0 space-y-1" aria-label="兩隊名單組成">
+          {teams.map((t) => <TeamSummary key={t.team_code} team={t} scope={scope} />)}
+        </ul>
+        {hasSeriesScope(data) ? (
+          <div role="group" aria-label={ROSTER_COPY.scopeLabel} className={SEG_TRACK}>
+            {SCOPES.map((o) => (
+              <button key={o.key} type="button" aria-pressed={scope === o.key} onClick={() => onScope?.(o.key)}
+                className={segBtnClass(scope === o.key)}>
+                {o.label}
               </button>
             ))}
           </div>
-          <div className="flex items-center gap-1.5">
-            <span className="whitespace-nowrap text-xs text-muted">{ROSTER_COPY.sortLabel}</span>
-            <div role="group" aria-label={ROSTER_COPY.sortLabel} className={SEG_TRACK}>
-              {SORTS.map((s) => (
-                <button key={s.key} type="button" aria-pressed={sort === s.key} onClick={() => onSort?.(s.key)}
-                  className={segBtnClass(sort === s.key)}>
-                  {s.label}
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
+        ) : null}
       </div>
-      {shown.map((t) => <TeamBlock key={t.team_code} team={t} pos={pos} sort={sort} scope={scope} onOpen={onOpen} />)}
+      <BlockGroup id="roster-pitchers" title={ROSTER_COPY.pitchers} blocks={pitcherBlocks(teams, scope)}
+        teams={teams} onOpen={onOpen} />
+      <BlockGroup id="roster-fielders" title={ROSTER_COPY.fielders} blocks={fielderBlocks(teams, scope)}
+        teams={teams} onOpen={onOpen} />
+      <p className="text-xs text-muted">{ROSTER_COPY.legend[scope]}</p>
     </div>
   );
 }
 
-function MemberGrid({ members, labelId, scope, onOpen }: {
-  members: RosterMember[]; labelId?: string; scope: RosterScope; onOpen?: (m: RosterMember) => void;
-}) {
+function TeamSummary({ team, scope }: { team: RosterTeam; scope: RosterScope }) {
+  const submitted = team.roster_status === "submitted";
   return (
-    <ul aria-labelledby={labelId} className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4">
-      {members.map((m) => (
-        <li key={m.player_id} className="min-w-0">
-          <MemberCard m={m} scope={scope} onOpen={onOpen} />
-        </li>
-      ))}
-    </ul>
+    <li className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-sm" data-team={team.team_code}
+      data-roster-status={team.roster_status}>
+      <TeamLogo code={team.team_code} name={teamLabel(team)} size={20} decorative />
+      <span className="font-bold text-ink">{teamLabel(team)}</span>
+      <span className="text-xs text-muted tabular-nums" data-composition>
+        {submitted ? teamComposition(team) : ROSTER_COPY.pending}
+      </span>
+      {scope === "series" && submitted && team.series_pending_games?.length
+        ? <span className="pm-tag" data-series-pending>{ROSTER_COPY.pending}</span> : null}
+    </li>
   );
 }
 
-function TeamBlock({ team, pos, sort, scope, onOpen }: {
-  team: RosterTeam; pos: RosterPosFilter; sort: RosterSort; scope: RosterScope; onOpen?: (m: RosterMember) => void;
+function BlockGroup({ id, title, blocks, teams, onOpen }: {
+  id: string; title: string; blocks: RosterBlock[]; teams: readonly RosterTeam[];
+  onOpen?: (m: RosterMember, el?: HTMLElement) => void;
 }) {
-  const headingId = `roster-team-${team.team_code}`;
-  const filtered = sortMembers(filterMembersByPos(team.members, pos), sort, scope);
-  const pitchers = pos === "all" ? filtered.filter((m) => m.role === "pitching") : [];
-  const batters = pos === "all" ? filtered.filter((m) => m.role !== "pitching") : [];
-
+  if (!blocks.length) return null;
   return (
-    <div className="space-y-3" data-team={team.team_code} data-roster-status={team.roster_status}>
-      <h3 id={headingId} className="flex items-center gap-2 text-sm font-bold text-ink">
-        <TeamLogo code={team.team_code} name={teamLabel(team)} size={20} decorative />
-        {teamLabel(team)}
-        {team.roster_status === "submitted"
-          ? <span className="text-xs font-semibold text-muted tabular-nums">{filtered.length} 人</span> : null}
-        {scope === "series" && team.roster_status === "submitted" && team.series_pending_games?.length
-          ? <span className="pm-tag" data-series-pending>{ROSTER_COPY.pending}</span> : null}
-      </h3>
-      {team.roster_status !== "submitted" ? (
-        <p className="card p-3 text-sm text-muted">{ROSTER_COPY.pending}</p>
-      ) : pos === "all" ? (
-        <div className="space-y-3">
-          {pitchers.length > 0 && (
-            <div className="space-y-1.5" data-role-group="pitching">
-              <h4 id={`${headingId}-pit`} className="flex items-center gap-1.5 text-xs font-bold text-muted">
-                <span>投手</span>
-                <span className="font-mono font-normal tabular-nums text-faint">{pitchers.length}</span>
-              </h4>
-              <MemberGrid members={pitchers} labelId={`${headingId}-pit`} scope={scope} onOpen={onOpen} />
-            </div>
-          )}
-          {batters.length > 0 && (
-            <div className="space-y-1.5" data-role-group="batting">
-              <h4 id={`${headingId}-bat`} className="flex items-center gap-1.5 text-xs font-bold text-muted">
-                <span>野手</span>
-                <span className="font-mono font-normal tabular-nums text-faint">{batters.length}</span>
-              </h4>
-              <MemberGrid members={batters} labelId={`${headingId}-bat`} scope={scope} onOpen={onOpen} />
-            </div>
-          )}
-        </div>
-      ) : (
-        <MemberGrid members={filtered} labelId={headingId} scope={scope} onOpen={onOpen} />
-      )}
+    <section aria-labelledby={id} className="space-y-3" data-block-group={id}>
+      <h3 id={id} className="border-b-2 border-ink pb-1 text-sm font-bold text-ink">{title}</h3>
+      <div className="grid gap-x-8 gap-y-4 lg:grid-cols-2">
+        {blocks.map((b) => <Block key={b.key} block={b} teams={teams} onOpen={onOpen} />)}
+      </div>
+    </section>
+  );
+}
+
+function Block({ block, teams, onOpen }: {
+  block: RosterBlock; teams: readonly RosterTeam[]; onOpen?: (m: RosterMember, el?: HTMLElement) => void;
+}) {
+  const hid = `roster-block-${block.key}`;
+  return (
+    <div className="min-w-0 space-y-1.5" data-block={block.key}>
+      <h4 id={hid} className="flex flex-wrap items-baseline gap-x-2 text-sm font-bold text-ink">
+        <span>{block.label}</span>
+        {block.note ? <span className="text-xs font-normal text-muted" data-block-note>{block.note}</span> : null}
+      </h4>
+      <div className="grid grid-cols-2 gap-x-3">
+        {block.columns.map((c, i) => <Column key={c.team_code} col={c} team={teams[i]} block={block} onOpen={onOpen} />)}
+      </div>
     </div>
   );
 }
 
-const DIR_CLASS = { up: "text-up", down: "text-down", flat: "text-muted" } as const;
-
-/** 緊湊小卡：整卡可點開啟能力與走勢抽屜，省去重複的滿版按鈕，四欄可一眼掃描。 */
-export function MemberCard({ m, scope = "background", onOpen }: {
-  m: RosterMember; scope?: RosterScope; onOpen?: (m: RosterMember) => void;
+function Column({ col, team, block, onOpen }: {
+  col: BlockColumn; team: RosterTeam; block: RosterBlock; onOpen?: (m: RosterMember, el?: HTMLElement) => void;
 }) {
-  const bg = m.background;
-  const series = scope === "series";
-  const pending = seriesPending(m, scope);
-  const line = pending ? ROSTER_COPY.pending : lineText(m, scope);
-  const a = arrowView(m);
+  const parts = compositeParts(col.composite);
   return (
-    <div className="card h-full min-w-0 p-0" data-player={m.player_id} data-level={bg.level}>
-      <button
-        type="button"
-        data-open-player={m.player_id}
-        aria-haspopup="dialog"
-        aria-label={`${m.name} ${DRAWER_COPY.open}`}
-        onClick={() => onOpen?.(m)}
-        className="group flex h-full w-full flex-col justify-between gap-1.5 rounded p-2.5 text-left transition-colors hover:bg-surface-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
-      >
-        <div className="w-full space-y-1.5">
-          <div className="flex min-w-0 items-baseline justify-between gap-1.5">
-            <span className="flex min-w-0 items-baseline gap-1.5">
-              <span className="truncate text-sm font-bold text-ink group-hover:text-accent">{m.name}</span>
-              <span className="shrink-0 text-xs text-muted">{m.official_position}</span>
-              {!series && bg.level === "D" ? <span className="pm-tag shrink-0">{ROSTER_COPY.farm}</span> : null}
-            </span>
-            <span className="shrink-0 font-mono text-xs font-bold tabular-nums text-ink" data-g>
-              {pending ? ROSTER_COPY.pending : gText({ g: scopeG(m, scope) })}
-            </span>
-          </div>
-          {memberRoles(m).length ? (
-            <div className="flex flex-wrap items-center gap-1 text-[11px] font-medium [&>[data-role]]:rounded [&>[data-role]]:bg-band [&>[data-role]]:px-1.5 [&>[data-role]]:py-0.5">
-              {memberRoles(m).map((role) => (
-                <span key={role} data-role className="text-ink">{role}</span>
-              ))}
-            </div>
-          ) : null}
-          <div className="font-mono text-xs tabular-nums text-muted" data-line>{line ?? ROSTER_COPY.missing}</div>
-        </div>
-        {!series && (
-          <div className="w-full space-y-1.5 border-t border-line pt-1.5 text-[11px] text-muted" data-arrow={a.dir ?? "none"}>
-            <div className="flex items-baseline justify-between gap-1">
-              <span>{a.label}</span>
-              <span className="flex items-baseline gap-1">
-                <span className="font-mono font-bold tabular-nums text-ink">{a.value}</span>
-                <span className={`font-semibold ${a.dir ? DIR_CLASS[a.dir] : "text-muted"}`}>{a.text}</span>
-              </span>
-            </div>
-            {bg.pr_tags.length ? (
-              <div className="flex flex-wrap gap-1" aria-label="官方 PR 90 以上">
-                {bg.pr_tags.map((t) => (
-                  <span key={t.key} data-pr={t.key}
-                    className="rounded border border-accent px-1 py-0.2 text-[10px] font-semibold text-accent">
-                    {prLabel(t.key, m.role)} <span className="font-mono tabular-nums">PR {t.value}</span>
-                  </span>
-                ))}
-              </div>
-            ) : null}
-          </div>
+    <div className="min-w-0 space-y-1" data-column={col.team_code}>
+      <div className="flex flex-wrap items-baseline gap-x-1.5 rounded bg-surface-2 px-2 py-1 font-mono text-xs tabular-nums text-muted"
+        data-composite={col.composite.kind}>
+        <TeamLogo code={team.team_code} name={teamLabel(team)} size={14} decorative />
+        <span className="sr-only">{teamLabel(team)} {block.label} 綜合成績</span>
+        {typeof parts === "string" ? <span className="font-sans">{parts}</span> : (
+          <span className="whitespace-nowrap">
+            {parts[0].label} <b className="text-ink">{parts[0].value}</b>
+          </span>
         )}
-      </button>
+        {typeof parts === "string" ? null : (
+          <span className="whitespace-nowrap">
+            · {block.role === "pitching"
+              ? <><b className="text-ink">{parts[1].value}</b> {parts[1].label}</>
+              : <>{parts[1].label} <b className="text-ink">{parts[1].value}</b></>}
+          </span>
+        )}
+      </div>
+      {col.members.length ? (
+        // 刻意：人名按鈕維持文字高度、左右間距 ≥10px，不撐到 44px（需求方裁定 6310146254 ③，列為 UI_UX_SYSTEM
+        // §1 原則 6 觸控 ≥44px 的本區例外）；撐高會讓整區長一倍，違背「一眼看懂兩隊對照」。
+        <ul className="flex flex-wrap gap-x-2.5 gap-y-1 px-1" aria-label={`${teamLabel(team)} ${block.label}`}>
+          {col.members.map(({ m, farm, uncertain }) => (
+            <li key={m.player_id} className="inline-flex items-baseline gap-1">
+              <button type="button" data-open-player={m.player_id} aria-haspopup="dialog"
+                aria-label={`${m.name} ${DRAWER_COPY.open}`}
+                onClick={(e) => onOpen?.(m, e.currentTarget)}
+                className={`text-sm ${ENTITY_LINK} rounded-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent`}>
+                {m.name}
+              </button>
+              {farm ? <span className="pm-tag" data-farm>{ROSTER_COPY.farm}</span> : null}
+              {uncertain ? <span className="pm-tag" data-uncertain>{ROSTER_COPY.pending}</span> : null}
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="px-1 text-sm text-faint">{ROSTER_COPY.missing}</p>
+      )}
     </div>
   );
 }
