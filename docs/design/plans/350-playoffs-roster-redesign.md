@@ -7,11 +7,11 @@
   - [6310023008](https://github.com/ruan6047/cpbl-analytics/issues/350#issuecomment-6310023008)：需求重新確認
 - 工作基準：`origin/main` @ `42ce575b`。依卡面規定，**執行時改以 #349 合併後的 main 為基準**。
 - 示意素材放在 `docs/design/plans/350-assets/`。mockup 只是示意，不是產品碼，用完可整個目錄刪掉。
-- 方案 D 的 mockup 由 `gen_mockup_d.py` 產生（指令：`python3 -I gen_mockup_d.py .`），用的全是正式站唯讀快照：
+- 方案 D 的 mockup 由 `gen_mockup_d.py` 產生（已移除，見 e86bb7a8；原指令：`python3 -I gen_mockup_d.py .`），用的全是正式站唯讀快照：
   - `roster-2026-C-snapshot.json`：名單 API，`last_refresh_at 2026-10-21T10:24:21+08:00`
   - `fielding-2026-A-snapshot.json`：`/api/v1/season/fielding`
   - `batting-leaders-2026-A-snapshot.json`：`/api/v1/season/batting-leaders?min_pa=0`
-  - `series-2026-C.json`：由 `derive_series_batting.py` 從本系列 G1–G3 的 `/games/{sno}/live` 彙總而成
+  - `series-2026-C.json`：由 `derive_series_batting.py`（已移除，見 e86bb7a8）從本系列 G1–G3 的 `/games/{sno}/live` 彙總而成
 - **mockup 只是暫時拿其他公開端點湊數；產品版一律由名單 API 擴充欄位提供，⛔ 前端不另抓這些端點。**
 
 ---
@@ -239,7 +239,7 @@
 - 判斷依據：裁定 6309977252 ①「個人數值點開才看，避免過多數值」。
 - 方案 C 的作法：每列都放個人「出賽／ERA／局數」或「該位出賽／OPS／AVG」，數值太多。
 - 截圖：`350-assets/mockup-c-desktop-1280-pitchers.jpg`、`350-assets/mockup-c-desktop-1280-fielders.jpg`、`350-assets/mockup-c-mobile-390-pitchers.jpg`、`350-assets/mockup-c-mobile-390-fielders.jpg`
-- 示意頁：`mockup-c.html`；產生器：`gen_mockup_c.py`、`derive_series_dh.py`
+- 示意頁：`mockup-c.html`；產生器：`gen_mockup_c.py`、`derive_series_dh.py`（已移除，見 e86bb7a8）
 
 ### 方案 A「陣容對照表」、方案 B「組成摘要＋並列清單」
 
@@ -250,7 +250,7 @@
 | A | 兩隊並列，依角色列名牌，沒有數值 | `350-assets/mockup-a-desktop-1280.jpg`、`350-assets/mockup-a-mobile-390.jpg`、`350-assets/mockup-a-mobile-390-fielders.jpg` |
 | B | 人數長條加名單表，名單沒有依位置對照 | `350-assets/mockup-b-desktop-1280.jpg`、`350-assets/mockup-b-mobile-390.jpg` |
 
-產生器：`gen_mockups.py`。
+產生器：`gen_mockups.py`（已移除，見 e86bb7a8）。
 
 ### 現況難讀的證據（仍然成立）
 
