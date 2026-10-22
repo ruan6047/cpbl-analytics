@@ -48,9 +48,12 @@ import { isProvisional, isRecapReady, type GameFacts } from "@/lib/game-facts";
 import {
   applyLiveSnapshot,
   canShowPostgameConclusions,
+  FINAL_PENDING_LABEL,
+  liveRefetchDue,
   nextPollDelay,
   officialCompletionOf,
   phaseLabel,
+  reconcileLiveSnapshot,
   resolveStatusSnapshot,
   shouldFetchLivePayload,
   type LiveSnapshot,
@@ -95,6 +98,11 @@ export default function GameLivePage() {
   // 最近一次**成功**完整 payload 的 game.completed 是否嚴格為 true（#237；見 resolveStatusSnapshot）。
   // 只用來區分「完賽場本無即時快照」的正常缺失，不作任何完賽推斷。
   const completedRef = useRef(false);
+  // #345：快照 final 但終場比分待確認（`final_pending`）；與最近一次完整 /live 的時刻（定期重抓用）。
+  const finalPendingRef = useRef(false);
+  const lastFullAtRef = useRef(0);
+  // #345 plan-2：DB 原始列（覆蓋前）的比分；輪詢時比分與 DB 不同的 final 快照不接回。
+  const dbScoreRef = useRef<{ away_score?: unknown; home_score?: unknown }>({});
   const [idx, setIdx] = useState(0);
   // 頁面預設「比賽總覽」；逐打席為進階操作視圖
   const [view, setView] = useState<PageTab>("overview");
@@ -112,6 +120,8 @@ export default function GameLivePage() {
     let timer: ReturnType<typeof setTimeout> | null = null;
     let hasData = false;
     completedRef.current = false;  // 換場時不得沿用上一場的完賽狀態
+    finalPendingRef.current = false;
+    dbScoreRef.current = {};
 
     const clearTimer = () => {
       if (timer) clearTimeout(timer);
@@ -119,10 +129,13 @@ export default function GameLivePage() {
     };
 
     const loadFull = async () => {
+      lastFullAtRef.current = Date.now();
       const raw = await detail.gameLive(Number(sno), kind, year);
       if (disposed) return;
       setDbRows(raw as unknown as Live);
       const next = applyLiveSnapshot(raw);
+      finalPendingRef.current = reconcileLiveSnapshot(raw.game, raw.live_snapshot) === "final_pending";
+      dbScoreRef.current = { away_score: raw.game?.away_score, home_score: raw.game?.home_score };
       const dd = next as unknown as Live;
       const nextSnapshot = next.live_snapshot;
       snapshotRef.current = nextSnapshot;
@@ -163,7 +176,7 @@ export default function GameLivePage() {
 
     const schedule = () => {
       clearTimer();
-      const delay = nextPollDelay(snapshotRef.current, document.visibilityState === "visible");
+      const delay = nextPollDelay(snapshotRef.current, document.visibilityState === "visible", finalPendingRef.current);
       if (delay !== null) timer = setTimeout(() => void refresh(false), delay);
     };
 
@@ -178,15 +191,18 @@ export default function GameLivePage() {
           if (disposed) return;
           const previous = snapshotRef.current;
           const resolved = resolveStatusSnapshot(
-            previous, status.live_snapshot, { completed: completedRef.current },
+            previous, status.live_snapshot, { completed: completedRef.current, ...dbScoreRef.current },
           );
           setRefreshIssue(resolved.interrupted ? "source" : null);
-          if (!resolved.accepted) return;
-          snapshotRef.current = resolved.snapshot;
-          if (shouldFetchLivePayload(previous, resolved.snapshot)) {
+          if (resolved.accepted) snapshotRef.current = resolved.snapshot;
+          // #345：快照停更或終場比分待確認時 /status 看不到 DB 完賽，至多每 60 秒重抓完整 /live。
+          const refetch = liveRefetchDue(
+            snapshotRef.current, finalPendingRef.current, lastFullAtRef.current, Date.now(),
+          );
+          if ((resolved.accepted && shouldFetchLivePayload(previous, resolved.snapshot)) || refetch) {
             await loadFull();
             void loadFacts();
-          } else {
+          } else if (resolved.accepted) {
             setData((current) => current ? ({ ...current, live_snapshot: resolved.snapshot } as Live) : current);
           }
         }
@@ -273,6 +289,8 @@ export default function GameLivePage() {
   // 2026 起的季後 E／C 沒有 snapshot 時只認後端 `completed`（官方 final／證據，#237）。
   const officialCompleted = officialCompletionOf(g);
   const completed = canShowPostgameConclusions(liveSnapshot, hs + aw, officialCompleted);
+  // #345：終場比分未經證實（快照 final 0:0 而 DB 未完賽；或 DB 完賽但 DB 比分缺值），⛔ 不畫比分。
+  const finalPending = reconcileLiveSnapshot(dbRows?.game, liveSnapshot) === "final_pending";
   // 官方未定案卻已有比分＝已開打、但本站沒有可證實的賽況階段：不說「尚未開賽」也不說終場。
   const unconfirmedStarted = !liveSnapshot && officialCompleted === false && hs + aw > 0;
   // 賽後主區塊只在事實流可用時置換；否則沿用既有總覽（不留白、不硬切）
@@ -378,7 +396,15 @@ export default function GameLivePage() {
         </Notice>
       )}
 
-      {data.livelog.length > 0 ? (
+      {finalPending ? (
+        <div data-testid="final-pending" className="mb-8 space-y-4">
+          <p className="flex flex-wrap items-center gap-2 text-sm text-muted">
+            <StatusBadge tone={phaseTone("final")}>{FINAL_PENDING_LABEL}</StatusBadge>
+            <span>終場比分確認中，資料到齊後自動顯示。</span>
+          </p>
+          {liveSnapshot && <LiveGameLineups snapshot={liveSnapshot} />}
+        </div>
+      ) : data.livelog.length > 0 ? (
         <section className="mb-8 space-y-4">
           <GameBoard data={data} idx={idx} setIdx={setIdx} view={view === "pbp" ? "pbp" : "overview"} wp={wp ?? undefined} gameSno={sno}
             onNavigate={() => setView("pbp")}

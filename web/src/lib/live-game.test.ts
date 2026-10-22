@@ -327,8 +327,10 @@ test("#237 賽況頁以最近成功完整 payload 的 completed 傳入 status �
   const setCompleted = page.indexOf("completedRef.current = next.game?.completed === true;");
   assert.ok(load >= 0 && setCompleted > load, "completed 必須取自成功的完整 payload");
   // 容許多行排版與尾逗號；參數順序與 completed 來源仍逐字釘住。
+  // #345 plan-2：context 另帶 DB 原始列比分（dbScoreRef，於 loadFull 取自覆蓋前的 raw.game）。
   assert.match(page,
-    /resolveStatusSnapshot\(\s*previous,\s*status\.live_snapshot,\s*\{\s*completed:\s*completedRef\.current\s*\},?\s*\)/);
+    /resolveStatusSnapshot\(\s*previous,\s*status\.live_snapshot,\s*\{\s*completed:\s*completedRef\.current,\s*\.\.\.dbScoreRef\.current\s*\},?\s*\)/);
+  assert.match(page, /dbScoreRef\.current = \{ away_score: raw\.game\?\.away_score, home_score: raw\.game\?\.home_score \};/);
   assert.match(page, /setRefreshIssue\(resolved\.interrupted \? "source" : null\)/);
   // 真正的網路錯誤仍標示 network／首次載入失敗仍顯示錯誤頁。
   assert.match(page, /if \(hasData\) setRefreshIssue\("network"\);\s*else setErr\(true\);/);
