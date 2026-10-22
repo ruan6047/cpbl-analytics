@@ -166,27 +166,37 @@ export const canShowPostgameConclusions = (
   ? officialCompleted
   : scoreTotal > 0 && (snapshot === null || snapshot.phase === "final");
 
-/** #345：DB 列與即時快照對同一場「是否終場」說法不一時，單場頁採哪一邊。
- *  - `db_final`：DB `completed === true`（官方 final／證據）而快照不是 final——快照停更了
- *    （G4 2026-10-21：DB 4:5 完賽、快照停在 live 4:4 下11局約 21 分鐘）。不疊快照，走 DB 完賽路徑。
- *  - `final_pending`：快照 final 但快照比分 0:0、DB 未完賽——終場比分未經證實（G3 形狀）。
- *    頁面顯示「已結束、資料更新中」，⛔ 不畫 0:0。
- *  - `as_is`：其餘一律照舊。
- *  只管轄 2026 起 E／C（`officialCompletionOf` 同一判準，以快照身分判管轄、`completed` 取 DB）；
- *  A／D／歷史年份永遠 `as_is`。⛔ 不以時間或比分推斷完賽，DB 側只認嚴格 true。 */
+/** #345：DB 列與即時快照對同一場「是否終場、比分多少」說法不一時，單場頁採哪一邊。
+ *  來源優先序：**DB 已完賽時終場比分以 DB 為準**；快照只有 phase=final 且比分與 DB 完全相同才疊加。
+ *  - `db_final`：DB `completed === true`（官方 final／證據）而快照不是 final（G4 2026-10-21：DB 4:5 完賽、
+ *    快照停在 live 4:4 下11局約 21 分鐘），或快照 final 但比分與 DB 不同（plan-2：DB 補成 6:0、快照仍 0:0）。
+ *    不疊快照，走 DB 完賽路徑。
+ *  - `final_pending`：終場比分未經證實——快照 final 0:0 而 DB 未完賽（G3 形狀），或 DB 完賽但 DB 比分缺值。
+ *    頁面顯示「已結束、資料更新中」，⛔ 不畫比分。
+ *  - `as_is`：其餘一律照舊；DB 完賽 0:0（有證據的真和局）與快照一致或無快照時也是 as_is，⛔ 不轉待確認。
+ *  只管轄 2026 起 E／C（`officialCompletionOf` 同一判準；有快照以快照身分判管轄，否則用 DB 列）；
+ *  A／D／歷史年份永遠 `as_is`。⛔ 不另立完賽規則：完賽只讀 DB `completed` 嚴格 true，比分只決定顯示哪一邊。
+ *  `game` 必須是 `applyLiveSnapshot` 覆蓋**前**的 DB 原始列。 */
 export type SnapshotReconciliation = "db_final" | "final_pending" | "as_is";
 
 export function reconcileLiveSnapshot(
-  game: { completed?: unknown } | null | undefined,
+  game: { completed?: unknown; away_score?: unknown; home_score?: unknown; kind_code?: unknown; year?: unknown }
+    | null | undefined,
   snapshot: LiveSnapshot | null | undefined,
 ): SnapshotReconciliation {
-  if (!snapshot) return "as_is";
-  const dbCompleted = officialCompletionOf({
-    kind_code: snapshot.kind_code, year: snapshot.game_id.slice(0, 4), completed: game?.completed,
-  });
+  const dbCompleted = officialCompletionOf(snapshot
+    ? { kind_code: snapshot.kind_code, year: snapshot.game_id.slice(0, 4), completed: game?.completed }
+    : { kind_code: game?.kind_code, year: game?.year, completed: game?.completed });
   if (dbCompleted === undefined) return "as_is";
-  if (dbCompleted && snapshot.phase !== "final") return "db_final";
-  if (!dbCompleted && snapshot.phase === "final"
+  if (dbCompleted) {
+    const away = knownCount(game?.away_score);
+    const home = knownCount(game?.home_score);
+    if (away === null || home === null) return "final_pending";
+    if (!snapshot) return "as_is";
+    return snapshot.phase === "final" && knownCount(snapshot.away.score) === away
+      && knownCount(snapshot.home.score) === home ? "as_is" : "db_final";
+  }
+  if (snapshot?.phase === "final"
       && (Number(snapshot.away.score) || 0) + (Number(snapshot.home.score) || 0) === 0) return "final_pending";
   return "as_is";
 }
@@ -229,12 +239,13 @@ export const inningLabel = (
  *  唯一例外（#237）是最近成功的完整 payload 明確 `completed === true` 且本頁從未取得 snapshot
  *  （`previous === null`）——完賽場本就沒有即時快照，屬正常缺失而非中斷。
  *  ⛔ 只認嚴格布林 true，不以比分／時間推斷完賽，也不合成 snapshot。
- *  #345：DB 已完賽時收到非 final 快照（`db_final`）一律不接回，也不算中斷——
- *  頁面已走 DB 完賽路徑，停更的賽中快照不得再把它拉回「進行中」。 */
+ *  #345：DB 已完賽時收到非 final 或比分與 DB 不同的快照（`db_final`）一律不接回，也不算中斷——
+ *  頁面已走 DB 完賽路徑，停更或比分未更新的快照不得再把它拉回「進行中」或舊比分。
+ *  `context` 帶 DB 原始列的 `completed`／`away_score`／`home_score`（覆蓋前）。 */
 export function resolveStatusSnapshot(
   previous: LiveSnapshot | null,
   incoming: LiveSnapshot | null,
-  context: { completed?: unknown } = {},
+  context: { completed?: unknown; away_score?: unknown; home_score?: unknown } = {},
 ) {
   if (!incoming) {
     const expectedAbsence = previous === null && context.completed === true;

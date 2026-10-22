@@ -145,7 +145,9 @@ test("管轄邊界：A／D 或 2025 以前即使形狀相同也一律 as_is（�
 
 test("輪詢：DB 已完賽後 /status 送來同樣停更的 live 快照，不接回、不算中斷", () => {
   const raw = sample("g4_r143");
-  const resolved = resolveStatusSnapshot(null, raw.live_snapshot, { completed: true });
+  // context 帶 DB 原始列的 completed 與比分（plan-2；頁面 dbScoreRef）。
+  const resolved = resolveStatusSnapshot(null, raw.live_snapshot,
+    { completed: true, away_score: raw.game?.away_score, home_score: raw.game?.home_score });
   assert.deepEqual(resolved, { accepted: false, interrupted: false, snapshot: null });
   // DB 未完賽時照舊接受並標中斷（r140）。
   const r140 = sample("g4_r140");
@@ -153,7 +155,7 @@ test("輪詢：DB 已完賽後 /status 送來同樣停更的 live 快照，不�
   assert.equal(live.accepted, true);
   assert.equal(live.interrupted, true);
   // 之後真的 final 快照仍接受。
-  const final = resolveStatusSnapshot(null, sample("c4_probe").live_snapshot, { completed: true });
+  const final = resolveStatusSnapshot(null, sample("c4_probe").live_snapshot, { completed: true, away_score: 4, home_score: 5 });
   assert.equal(final.accepted, true);
 });
 
@@ -173,4 +175,82 @@ test("輪詢：快照停更或終場待確認時至多每 60 秒重抓 /live；�
   assert.equal(nextPollDelay(final, true), null);
   assert.equal(nextPollDelay(final, true, true), 60_000);
   assert.equal(nextPollDelay(final, false, true), null);
+});
+
+// ── plan-2（審核 6329194010 退回）：DB 已完賽時終場比分以 DB 為準。以下皆為 C3／C4 探針的**變異樣本**，非觀測。
+//    只用 9650d31f 已有的匯出，使本段可原樣在 9650d31f 上重跑（正控須失敗，見 exec-2 證據）。
+
+/** C3 探針：快照 final 比分改成 snap，DB 列改成 db（`completed` 與比分）。 */
+const c3Variant = (snap: [number, number], db: { completed: boolean; away: unknown; home: unknown }): LiveApiResponse => {
+  const raw = sample("c3_probe");
+  const s = raw.live_snapshot!;
+  raw.live_snapshot = { ...s, away: { ...s.away, score: snap[0] }, home: { ...s.home, score: snap[1] } };
+  raw.game = { ...raw.game, completed: db.completed, away_score: db.away as number, home_score: db.home as number };
+  return raw;
+};
+
+test("plan-2 正控 1（審核 finding）：快照 final 0:0、DB 完賽 6:0——修正後終場 6:0（DB），不得是 0:0", () => {
+  const raw = c3Variant([0, 0], { completed: true, away: 6, home: 0 });
+  assert.equal(reconcileLiveSnapshot(raw.game, raw.live_snapshot), "db_final");
+  const s = gamePageStatus(raw);
+  assert.ok(s.kind === "final");
+  assert.deepEqual([s.away, s.home, s.interrupted], [6, 0, false]);
+  assert.equal(wrongFact(raw, s), null);
+  assert.equal(pageCompletedOf(raw), true);
+});
+
+test("plan-2 正控 2（比分不同但非 0:0）：快照 final 5:0、DB 完賽 6:0——修正後終場 6:0（DB）", () => {
+  const raw = c3Variant([5, 0], { completed: true, away: 6, home: 0 });
+  assert.equal(reconcileLiveSnapshot(raw.game, raw.live_snapshot), "db_final");
+  const s = gamePageStatus(raw);
+  assert.ok(s.kind === "final");
+  assert.deepEqual([s.away, s.home], [6, 0]);
+  assert.equal(wrongFact(raw, s), null);
+});
+
+test("plan-2 正控 3（轉換序列）：待確認 → DB 補成 6:0 → 輪詢收到同一份 final 0:0 快照不接回、不算中斷", () => {
+  const first = c3Variant([0, 0], { completed: false, away: 0, home: 0 });
+  assert.deepEqual(gamePageStatus(first), { kind: "final_pending", label: FINAL_PENDING_LABEL });
+  const second = c3Variant([0, 0], { completed: true, away: 6, home: 0 });
+  const shown = gamePageStatus(second);
+  assert.ok(shown.kind === "final");
+  assert.deepEqual([shown.away, shown.home], [6, 0]);
+  // 頁面：完整載入後的快照（覆蓋後）＝previous；輪詢 context 帶 DB 原始列的 completed 與比分。
+  const previous = applyLiveSnapshot(second).live_snapshot ?? null;
+  const resolved = resolveStatusSnapshot(previous, first.live_snapshot,
+    { completed: true, away_score: 6, home_score: 0 });
+  assert.equal(resolved.accepted, false);
+  assert.equal(resolved.interrupted, false);
+  assert.equal(resolved.snapshot, null);
+});
+
+test("plan-2 負控 4（真和局保留）：DB 完賽 0:0 時顯示終場 0:0，不轉「資料更新中」", () => {
+  const withSnap = c3Variant([0, 0], { completed: true, away: 0, home: 0 });
+  assert.equal(reconcileLiveSnapshot(withSnap.game, withSnap.live_snapshot), "as_is");
+  assert.deepEqual(gamePageStatus(withSnap), { kind: "final", label: "比賽結束", away: 0, home: 0, interrupted: false });
+  assert.equal(wrongFact(withSnap, gamePageStatus(withSnap)), null);
+  // 無快照（TTL 後）：同樣是終場 0:0（無快照時中央格字樣為「終場」）。
+  const noSnap = { ...withSnap, live_snapshot: null };
+  assert.equal(reconcileLiveSnapshot(noSnap.game, null), "as_is");
+  assert.deepEqual(gamePageStatus(noSnap), { kind: "final", label: "終場", away: 0, home: 0, interrupted: false });
+  // 輪詢收到一致的 final 0:0 快照照常接受。
+  assert.equal(resolveStatusSnapshot(null, withSnap.live_snapshot, { completed: true, away_score: 0, home_score: 0 }).accepted, true);
+});
+
+test("plan-2 負控 5（一致終態）：C4 快照 final 4:5＝DB 4:5——as_is、終場 4:5、快照（含逐球）照疊", () => {
+  const raw = sample("c4_probe");
+  assert.equal(reconcileLiveSnapshot(raw.game, raw.live_snapshot), "as_is");
+  assert.notEqual(applyLiveSnapshot(raw).live_snapshot, null);
+  assert.deepEqual(gamePageStatus(raw), { kind: "final", label: "比賽結束", away: 4, home: 5, interrupted: false });
+  assert.equal(resolveStatusSnapshot(null, raw.live_snapshot, { completed: true, away_score: 4, home_score: 5 }).accepted, true);
+});
+
+test("plan-2 補充：DB 完賽但 DB 比分缺值——「資料更新中」，不畫比分（有快照、無快照皆然）", () => {
+  for (const missing of [null, undefined, ""]) {
+    const raw = c3Variant([6, 0], { completed: true, away: missing, home: 0 });
+    assert.equal(reconcileLiveSnapshot(raw.game, raw.live_snapshot), "final_pending", String(missing));
+    assert.deepEqual(gamePageStatus(raw), { kind: "final_pending", label: FINAL_PENDING_LABEL });
+    const noSnap = { ...raw, live_snapshot: null };
+    assert.equal(reconcileLiveSnapshot(noSnap.game, null), "final_pending", String(missing));
+  }
 });

@@ -101,6 +101,8 @@ export default function GameLivePage() {
   // #345：快照 final 但終場比分待確認（`final_pending`）；與最近一次完整 /live 的時刻（定期重抓用）。
   const finalPendingRef = useRef(false);
   const lastFullAtRef = useRef(0);
+  // #345 plan-2：DB 原始列（覆蓋前）的比分；輪詢時比分與 DB 不同的 final 快照不接回。
+  const dbScoreRef = useRef<{ away_score?: unknown; home_score?: unknown }>({});
   const [idx, setIdx] = useState(0);
   // 頁面預設「比賽總覽」；逐打席為進階操作視圖
   const [view, setView] = useState<PageTab>("overview");
@@ -119,6 +121,7 @@ export default function GameLivePage() {
     let hasData = false;
     completedRef.current = false;  // 換場時不得沿用上一場的完賽狀態
     finalPendingRef.current = false;
+    dbScoreRef.current = {};
 
     const clearTimer = () => {
       if (timer) clearTimeout(timer);
@@ -132,6 +135,7 @@ export default function GameLivePage() {
       setDbRows(raw as unknown as Live);
       const next = applyLiveSnapshot(raw);
       finalPendingRef.current = reconcileLiveSnapshot(raw.game, raw.live_snapshot) === "final_pending";
+      dbScoreRef.current = { away_score: raw.game?.away_score, home_score: raw.game?.home_score };
       const dd = next as unknown as Live;
       const nextSnapshot = next.live_snapshot;
       snapshotRef.current = nextSnapshot;
@@ -187,7 +191,7 @@ export default function GameLivePage() {
           if (disposed) return;
           const previous = snapshotRef.current;
           const resolved = resolveStatusSnapshot(
-            previous, status.live_snapshot, { completed: completedRef.current },
+            previous, status.live_snapshot, { completed: completedRef.current, ...dbScoreRef.current },
           );
           setRefreshIssue(resolved.interrupted ? "source" : null);
           if (resolved.accepted) snapshotRef.current = resolved.snapshot;
@@ -285,7 +289,7 @@ export default function GameLivePage() {
   // 2026 起的季後 E／C 沒有 snapshot 時只認後端 `completed`（官方 final／證據，#237）。
   const officialCompleted = officialCompletionOf(g);
   const completed = canShowPostgameConclusions(liveSnapshot, hs + aw, officialCompleted);
-  // #345 G3 形狀：快照 final 但快照比分 0:0、DB 未完賽——終場比分未經證實，⛔ 不畫 0:0 記分條。
+  // #345：終場比分未經證實（快照 final 0:0 而 DB 未完賽；或 DB 完賽但 DB 比分缺值），⛔ 不畫比分。
   const finalPending = reconcileLiveSnapshot(dbRows?.game, liveSnapshot) === "final_pending";
   // 官方未定案卻已有比分＝已開打、但本站沒有可證實的賽況階段：不說「尚未開賽」也不說終場。
   const unconfirmedStarted = !liveSnapshot && officialCompleted === false && hs + aw > 0;
@@ -392,13 +396,13 @@ export default function GameLivePage() {
         </Notice>
       )}
 
-      {finalPending && liveSnapshot ? (
+      {finalPending ? (
         <div data-testid="final-pending" className="mb-8 space-y-4">
           <p className="flex flex-wrap items-center gap-2 text-sm text-muted">
             <StatusBadge tone={phaseTone("final")}>{FINAL_PENDING_LABEL}</StatusBadge>
             <span>終場比分確認中，資料到齊後自動顯示。</span>
           </p>
-          <LiveGameLineups snapshot={liveSnapshot} />
+          {liveSnapshot && <LiveGameLineups snapshot={liveSnapshot} />}
         </div>
       ) : data.livelog.length > 0 ? (
         <section className="mb-8 space-y-4">
