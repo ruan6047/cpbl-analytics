@@ -1,11 +1,11 @@
 // #286 S05：季後賽第 3 區「系列賽 32 人資格名單」型別、排字與頁尾說明（`playoffs-roster/v1`）。
+// #350 方案 D：兩隊並列、依位置分區、每區先列綜合成績再列人名（分區與合計是本檔純函式）。
 //
-// - 統計、層級、PR 標籤全由後端算（PRD「前後端責任」）；這裡只排字、篩選、排序。
+// - 個人統計、層級由後端算（PRD「前後端責任」）；區塊綜合成績在這裡以後端給的原始計數「先加總再算率」。
 // - 說明性注意事項（28 人登錄、資格≠可用、G 定義、PR 來源、二軍背景）⛔ 在區內就地顯示，一律經
 //   `rosterNotes(data)` 交 S04 頁尾（需求方 Q4、#281 6194693029；#285 掛點契約 §2.4、§2.5）。格內只留「—」「待更新」。
 // - 頁尾 key 一律 `roster.*`（#285 裁定 6195728927：G1 前不用 `common.*`）。
 
-import { ADV } from "@/app/players/[id]/lib";
 import type { Card as AbilityCardData } from "@/components/ability-card";
 import type { StatRow } from "@/lib/client";
 
@@ -14,6 +14,8 @@ export type BackgroundLevel = "A" | "D" | "none";
 
 export type BattingLine = {
   pa: number; ab: number; h: number; hr: number; bb: number;
+  /** #350 補輸出的原始計數（算區塊 OBP／SLG）；舊回應沒有 ⇒ 區塊 OPS「—」。 */
+  hbp?: number; sf?: number; tb?: number;
   /** 三振：本系列打者才有（WP6；review-3 F2）。例行賽背景不帶。 */
   so?: number;
   avg: number | null; obp: number | null; slg: number | null; ops: number | null;
@@ -45,6 +47,12 @@ export type RosterBackground = {
   line: BattingLine | PitchingLine | null;
   pr_tags: PrTag[];
   arrow: RosterArrow;
+  /** #350（只有野手）：例行賽一軍各守位出賽（g 降冪）與主守位；無一軍守備紀錄 ⇒ [] 與 null。舊回應不帶。 */
+  positions?: { pos: string; g: number }[];
+  primary_position?: string | null;
+  /** #350（只有野手）：例行賽 DH 先發場數；`dh_starts_unknown`＝先發但判不出守位的場數（⛔ 當 0）。 */
+  dh_starts?: number | null;
+  dh_starts_unknown?: number;
 };
 
 export type RosterMember = {
@@ -59,7 +67,9 @@ export type RosterMember = {
   background: RosterBackground;
   /** 本系列實戰（PR2）：尚無完賽場 ⇒ null；未出賽 ⇒ g=0、line null；
    *  該隊缺這名球員角色的來源（打者缺打擊、投手缺投球）⇒ pending、g null（格內「待更新」，⛔ 當成 0G）。 */
-  series?: { g: number | null; line: BattingLine | PitchingLine | null; pending?: boolean } | null;
+  series?: { g: number | null; line: BattingLine | PitchingLine | null; pending?: boolean;
+    /** #350（只有野手）：本系列 DH 先發；來源待更新 ⇒ null。 */
+    dh_starts?: number | null; dh_starts_unknown?: number } | null;
 };
 
 export type RosterTeam = {
@@ -109,27 +119,13 @@ export const ROSTER_COPY = {
   seriesUnknown: "對戰組合尚未確定。",
   pending: "待更新",
   missing: "—",
-  teamFilterLabel: "球隊篩選",
-  posFilterLabel: "守位篩選",
-  sortLabel: "排序",
-  all: "全部",
   farm: "二軍",
   scopeLabel: "資料範圍",
+  pitchers: "投手",
+  fielders: "野手（依主守位）",
+  legend: { background: "灰底是該位置的綜合成績（例行賽一軍成員合計）；點名字看個人成績與能力。",
+    series: "灰底是該位置的綜合成績（本系列成員合計）；點名字看個人成績與能力。" },
 } as const;
-
-export type RosterPosFilter = "all" | "投手" | "捕手" | "內野手" | "外野手";
-export const POS_FILTERS: { key: RosterPosFilter; label: string }[] = [
-  { key: "all", label: "全部" },
-  { key: "投手", label: "投手" },
-  { key: "捕手", label: "捕手" },
-  { key: "內野手", label: "內野手" },
-  { key: "外野手", label: "外野手" },
-];
-
-export function filterMembersByPos(members: readonly RosterMember[], pos: RosterPosFilter = "all"): RosterMember[] {
-  if (pos === "all") return [...members];
-  return members.filter((m) => m.official_position === pos);
-}
 
 /** 第 3 區兩種 scope（PRD 第 3 區用語）。切換是元件內狀態，端點一次帶齊（契約 §2.1）。 */
 export type RosterScope = "background" | "series";
@@ -145,39 +141,12 @@ export const hasSeriesScope = (d: PlayoffsRoster) => d.scopes.series.status !== 
 export const initialScope = (d: PlayoffsRoster): RosterScope =>
   d.default_scope === "series" && hasSeriesScope(d) ? "series" : "background";
 
-export type RosterSort = "games" | "arrow" | "position";
-export const SORTS: { key: "games" | "arrow"; label: string }[] = [
-  { key: "games", label: "出賽 G" },
-  { key: "arrow", label: "箭頭方向" },
-];
-
-/** 箭頭方向排序序：上升 → 平穩 → 下降 → 無箭頭。 */
-const ARROW_ORDER: Record<ArrowStatus, number> = { up: 0, flat: 1, down: 2, insufficient: 3, undefined: 3 };
-
-const POSITION_ORDER: Record<string, number> = { 投手: 0, 捕手: 1, 內野手: 2, 外野手: 3 };
-
 /** 該 scope 的出賽 G：背景＝例行賽 G；系列＝本系列 G（無完賽場 ⇒ null）。 */
 export const scopeG = (m: RosterMember, scope: RosterScope): number | null =>
   scope === "series" ? (m.series && !m.series.pending ? m.series.g : null) : m.background.g;
 
 /** 本系列來源未齊（該隊缺這名球員角色的來源）⇒ 格內「待更新」。 */
 export const seriesPending = (m: RosterMember, scope: RosterScope) => scope === "series" && !!m.series?.pending;
-
-/** 排序：守位（官方序、同守位依 player_id）；出賽 G（依目前 scope，多到少，無紀錄排最後）；箭頭方向（例行賽背景）。
- *  不改原陣列。 */
-export function sortMembers(members: readonly RosterMember[], sort: RosterSort,
-  scope: RosterScope = "background"): RosterMember[] {
-  const pos = (m: RosterMember) => POSITION_ORDER[m.official_position] ?? 99;
-  const byPos = (a: RosterMember, b: RosterMember) => pos(a) - pos(b) || a.player_id.localeCompare(b.player_id);
-  if (sort === "games") {
-    return [...members].sort((a, b) => (scopeG(b, scope) ?? -1) - (scopeG(a, scope) ?? -1) || byPos(a, b));
-  }
-  if (sort === "arrow") {
-    const k = (m: RosterMember) => ARROW_ORDER[m.background.arrow?.status ?? "insufficient"] ?? 3;
-    return [...members].sort((a, b) => k(a) - k(b) || byPos(a, b));
-  }
-  return [...members].sort(byPos);
-}
 
 const r3 = (v: number | null) => (v == null ? ROSTER_COPY.missing : v.toFixed(3).replace(/^0\./, "."));
 
@@ -201,36 +170,34 @@ export function drawerSubtitle(m: RosterMember): string {
     m.background.level === "D" ? ROSTER_COPY.farm : null].filter(Boolean).join(" · ");
 }
 
-/** 一行傳統計數（後端已算率）：打者 AVG／OPS、投手 ERA／IP。scope＝series 時用本系列計數。無紀錄 ⇒ null。 */
-export function lineText(m: RosterMember, scope: RosterScope = "background"): string | null {
-  const l = scope === "series" ? m.series?.line ?? null : m.background.line;
-  if (!l) return null;
-  if (m.role === "pitching") {
+/** 抽屜標頭的個人數值（#350：主視圖只列人名，個人數值點開才看）。
+ *  例：「例行賽 120G · AVG .263 · OPS .664 · 游擊手 35G · DH 先發 22」；本系列來源未齊 ⇒「本系列 待更新」；
+ *  DH 有判不出守位的場 ⇒「DH 先發 3（另 1 場待更新）」。 */
+export function drawerStatLine(m: RosterMember, scope: RosterScope = "background"): string {
+  const series = scope === "series";
+  const label = series ? "本系列" : "例行賽";
+  if (seriesPending(m, scope)) return `${label} ${ROSTER_COPY.pending}`;
+  const l = series ? m.series?.line ?? null : m.background.line;
+  const parts = [`${label} ${gText({ g: scopeG(m, scope) })}`];
+  if (l && m.role === "pitching") {
     const p = l as PitchingLine;
-    return `ERA ${p.era == null ? ROSTER_COPY.missing : p.era.toFixed(2)} · ${p.ip} IP`;
+    parts.push(`ERA ${p.era == null ? ROSTER_COPY.missing : p.era.toFixed(2)}`, `${p.ip} 局`);
+  } else if (l) {
+    const b = l as BattingLine;
+    parts.push(`AVG ${r3(b.avg)}`, `OPS ${r3(b.ops)}`);
   }
-  const b = l as BattingLine;
-  return `AVG ${r3(b.avg)} · OPS ${r3(b.ops)}`;
-}
-
-/** 小卡冷熱箭頭：末段 15 次的 OPS+／ERA+ 與方向（方向一律附文字，⛔ 只靠顏色）。無箭頭 ⇒ 方向 null、值「—」。 */
-export function arrowView(m: RosterMember): { label: string; value: string; dir: "up" | "down" | "flat" | null; text: string } {
-  const a = m.background.arrow;
-  const label = a?.metric === "era_plus" ? "近 15 場 ERA+" : "近 15 場 OPS+";
-  const v = a?.w1?.value;
-  const value = a && (a.status === "up" || a.status === "down" || a.status === "flat") && v != null
-    ? String(Math.round(v)) : ROSTER_COPY.missing;
-  if (!a || !(a.status === "up" || a.status === "down" || a.status === "flat")) {
-    return { label, value, dir: null, text: ROSTER_COPY.missing };
+  if (m.role === "batting") {
+    const top = m.background.positions?.[0];
+    if (!series && top) parts.push(`${top.pos} ${top.g}G`);
+    // 未知不可省略：判不出守位的場數照列「待更新」，與主視圖 DH 區一致（⛔ 只給已知數；#350 審核 F1）。
+    const src = series ? m.series : m.background;
+    const dh = src?.dh_starts;
+    const unknown = src?.dh_starts_unknown ?? 0;
+    if (src && dh === null) parts.push(`DH 先發 ${ROSTER_COPY.pending}`);
+    else if (dh != null && unknown > 0) parts.push(`DH 先發 ${dh}（另 ${unknown} 場${ROSTER_COPY.pending}）`);
+    else if (dh != null && dh > 0) parts.push(`DH 先發 ${dh}`);
   }
-  const text = a.status === "up" ? "↑ 升" : a.status === "down" ? "↓ 降" : "→ 平";
-  return { label, value, dir: a.status, text };
-}
-
-/** PR 標籤名稱：與球員頁「官方進階・百分位 PR」同一組中文標籤（打者 bl／投手 pl）。 */
-export function prLabel(key: string, role: RosterRole): string {
-  const a = ADV.find((x) => x.pr === key);
-  return a ? (role === "batting" ? a.bl : a.pl) : key;
+  return parts.join(" · ");
 }
 
 /** 深讀連結：球員頁本季總覽，帶相同角色與層級（A 一軍／D 二軍）。球員頁目前沒有年度參數（只看本季）。 */
@@ -246,11 +213,185 @@ export function teamLabel(t: RosterTeam): string {
   return t.team_name ?? t.team_code;
 }
 
+// —— #350 方案 D：位置分區與區塊綜合成績（純函式） ——————————————————————————————————
+
+/** 投手角色區順序（規劃 §1.1）；`輪值` 是 v1 舊值，排在先發之後。其他未列的角色依出現序接在後面。 */
+export const PITCHER_ROLE_ORDER = ["先發", "輪值", "長中繼", "中繼", "勝利組", "拆彈組", "終結"] as const;
+/** 野手主守位區順序（與後端 `FIELD_POSITION_ORDER` 同序）。 */
+export const FIELD_POSITIONS = ["捕手", "一壘手", "二壘手", "三壘手", "游擊手", "左外野手", "中外野手", "右外野手"] as const;
+/** DH 區門檻（需求方裁定 #350 6310001489）：例行賽背景「DH 先發超過三場」＝≥4；本系列 ≥1。⛔ 讓使用者調。 */
+export const DH_MIN_STARTS: Record<RosterScope, number> = { background: 4, series: 1 };
+
+export const DH_BLOCK_LABEL = "指定打擊（DH）";
+export const NO_ROLE_LABEL = "未標角色";
+export const NO_FIELDING_LABEL = "其他（無一軍守備紀錄）";
+
+export type BlockMember = {
+  m: RosterMember;
+  /** 例行賽背景只有二軍成績（不計入綜合成績，名字旁標「二軍」）。 */
+  farm: boolean;
+  /** DH 區：已知場數未達門檻，但加上判不出守位的場數可能達到 ⇒ 名字旁標「待更新」（⛔ 當成未達）。 */
+  uncertain: boolean;
+};
+
+/** 區塊綜合成績：可算 ⇒ 兩個數字；整區無資料 ⇒ empty（「—」）；有成員來源未齊或 DH 判不出 ⇒ pending（「待更新」）。 */
+export type Composite =
+  | { kind: "batting"; avg: number | null; ops: number | null }
+  | { kind: "pitching"; era: number | null; ip: string | null }
+  | { kind: "pending" }
+  | { kind: "empty" };
+
+export type BlockColumn = { team_code: string; submitted: boolean; members: BlockMember[]; composite: Composite };
+export type RosterBlock = { key: string; label: string; role: RosterRole; note?: string; columns: BlockColumn[] };
+
+const scopeLine = (m: RosterMember, scope: RosterScope) =>
+  scope === "series" ? m.series?.line ?? null : m.background.level === "A" ? m.background.line : null;
+
+/** 打擊綜合：ΣH／ΣAB；OBP＝(ΣH+ΣBB+ΣHBP)／(ΣAB+ΣBB+ΣHBP+ΣSF)、SLG＝ΣTB／ΣAB（先加總再算率，⛔ 平均個人率）。
+ *  分母 0 ⇒ null；任一成員缺 tb／hbp／sf（舊回應）⇒ OPS null。背景只計一軍 A（二軍計數不混入）。 */
+export function battingComposite(members: readonly RosterMember[], scope: RosterScope): Composite {
+  if (members.some((m) => seriesPending(m, scope))) return { kind: "pending" };
+  const lines = members.map((m) => scopeLine(m, scope) as BattingLine | null).filter((l): l is BattingLine => !!l);
+  if (!lines.length) return { kind: "empty" };
+  const sum = (k: keyof BattingLine) => lines.reduce((a, l) => a + ((l[k] as number | undefined) ?? 0), 0);
+  const ab = sum("ab"), h = sum("h"), bb = sum("bb"), hbp = sum("hbp"), sf = sum("sf"), tb = sum("tb");
+  const complete = lines.every((l) => l.tb != null && l.hbp != null && l.sf != null);
+  const den = ab + bb + hbp + sf;
+  const obp = complete && den ? (h + bb + hbp) / den : null;
+  const slg = complete && ab ? tb / ab : null;
+  return { kind: "batting", avg: ab ? h / ab : null, ops: obp != null && slg != null ? obp + slg : null };
+}
+
+/** 投球綜合：ERA＝ΣER×27／Σouts、局數＝Σouts 換算 x.y（先加總再算；outs 0 ⇒ ERA null）。 */
+export function pitchingComposite(members: readonly RosterMember[], scope: RosterScope): Composite {
+  if (members.some((m) => seriesPending(m, scope))) return { kind: "pending" };
+  const lines = members.map((m) => scopeLine(m, scope) as PitchingLine | null).filter((l): l is PitchingLine => !!l);
+  if (!lines.length) return { kind: "empty" };
+  const outs = lines.reduce((a, l) => a + (l.outs ?? 0), 0);
+  const er = lines.reduce((a, l) => a + (l.er ?? 0), 0);
+  return { kind: "pitching", era: outs ? (er * 27) / outs : null, ip: `${Math.floor(outs / 3)}.${outs % 3}` };
+}
+
+/** 綜合成績顯示字：分母 0／無資料 ⇒「—」、待更新 ⇒「待更新」。 */
+export function compositeParts(c: Composite): { label: string; value: string }[] | string {
+  if (c.kind === "pending") return ROSTER_COPY.pending;
+  if (c.kind === "empty") return ROSTER_COPY.missing;
+  if (c.kind === "pitching") {
+    return [{ label: "ERA", value: c.era == null ? ROSTER_COPY.missing : c.era.toFixed(2) },
+      { label: "局", value: c.ip ?? ROSTER_COPY.missing }];
+  }
+  return [{ label: "AVG", value: r3(c.avg) }, { label: "OPS", value: r3(c.ops) }];
+}
+
+/** 兩隊頂部組成：「投手 15 · 捕手 3 · 內野 8 · 外野 6」（官方守位）。 */
+export function teamComposition(t: RosterTeam): string {
+  const n = (p: string) => t.members.filter((m) => m.official_position === p).length;
+  return [["投手", "投手"], ["捕手", "捕手"], ["內野", "內野手"], ["外野", "外野手"]]
+    .map(([label, p]) => `${label} ${n(p)}`).join(" · ");
+}
+
+const byId = (a: RosterMember, b: RosterMember) => a.player_id.localeCompare(b.player_id);
+/** 區內排序鍵：多到少；無紀錄（null）排最後。 */
+const desc = (k: (m: RosterMember) => number | null | undefined) =>
+  (a: RosterMember, b: RosterMember) => (k(b) ?? -1) - (k(a) ?? -1) || byId(a, b);
+
+function column(t: RosterTeam, members: RosterMember[], scope: RosterScope, role: RosterRole,
+  uncertain: ReadonlySet<string> = new Set(), forcePending = false): BlockColumn {
+  const counted = members.filter((m) => !uncertain.has(m.player_id));
+  const composite: Composite = forcePending || uncertain.size ? { kind: "pending" }
+    : role === "pitching" ? pitchingComposite(counted, scope) : battingComposite(counted, scope);
+  return {
+    team_code: t.team_code, submitted: t.roster_status === "submitted", composite,
+    members: members.map((m) => ({ m, farm: scope === "background" && m.background.level === "D",
+      uncertain: uncertain.has(m.player_id) })),
+  };
+}
+
+const submittedMembers = (t: RosterTeam, role: RosterRole) =>
+  t.roster_status === "submitted" ? t.members.filter((m) => m.role === role) : [];
+
+/** 投手段：依本站角色分區（同人多角色 ⇒ 多區各列一次）；無角色 ⇒「未標角色」。兩隊都沒有的角色整區省略。
+ *  區內依本範圍出賽 G 多到少。v2 角色資料不完整照常拋錯（`memberRoles`）。 */
+export function pitcherBlocks(teams: readonly RosterTeam[], scope: RosterScope): RosterBlock[] {
+  const roles = new Map<string, RosterMember[][]>();
+  const order: string[] = [...PITCHER_ROLE_ORDER];
+  teams.forEach((t, i) => {
+    for (const m of submittedMembers(t, "pitching")) {
+      const rs = memberRoles(m);
+      for (const r of rs.length ? rs : [NO_ROLE_LABEL]) {
+        if (!order.includes(r)) order.push(r);
+        const cols = roles.get(r) ?? teams.map(() => []);
+        cols[i].push(m);
+        roles.set(r, cols);
+      }
+    }
+  });
+  const sort = desc((m) => scopeG(m, scope));
+  return order.filter((r) => roles.has(r)).map((r) => ({
+    key: `pit-${r}`, label: r, role: "pitching" as const,
+    columns: teams.map((t, i) => column(t, [...roles.get(r)![i]].sort(sort), scope, "pitching")),
+  }));
+}
+
+/** 野手所屬區：主守位（例行賽一軍出賽最多）；有新欄位但無一軍守備紀錄 ⇒「其他」；
+ *  舊回應（無 `positions`）⇒ 退回官方守位大類（捕手／內野手／外野手），⛔ 拋錯。 */
+export function fielderArea(m: RosterMember): string {
+  if (m.background.positions === undefined) return m.official_position;
+  return m.background.primary_position ?? NO_FIELDING_LABEL;
+}
+
+/** DH 區成員判定（門檻 `DH_MIN_STARTS`）：in＝達門檻；uncertain＝未達但加上 unknown 可能達到；
+ *  null ⇒ 該範圍判不出（本系列來源待更新）。舊回應無欄位 ⇒ out。 */
+export function dhStatus(m: RosterMember, scope: RosterScope): "in" | "out" | "uncertain" | null {
+  if (m.role !== "batting") return "out";
+  const src = scope === "series" ? m.series : m.background;
+  if (!src || src.dh_starts === undefined) return "out";
+  if (src.dh_starts === null) return null;
+  const min = DH_MIN_STARTS[scope];
+  if (src.dh_starts >= min) return "in";
+  return src.dh_starts + (src.dh_starts_unknown ?? 0) >= min ? "uncertain" : "out";
+}
+
+/** 野手段：依主守位分區（每人只出現在主守位區）＋DH 區（隨資料範圍切換；列入者仍在主守位區）。
+ *  區內排序：背景＝該守位出賽多到少（DH 區＝DH 先發多到少）；本系列＝各區（含 DH 區）都依本系列出賽多到少。 */
+export function fielderBlocks(teams: readonly RosterTeam[], scope: RosterScope): RosterBlock[] {
+  const legacy = teams.some((t) => t.members.some((m) => m.role === "batting" && m.background.positions === undefined));
+  const areas: string[] = legacy ? ["捕手", "內野手", "外野手"] : [...FIELD_POSITIONS, NO_FIELDING_LABEL];
+  const out: RosterBlock[] = [];
+  for (const area of areas) {
+    const cols = teams.map((t) => submittedMembers(t, "batting").filter((m) => fielderArea(m) === area));
+    if (!cols.some((c) => c.length)) continue;
+    const sort = scope === "series" ? desc((m) => scopeG(m, scope))
+      : desc((m) => m.background.positions?.find((p) => p.pos === area)?.g ?? m.background.g);
+    out.push({ key: `fld-${area}`, label: area, role: "batting",
+      columns: teams.map((t, i) => column(t, cols[i].sort(sort), scope, "batting")) });
+  }
+  if (!legacy) {
+    // 規劃 §1.1 第 4 點：本系列一律依本系列出賽排序（⛔ 依 DH 先發數）；例行賽 DH 區的「該守位出賽」＝DH 先發數。
+    const sort = scope === "series" ? desc((m) => scopeG(m, scope)) : desc((m) => m.background.dh_starts);
+    const cols = teams.map((t) => {
+      const bat = submittedMembers(t, "batting");
+      const st = new Map(bat.map((m) => [m.player_id, dhStatus(m, scope)]));
+      const members = bat.filter((m) => st.get(m.player_id) === "in" || st.get(m.player_id) === "uncertain").sort(sort);
+      const uncertain = new Set(members.filter((m) => st.get(m.player_id) === "uncertain").map((m) => m.player_id));
+      // 本系列來源待更新（dh_starts null）⇒ 這隊 DH 區整欄判不出，綜合成績「待更新」。
+      return column(t, members, scope, "batting", uncertain, bat.some((m) => st.get(m.player_id) === null));
+    });
+    if (cols.some((c) => c.members.length || c.composite.kind === "pending")) {
+      out.push({ key: "fld-DH", label: DH_BLOCK_LABEL, role: "batting",
+        note: `${scope === "series" ? "本系列" : "例行賽"} DH 先發 ≥${DH_MIN_STARTS[scope]} 場`, columns: cols });
+    }
+  }
+  return out;
+}
+
 // —— 頁尾說明（僅留動態缺值／待更新提示；固定方法說明收進區塊標題 ⓘ Tooltip） ——————————————————
 
 export const ROSTER_METHOD_HELP = [
   "官方公布的系列賽 32 人資格名單（非當場 28 人登錄或先發名單）。",
-  "近 15 場箭頭比較例行賽最近與再前各 15 次出賽（打者 OPS+ 差 ≥15、投手 ERA+ 差 ≥20）；PR≥90 採官方進階數據。",
+  "投手依本站角色分區、野手依例行賽一軍出賽最多的守位（主守位）分區；灰底綜合成績是該區成員的合計（先加總再算率），不是「打該守位時」的成績。",
+  "指定打擊區：例行賽背景列例行賽 DH 先發 4 場以上，本系列實戰列本系列 DH 先發 1 場以上；列入者仍留在主守位區。",
+  "同一人可能出現在多區（投手多角色、野手同時在守位區與 DH 區），各區分別計入。",
 ] as const;
 
 /** 純函式、同步、不讀時鐘／window。只回動態缺資料／待更新說明。 */

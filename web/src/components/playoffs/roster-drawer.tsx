@@ -10,6 +10,7 @@ import { CLIENT_API } from "@/lib/client";
 import {
   DRAWER_COPY,
   drawerState,
+  drawerStatLine,
   drawerSubtitle,
   pickAbility,
   playerHref,
@@ -17,6 +18,7 @@ import {
   trapFocus,
   type RosterMember,
   type RosterPlayerDetail,
+  type RosterScope,
 } from "@/lib/playoffs-roster";
 import { teamColor } from "@/lib/teams";
 
@@ -27,6 +29,7 @@ import { teamColor } from "@/lib/teams";
 //   背景捲動鎖（iOS Safari 用 position:fixed 鎖，關閉時還原捲動位置）。
 // - 詳情以 `CLIENT_API`＋`no-store` 按需取，不隨 30 秒輪詢重取；區資料更新時抽屜不關、不搶焦點。
 //   詳情 `context_version` ≠ 目前區資料 ⇒「資料已更新，請重開」，⛔ 拼接不同版本。
+// - #350：主視圖只列人名，個人數值（本範圍 G、ERA·局數或 AVG·OPS、主守位出賽、DH 先發）放標頭第二行，取自摘要 member。
 
 const FOCUSABLE = 'a[href], button:not([disabled]), select, input, textarea, [tabindex]:not([tabindex="-1"])';
 
@@ -49,8 +52,10 @@ function useBodyScrollLock() {
   }, []);
 }
 
-export function RosterDrawer({ member, year, series, sectionVersion, sectionRosterVersion, onClose }: {
+export function RosterDrawer({ member, scope = "background", year, series, sectionVersion, sectionRosterVersion, onClose }: {
   member: RosterMember;
+  /** 目前名單區的資料範圍（標頭個人數值跟著它）。 */
+  scope?: RosterScope;
   year: number;
   series: "E" | "C";
   /** 目前區資料的 `context_version`（輪詢更新時會變；抽屜不關，只比對版本）。 */
@@ -103,6 +108,9 @@ export function RosterDrawer({ member, year, series, sectionVersion, sectionRost
             <h2 id={headingId} className="truncate text-lg font-bold text-ink">{member.name}</h2>
             <p className="text-xs text-muted">
               {drawerSubtitle(member)}
+            </p>
+            <p className="font-mono text-xs tabular-nums text-ink" data-drawer-stats>
+              {drawerStatLine(member, scope)}
             </p>
           </div>
           <button ref={closeRef} type="button" onClick={onClose} aria-label={DRAWER_COPY.close}

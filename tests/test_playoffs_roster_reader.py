@@ -111,7 +111,9 @@ def test_background_a_then_d_then_none():
     p = m["0000000003"]["background"]
     assert p["level"] == "D" and p["line"]["ip"] == "20.0" and p["line"]["era"] == 3.6
     n = m["0000000004"]["background"]
-    assert {k: v for k, v in n.items() if k != "arrow"} == {"level": "none", "g": None, "line": None, "pr_tags": []}
+    assert {k: v for k, v in n.items() if k != "arrow"} == {
+        "level": "none", "g": None, "line": None, "pr_tags": [],
+        "positions": [], "primary_position": None, "dh_starts": 0, "dh_starts_unknown": 0}   # #350 野手欄照帶
     assert n["arrow"]["status"] == "insufficient"
     assert "background_none" in out["missing_reason"]
 
@@ -194,8 +196,8 @@ def test_query_count_independent_of_roster_size():
 
     one = calls({AWAY: roster(*_ids(32, "11111")), HOME: None})
     two = calls({AWAY: roster(*_ids(32, "11111")), HOME: roster(*_ids(32, "22222"))})
-    # cutoff＋打擊計數＋投球計數＋官方 PR＋兩個聯盟基準＋兩個最近出賽批次
-    assert one == two == 8
+    # cutoff＋打擊計數＋投球計數＋官方 PR＋兩個聯盟基準＋兩個最近出賽批次＋守位＋DH 先發（#350）
+    assert one == two == 10
 
 
 class _RowsCur:
@@ -225,6 +227,11 @@ class _RowsCur:
             self._set(["s"] * 6, [(4000, 1100, 400, 50, 30, 1600)])
         elif "FROM cpbl.pitching_current" in sql:
             self._set(["ip", "er"], [(1000.0, 400)])
+        elif "cpbl.fielding_current" in sql:
+            self._set(["pid", "pos", "g"], [(self.ids_bat[0], "游擊手", 35), (self.ids_bat[0], "三壘手", 11)])
+        elif "DISTINCT ON" in sql:
+            assert params["kind"] == "A" and params["snos"] is None and params["ids"] == self.ids_bat
+            self._set(["pid", "dh", "unknown"], [(self.ids_bat[0], 22, 1)])
         elif "RECENT" in sql or "row_number()" in sql:
             if "hitter_acnt" in sql:
                 self._set(["pid", "game_date", "game_sno", "ab", "h", "bb", "hbp", "sf", "tb"],
@@ -259,3 +266,8 @@ def test_read_background_parses_real_row_shapes():
     assert m["0000000001"]["background"]["pr_tags"] == [{"key": "ev_pr", "value": 95}]
     assert m["0000000001"]["background"]["arrow"]["status"] == "flat"
     assert m["0000000003"]["background"]["arrow"]["status"] == "undefined"   # 全程 0 自責 ⇒ ERA0
+    b1 = m["0000000001"]["background"]
+    assert b1["primary_position"] == "游擊手" and b1["positions"][0] == {"pos": "游擊手", "g": 35}
+    assert (b1["dh_starts"], b1["dh_starts_unknown"]) == (22, 1)
+    assert (m["0000000002"]["background"]["dh_starts"], m["0000000002"]["background"]["primary_position"]) == (0, None)
+    assert "dh_starts" not in m["0000000003"]["background"]                   # 投手不加

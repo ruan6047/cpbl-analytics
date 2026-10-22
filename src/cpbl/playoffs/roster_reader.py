@@ -23,6 +23,14 @@
 7. 冷熱箭頭（PRD 第五節，proposed）：一軍例行賽 A 最近 15 次個人出賽（W1）對緊接在前的 15 次（W0），
    出賽定義、窗長、聯盟基準都取自 :mod:`cpbl.api.routers.trend`（球員頁走勢同一份）；先加總原始計數再算、
    未四捨五入比較。門檻只住 :data:`ARROW_POLICY`，⛔ 私改、⛔ 依單系列結果調整。
+9. 守位與 DH 先發（#350，只加唯讀欄位、契約仍 v1；只給野手）：
+   - ``positions``／``primary_position``：例行賽一軍 ``fielding_current``（A、非投手）各守位出賽；
+     主守位＝出賽最多，同分依 :data:`FIELD_POSITION_ORDER`。無一軍守備紀錄 ⇒ ``[]``／None，⛔ 猜守位。
+   - ``dh_starts``：box ``role_type='先發'`` 且本場第一個有守位碼的 livelog 事件是 ``DH``。刻意以首打席守位
+     代替官方先發守位：官方先發守位只在 ``game_lineup_announcement_revisions``（賽前公告，覆蓋不足）；
+     首打席守位與公告比對 18／18 一致、720 隊－場 716 個結構一致（規劃 §2.3）。
+   - 首事件守位為 PH、或先發卻找不到守位碼（首打席前就被換下、livelog 未送達）⇒ 計入 ``dh_starts_unknown``，
+     ⛔ 當成「非 DH」；前端遇 unknown>0 且可能跨門檻時標「待更新」。
 """
 
 from __future__ import annotations
@@ -41,6 +49,9 @@ CONTRACT = "playoffs-roster/v1"
 READ_ONLY_TXN = "SET TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY"
 
 POSITION_ORDER = {p: i for i, p in enumerate(("投手", "捕手", "內野手", "外野手"))}
+
+#: 主守位同分時的先後（捕手 → 內野 → 外野），也是前端野手分區順序（#350 規劃 §1.1）。
+FIELD_POSITION_ORDER = ("捕手", "一壘手", "二壘手", "三壘手", "游擊手", "左外野手", "中外野手", "右外野手")
 
 #: 球員頁「官方進階・百分位 PR」同一組欄（``web/src/app/players/[id]/lib.ts`` ``ADV``，同順序）；
 #: ``brl_pr`` 是 ``brlp_pr`` 的計數重複，球員頁去重不列（season.tsx ``fused``），這裡同樣不列。
@@ -93,6 +104,11 @@ class RosterInputs:
     # 已完賽場次 game_sno → {"away": {已送達的來源}, "home": …}；來源 ∈ {"batting", "pitching"}。
     # 兩種來源分開記：打擊與投球由爬蟲分別提交，可能只到一份（review-3 F1）。
     series_box: dict[int, dict[str, set[str]]] = field(default_factory=dict)
+    # #350：player_id → 例行賽一軍各守位出賽 [{"pos", "g"}]（非投手）；DH 先發 {"dh", "unknown"}
+    positions: dict[str, list[dict]] = field(default_factory=dict)
+    dh: dict[str, dict] = field(default_factory=dict)
+    # 本系列已完賽場次的 DH 先發；None ⇒ 未讀（無完賽場）
+    series_dh: dict[str, dict] | None = None
 
 
 # —— 純計算 ——————————————————————————————————————————————————————————
@@ -110,6 +126,8 @@ def batting_line(c: dict) -> dict:
     slg = tb / ab if ab else None
     return {
         "pa": c.get("pa") or 0, "ab": ab, "h": h, "hr": c.get("hr") or 0, "bb": bb,
+        # #350：補輸出 OBP／SLG 的分子分母原始計數，前端才能「先加總再算率」組出區塊綜合成績。
+        "hbp": hbp, "sf": sf, "tb": tb,
         "avg": _r(h / ab if ab else None, 3), "obp": _r(obp, 3), "slg": _r(slg, 3),
         "ops": _r(obp + slg, 3) if obp is not None and slg is not None else None,
     }
@@ -204,19 +222,35 @@ def arrow_of(rows: list[dict], role: str, *, lg_obp: float | None, lg_slg: float
     return {**base, "status": arrow_status(v1, v0, threshold), "reason": None, "delta": _r(v1 - v0, 1)}
 
 
+def positions_of(rows: list[dict]) -> tuple[list[dict], str | None]:
+    """各守位出賽（g 降冪、同分依 :data:`FIELD_POSITION_ORDER`）與主守位；無紀錄 ⇒ ``([], None)``。"""
+    order = {p: i for i, p in enumerate(FIELD_POSITION_ORDER)}
+    out = sorted(({"pos": r["pos"], "g": int(r["g"])} for r in rows if r.get("g")),
+                 key=lambda r: (-r["g"], order.get(r["pos"], len(order)), r["pos"]))
+    return out, (out[0]["pos"] if out else None)
+
+
+def _fielder_fields(pid: str, inputs: RosterInputs) -> dict:
+    positions, primary = positions_of(inputs.positions.get(pid, []))
+    dh = inputs.dh.get(pid) or {}
+    return {"positions": positions, "primary_position": primary,
+            "dh_starts": dh.get("dh", 0), "dh_starts_unknown": dh.get("unknown", 0)}
+
+
 def background_of(pid: str, role: str, inputs: RosterInputs) -> dict:
-    """一名球員的例行賽背景：A 優先；無 A 改 D（只給傳統計數）；都沒有 ⇒ none。"""
+    """一名球員的例行賽背景：A 優先；無 A 改 D（只給傳統計數）；都沒有 ⇒ none。野手另帶守位與 DH 先發（#350）。"""
     line = batting_line if role == "batting" else pitching_line
     arrow = arrow_of(inputs.recent.get(pid, []), role, lg_obp=inputs.lg_obp, lg_slg=inputs.lg_slg,
                      lg_era=inputs.lg_era)
+    extra = _fielder_fields(pid, inputs) if role == "batting" else {}
     a = inputs.counts.get((pid, role, "A"))
     if a and a.get("g"):
         return {"level": "A", "g": a["g"], "line": line(a), "pr_tags": pr_tags(inputs.advanced.get((pid, role))),
-                "arrow": arrow}
+                "arrow": arrow, **extra}
     d = inputs.counts.get((pid, role, "D"))
     if d and d.get("g"):
-        return {"level": "D", "g": d["g"], "line": line(d), "pr_tags": [], "arrow": arrow}
-    return {"level": "none", "g": None, "line": None, "pr_tags": [], "arrow": arrow}
+        return {"level": "D", "g": d["g"], "line": line(d), "pr_tags": [], "arrow": arrow, **extra}
+    return {"level": "none", "g": None, "line": None, "pr_tags": [], "arrow": arrow, **extra}
 
 
 def _series_games(inputs: RosterInputs) -> list[dict]:
@@ -268,16 +302,23 @@ def series_of(pid: str, role: str, inputs: RosterInputs, *, source_missing: bool
       （格內「待更新」）。⛔ 把查無列讀成 0G，⛔ 用部分場次的計數冒充完整數字（review-3 F1）。
     - 來源齊、未出賽 ⇒ g=0、line None。
     - 打者 line 帶 ``so``（WP6；review-3 F2）。
+    - 野手另帶本系列 DH 先發（#350）；來源待更新 ⇒ ``dh_starts`` None（⛔ 當 0）。
     """
     if inputs.series_counts is None:
         return None
+    if role == "batting":
+        dh = (inputs.series_dh or {}).get(pid) or {}
+        extra = ({"dh_starts": None, "dh_starts_unknown": 0} if source_missing
+                 else {"dh_starts": dh.get("dh", 0), "dh_starts_unknown": dh.get("unknown", 0)})
+    else:
+        extra = {}
     if source_missing:
-        return {"g": None, "line": None, "pending": True}
+        return {"g": None, "line": None, "pending": True, **extra}
     c = inputs.series_counts.get((pid, role))
     if not c or not c.get("g"):
-        return {"g": 0, "line": None, "pending": False}
+        return {"g": 0, "line": None, "pending": False, **extra}
     if role == "batting":
-        return {"g": c["g"], "line": {**batting_line(c), "so": c.get("so") or 0}, "pending": False}
+        return {"g": c["g"], "line": {**batting_line(c), "so": c.get("so") or 0}, "pending": False, **extra}
     return {"g": c["g"], "line": pitching_line(c), "pending": False}
 
 
@@ -432,6 +473,44 @@ SERIES_BOX_SQL = """
      WHERE year = %(year)s AND kind_code = %(kind)s AND game_sno = ANY(%(snos)s)
 """
 
+# #350：例行賽一軍各守位出賽（守備表；投手不列）。
+FIELDING_SQL = """
+    SELECT f.player_id AS pid, f.pos, f.g
+      FROM cpbl.fielding_current f
+     WHERE f.year = %(year)s AND f.kind_code = 'A' AND f.pos <> '投手' AND f.player_id = ANY(%(ids)s)
+"""
+
+# #350：DH 先發＝box 先發且本場第一個有守位碼的 livelog 事件（main_event_no 為定長 10 碼，字串序即事件序）是 DH。
+# 首事件為 PH 或找不到守位碼 ⇒ unknown（⛔ 當成非 DH）。``snos`` 為 NULL ⇒ 不限場次（例行賽背景）。
+DH_STARTS_SQL = """
+    WITH st AS (
+        SELECT DISTINCT b.hitter_acnt AS pid, b.game_sno
+          FROM cpbl.batting_gamelog b
+         WHERE b.year = %(year)s AND b.kind_code = %(kind)s AND b.role_type = '先發'
+           AND b.hitter_acnt = ANY(%(ids)s)
+           AND (%(snos)s::int[] IS NULL OR b.game_sno = ANY(%(snos)s::int[]))
+    ), first_pos AS (
+        SELECT DISTINCT ON (l.hitter_acnt, l.game_sno) l.hitter_acnt AS pid, l.game_sno, l.defend_station_code AS pos
+          FROM cpbl.game_livelog l
+         WHERE l.year = %(year)s AND l.kind_code = %(kind)s AND l.hitter_acnt = ANY(%(ids)s)
+           AND (%(snos)s::int[] IS NULL OR l.game_sno = ANY(%(snos)s::int[]))
+           AND COALESCE(l.defend_station_code, '') <> ''
+         ORDER BY l.hitter_acnt, l.game_sno, l.main_event_no
+    )
+    SELECT st.pid,
+           count(*) FILTER (WHERE f.pos = 'DH') AS dh,
+           count(*) FILTER (WHERE f.pos IS NULL OR f.pos = 'PH') AS unknown
+      FROM st LEFT JOIN first_pos f ON f.pid = st.pid AND f.game_sno = st.game_sno
+     GROUP BY st.pid
+"""
+
+
+def read_dh_starts(cur, year: int, kind: str, ids: list[str], snos: list[int] | None) -> dict[str, dict]:
+    """``ids`` 的 DH 先發與 unknown 場數（一次批次）；無先發 ⇒ 不在結果中（呼叫端視為 0）。"""
+    cur.execute(DH_STARTS_SQL, {"year": year, "kind": kind, "ids": ids, "snos": snos})
+    return {r["pid"]: {"dh": int(r["dh"] or 0), "unknown": int(r["unknown"] or 0)} for r in _dicts(cur)}
+
+
 CUTOFF_SQL = """
     SELECT max(g.game_date) FROM cpbl.games g
      WHERE g.year = %(year)s AND g.kind_code = 'A'
@@ -509,6 +588,11 @@ def read_background(cur, inputs: RosterInputs) -> None:
     n = 2 * ARROW_POLICY["window"]
     inputs.recent = {**trend.recent_appearances(cur, bat, "batting", inputs.year, n=n),
                      **trend.recent_appearances(cur, pit, "pitching", inputs.year, n=n)}
+    if bat:  # #350：野手守位與例行賽 DH 先發，各一次批次
+        cur.execute(FIELDING_SQL, {"year": inputs.year, "ids": bat})
+        for r in _dicts(cur):
+            inputs.positions.setdefault(r["pid"], []).append({"pos": r["pos"], "g": r["g"]})
+        inputs.dh = read_dh_starts(cur, inputs.year, "A", bat, None)
 
 
 def read_series(cur, inputs: RosterInputs) -> None:
@@ -535,6 +619,7 @@ def read_series(cur, inputs: RosterInputs) -> None:
         for r in _dicts(cur):
             key = (r.pop("pid"), role)
             inputs.series_counts[key] = {k: (int(v) if v is not None else None) for k, v in r.items()}
+    inputs.series_dh = read_dh_starts(cur, inputs.year, inputs.series, bat, snos) if bat else {}
 
 
 def read_roster_inputs(cur, year: int, series: str, *, now: datetime, live_reader=None) -> RosterInputs:
