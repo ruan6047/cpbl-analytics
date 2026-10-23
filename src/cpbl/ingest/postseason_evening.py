@@ -1019,10 +1019,53 @@ BOXPA_MAX_SECONDS = 20 * 60                      # scoped 同步超過 20 分鐘
 # ⛔ 不連 www、不寫 C2 賽別冷卻帳本、不佔明細 www 的 3 次額度；次數不另設上限，由目標窗（隔日 09:45
 # 讓位每日鏈）收尾。
 BOXPA_TRACKING_POLL = BOXPA_WWW_COOLDOWN
+# #365 S5（P-TM-RECHECK，需求方裁定 #343 6361011713 第 3 項；其中進階排行的部分已由 6361673244 第 2 項撤回）：
+# 本機首見完賽後滿 N 分（預設 45）再向 stats 抓一次逐球——官方 TrackMan 晚到時，第一次明細抓到的是不完整版本。
+# 只走既有 boxpa-tracking（只打 stats、不連 www、不寫 C2 帳本，不受 P-A-FETCH-GATE 影響）；之後照既有
+# PA build → plan → sync，同步額度仍是 BOXPA_MAX_SENDS（不新增重試）。A 借用同一參數（PLAN-r4 §3.3 步驟 4）。
+TM_RECHECK_ENV = "POSTSEASON_TM_RECHECK_MIN"
+TM_RECHECK_DEFAULT_MIN = 45
 BOXPA_TERMINAL = ("delivered", "correction_pending", "conflict", "unreached")
 # 來源同晚又變時可重新打開的終態（#293 fix-4，需求方裁定 6204889879「本機記『更正待同步』」）。
 BOXPA_REOPENABLE = ("delivered", "correction_pending")
 _NEEDS_SEND = ("no_prod_evidence", "not_synced", "reconcile_mismatch_retrying", "local_changed_since_sync")
+
+
+def tm_recheck_minutes(raw: str | None = None) -> int:
+    """``POSTSEASON_TM_RECHECK_MIN``（正整數分鐘；空＝45）。其他值 ``ValueError``（CLI 轉 exit 64）。"""
+    raw = os.environ.get(TM_RECHECK_ENV) if raw is None else raw
+    if raw is None or not raw.strip():
+        return TM_RECHECK_DEFAULT_MIN
+    if not raw.strip().isdigit() or int(raw) <= 0:
+        raise ValueError(f"{TM_RECHECK_ENV} 必須是正整數分鐘：{raw!r}")
+    return int(raw)
+
+
+def tm_recheck_due(anchor: datetime | None, now: datetime, minutes: int, done: bool) -> bool:
+    """首見完賽 ``anchor`` 後滿 ``minutes`` 分、且尚未在那之後抓過逐球 → 該重抓（純函式）。"""
+    return not done and anchor is not None and now >= anchor + timedelta(minutes=minutes)
+
+
+def tm_anchor(state: Mapping, key: str) -> datetime | None:
+    """TM 重抓錨點＝本機首見完賽：``finished_first_seen`` 的 ``finished_at``，沒有時用 ``first_seen_finished_at``
+    （首次看到就已完賽；#292 的 F+60 刻意不用它，這裡用途不同——只決定何時再抓一次逐球）。舊版字串值同義。"""
+    rec = (state.get("finished_first_seen") or {}).get(key)
+    if isinstance(rec, str):
+        return _parse(rec)
+    if isinstance(rec, Mapping):
+        return _parse(rec.get("finished_at") or rec.get("first_seen_finished_at"))
+    return None
+
+
+def boxpa_tm_recheck_due(state: Mapping, rec: Mapping, now: datetime, minutes: int | None = None) -> bool:
+    """這一場的 P-TM-RECHECK 是否到期：錨點後滿 N 分，且錨點＋N 分之後還沒有任何一次明細或逐球抓取。"""
+    anchor = tm_anchor(state, rec["key"])
+    if anchor is None:
+        return False
+    minutes = tm_recheck_minutes() if minutes is None else minutes
+    due_at = anchor + timedelta(minutes=minutes)
+    stamps = [_parse(a) for a in (rec.get("detail_attempts") or []) + (rec.get("tracking_attempts") or [])]
+    return tm_recheck_due(anchor, now, minutes, done=any(s is not None and s >= due_at for s in stamps))
 
 
 def boxpa_window(game_date: str | None, now: datetime) -> bool:
@@ -1109,8 +1152,11 @@ def _final_prod_at(state: Mapping, rec: Mapping) -> str | None:
 
 
 def boxpa_refresh(state: dict, now: datetime, local: Mapping[str, LocalGame],
-                  facts: Mapping[str, Any]) -> dict[str, dict]:
-    """把今晚目標場併進狀態並重算三來源分類；過窗未終態者交給隔日每日鏈。回傳仍開著的紀錄。"""
+                  facts: Mapping[str, Any], *, tm_minutes: int | None = None) -> dict[str, dict]:
+    """把今晚目標場併進狀態並重算三來源分類；過窗未終態者交給隔日每日鏈。回傳仍開著的紀錄。
+
+    #365 P-TM-RECHECK：目標窗內已送達的場若 TM 重抓到期（:func:`boxpa_tm_recheck_due`）→ 以
+    ``reopened_tm_recheck`` 重開，等 :func:`boxpa_plan` 回 ``tracking``；抓過之後依原分類回終態。"""
     from cpbl.postseason_sources import as_dict, classify
 
     for key, g in local.items():
@@ -1138,6 +1184,9 @@ def boxpa_refresh(state: dict, now: datetime, local: Mapping[str, LocalGame],
         # 仍開著（逐球待更新等）而額度已用完時來源才變：同樣照實記「待隔日每日鏈補上」（6204889879）。
         elif rec["state"] == "open" and changed and not boxpa_game_can_sync(rec):
             rec["reason"] = "source_changed_after_quota"
+        tm_due = boxpa_window(rec.get("game_date"), now) and boxpa_tm_recheck_due(state, rec, now, tm_minutes)
+        if tm_due and rec["state"] in BOXPA_REOPENABLE:
+            rec["state"], rec["reason"] = "open", "reopened_tm_recheck"
         if rec["state"] in BOXPA_TERMINAL:
             continue
         if not boxpa_window(rec.get("game_date"), now):
@@ -1146,7 +1195,7 @@ def boxpa_refresh(state: dict, now: datetime, local: Mapping[str, LocalGame],
         # 終態在這裡就定（#293 fix-4 終態時序）：最後一次同步後，下一次喚醒的 `boxpa-plan --dry` 不寫
         # 狀態檔、shell 隨即退出，若只在 plan 裡定終態，送達的場會一直停在 open、隔天被誤記成未達。
         # boxpa_refresh 由 boxpa-record／boxpa-prepare 呼叫並存檔，所以同步一入帳就轉終態。
-        if not boxpa_wants(rec) and _boxpa_done(rec):
+        if not boxpa_wants(rec) and _boxpa_done(rec) and not tm_due:
             rec["state"] = _boxpa_terminal_state(rec)
             continue
         out[key] = rec
@@ -1189,8 +1238,8 @@ def boxpa_plan(state: dict, now: datetime,
       當晚未被挑戰封鎖；A 場另須通過 #365 P-A-FETCH-GATE（:func:`a_fetch_blocked`）。
     * sync：本機 box 已到齊（或 PA 已 published）而該來源尚未送達、且仍可送（1＋1 重送）。
     * 已用盡 www 次數而 box 仍缺 → 記 unreached（www_detail_incomplete_after_max_attempts）。
-    * tracking：box 核心已送達但逐球仍落後（#293 fix-5）、距上次明細／逐球重抓已滿 20 分鐘 → 只向 stats
-      重抓逐球（不連 www）；shell 之後照常 PA build → plan → sync，逐球與重建的 PA 映射同一次送出。
+    * tracking：box 核心已送達但逐球仍落後（#293 fix-5）、距上次明細／逐球重抓已滿 20 分鐘，或 #365
+      P-TM-RECHECK 到期（首見完賽後滿 45 分）→ 只向 stats 重抓逐球（不連 www）；shell 之後照常 PA build → plan → sync，逐球與重建的 PA 映射同一次送出。
       不看同步額度：額度用完後才到的逐球照 6204889879（範圍 6205405581）只在本機重建、記待更新、交隔日。
     """
     if state.get("halted") or in_daily_guard(now):
@@ -1219,7 +1268,7 @@ def boxpa_plan(state: dict, now: datetime,
                 continue
             detail.append(key)
             continue
-        if boxpa_tracking_due(rec, now):
+        if boxpa_tracking_due(rec, now) or boxpa_tm_recheck_due(state, rec, now):   # #365 P-TM-RECHECK
             tracking.append(key)
         wants = boxpa_wants(rec)
         # build：(a) box 到齊而 PA 尚未 published；(b) 有來源變了但該場同步額度已用完——不再送，但仍讓
@@ -1789,6 +1838,7 @@ def main(argv: list[str] | None = None) -> int:
     year = _season_year(now)
     try:
         evening_kinds = configured_evening_kinds()
+        tm_recheck_minutes()   # #365 S5：參數錯 fail loud（exit 64），不留到 box／PA 階段才炸
     except ValueError as exc:
         print(f"FATAL: {exc}", file=sys.stderr)
         return 64
