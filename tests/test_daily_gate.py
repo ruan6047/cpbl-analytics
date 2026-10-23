@@ -79,12 +79,12 @@ class FakeResult:
 class FakeDB:
     """依 SQL 片段分派的假連線。任何沒認得的 SQL 一律炸（不讓測試靜默通過）。"""
 
-    def __init__(self, *, schedule=None, local_games=None, write_counter=0, fingerprint_row=None,
+    def __init__(self, *, schedule=None, local_games=None, write_counter=0, season_rows=None,
                  today_rows=None):
         self.schedule = schedule or REAL_2026_SCHEDULE
         self.local_games = local_games if local_games is not None else REAL_2026_LOCAL_GAMES
         self.write_counter = write_counter
-        self.fingerprint_row = fingerprint_row or (9350, "2026-10-06", "d41d8cd98f00b204e9800998ecf8427e")
+        self.season_rows = season_rows or []
         self.today_rows = today_rows or []
         self.statements: list[str] = []
 
@@ -101,8 +101,8 @@ class FakeDB:
         if "unnest" in sql:
             return FakeResult([(int(k.split("-")[0]), k.split("-")[1], int(k.split("-")[2]),
                                 date.fromisoformat(d)) for k, d in self.local_games.items()])
-        if "string_agg" in sql:
-            return FakeResult([self.fingerprint_row])
+        if "GROUP BY g.year" in sql:
+            return FakeResult(self.season_rows)
         if "present_status" in sql:
             return FakeResult(self.today_rows)
         raise AssertionError(f"FakeDB 不認得這句 SQL：{sql[:120]}")
@@ -368,7 +368,7 @@ def _run_daily(tmp_path: Path, *, gate_type: str, extra_env: dict | None = None)
 case "$*" in
   *"daily_gate decide"*) echo "REASON=fixture"; echo "DAY_TYPE={gate_type}" ;;
   *"daily_gate mark-synced"*) echo "mark-synced" >> "{calls}" ;;
-  *"daily_gate today-schedule"*) echo "today-schedule $*" >> "{calls}" ;;
+  *"daily_gate today-schedule"*) echo "today-schedule $*" >> "{calls}"; [ "$STUB_TODAY_FAIL" = 1 ] && exit 1 ;;
   *cpbl-refresh-recent*) echo "refresh-recent DAILY_DAY_TYPE=$DAILY_DAY_TYPE" >> "{calls}" ;;
   *cpbl-build-team-comparison*) echo "team-comparison" >> "{calls}" ;;
   *) echo "uv $*" >> "{calls}" ;;
@@ -665,20 +665,33 @@ def test_f_light_backfill_runs_pa_derived_splits_and_publishes_the_game(tmp_path
 
 # ============================================================== (g) 甲型承接週回補
 
-class WeeklyDB:
-    """§3.2.3 訊號 3／4 的假 DB：refresh_log 兩個時刻＋box_pitching_revisions 新列數。"""
+def _detail(*, failed: str | None = None, skipped: bool = False) -> dict:
+    """refresh_log.detail（形狀照 run_refresh_recent.main）：四個衍生步驟。"""
+    if skipped:
+        note = {"skipped": "§3.2.3：無來源變動訊號"}
+        return {"pa_build": {**note, "errors": []}, "pitch_type": {**note, "errors": []},
+                "derived": {**note, "errors": []}, "splits_built": dict(note)}
+    detail = {"pa_build": {"games": 2, "errors": []}, "pitch_type": {"A_v1": 1, "errors": []},
+              "derived": {"team_der": 6, "errors": []}, "splits_built": {"A": 10, "career": {}}}
+    if failed == "derived":
+        detail["derived"] = {"errors": [{"builder": "team_der", "error": "boom"}]}
+    return detail
 
-    def __init__(self, last_pitch_type, last_derived, new_revisions):
-        self.marks = (last_pitch_type, last_derived)
-        self.new_revisions = new_revisions
+
+class WeeklyDB:
+    """§3.2.3 訊號 3／4＋前次衍生重試的假 DB：refresh_log 列＋box_pitching_revisions 的 fetched_at。"""
+
+    def __init__(self, refresh_rows, revision_times):
+        self.refresh_rows = sorted(refresh_rows, key=lambda r: r[0], reverse=True)
+        self.revision_times = revision_times
         self.params = []
 
     def execute(self, sql, params=None):
         if "FROM cpbl.refresh_log" in sql:
-            return FakeResult([self.marks])
+            return FakeResult(self.refresh_rows)
         if "box_pitching_revisions" in sql:
             self.params.append(params)
-            return FakeResult([(self.new_revisions,)])
+            return FakeResult([(sum(1 for t in self.revision_times if t > params[0]),)])
         raise AssertionError(sql)
 
 
@@ -697,8 +710,9 @@ def _weekly_fixture(tmp_path: Path, *, j3_finished: str, j3_pitches: list[int], 
     (base / "logs/last-weekly-box-revisions.json").write_text(json.dumps(
         {"result": "ok", "exit_code": 0, "year": 2026, "days_back": 30,
          "started_at": "2026-10-19T14:10:04+0800", "finished_at": j4_finished}), encoding="utf-8")
-    db = WeeklyDB(datetime(2026, 10, 18, 10, 30, tzinfo=TPE), datetime(2026, 10, 18, 10, 30, tzinfo=TPE),
-                  new_revisions)
+    last_ok = datetime(2026, 10, 18, 10, 30, tzinfo=TPE)
+    db = WeeklyDB([(last_ok, _detail())],
+                  [last_ok + timedelta(hours=i + 1) for i in range(new_revisions)])
     return lambda *a, **k: _REAL_WEEKLY_SIGNALS(db, base=base)
 
 
@@ -722,7 +736,7 @@ def test_g_all_signals_zero_runs_no_derived_step(tmp_path, monkeypatch) -> None:
     weekly = _weekly_fixture(tmp_path, j3_finished="2026-10-12T13:22:37+0800", j3_pitches=[5],
                              j4_finished="2026-10-12T14:11:41+0800", new_revisions=0)
     signals = weekly()
-    assert [s.fired for s in signals] == [False, False], signals
+    assert [s.fired for s in signals] == [False, False, False], signals
     ran = set(_run_main(monkeypatch, "sync_only", weekly=weekly))
     assert not {"pa_build", "pitch_type", "derived", "splits", "career"} & ran, ran
 
@@ -730,21 +744,21 @@ def test_g_all_signals_zero_runs_no_derived_step(tmp_path, monkeypatch) -> None:
 def test_g_j3_with_zero_pitches_is_not_a_signal(tmp_path) -> None:
     weekly = _weekly_fixture(tmp_path, j3_finished="2026-10-19T13:22:37+0800", j3_pitches=[0, 0],
                              j4_finished="2026-10-12T14:11:41+0800", new_revisions=0)
-    assert [s.fired for s in weekly()] == [False, False]
+    assert [s.fired for s in weekly()] == [False, False, False]
 
 
 def test_g_j4_status_newer_than_last_derived_fires_even_without_new_revision_rows(tmp_path) -> None:
     """§3.2.3 訊號 4 是「新修訂列 **或** J4 完成時刻晚於上次衍生」。"""
     weekly = _weekly_fixture(tmp_path, j3_finished="2026-10-12T13:22:37+0800", j3_pitches=[5],
                              j4_finished="2026-10-19T14:11:41+0800", new_revisions=0)
-    assert [s.fired for s in weekly()] == [False, True]
+    assert [s.fired for s in weekly()] == [False, True, False]
 
 
 def test_g_signal_reads_fail_open(tmp_path) -> None:
     class Broken:
         def execute(self, *a, **k):
             raise RuntimeError("db down")
-    assert [s.fired for s in dg.weekly_signals(Broken(), base=tmp_path)] == [None, None]
+    assert [s.fired for s in dg.weekly_signals(Broken(), base=tmp_path)] == [None, None, None]
 
 
 def test_g_sync_only_daily_chain_syncs_after_derived(tmp_path) -> None:
@@ -757,20 +771,63 @@ def test_g_sync_only_daily_chain_syncs_after_derived(tmp_path) -> None:
 
 # ============================================================== (d) 訓練閘門（假 DB）
 
-def test_d_outcome_fingerprint_and_decision_with_fake_db(tmp_path: Path) -> None:
-    db = FakeDB(fingerprint_row=(9350, "2026-10-06", "abc"))
-    current = dg.outcome_fingerprint(db)
-    assert current["completed_games"] == 9350 and current["last_game_date"] == "2026-10-06"
-    assert "kind_code = 'A'" in db.statements[-1]
-    state = tmp_path / "state.json"
-    assert dg.outcome_train_decision(current, state)[0] is True          # 無紀錄 → 跑
-    dg._write_json(state, {"outcome": {**current, "recorded_at": "t"}})
-    run, reason = dg.outcome_train_decision(current, state)
-    assert run is False and "無新增" in reason
-    newer = dg.outcome_fingerprint(FakeDB(fingerprint_row=(9351, "2026-10-07", "abd")))
-    assert dg.outcome_train_decision(newer, state)[0] is True
-    rescored = dg.outcome_fingerprint(FakeDB(fingerprint_row=(9350, "2026-10-06", "abX")))
-    assert dg.outcome_train_decision(rescored, state)[0] is True        # 比分更正也算內容變
+# 2026-10-23 本機唯讀實測（exec-3 readonly-checks.txt）：local_outcome_signature＝
+# {"test_seasons": [2022..2026], "n_train": 9185, "n_test": 1652}；本機 7/26 那列 model_versions 的
+# cv_metrics 為 n_train 9185／n_test 1508。下方以此為真實樣本。
+REAL_SIGNATURE = {"test_seasons": [2022, 2023, 2024, 2025, 2026], "n_train": 9185, "n_test": 1652}
+REAL_JULY_MODEL = {"test_seasons": [2022, 2023, 2024, 2025, 2026], "n_train": 9185, "n_test": 1508,
+                   "best": "LightGBM（全特徵）"}
+
+
+def test_d_f1_walk_seasons_constant_matches_trainer() -> None:
+    from cpbl.models import outcome_gbm
+
+    assert dg.OUTCOME_WALK_SEASONS == outcome_gbm._WALK_SEASONS
+
+
+def test_d_f1_signature_equals_what_the_real_backtest_writes(monkeypatch) -> None:
+    """等價性：同一批完成場，``outcome_dataset_signature`` 與真 ``backtest()`` 寫進 cv_metrics 的
+    test_seasons／n_train／n_test 逐值相同（只把模型擬合換成替身，切分邏輯用真的）。"""
+    import numpy as np
+
+    from cpbl.models import outcome_gbm
+
+    per_season = {2019: 7, 2020: 5, 2021: 6, 2022: 4, 2023: 8, 2024: 3, 2025: 9}
+    rows = [(season, None, "h", "a", i % 2) + (0.0,) * 40
+            for season, n in per_season.items() for i in range(n)]
+    monkeypatch.setattr(outcome_gbm, "_load", lambda completed_only: rows)
+    monkeypatch.setattr(outcome_gbm, "_fit_predict", lambda train, test: (
+        np.full(len(test), 0.5), np.full(len(test), 0.5), 0.5,
+        type("G", (), {"feature_importances_": [0] * len(outcome_gbm.REAL_FEATURES)})()))
+    result = outcome_gbm.backtest()
+    assert dg.outcome_dataset_signature(per_season) == {
+        k: result[k] for k in ("test_seasons", "n_train", "n_test")}
+
+
+def test_d_f1_local_signature_reads_completed_non_tie_A_games() -> None:
+    db = FakeDB(season_rows=[(2025, 358), (2026, 357)])
+    sig = dg.local_outcome_signature(db)
+    sql = db.statements[-1]
+    assert "g.kind_code = 'A'" in sql and "g.home_score <> g.away_score" in sql
+    assert sig == {"test_seasons": [2026], "n_train": 358, "n_test": 357}
+
+
+@pytest.mark.parametrize(("prod", "run"), [
+    (REAL_SIGNATURE, False),                 # 正式站上次回測＝本機現況（含 VPS 手動重訓後）→ 不跑
+    (REAL_JULY_MODEL, True),                 # 正式站還原到 7 月模型 → 跑
+    ({**REAL_SIGNATURE, "n_test": 1651}, True),   # 本機多一場完成場 → 跑
+    ({**REAL_SIGNATURE, "test_seasons": [2021, 2022, 2023, 2024, 2025]}, True),   # 新球季
+    (None, True),                            # 讀不到正式站
+    ({"error": "no completed games"}, True),  # 形狀不符
+])
+def test_d_f1_decision_is_against_production_model_versions(prod, run) -> None:
+    assert dg.outcome_train_decision(REAL_SIGNATURE, prod)[0] is run
+
+
+def test_d_f1_parse_prod_metrics() -> None:
+    assert dg.parse_prod_metrics("") is None
+    assert dg.parse_prod_metrics("not json") is None
+    assert dg.parse_prod_metrics(json.dumps(REAL_SIGNATURE) + "\n")["n_test"] == 1652
 
 
 _TRAIN_SSH_PREFIX = '''\
@@ -780,9 +837,18 @@ _mv = os.environ.get("STUB_MODEL_VERSIONS")
 if _mv and "cpbl-train-outcome" in _cmd:
     task = "outcome_simple" if "cpbl-train-outcome-simple" in _cmd else "outcome"
     rows = json.loads(open(_mv, encoding="utf-8").read())
-    rows.append({"id": "%s-%d" % (task, len(rows) + 1), "task": task})
+    metrics = json.loads(os.environ["STUB_LOCAL_SIGNATURE"]) if task == "outcome" else {}
+    next_id = 1 + max(int(r["id"].rsplit("-", 1)[1]) for r in rows)   # 只增不重用（還原後也不撞號）
+    rows.append({"id": "%s-%d" % (task, next_id), "task": task, "cv_metrics": metrics})
     open(_mv, "w", encoding="utf-8").write(json.dumps(rows))
     print("已寫入 model_versions：%s" % rows[-1]["id"])
+    raise SystemExit(0)
+if _mv and "FROM cpbl.model_versions WHERE task = 'outcome'" in _cmd:
+    if os.environ.get("STUB_PROD_DOWN") == "1":
+        raise SystemExit(255)
+    outcome = [r for r in json.loads(open(_mv, encoding="utf-8").read()) if r["task"] == "outcome"]
+    if outcome and outcome[-1].get("cv_metrics") is not None:
+        print(json.dumps(outcome[-1]["cv_metrics"]))
     raise SystemExit(0)
 if "trained_through" in _cmd:
     print(os.environ.get("STUB_TRAINED_THROUGH", ""))
@@ -790,10 +856,22 @@ if "trained_through" in _cmd:
 '''
 
 
-def _run_prod_sync(tmp_path: Path, *, gate_run: str, trained_through: str, **env_extra: str):
+_GATE_HELPER = """
+import contextlib, json, os, sys
+from cpbl.ingest import daily_gate as dg
+dg._readonly_conn = lambda: contextlib.nullcontext(None)
+dg.local_outcome_signature = lambda c: json.loads(os.environ["STUB_LOCAL_SIGNATURE"])
+sys.exit(dg.main(["train-gate", "--prod-metrics", "-"]))
+"""
+
+
+def _run_prod_sync(tmp_path: Path, *, prod_model: dict | None, trained_through: str,
+                   local=REAL_SIGNATURE, model_versions: Path | None = None, **env_extra: str):
     """跑真 refresh-cpbl-prod.sh（沿用 test_prod_sync_revision_seq 的假樁 harness）。
 
-    假 DB：``model_versions.json``——假 ssh 收到 ``cpbl-train-outcome*`` 就新增一列 id。
+    假正式站 DB：``model_versions.json``——假 ssh 回答 ``model_versions(task='outcome')`` 查詢，
+    收到 ``cpbl-train-outcome*`` 就新增一列。``train-gate`` 跑真 ``daily_gate.main``（本機簽章用替身），
+    所以「正式站模型 → shell → 判定 → shell」整條接線都是真的（#364 審核 F1）。
     """
     import test_prod_sync_revision_seq as base
 
@@ -805,15 +883,16 @@ def _run_prod_sync(tmp_path: Path, *, gate_run: str, trained_through: str, **env
 echo "$*" >> "{uv_calls}"
 case "$*" in
   *cpbl.completion*) echo 'home_score + away_score > 0' ;;
-  *"daily_gate train-gate"*)
-    echo "OUTCOME_FINGERPRINT=fp-now"; echo "OUTCOME_COMPLETED=9350"; echo "OUTCOME_LAST_DATE=2026-10-06"
-    echo "OUTCOME_REASON=fixture"; echo "RUN_OUTCOME={gate_run}" ;;
+  *"daily_gate train-gate"*) exec "{sys.executable}" "{tmp_path / 'gate_helper.py'}" ;;
   *) echo "stub uv $*" ;;
 esac
 """)
-    model_versions = tmp_path / "model_versions.json"
-    model_versions.write_text(json.dumps([{"id": "outcome-1", "task": "outcome"},
-                                          {"id": "outcome_simple-2", "task": "outcome_simple"}]))
+    (tmp_path / "gate_helper.py").write_text(_GATE_HELPER, encoding="utf-8")
+    model_versions = model_versions or tmp_path / "model_versions.json"
+    if not model_versions.exists():   # 傳入既有檔＝延續同一個假正式站（多次執行的序列）
+        model_versions.write_text(json.dumps([
+            {"id": "outcome-1", "task": "outcome", "cv_metrics": prod_model},
+            {"id": "outcome_simple-2", "task": "outcome_simple"}]))
     (tmp_path / "tmp").mkdir(exist_ok=True)
     env = {
         "PATH": f"{harness['bin']}:/usr/bin:/bin", "HOME": str(tmp_path / "home"),
@@ -823,8 +902,8 @@ esac
         "VPS": "stub@harness.invalid", "LOCAL_DB": "stub-nonexistent-container",
         "DEPLOY_PATH": "/nonexistent/stub-deploy", "API_INFO_URL": "http://127.0.0.1:1/api/info",
         "SKIP_SCRAPE": "1", "WITH_DETAIL": "1", "DAILY_DAY_TYPE": "full",
-        "TRAIN_GATE_STATE": str(tmp_path / "train-gate-state.json"),
         "STUB_MODEL_VERSIONS": str(model_versions), "STUB_TRAINED_THROUGH": trained_through,
+        "STUB_LOCAL_SIGNATURE": json.dumps(local),
         **env_extra,
     }
     result = subprocess.run(["/bin/bash", str(harness["repo"] / "scripts" / "refresh-cpbl-prod.sh")],
@@ -839,32 +918,70 @@ def _prev_year() -> str:
 
 
 def test_d_no_new_completed_games_skips_training_and_adds_no_model_version(tmp_path: Path) -> None:
-    result, ids, uv_calls, ssh_cmds = _run_prod_sync(tmp_path, gate_run="0", trained_through=_prev_year())
+    result, ids, uv_calls, ssh_cmds = _run_prod_sync(tmp_path, prod_model=REAL_SIGNATURE,
+                                                     trained_through=_prev_year())
 
     assert result.returncode == 0, result.stderr[-2000:]
-    assert "略過 cpbl-train-outcome（" in result.stdout
+    assert "略過 cpbl-train-outcome（" in result.stdout and "無新增" in result.stdout
     assert "略過 cpbl-train-outcome-simple" in result.stdout
     assert "略過 cpbl-build-features" in result.stdout
     assert ids == ["outcome-1", "outcome_simple-2"]                    # model_versions 無新 id
-    assert not [c for c in uv_calls if "cpbl-build-features" in c or "train-record" in c]
+    assert not [c for c in uv_calls if "cpbl-build-features" in c]
     assert not [c for c in ssh_cmds if "TRUNCATE cpbl.game_features" in c]
-    assert not (tmp_path / "train-gate-state.json").exists()
 
 
-def test_d_new_completed_games_train_and_record_fingerprint(tmp_path: Path) -> None:
-    """控制組：有新完賽場 → 照跑並記指紋（證明上一條的「略過」不是 harness 跑不到）。"""
-    result, ids, uv_calls, ssh_cmds = _run_prod_sync(tmp_path, gate_run="1", trained_through="2020")
+def test_d_new_completed_games_train(tmp_path: Path) -> None:
+    """控制組：本機比正式站上次回測多 144 場（7 月模型 → 現況）→ 照跑（證明「略過」不是 harness 跑不到）。"""
+    result, ids, uv_calls, ssh_cmds = _run_prod_sync(tmp_path, prod_model=REAL_JULY_MODEL,
+                                                     trained_through="2020")
 
     assert result.returncode == 0, result.stderr[-2000:]
     assert ids[2:] == ["outcome-3", "outcome_simple-4"]
     assert any("cpbl-build-features" in c for c in uv_calls)
-    assert any("train-record" in c and "--fingerprint fp-now" in c for c in uv_calls)
     assert any("TRUNCATE cpbl.game_features" in c for c in ssh_cmds)
+
+
+def test_d_f1_production_restored_to_older_model_retrains_without_any_local_state(tmp_path: Path) -> None:
+    """審核 F1 路徑 1（同一個假正式站連跑三次）：
+
+    1. 正式站是 7 月模型 → 訓練（新列＝本機現況）；
+    2. 再跑一次 → 無新增，略過；
+    3. 正式站還原（刪掉剛訓練的那列，回到 7 月模型）、本機不變 → 必須重訓。
+    舊實作（本機狀態檔）在第 3 步會因本機指紋未變而略過。
+    """
+    mv = tmp_path / "prod-model-versions.json"
+    run1, ids1, _u, _s = _run_prod_sync(tmp_path / "1", prod_model=REAL_JULY_MODEL,
+                                        trained_through=_prev_year(), model_versions=mv)
+    assert run1.returncode == 0 and ids1[2:] == ["outcome-3"], run1.stdout
+    run2, ids2, _u, _s = _run_prod_sync(tmp_path / "2", prod_model=None,
+                                        trained_through=_prev_year(), model_versions=mv)
+    assert run2.returncode == 0 and ids2 == ids1 and "無新增" in run2.stdout
+    restored = [r for r in json.loads(mv.read_text()) if r["id"] != "outcome-3"]
+    mv.write_text(json.dumps(restored))                                         # 正式站還原
+    run3, ids3, _u, _s = _run_prod_sync(tmp_path / "3", prod_model=None,
+                                        trained_through=_prev_year(), model_versions=mv)
+    assert run3.returncode == 0, run3.stderr[-2000:]
+    assert "略過 cpbl-train-outcome（" not in run3.stdout, run3.stdout
+    assert len(ids3) == len(restored) + 1 and ids3[-1].startswith("outcome-"), ids3
+
+
+def test_d_f1_manual_retrain_on_vps_is_not_repeated(tmp_path: Path) -> None:
+    """審核 F1 路徑 2：VPS 已手動重訓（正式站最新列＝本機現況），本機沒有任何紀錄 → 不重跑。"""
+    result, ids, _uv, _ssh = _run_prod_sync(tmp_path, prod_model=REAL_SIGNATURE,
+                                            trained_through=_prev_year())
+    assert result.returncode == 0 and ids == ["outcome-1", "outcome_simple-2"]
+
+
+def test_d_f1_production_unreachable_fails_open(tmp_path: Path) -> None:
+    result, ids, _uv, _ssh = _run_prod_sync(tmp_path, prod_model=REAL_SIGNATURE,
+                                            trained_through=_prev_year(), STUB_PROD_DOWN="1")
+    assert result.returncode == 0, result.stderr[-2000:]
+    assert ids[2:] == ["outcome-3"] and "讀不到正式站" in result.stdout
 
 
 def test_d_simple_trainer_gate_reads_artifact_year(tmp_path: Path) -> None:
     """outcome 有新場但 artifact 已訓練到今年−1 → 只跑 outcome，不跑 simple。"""
-    result, ids, _uv, _ssh = _run_prod_sync(tmp_path, gate_run="1", trained_through=_prev_year())
+    result, ids, _uv, _ssh = _run_prod_sync(tmp_path, prod_model=REAL_JULY_MODEL, trained_through=_prev_year())
     assert result.returncode == 0, result.stderr[-2000:]
     assert ids[2:] == ["outcome-3"]
     assert f"trained_through={_prev_year()}" in result.stdout
@@ -872,7 +989,7 @@ def test_d_simple_trainer_gate_reads_artifact_year(tmp_path: Path) -> None:
 
 @pytest.mark.parametrize("day_type", ["light", "sync_only"])
 def test_d_light_and_sync_only_never_train(tmp_path: Path, day_type: str) -> None:
-    result, ids, uv_calls, _ssh = _run_prod_sync(tmp_path, gate_run="1", trained_through="2020",
+    result, ids, uv_calls, _ssh = _run_prod_sync(tmp_path, prod_model=REAL_JULY_MODEL, trained_through="2020",
                                                  DAILY_DAY_TYPE=day_type)
     assert result.returncode == 0, result.stderr[-2000:]
     assert ids == ["outcome-1", "outcome_simple-2"]
@@ -880,7 +997,7 @@ def test_d_light_and_sync_only_never_train(tmp_path: Path, day_type: str) -> Non
 
 
 def test_e_force_full_trains_even_without_new_games(tmp_path: Path) -> None:
-    result, ids, uv_calls, _ssh = _run_prod_sync(tmp_path, gate_run="0", trained_through=_prev_year(),
+    result, ids, uv_calls, _ssh = _run_prod_sync(tmp_path, prod_model=REAL_SIGNATURE, trained_through=_prev_year(),
                                                  DAILY_FORCE_FULL="1")
     assert result.returncode == 0, result.stderr[-2000:]
     assert ids[2:] == ["outcome-3", "outcome_simple-4"]
@@ -889,7 +1006,7 @@ def test_e_force_full_trains_even_without_new_games(tmp_path: Path) -> None:
 
 def test_manual_call_without_day_type_is_unchanged(tmp_path: Path) -> None:
     """手動直呼（未帶 DAILY_DAY_TYPE）＝現況：不呼叫閘門、照訓練。"""
-    result, ids, uv_calls, _ssh = _run_prod_sync(tmp_path, gate_run="0", trained_through=_prev_year(),
+    result, ids, uv_calls, _ssh = _run_prod_sync(tmp_path, prod_model=REAL_SIGNATURE, trained_through=_prev_year(),
                                                  DAILY_DAY_TYPE="")
     assert result.returncode == 0, result.stderr[-2000:]
     assert ids[2:] == ["outcome-3", "outcome_simple-4"]
@@ -897,7 +1014,7 @@ def test_manual_call_without_day_type_is_unchanged(tmp_path: Path) -> None:
 
 
 def test_unknown_day_type_is_rejected(tmp_path: Path) -> None:
-    result, ids, _uv, _ssh = _run_prod_sync(tmp_path, gate_run="0", trained_through="2020",
+    result, ids, _uv, _ssh = _run_prod_sync(tmp_path, prod_model=REAL_SIGNATURE, trained_through="2020",
                                             DAILY_DAY_TYPE="skip")
     assert result.returncode == 64
     assert ids == ["outcome-1", "outcome_simple-2"]
@@ -938,3 +1055,114 @@ def test_cli_help_is_side_effect_free() -> None:
                             text=True, capture_output=True, check=False,
                             env={**os.environ, "DATABASE_URL": "postgresql://x@127.0.0.1:1/none"})
     assert result.returncode == 0 and "decide" in result.stdout
+
+
+# ============================================================== 審核 F2：探測回應不明 ≠ 確定無新場
+
+@pytest.mark.parametrize("body", [
+    {}, {"Data": None}, {"Data": {}}, {"Data": {"Games": {}}}, {"Data": {"Games": None}},
+    {"Data": {"Games": [{"unexpected": "schema"}]}},
+    {"Data": {"Games": [{"GameId": "2026-A-1", "KindCode": "C", "GameSno": 1,
+                         "PreExeDate": "2026-10-10T18:35:00"}]}},       # 賽別與查詢不符
+    {"Data": {"Games": [{"GameId": "2026-E-1", "KindCode": "E", "GameSno": 1}]}},   # 缺開賽時刻
+    [], "oops",
+])
+def test_f2_unreadable_probe_response_is_unavailable_not_clean(body) -> None:
+    def fetch(path, params):
+        return body if params["kindCode"] == "E" else {"Data": {"Games": []}}
+    result = dg.stats_probe(date(2026, 10, 8), fetch=fetch, local_lookup=lambda _g: {})
+    assert result.status == "unavailable", result
+    decision = dg.classify(_inputs(date(2026, 10, 8)), lambda: result)
+    assert decision.day_type == dg.LIGHT
+
+
+def test_f2_legitimately_empty_schedule_is_still_clean() -> None:
+    result = dg.stats_probe(date(2026, 10, 8), fetch=lambda p, q: {"Data": {"Games": []}},
+                            local_lookup=lambda _g: {})
+    assert result.status == "clean"
+
+
+# ============================================================== 審核 F3：衍生失敗不推進成功基準
+
+def _f3_db(*, later_detail: dict, revision_hours_after_ok: float | None = 1):
+    ok_at = datetime(2026, 10, 20, 10, 30, tzinfo=TPE)          # 上次整組成功（週二）
+    later = datetime(2026, 10, 21, 10, 30, tzinfo=TPE)           # J4 觸發的那次衍生
+    revisions = [] if revision_hours_after_ok is None else [ok_at + timedelta(hours=revision_hours_after_ok)]
+    return ok_at, later, WeeklyDB([(ok_at, _detail()), (later, later_detail)], revisions)
+
+
+def test_f3_partial_derived_failure_does_not_advance_baseline(tmp_path) -> None:
+    """審核 F3 路徑：J4 修訂 → 衍生時當季衍生失敗、分項成功 → 下一次仍須重跑整組。"""
+    ok_at, later, db = _f3_db(later_detail=_detail(failed="derived"))
+    assert dg.last_refresh_marks(db)[1] == ok_at                    # 基準停在上次整組成功
+    signals = dg.weekly_signals(db, base=tmp_path)                  # 無 J3／J4 狀態檔
+    by_key = {s.key: s.fired for s in signals}
+    assert by_key["j4_box"] is True                                  # 修訂列仍在基準之後
+    assert by_key["derived_retry"] is True                           # 前次衍生沒跑完
+    steps, _ = dg.derived_decision([dg.DerivedSignal("j1_games", False), *signals],
+                                   dg.full_chain_derived())
+    assert steps == dg.full_chain_derived()
+
+
+def test_f3_retry_alone_fires_without_any_new_write(tmp_path) -> None:
+    """J1 寫入觸發的衍生失敗（訊號只活在那一次）→ 隔天沒有任何新寫入也要重試。"""
+    ok_at, later, db = _f3_db(later_detail=_detail(failed="derived"), revision_hours_after_ok=None)
+    by_key = {s.key: s.fired for s in dg.weekly_signals(db, base=tmp_path)}
+    assert by_key == {"j3_pitches": False, "j4_box": False, "derived_retry": True}
+
+
+def test_f3_crashed_run_counts_as_failed_attempt(tmp_path) -> None:
+    ok_at, later, db = _f3_db(later_detail={"error": "boom", "pa_build": {"errors": []}},
+                              revision_hours_after_ok=None)
+    assert {s.key: s.fired for s in dg.weekly_signals(db, base=tmp_path)}["derived_retry"] is True
+
+
+def test_f3_skipped_runs_after_success_are_not_retries(tmp_path) -> None:
+    """負控：之後只有「無訊號略過」的列 → 不重試、全部訊號為 0。"""
+    ok_at, later, db = _f3_db(later_detail=_detail(skipped=True), revision_hours_after_ok=None)
+    assert [s.fired for s in dg.weekly_signals(db, base=tmp_path)] == [False, False, False]
+
+
+def test_f3_full_success_advances_baseline(tmp_path) -> None:
+    ok_at, later, db = _f3_db(later_detail=_detail(), revision_hours_after_ok=1)
+    assert dg.last_refresh_marks(db)[1] == later
+    assert {s.key: s.fired for s in dg.weekly_signals(db, base=tmp_path)}["j4_box"] is False
+
+
+# ============================================================== 審核 F4：覆寫失敗不得留下同日舊檔
+
+def test_f4_write_failure_removes_same_day_file(fake_db, tmp_path, monkeypatch) -> None:
+    out = tmp_path / "today.json"
+    dg.write_today_schedule(out, date(2026, 10, 23), day_type="light", stage="decide")
+    assert json.loads(out.read_text(encoding="utf-8"))["date"] == "2026-10-23"
+
+    def boom(*a, **k):
+        raise OSError("disk full")
+    monkeypatch.setattr(dg, "today_games", boom)
+    with pytest.raises(OSError):
+        dg.write_today_schedule(out, date(2026, 10, 23), day_type="light", stage="after_scrape")
+    assert not out.exists()
+
+
+def test_f4_scrape_daily_removes_file_when_overwrite_fails(tmp_path) -> None:
+    """審核 F4 路徑：decide 已寫「今日、零場」→ 乙型爬取 → 覆寫失敗（uv／python 起不來）→ 不得留檔。"""
+    repo = tmp_path / "repo"
+    (repo / "logs").mkdir(parents=True)
+    stale = repo / "logs" / "daily-schedule-today.json"
+    stale.write_text(json.dumps({"schema_version": 1, "date": date.today().isoformat(),
+                                 "stage": "decide", "games": []}), encoding="utf-8")
+    result, status, calls, _repo = _run_daily(tmp_path, gate_type="light",
+                                              extra_env={"STUB_TODAY_FAIL": "1"})
+    assert result.returncode == 0
+    assert any(c.startswith("today-schedule") for c in calls)
+    assert not stale.exists()
+
+
+def test_f4_gate_failure_also_removes_file(tmp_path) -> None:
+    repo = tmp_path / "repo"
+    (repo / "logs").mkdir(parents=True)
+    stale = repo / "logs" / "daily-schedule-today.json"
+    stale.write_text("{}", encoding="utf-8")
+    result, status, _calls, _repo = _run_daily(tmp_path, gate_type="garbage",
+                                                extra_env={"STUB_TODAY_FAIL": "1"})
+    assert status["day_type"] == "full" and not stale.exists()

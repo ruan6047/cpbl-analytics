@@ -76,14 +76,13 @@ scripts/refresh-cpbl-prod.sh — 把本機 CPBL 資料同步到 production（四
                 （與 ROSTER_ONLY 同形：唯讀比對；無變更不備份不寫；有待寫才備份＋單交易寫入＋事後對帳）
   DAILY_DAY_TYPE
                 每日鏈（scrape-daily.sh）帶入的日型（#364）；未設定＝手動直呼，行為同現況（不套閘門）。
-                full：§3.5 訓練閘門——本機一軍完成場（含比分）自上次 cpbl-train-outcome 後有變，才跑
-                      cpbl-build-features、game_features 全鏡像、cpbl-train-outcome；正式站 artifact 訓練
-                      上界季 < 今年−1 才跑 cpbl-train-outcome-simple。
+                full：§3.5 訓練閘門——本機一軍完成場自正式站上次 model_versions(task='outcome') 後
+                      有新增，才跑 cpbl-build-features、game_features 全鏡像、cpbl-train-outcome；
+                      正式站 artifact 訓練上界季 < 今年−1 才跑 cpbl-train-outcome-simple。
+                      正式站讀不到（ssh／psql 失敗、無列）一律照跑。
                 light／sync_only：上述四步一律略過（乙型／甲型只同步）。同步與備份路徑不變。
   DAILY_FORCE_FULL
                 1＝不套 §3.5 閘門，四步照跑（逃生閥）
-  TRAIN_GATE_STATE
-                §3.5 指紋狀態檔（預設 logs/train-gate-state.json）
 
 離開碼
   0 成功 · 64 參數錯 · 65 取不到本機 freshness 基準 · 67 同步 payload 驗證失敗
@@ -1016,24 +1015,26 @@ cd "$REPO_DIR"
 # RUN_OUTCOME 管三件同條件的事：本機 cpbl-build-features、3/4 的 game_features 清空＋全鏡像、
 # 4/4 的 cpbl-train-outcome（無新完賽場時三者內容都不變，PLAN-r2 §3.5）。
 # RUN_SIMPLE＝auto 時於 4/4 讀正式站 artifact 的 trained_through 再決定。
-TRAIN_GATE_STATE="${TRAIN_GATE_STATE:-$REPO_DIR/logs/train-gate-state.json}"
+#
+# 正式站最新 model_versions(task='outcome') 的 cv_metrics（trainer 自己寫的 test_seasons／n_train／n_test）。
+# 唯讀 psql；讀不到一律印空字串 → daily_gate train-gate 判照跑（fail open）。不依賴新碼部署。
+remote_outcome_model_metrics() {
+  ssh -o BatchMode=yes "$VPS" \
+    "cd ${DEPLOY_PATH} && set -a && . ./.env && docker exec prod_pg psql -At -U \"\$DB_USER\" -d \"\$DB_NAME\" -c \"SELECT cv_metrics::text FROM cpbl.model_versions WHERE task = 'outcome' ORDER BY trained_at DESC LIMIT 1\"" \
+    2>/dev/null | tail -n 1 || true
+}
 RUN_OUTCOME=1
 RUN_SIMPLE=1
 OUTCOME_REASON="未套閘門（手動直呼或 DAILY_FORCE_FULL=1）"
-OUTCOME_FINGERPRINT=""
-OUTCOME_COMPLETED=""
-OUTCOME_LAST_DATE=""
 if [ -n "${DAILY_DAY_TYPE:-}" ] && [ "${DAILY_FORCE_FULL:-0}" != "1" ]; then
   case "$DAILY_DAY_TYPE" in
     full)
-      # 指紋讀本機 DB（唯讀）；任何失敗 → 照跑（fail open 到現況，不因閘門壞掉而少訓練）。
-      if GATE_OUT="$(uv run python -m cpbl.ingest.daily_gate train-gate --state "$TRAIN_GATE_STATE" 2>&1)" \
+      # §3.5：本機完成場（唯讀）對照正式站上次回測的訓練資料規模；任何失敗 → 照跑（fail open）。
+      if GATE_OUT="$(remote_outcome_model_metrics \
+           | uv run python -m cpbl.ingest.daily_gate train-gate --prod-metrics - 2>&1)" \
          && printf '%s\n' "$GATE_OUT" | grep -q '^RUN_OUTCOME=[01]$'; then
         RUN_OUTCOME="$(printf '%s\n' "$GATE_OUT" | sed -n 's/^RUN_OUTCOME=//p' | tail -n 1)"
         OUTCOME_REASON="$(printf '%s\n' "$GATE_OUT" | sed -n 's/^OUTCOME_REASON=//p' | tail -n 1)"
-        OUTCOME_FINGERPRINT="$(printf '%s\n' "$GATE_OUT" | sed -n 's/^OUTCOME_FINGERPRINT=//p' | tail -n 1)"
-        OUTCOME_COMPLETED="$(printf '%s\n' "$GATE_OUT" | sed -n 's/^OUTCOME_COMPLETED=//p' | tail -n 1)"
-        OUTCOME_LAST_DATE="$(printf '%s\n' "$GATE_OUT" | sed -n 's/^OUTCOME_LAST_DATE=//p' | tail -n 1)"
       else
         RUN_OUTCOME=1
         OUTCOME_REASON="訓練閘門判定失敗 → 照跑（fail open）：$(printf '%s' "${GATE_OUT:-}" | tail -n 1)"
@@ -1304,14 +1305,8 @@ echo "==> 4/4 VPS 跑賽事預測回測（LightGBM 需 libgomp；prod_cpbl_api �
 # game_features 已由本機鏡像（全史），VPS 不需再 build-features；直接以鏡像資料跑
 # 走查回測並把 model_versions(task='outcome') 持久化，供 /api/info 與 /predict 面板展示。
 if [ "$RUN_OUTCOME" = 1 ]; then
+  # 基準就是 trainer 寫進正式站的 model_versions 本身，不另記本機狀態（#364 審核 F1）。
   remote_train "docker exec prod_cpbl_api cpbl-train-outcome" 4
-  # 成功才記指紋（set -e：訓練失敗走不到這裡 → 下次照跑）。記錄失敗只警告：代價是下次多跑一次。
-  if [ -n "$OUTCOME_FINGERPRINT" ]; then
-    uv run python -m cpbl.ingest.daily_gate train-record --state "$TRAIN_GATE_STATE" \
-      --fingerprint "$OUTCOME_FINGERPRINT" --completed-games "${OUTCOME_COMPLETED:-0}" \
-      --last-game-date "$OUTCOME_LAST_DATE" \
-      || echo "    ⚠ 訓練閘門狀態寫入失敗（下次會再跑一次 cpbl-train-outcome）" >&2
-  fi
 else
   echo "    ⏭ 略過 cpbl-train-outcome（§3.5 訓練閘門：${OUTCOME_REASON}；model_versions 不新增）"
 fi

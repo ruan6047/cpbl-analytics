@@ -1,35 +1,41 @@
-"""J1 每日鏈（10:10）的日型閘門與 VPS 訓練閘門（#364；#343 PLAN-r2 §3.2、§3.5、§3.8）。
+"""J1 每日鏈（10:10）的日型閘門、衍生步驟閘門與 VPS 訓練閘門（#364；#343 PLAN-r6 §3.2、§3.5、§3.8）。
 
-**只決定「何時跑什麼」，不改觸發器、同步與備份路徑**（PLAN-r2 §2 方案甲）。呼叫端：
+**只決定「何時跑什麼」，不改觸發器、同步與備份路徑**（PLAN §2 方案甲）。呼叫端：
 
-- ``scripts/scrape-daily.sh``：取鎖後 ``decide`` → 依日型分流；同步成功後 ``mark-synced``。
-- ``cpbl-refresh-recent``：環境變數 ``DAILY_DAY_TYPE=light`` 時略過乙型不跑的步驟；
-  ``cpbl-refresh-recent --plan --date YYYY-MM-DD`` 印出該日的步驟清單（唯讀，不寫任何東西）。
-- ``scripts/refresh-cpbl-prod.sh``：``train-gate`` 決定 ``cpbl-build-features``＋``game_features``
-  全鏡像＋``cpbl-train-outcome`` 跑不跑；訓練成功後 ``train-record``。
+- ``scripts/scrape-daily.sh``：取鎖後 ``decide`` → 依日型分流；同步成功後 ``mark-synced``；
+  爬完賽程後 ``today-schedule`` 覆寫今日賽程檔（失敗即刪檔）。
+- ``cpbl-refresh-recent``：讀環境變數 ``DAILY_DAY_TYPE``；衍生步驟由本模組 :func:`derived_decision`
+  依 §3.2.3 來源訊號決定。``cpbl-refresh-recent --plan --date YYYY-MM-DD`` 印出該日步驟清單（唯讀）。
+- ``scripts/refresh-cpbl-prod.sh``：``train-gate`` 以「正式站最新 ``model_versions(task='outcome')``
+  的訓練資料規模」對照本機完成場，決定 ``cpbl-build-features``＋``game_features`` 全鏡像＋
+  ``cpbl-train-outcome`` 跑不跑（§3.5）。
 
-日型（PLAN-r2 §3.2 表；判定只讀本機 ``cpbl.games``＋狀態檔，⛔ 不連 www）：
+日型（PLAN-r6 §3.2 表；判定只讀本機 ``cpbl.games``＋狀態檔，⛔ 不連 www）：
 
-=========  ==========================================================================
-``full``   有賽型：昨天有任一 A／D／E／C 排定場 → 完整鏈（現況），4/4 套 §3.5 訓練閘門
-``light``  乙型：昨天無、今天有 → 爬賽程／累計／戰績／升降／補缺／逐球自癒＋同步；
-           略過 PA build、球種推算（無新逐球時）、當季衍生、分項、build-features、4/4 訓練。
-           「甲型但上次 J1 失敗」與「甲型但 stats 探測有新場／探測失敗」也走這裡。
-``sync_only`` 甲型但本機自上次正式站同步後有寫入（J3／J4／手動）→ 只同步，不爬、不訓練
-``skip``   甲型：昨今皆無＋上次 J1 成功＋本機無未同步寫入＋stats 探測無新場
-           → 不爬、不備份、不同步；狀態寫「成功、skipped=true、reason=…」
-=========  ==========================================================================
+=============  =====================================================================
+``full``       有賽型：昨天有任一 A／D／E／C 排定場 → 完整鏈（現況），4/4 套 §3.5 訓練閘門
+``light``      乙型：昨天無、今天有 → 爬賽程／累計／戰績／升降／補缺／逐球自癒＋同步。
+               「甲型但上次 J1 失敗」與「甲型但 stats 探測有新場／探測不明」也走這裡。
+``sync_only``  甲型但本機自上次正式站同步後有寫入（J3／J4／手動）→ 不爬，只做衍生＋同步，不訓練
+``skip``       甲型：昨今皆無＋上次 J1 成功＋本機無未同步寫入＋stats 探測確定無新場
+               → 不爬、不備份、不同步；狀態寫「成功、skipped=true、reason=…」
+=============  =====================================================================
 
-逃生閥（§3.2.3）：``DAILY_FORCE_FULL=1`` 一律走 ``full`` 且不套訓練閘門。
+衍生步驟（PA build、球種推算、當季衍生、分項＋生涯、改名同步；§3.2.3 整組讀法）：
+``light``／``sync_only`` ⛔ 不依日型略過——任一來源訊號（本次 J1 寫入場／逐球、J3、J4、
+前次衍生未成功）或判斷不了 → 跑整組（＝完整鏈在同一來源狀態下的集合）；全部為 0 才略過。
+``build-features`` 與 4/4 訓練在 ``light``／``sync_only`` 一律略過（§3.2 表）。
 
-⚠️ fail closed 的方向一律是「多跑」：任何一項判定讀不到（歷史檔缺、同步標記缺、stats 取不到）
-都不得判成甲型。判定程式本身失敗時 scrape-daily.sh 退回 ``full``（現況）。
+逃生閥（§3.2.4）：``DAILY_FORCE_FULL=1`` 一律走 ``full``，衍生與訓練都不套閘門。
+
+⚠️ fail closed 的方向一律是「多跑」：任何一項判定讀不到或讀不懂（歷史檔缺、同步標記缺、stats
+回應不明、refresh_log 讀不到、正式站模型讀不到）都不得判成「可以略過」。判定程式本身失敗時
+scrape-daily.sh 退回 ``full``（現況）。
 """
 
 from __future__ import annotations
 
 import argparse
-import hashlib
 import json
 import os
 import sys
@@ -61,7 +67,6 @@ FORCE_ENV = "DAILY_FORCE_FULL"
 DAY_TYPE_ENV = "DAILY_DAY_TYPE"
 DEFAULT_HISTORY = Path("logs/schedule-history/com.cpbl.scrape-daily.jsonl")
 DEFAULT_SYNC_MARKER = Path("logs/daily-sync-marker.json")
-DEFAULT_TRAIN_STATE = Path("logs/train-gate-state.json")
 # 今日賽程檔（PLAN-r2 §3.1 J1 → J2、§3.3 動作條件、§3.6 J1 甲型列「只寫狀態與今日賽程檔」）。
 # 消費端＝#365 WP2 晚間鏈：缺檔或 ``date`` 不是台北今天 → 退回連本機 DB（§3.3）。格式見
 # :func:`today_schedule_payload`；⛔ 改欄位名或語意須同步 #365。
@@ -320,13 +325,18 @@ def local_schedule(connection: Any, days: Iterable[date]) -> dict[date, dict[str
 
 # —— §3.2.1 stats 探測 ——
 
-def parse_probe_rows(rows: Iterable[Mapping], year: int, kinds: Iterable[str]) -> list[Any]:
+def parse_probe_rows(rows: Iterable[Mapping], year: int, kinds: Iterable[str], *,
+                     strict: bool = False) -> list[Any]:
     """stats ``Data.Games[]`` → ``StatsGame``，賽別放寬到 ``kinds``。
 
     身分規則與 :func:`cpbl.ingest.postseason_evening.parse_stats_games` 逐條相同（``GameId`` 與
     ``KindCode``／``GameSno`` 不一致整列略過、主客取不到為 None），差別只有賽別白名單：
     那支綁死模組常數 ``KINDS=("E","C")``（晚間鏈的賽別，屬 #365 WP2 的檔），本卡不改它。
     一致性由 ``tests/test_daily_gate.py`` 以同一批列對 E／C 比對兩支輸出釘住。
+
+    ``strict=True``（甲型探測用，#364 審核 F2）：身分欄位讀不懂、``GameId`` 與 ``KindCode``／
+    ``GameSno`` 不一致、或賽別不在 ``kinds`` 的列一律 :class:`ProbeUnavailable`——探測的結論是
+    「可以不爬」，讀不懂的列不能被安靜略過後算成「確定無新場」。
     """
     from cpbl.ingest.postseason_evening import ProbeUnavailable, StatsGame, _team_code
 
@@ -340,12 +350,18 @@ def parse_probe_rows(rows: Iterable[Mapping], year: int, kinds: Iterable[str]) -
             gid = (int(parts[0]), parts[1], int(parts[2])) if len(parts) == 3 else None
             sno = int(row.get("GameSno"))
         except (TypeError, ValueError):
+            if strict:
+                raise ProbeUnavailable(f"stats schedule 列身分讀不懂：{dict(row)!r}"[:200]) from None
             continue
         kind = str(row.get("KindCode") or "")
         if gid is None or gid != (year, kind, sno) or kind not in allowed:
+            if strict:
+                raise ProbeUnavailable(f"stats schedule 列身分不一致或賽別不符：{dict(row)!r}"[:200])
             continue
         starts = row.get("PreExeDate")
         starts = str(starts) if starts else None
+        if strict and not (starts and len(starts) >= 10):
+            raise ProbeUnavailable(f"stats schedule 列缺 PreExeDate：{row.get('GameId')}")
         venue = row.get("Field")
         out.append(StatsGame(
             year=year, kind_code=kind, game_sno=sno,
@@ -388,6 +404,26 @@ def compare_probe(stats_games: Iterable[Any], local: Mapping[str, str | None],
     return found
 
 
+def probe_rows(body: Any) -> list[Any]:
+    """stats 賽程回應 → ``Data.Games`` 列（#364 審核 F2：只接受確定的形狀）。
+
+    只有 ``{"Data": {"Games": [...]}}``（list，可為空）算「成功取得」；其餘——非物件、缺 ``Data``、
+    ``Data`` 為 null 或非物件、缺 ``Games``、``Games`` 為 null 或非 list——一律
+    :class:`ProbeUnavailable`。⛔ 不得以 ``or []`` 把「讀不懂」折成「零場」：零場的結論是「可以不爬」。
+    """
+    from cpbl.ingest.postseason_evening import ProbeUnavailable
+
+    if not isinstance(body, Mapping):
+        raise ProbeUnavailable(f"stats schedule 回應不是物件：{type(body).__name__}")
+    data = body.get("Data")
+    if not isinstance(data, Mapping):
+        raise ProbeUnavailable(f"stats schedule 回應 Data 不是物件：{type(data).__name__}")
+    rows = data.get("Games")
+    if not isinstance(rows, list):
+        raise ProbeUnavailable(f"stats schedule 回應 Data.Games 不是 list：{type(rows).__name__}")
+    return rows
+
+
 def stats_probe(day: date, *, fetch: Callable[[str, dict], Mapping] | None = None,
                 local_lookup: Callable[[list[Any]], Mapping[str, str | None]],
                 timeout: float = 10.0) -> ProbeResult:
@@ -400,10 +436,7 @@ def stats_probe(day: date, *, fetch: Callable[[str, dict], Mapping] | None = Non
         for year, month in probe_months(day):
             for kind in PROBE_KINDS:
                 body = fetch(SCHEDULE_PATH, {"kindCode": kind, "year": str(year), "month": str(month)})
-                rows = ((body or {}).get("Data") or {}).get("Games") or []
-                if not isinstance(rows, list):
-                    return ProbeResult("unavailable", ("Games 不是 list",))
-                games += parse_probe_rows(rows, year, (kind,))
+                games += parse_probe_rows(probe_rows(body), year, (kind,), strict=True)
     except Exception as exc:  # noqa: BLE001 — 逾時／HTTP／JSON／形狀漂移一律 fail closed
         return ProbeResult("unavailable", (f"{type(exc).__name__}: {exc}"[:200],))
     diffs = compare_probe(games, local_lookup(games), day)
@@ -471,19 +504,72 @@ def _aware(value: Any) -> datetime | None:
     return _parse_ts(str(value))
 
 
-def last_refresh_marks(connection: Any) -> tuple[datetime | None, datetime | None]:
-    """(上次成功的球種推算時刻, 上次衍生（分項）時刻)，取自本機 ``refresh_log``（scope recent-games）。
+# refresh_log.detail 中衍生步驟的鍵（形狀見 run_refresh_recent.main）。
+_DERIVED_DETAIL_KEYS = {"pa_build": "pa_build", "pitch_type": "pitch_type", "derived": "derived",
+                        "splits": "splits_built"}
+# 回頭看幾列 refresh_log（每日一列＋手動＝一年以上）。窗內找不到整組成功 → 基準 None → 跑。
+REFRESH_LOG_LOOKBACK = 400
 
-    refresh_log 在 main() 結尾才寫，時刻晚於該次衍生完成；略過的步驟 detail 帶 ``skipped`` 鍵，不計。
+
+def _step_tried(detail: Mapping[str, Any], step: str) -> bool:
+    value = detail.get(_DERIVED_DETAIL_KEYS[step])
+    return isinstance(value, Mapping) and "skipped" not in value
+
+
+def _step_ok(detail: Mapping[str, Any], step: str) -> bool:
+    """該步驟這次有跑而且成功：沒標 skipped、沒有 ``error``、``errors`` 為空。"""
+    value = detail.get(_DERIVED_DETAIL_KEYS[step])
+    if not isinstance(value, Mapping) or "skipped" in value or "error" in value:
+        return False
+    return not value.get("errors")
+
+
+def derived_all_ok(detail: Mapping[str, Any]) -> bool:
+    """PA build、球種推算、當季衍生、分項**同一次全部成功**（#364 審核 F3 的成功基準）。"""
+    return isinstance(detail, Mapping) and all(_step_ok(detail, s) for s in _DERIVED_DETAIL_KEYS)
+
+
+def derived_attempted(detail: Mapping[str, Any]) -> bool:
+    """這一列有嘗試任何衍生步驟，或整支以例外結束（``error`` 鍵）。"""
+    if not isinstance(detail, Mapping):
+        return True
+    return "error" in detail or any(_step_tried(detail, s) for s in _DERIVED_DETAIL_KEYS)
+
+
+def _recent_refresh_rows(connection: Any) -> list[tuple[datetime, Mapping[str, Any]]]:
+    rows = connection.execute(
+        "SELECT refreshed_at, detail FROM cpbl.refresh_log WHERE scope = 'recent-games' "
+        "ORDER BY refreshed_at DESC LIMIT %s",
+        (REFRESH_LOG_LOOKBACK,),
+    ).fetchall()
+    return [(_aware(t), d if isinstance(d, Mapping) else {}) for t, d in rows]
+
+
+def last_refresh_marks(connection: Any) -> tuple[datetime | None, datetime | None]:
+    """(上次成功的球種推算時刻, 上次**整組衍生成功**的時刻)，取自本機 ``refresh_log``（recent-games）。
+
+    #364 審核 F3：「上次衍生」必須是 PA build、球種推算、當季衍生、分項四步**同一次都成功**；
+    只看分項會讓「當季衍生失敗、分項成功」把基準往前推，J4 等來源訊號被提早消耗、隔日不再重試。
+    refresh_log 在 main() 結尾才寫，時刻晚於該次衍生完成。
     """
-    row = connection.execute(
-        "SELECT "
-        "max(refreshed_at) FILTER (WHERE detail ? 'pitch_type' AND NOT (detail->'pitch_type' ? 'skipped') "
-        "  AND COALESCE(jsonb_array_length(detail->'pitch_type'->'errors'), 0) = 0), "
-        "max(refreshed_at) FILTER (WHERE detail ? 'splits_built' AND NOT (detail->'splits_built' ? 'skipped')) "
-        "FROM cpbl.refresh_log WHERE scope = 'recent-games'"
-    ).fetchone()
-    return _aware(row[0]), _aware(row[1])
+    rows = _recent_refresh_rows(connection)
+    pitch = max((t for t, d in rows if _step_ok(d, "pitch_type")), default=None)
+    derived = max((t for t, d in rows if derived_all_ok(d)), default=None)
+    return pitch, derived
+
+
+def derived_retry_signal(connection: Any, last_derived: datetime | None) -> DerivedSignal:
+    """#364 審核 F3：上次整組衍生成功之後，若有任何一次嘗試過衍生（或整支失敗）→ 重試。
+
+    把「前次衍生沒跑完」本身當成來源訊號：本次 J1 的寫入訊號（訊號 1、2）只活在那一次執行裡，
+    衍生失敗後隔天若沒有新寫入，沒有這條就會整組略過、停在舊版本。
+    """
+    if last_derived is None:
+        return DerivedSignal("derived_retry", None, "回看窗內沒有任何一次整組衍生成功 → 跑")
+    failed = [t for t, d in _recent_refresh_rows(connection)
+              if t > last_derived and derived_attempted(d)]
+    return DerivedSignal("derived_retry", bool(failed),
+                         f"上次整組衍生成功 {last_derived} 之後未成功的嘗試 {len(failed)} 次")
 
 
 def _j3_pitches(status: Mapping[str, Any], base: Path) -> int | None:
@@ -501,15 +587,20 @@ def _j3_pitches(status: Mapping[str, Any], base: Path) -> int | None:
 
 def weekly_signals(connection: Any | None = None, *, j3_status: Path = DEFAULT_J3_STATUS,
                    j4_status: Path = DEFAULT_J4_STATUS, base: Path = Path(".")) -> list[DerivedSignal]:
-    """§3.2.3 訊號 3（J3）與 4（J4）。任何讀取失敗 → fired=None（判斷不了就跑）。"""
+    """§3.2.3 訊號 3（J3）、4（J4），加上「前次衍生未成功」（#364 審核 F3）。
+
+    任何讀取失敗 → fired=None（判斷不了就跑）。
+    """
     if connection is None:
         with _readonly_conn() as c:
             return weekly_signals(c, j3_status=j3_status, j4_status=j4_status, base=base)
     try:
         last_pitch_type, last_derived = last_refresh_marks(connection)
+        retry = derived_retry_signal(connection, last_derived)
     except Exception as error:  # noqa: BLE001 — fail open
         reason = f"讀不到 refresh_log（{type(error).__name__}）→ 跑"
-        return [DerivedSignal("j3_pitches", None, reason), DerivedSignal("j4_box", None, reason)]
+        return [DerivedSignal("j3_pitches", None, reason), DerivedSignal("j4_box", None, reason),
+                DerivedSignal("derived_retry", None, reason)]
 
     # 訊號 3：J3 成功、完成時刻晚於上次成功的球種推算、寫入球數 > 0。
     try:
@@ -556,7 +647,7 @@ def weekly_signals(connection: Any | None = None, *, j3_status: Path = DEFAULT_J
             j4_signal = DerivedSignal(
                 "j4_box", new_rows > 0 or newer,
                 f"box_pitching_revisions 自 {last_derived} 後新列 {new_rows}；J4 完成 {j4_finished}")
-    return [j3_signal, j4_signal]
+    return [j3_signal, j4_signal, retry]
 
 
 # =========================================================================== 今日賽程檔
@@ -610,49 +701,109 @@ def today_schedule_payload(day: date, games: list[dict[str, Any]], *, day_type: 
     }
 
 
+def invalidate_today_schedule(path: Path) -> None:
+    """刪掉今日賽程檔，讓消費端（#365）退回連 DB。刪不掉只能交給 shell 再試一次。"""
+    try:
+        path.unlink(missing_ok=True)
+    except OSError as error:
+        print(f"WARN 今日賽程檔刪除失敗：{path}（{error}）", file=sys.stderr)
+
+
 def write_today_schedule(path: Path, day: date, *, day_type: str | None, stage: str) -> dict[str, Any]:
-    with _readonly_conn() as c:
-        games = today_games(c, day)
-    payload = today_schedule_payload(day, games, day_type=day_type, stage=stage)
-    _write_json(path, payload)
+    """寫今日賽程檔；查詢或寫檔任何一步失敗都先刪掉舊檔再外拋（#364 審核 F4）。
+
+    為什麼刪：同一天稍早（decide 階段、或稍早一次手動執行）寫下的檔 ``date`` 也是今天，消費端會
+    照單全收。爬取可能剛補進今天的新場，覆寫失敗若留下舊檔，晚間鏈會把有賽日判成無賽日。
+    缺檔＝消費端退回 DB，是唯一安全的失敗形狀。
+    """
+    try:
+        with _readonly_conn() as c:
+            games = today_games(c, day)
+        payload = today_schedule_payload(day, games, day_type=day_type, stage=stage)
+        _write_json(path, payload)
+    except BaseException:
+        invalidate_today_schedule(path)
+        raise
     return payload
 
 
 # =========================================================================== 訓練閘門（§3.5）
 
-def outcome_fingerprint(connection: Any) -> dict[str, Any]:
-    """本機一軍完成場集合（含比分）的指紋——``game_features``／``cpbl-train-outcome`` 的輸入面。
+# cpbl-train-outcome（models/outcome_gbm.backtest）的走查季數；與該模組 _WALK_SEASONS 同值，
+# 由 tests/test_daily_gate.py 對照模組常數釘住（不 import 它：那會連帶載入 LightGBM／sklearn）。
+OUTCOME_WALK_SEASONS = 5
 
-    完成判準用 :func:`cpbl.completion.completed_games_sql_with_evidence`（與 /api/info、同步
-    freshness 閘門同一支）。比分納入指紋：比分更正會改 ``home_win`` 標籤，即「內容變了」；
-    只看集合會漏掉它（方向是多跑一次，安全）。
+
+def outcome_dataset_signature(per_season: Mapping[int, int]) -> dict[str, Any] | None:
+    """各季「完成且非和局」的一軍場數 → 與 ``backtest()`` 寫進 ``cv_metrics`` 相同定義的三個值。
+
+    ``backtest()``：rows＝``game_features`` 中 ``completed AND home_win IN (0,1)``；
+    ``test_seasons``＝最近 ``_WALK_SEASONS`` 季中「有更早季」者；``n_train``＝最後一折的訓練列數
+    （season < 最後一個 test 季）；``n_test``＝全部 test 季的列數。任何一季多一場完成場，
+    ``n_train`` 或 ``n_test`` 必變；新球季則 ``test_seasons`` 變。只有一季（退化 80/20）回 None。
+    """
+    seasons = sorted(s for s, n in per_season.items() if n > 0)
+    test = [s for s in seasons[-OUTCOME_WALK_SEASONS:] if any(o < s for o in seasons)]
+    if not test:
+        return None
+    return {
+        "test_seasons": test,
+        "n_train": sum(n for s, n in per_season.items() if s < test[-1]),
+        "n_test": sum(n for s, n in per_season.items() if s in test),
+    }
+
+
+def local_outcome_signature(connection: Any) -> dict[str, Any] | None:
+    """本機 ``cpbl.games`` 依 ``cpbl-build-features`` 的語意算出的 :func:`outcome_dataset_signature`。
+
+    完成判準與 ``features/outcome.py`` 同一支（``completed_games_sql_with_evidence``）；``home_win``
+    只有比分不等時才是 0／1（和局為 NULL，被 ``_load`` 排除）。本機特徵尚未重建也無妨：這裡算的是
+    「這次若重建＋鏡像，正式站 trainer 會讀到的資料規模」。
     """
     from cpbl.completion import completed_games_sql_with_evidence
 
     cond = completed_games_sql_with_evidence("g")
-    row = connection.execute(
-        "SELECT count(*), COALESCE(max(g.game_date)::text, ''), "
-        "COALESCE(md5(string_agg(g.year || '-' || g.game_sno || ':' || COALESCE(g.home_score, -1) "
-        "|| '-' || COALESCE(g.away_score, -1), ',' ORDER BY g.year, g.game_sno)), '') "
-        f"FROM cpbl.games g WHERE g.kind_code = 'A' AND {cond}"
-    ).fetchone()
-    count, last_date, digest = int(row[0]), str(row[1]), str(row[2])
-    token = hashlib.sha256(f"A|{count}|{last_date}|{digest}".encode()).hexdigest()[:24]
-    return {"fingerprint": token, "completed_games": count, "last_game_date": last_date}
+    rows = connection.execute(
+        "SELECT g.year, count(*) FROM cpbl.games g "
+        "WHERE g.kind_code = 'A' AND g.game_date IS NOT NULL "
+        "AND g.home_score IS NOT NULL AND g.away_score IS NOT NULL AND g.home_score <> g.away_score "
+        f"AND {cond} GROUP BY g.year ORDER BY g.year"
+    ).fetchall()
+    return outcome_dataset_signature({int(y): int(n) for y, n in rows})
 
 
-def outcome_train_decision(current: Mapping[str, Any], state_path: Path) -> tuple[bool, str]:
-    """(要不要跑, 理由)。狀態檔缺／壞 → 跑（fail open 到現況）。"""
+def outcome_train_decision(local: Mapping[str, Any] | None,
+                           prod_metrics: Mapping[str, Any] | None) -> tuple[bool, str]:
+    """§3.5：本機完成場集合自正式站上次 ``model_versions(task='outcome')`` 後有新增 → 跑。
+
+    比對對象是**正式站**最新那一列的 ``cv_metrics``（trainer 自己寫下的訓練資料規模），所以正式站
+    還原到舊模型 → 規模不同 → 跑；VPS 上已手動重訓 → 規模相同 → 不重跑（#364 審核 F1）。
+    任一側讀不到或形狀不對 → 跑（fail open 到現況）。
+    """
+    if local is None:
+        return True, "本機訓練資料規模算不出來（不足兩季）→ 照跑"
+    if not isinstance(prod_metrics, Mapping):
+        return True, "讀不到正式站最新 model_versions(task='outcome') → 照跑"
     try:
-        state = json.loads(state_path.read_text(encoding="utf-8"))
-        previous = state["outcome"]["fingerprint"]
-    except (OSError, ValueError, KeyError, TypeError):
-        return True, f"無上次訓練紀錄（{state_path}）→ 照跑"
-    if previous == current["fingerprint"]:
-        return False, (f"本機一軍完成場無新增（{current['completed_games']} 場、最後 "
-                       f"{current['last_game_date']}；同上次訓練 {state['outcome'].get('recorded_at')}）")
-    return True, (f"本機一軍完成場有變（{state['outcome'].get('completed_games')} → "
-                  f"{current['completed_games']} 場、最後 {current['last_game_date']}）")
+        prod = {"test_seasons": [int(s) for s in prod_metrics["test_seasons"]],
+                "n_train": int(prod_metrics["n_train"]), "n_test": int(prod_metrics["n_test"])}
+    except (KeyError, TypeError, ValueError):
+        return True, "正式站 model_versions(task='outcome') 的 cv_metrics 形狀不符 → 照跑"
+    if prod == dict(local):
+        return False, (f"本機一軍完成場自正式站上次回測後無新增（test={prod['test_seasons']}、"
+                       f"n_train={prod['n_train']}、n_test={prod['n_test']}）")
+    return True, (f"本機一軍完成場與正式站上次回測不同（正式站 {prod} → 本機 {dict(local)}）")
+
+
+def parse_prod_metrics(text: str) -> Mapping[str, Any] | None:
+    text = (text or "").strip()
+    if not text:
+        return None
+    try:
+        value = json.loads(text.splitlines()[-1])
+    except (ValueError, IndexError):
+        return None
+    return value if isinstance(value, Mapping) else None
 
 
 def _write_json(path: Path, payload: Mapping[str, Any]) -> None:
@@ -734,14 +885,9 @@ def _parser() -> argparse.ArgumentParser:
     mark = sub.add_parser("mark-synced", help="同步成功後記下本機寫入計數器")
     mark.add_argument("--sync-marker", type=Path, default=DEFAULT_SYNC_MARKER)
 
-    gate = sub.add_parser("train-gate", help="§3.5：印 RUN_OUTCOME=0|1 與指紋")
-    gate.add_argument("--state", type=Path, default=DEFAULT_TRAIN_STATE)
-
-    record = sub.add_parser("train-record", help="cpbl-train-outcome 成功後記下指紋")
-    record.add_argument("--state", type=Path, default=DEFAULT_TRAIN_STATE)
-    record.add_argument("--fingerprint", required=True)
-    record.add_argument("--completed-games", type=int, required=True)
-    record.add_argument("--last-game-date", default="")
+    gate = sub.add_parser("train-gate", help="§3.5：對照正式站 model_versions，印 RUN_OUTCOME=0|1")
+    gate.add_argument("--prod-metrics", type=Path, required=True,
+                      help="正式站最新 model_versions(task='outcome').cv_metrics 的 JSON 檔（- ＝stdin；空＝讀不到）")
     return parser
 
 
@@ -768,8 +914,8 @@ def main(argv: list[str] | None = None) -> int:
             try:
                 write_today_schedule(args.today_file, day, day_type=decision.day_type, stage="decide")
                 print(f"TODAY_FILE={args.today_file}")
-            except Exception as error:  # noqa: BLE001 — 寫不出來消費端會退回 DB；不擋日型判定
-                print(f"WARN 今日賽程檔寫入失敗：{type(error).__name__}: {error}", file=sys.stderr)
+            except Exception as error:  # noqa: BLE001 — 已刪檔，消費端退回 DB；不擋日型判定
+                print(f"WARN 今日賽程檔寫入失敗（已刪檔）：{type(error).__name__}: {error}", file=sys.stderr)
             print(f"DAY_TYPE={decision.day_type}")
         return 0
     if args.command == "today-schedule":
@@ -784,21 +930,14 @@ def main(argv: list[str] | None = None) -> int:
         print(f"sync marker write_counter={counter}")
         return 0
     if args.command == "train-gate":
+        raw = sys.stdin.read() if str(args.prod_metrics) == "-" else args.prod_metrics.read_text(
+            encoding="utf-8")
         with _readonly_conn() as c:
-            current = outcome_fingerprint(c)
-        run, reason = outcome_train_decision(current, args.state)
-        print(f"OUTCOME_FINGERPRINT={current['fingerprint']}")
-        print(f"OUTCOME_COMPLETED={current['completed_games']}")
-        print(f"OUTCOME_LAST_DATE={current['last_game_date']}")
+            local = local_outcome_signature(c)
+        run, reason = outcome_train_decision(local, parse_prod_metrics(raw))
+        print(f"OUTCOME_LOCAL={json.dumps(local, ensure_ascii=False)}")
         print(f"OUTCOME_REASON={reason}")
         print(f"RUN_OUTCOME={1 if run else 0}")
-        return 0
-    if args.command == "train-record":
-        _write_json(args.state, {"outcome": {
-            "fingerprint": args.fingerprint, "completed_games": args.completed_games,
-            "last_game_date": args.last_game_date, "recorded_at": _now_text(),
-        }})
-        print(f"train gate state recorded fingerprint={args.fingerprint}")
         return 0
     return 64
 

@@ -47,9 +47,12 @@ def _outside_roster(data):
 # DAILY_DAY_TYPE／DAILY_FORCE_FULL／TRAIN_GATE_STATE 說明（16517 → 17310 bytes）；區塊之後新增 §3.5
 # 訓練閘門（1/4 build-features、3/4 game_features 鏡像、4/4 兩支 trainer 外包條件；62063 → 66835 bytes）。
 # ROSTER_ONLY 區塊本身未動（下方 ROSTER_RESULT 比對照舊）。只改基準，保護不減。
+# #364 exec-3（審核 F1：§3.5 基準改讀正式站 model_versions）：區塊之前 --help 拿掉 TRAIN_GATE_STATE
+# 說明、改寫 DAILY_DAY_TYPE 說明（17310 → 17312 bytes）；區塊之後訓練閘門改以 ssh 唯讀查正式站
+# model_versions、移除本機指紋記錄（66835 → 66596 bytes）。ROSTER_ONLY 區塊未動。待需求方裁定。
 OUTSIDE_ROSTER_SHA256 = (
-    "a0f2170bf2df9410c31a186693e405df7bafc931a102d56204176a93d64447be",   # 區塊之前（17310 bytes）
-    "35bc470ff578e0cd8dc8a5d6af06126c085f6598098ba5cae69a3415838c123b",   # 區塊之後（66835 bytes）
+    "2bf595299fa54505dad0bce3fb1c6226958c99cd75c0535c7b951d264ddc561c",   # 區塊之前（17312 bytes）
+    "75eee737cac269f4ae4b3ae0add2c1b7132a81c3350cf84558a05cb94c8e395e",   # 區塊之後（66596 bytes）
 )
 # #316 的成果（ROSTER_ONLY 區塊本身）以 main 上合併後的版本為準：#293 不得改動它。
 ROSTER_RESULT = "a473695dfca536e365b08c44aa2e85374e8f3e69"

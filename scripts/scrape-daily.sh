@@ -190,6 +190,8 @@ else
         DAY_REASON="$(printf '%s\n' "$GATE_OUT" | sed -n 's/^REASON=//p' | tr '\n' ';' | sed 's/;$//')"
         ;;
       *)
+        # 判定失敗時 decide 沒能保證今日賽程檔是這次寫的；刪掉，免得同日稍早的舊檔被當成有效（F4）。
+        rm -f "$TODAY_FILE"
         DAY_REASON="日型判定失敗（exit=${GATE_CODE}，輸出無合法 DAY_TYPE）→ 完整鏈（fail closed）"
         ;;
     esac
@@ -213,11 +215,16 @@ else
         DAILY_DAY_TYPE="$DAY_TYPE" "$UV" run --group scrape cpbl-refresh-recent >>"$LOG" 2>&1
       fi
       CODE=$?
-      if { [ "$CODE" -eq 0 ] || [ "$CODE" -eq 69 ]; } && [ "$DAY_TYPE" != sync_only ]; then
-        # 賽程剛更新：覆寫今日賽程檔（stage=after_scrape）。失敗只記 log——消費端缺檔會退回 DB。
-        "$UV" run python -m cpbl.ingest.daily_gate today-schedule --out "$TODAY_FILE" \
-          --day-type "$DAY_TYPE" >>"$LOG" 2>&1 \
-          || echo "[$(date '+%F %T')] WARN 今日賽程檔覆寫失敗（不影響 overall）" | tee -a "$LOG"
+      if [ "$DAY_TYPE" != sync_only ]; then
+        # 賽程可能剛更新（即使 refresh 非零退出，前段的 scrape_games 也可能已寫入）：一律覆寫今日
+        # 賽程檔（stage=after_scrape）。⛔ 覆寫失敗不得留下 decide 階段的同日舊檔——它的 date 也是
+        # 今天，消費端（#365）會照單全收、把剛補進的場判成沒有（#364 審核 F4）。失敗就刪檔，
+        # 讓消費端退回 DB。Python 端失敗時自己也會刪；這裡再刪一次是給「uv／python 起不來」的情形。
+        if ! "$UV" run python -m cpbl.ingest.daily_gate today-schedule --out "$TODAY_FILE" \
+             --day-type "$DAY_TYPE" >>"$LOG" 2>&1; then
+          rm -f "$TODAY_FILE"
+          echo "[$(date '+%F %T')] WARN 今日賽程檔覆寫失敗，已刪檔（消費端退回 DB；不影響 overall）" | tee -a "$LOG"
+        fi
       fi
       ;;
   esac
