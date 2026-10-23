@@ -56,7 +56,7 @@ import sys
 from collections.abc import Callable, Iterable, Iterator, Mapping
 from contextlib import contextmanager
 from dataclasses import asdict, dataclass, field
-from datetime import UTC, datetime, time, timedelta
+from datetime import UTC, date, datetime, time, timedelta
 from pathlib import Path
 from typing import Any
 from zoneinfo import ZoneInfo
@@ -70,7 +70,11 @@ TAIPEI = ZoneInfo("Asia/Taipei")
 STATS_BASE = "https://stats.cpbl.com.tw"
 SCHEDULE_PATH = "/api/proxy/v1/games/schedule"
 USER_AGENT = "cpbl-analytics/0.1 (https://cpbl.ruan-ruan.com)"   # 同 live_game_worker
-KINDS = ("E", "C")
+# #365 S1（P-EVENING-KINDS）：晚間鏈涵蓋的賽別，預設 A、E、C。可用環境變數
+# ``POSTSEASON_EVENING_KINDS`` 縮小（見 :func:`parse_evening_kinds`），⛔ 不收 D（D 隔日由每日鏈處理）。
+# 另寫一支、不用 ``config.parse_postseason_kinds``：那支只收 E、C，且同時管每日鏈與 live worker。
+EVENING_KINDS = ("A", "E", "C")
+EVENING_KINDS_ENV = "POSTSEASON_EVENING_KINDS"
 
 # —— 節奏參數（設計值，實測後交需求方；不是量測結果）——
 GAME_HOT_AFTER = timedelta(minutes=90)        # 當日場次 PreExeDate＋90 分鐘起每次喚醒都讀 stats
@@ -152,10 +156,12 @@ def _team_code(side: object) -> str | None:
     return str(side["Code"]) if side.get("Code") else None
 
 
-def parse_stats_games(rows: Iterable[Mapping], year: int) -> list[StatsGame]:
+def parse_stats_games(rows: Iterable[Mapping], year: int,
+                      kinds: Iterable[str] = EVENING_KINDS) -> list[StatsGame]:
     """``Data.Games[]`` → :class:`StatsGame`。身分以 ``GameId``（``YYYY-K-SNO``）為準，與
     ``KindCode``／``GameSno`` 不一致的列**整列略過**（不猜）。主客隊碼取不到時為 None，
     偵測端就不比主客（不把未知當異動）。"""
+    kinds = tuple(kinds)
     out: list[StatsGame] = []
     for row in rows:
         if not isinstance(row, Mapping):
@@ -167,7 +173,7 @@ def parse_stats_games(rows: Iterable[Mapping], year: int) -> list[StatsGame]:
         except (TypeError, ValueError):
             continue
         kind = str(row.get("KindCode") or "")
-        if gid is None or gid != (year, kind, sno) or kind not in KINDS:
+        if gid is None or gid != (year, kind, sno) or kind not in kinds:
             continue
         starts = row.get("PreExeDate")
         starts = str(starts) if starts else None
@@ -199,13 +205,16 @@ def _httpx_fetch(timeout: float) -> Fetcher:
     return fetch
 
 
-def stats_probe(year: int, months: Iterable[int], *, fetch: Fetcher | None = None,
-                timeout: float = 10.0) -> list[StatsGame]:
-    """唯讀讀 stats 賽程（E、C × 指定月份）。任一請求失敗即整批 :class:`ProbeUnavailable`——
-    半套結果會讓「這場不在 stats」被誤讀成取消，故 fail closed；每次只送 GET、不重試。"""
+def stats_probe(year: int, months: Iterable[int], *, kinds: Iterable[str] = EVENING_KINDS,
+                fetch: Fetcher | None = None, timeout: float = 10.0) -> list[StatsGame]:
+    """唯讀讀 stats 賽程（``kinds`` × 指定月份）。任一請求失敗即整批 :class:`ProbeUnavailable`——
+    半套結果會讓「這場不在 stats」被誤讀成取消，故 fail closed；每次只送 GET、不重試。
+
+    #365 S2：``kinds`` 由呼叫端傳「當晚有排定的賽別」（:func:`evening_gate`），不再固定查全部賽別。"""
+    kinds = tuple(kinds)
     fetch = fetch or _httpx_fetch(timeout)
     games: dict[str, StatsGame] = {}
-    for kind in KINDS:
+    for kind in kinds:
         for month in months:
             try:
                 body = fetch(SCHEDULE_PATH, {"kindCode": kind, "year": str(year), "month": str(month)})
@@ -216,7 +225,7 @@ def stats_probe(year: int, months: Iterable[int], *, fetch: Fetcher | None = Non
                 raise ProbeUnavailable(f"{kind}/{month}: {type(exc).__name__}") from exc
             if not isinstance(rows, list):
                 raise ProbeUnavailable("stats schedule schema drift: Games 不是 list")
-            for g in parse_stats_games(rows, year):
+            for g in parse_stats_games(rows, year, kinds):
                 games[g.key] = g
     return sorted(games.values(), key=lambda g: (g.starts_at or "", g.kind_code, g.game_sno))
 
@@ -304,6 +313,35 @@ def in_daily_guard(now: datetime) -> bool:
     return DAILY_GUARD[0] <= t < DAILY_GUARD[1]
 
 
+def night_of(now: datetime) -> date | None:
+    """#365 S1（P-NIGHT-WINDOW）：``now`` 屬於哪一晚（台北日期）。
+
+    台北 12:00 起到次日 09:45 前屬於「該日的夜」——延長賽跨過 24:00 的處理仍是同一晚；
+    09:45–12:00 不屬於任何一晚（回 None）。兩個界線沿用既有常數 :data:`DAILY_GUARD` 起點與
+    :data:`BLOCK_RELEASE_AT`，不另立常數。動作條件（:func:`evening_gate`）與每晚一次備份
+    （:func:`backup_plan`）共用這一支。"""
+    local = taipei(now)
+    t = local.time()
+    if t >= BLOCK_RELEASE_AT:
+        return local.date()
+    if t < DAILY_GUARD[0]:
+        return local.date() - timedelta(days=1)
+    return None
+
+
+def parse_evening_kinds(raw: str | None) -> tuple[str, ...]:
+    """``POSTSEASON_EVENING_KINDS``（逗號分隔）→ 依 :data:`EVENING_KINDS` 排序的賽別。
+
+    空值＝預設 A、E、C。只收 A、E、C 且不得重複；含 D 或其他值即 ``ValueError``（CLI 轉 exit 64，
+    fail loud）——⛔ 不靜默略過，否則「設了 D 卻沒抓 D」會被誤讀成 D 已涵蓋。"""
+    if raw is None or not raw.strip():
+        return EVENING_KINDS
+    parts = [p.strip() for p in raw.split(",")]
+    if any(p not in EVENING_KINDS for p in parts) or len(set(parts)) != len(parts):
+        raise ValueError(f"{EVENING_KINDS_ENV} 只接受不重複的 A、E、C：{raw!r}")
+    return tuple(k for k in EVENING_KINDS if k in parts)
+
+
 def probe_due(state: Mapping, now: datetime) -> tuple[bool, str]:
     """這一次喚醒要不要讀 stats。**不含任何晚間鐘點截止**。
 
@@ -353,7 +391,7 @@ def www_kinds(state: Mapping, now: datetime) -> tuple[str, ...]:
     20 分鐘，整個賽別都不得再抓——否則新事件會讓同賽別仍在冷卻的舊事件被再抓一次。賽別內至少要有
     一個未結且未用盡 3 次的事件。不同賽別互不連坐（E 冷卻中，C 的新公告仍可立即抓 C）。"""
     out = []
-    for kind in KINDS:
+    for kind in EVENING_KINDS:
         evs = [e for e in open_events(state).values() if _kind_of(e["key"]) == kind]
         if not any(len(e.get("attempts") or []) < WWW_MAX_ATTEMPTS for e in evs):
             continue
@@ -496,7 +534,7 @@ def plan(state: dict, now: datetime, *, probe: Callable[[], list[StatsGame]],
     if ok or starter:
         # 能連 www 就先抓（之後同一次喚醒的同步會一併帶上訊號表）；事件與時點同賽別合併成一次。
         kinds = set(www_kinds(state, now) if ok else ()) | starter
-        state["scrape_kinds"] = [k for k in KINDS if k in kinds]   # scrape 只抓這些賽別（F2）
+        state["scrape_kinds"] = [k for k in EVENING_KINDS if k in kinds]   # scrape 只抓這些賽別（F2）
         state["starter_inflight"] = [i for i in starter_due if sc.kind_of(i) in kinds]
         return "scrape", reason if ok else "starter_checkpoint"
     if open_events(state):
@@ -541,7 +579,7 @@ def starter_kinds(state: dict, now: datetime, due_ids: list[str]) -> set[str]:
         sc.note_wait(cps, due_ids, "www_blocked")
         return set()
     kinds = set()
-    for kind in KINDS:
+    for kind in EVENING_KINDS:
         ids = [i for i in due_ids if sc.kind_of(i) == kind]
         if not ids:
             continue
@@ -583,7 +621,7 @@ def note_challenge(state: dict, now: datetime, errors: Iterable[Mapping]) -> boo
 
 
 def record_scrape(state: dict, now: datetime, *, errors: list[dict], changed: bool,
-                  stats_has_c: bool, local_c_rows: int, kinds: Iterable[str] = KINDS) -> str:
+                  stats_has_c: bool, local_c_rows: int, kinds: Iterable[str] = EVENING_KINDS) -> str:
     """一次 www 嘗試的結果入帳。回 changed／unchanged／failed。
 
     ``kinds``＝這次實際抓的賽別：只有這些賽別的未結事件記一次嘗試，並記賽別的請求時刻
@@ -1046,6 +1084,16 @@ def boxpa_timeline(state: Mapping) -> list[dict]:
 
 # =========================================================================== 本機 DB（唯讀＋本機 refresh_log）
 
+def configured_evening_kinds() -> tuple[str, ...]:
+    """這次執行設定的晚間賽別（``POSTSEASON_EVENING_KINDS``；main 啟動時已驗過格式）。"""
+    return parse_evening_kinds(os.environ.get(EVENING_KINDS_ENV))
+
+
+def _kinds_list(kinds: Iterable[str] | None) -> list[str]:
+    """本機 SQL 的賽別參數（``kind_code = ANY(%s)``；⛔ 不拼字串）。None＝設定的晚間賽別。"""
+    return list(configured_evening_kinds() if kinds is None else kinds)
+
+
 # —— #293 box／PA 階段的本機 DB 讀寫（明細／PA build 寫本機；同步由 shell 呼叫 refresh-cpbl-prod.sh）——
 
 def _keys_tuple(keys: Iterable[str]) -> list[tuple[int, str, int]]:
@@ -1089,7 +1137,7 @@ def boxpa_detail(year: int, keys: list[str], state: Mapping | None = None, *, de
     out: dict[str, Any] = {"games": {}, "errors": []}
     for y, kind, sno in _keys_tuple(keys):
         key = f"{y}-{kind}-{sno}"
-        if kind not in KINDS:
+        if kind not in ("E", "C"):
             raise ValueError(f"季後賽別只接受 E／C：{kind!r}")
         issues: list[str] = []
         summary: dict[str, Any] = {}
@@ -1138,7 +1186,7 @@ def boxpa_tracking(year: int, keys: list[str], *, delay: float = 1.2) -> dict:
     out: dict[str, Any] = {"games": {}, "errors": []}
     for y, kind, sno in _keys_tuple(keys):
         key = f"{y}-{kind}-{sno}"
-        if kind not in KINDS:
+        if kind not in ("E", "C"):
             raise ValueError(f"季後賽別只接受 E／C：{kind!r}")
         if is_frozen(y, kind, sno):
             out["games"][key] = {"skipped_frozen": 1}
@@ -1219,7 +1267,8 @@ def boxpa_pa_build(year: int, keys: list[str]) -> dict:
             "build_states": result.get("build_states"), "errors": result.get("errors")}
 
 
-def load_local_games(year: int, now: datetime) -> dict[str, LocalGame]:
+def load_local_games(year: int, now: datetime,
+                     kinds: Iterable[str] | None = None) -> dict[str, LocalGame]:
     from cpbl.completion import completed_games_sql_with_evidence
     from cpbl.coverage import taipei_date
     from cpbl.db import conn
@@ -1229,8 +1278,8 @@ def load_local_games(year: int, now: datetime) -> dict[str, LocalGame]:
         rows = c.execute(
             f"""SELECT g.year, g.kind_code, g.game_sno, g.game_date, g.away_team_code,
                        g.home_team_code, g.venue, COALESCE({done}, FALSE)
-                FROM cpbl.games g WHERE g.year = %(year)s AND g.kind_code IN ('E', 'C')""",
-            {"year": year, "as_of": taipei_date(now)},
+                FROM cpbl.games g WHERE g.year = %(year)s AND g.kind_code = ANY(%(kinds)s)""",
+            {"year": year, "as_of": taipei_date(now), "kinds": _kinds_list(kinds)},
         ).fetchall()
     out = {}
     for y, k, s, d, away, home, venue, completed in rows:
@@ -1239,7 +1288,7 @@ def load_local_games(year: int, now: datetime) -> dict[str, LocalGame]:
     return out
 
 
-def local_first_seen(year: int) -> dict[str, str | None]:
+def local_first_seen(year: int, kinds: Iterable[str] | None = None) -> dict[str, str | None]:
     """T2：本機狀態修訂表首次出現 final 列（沒有 final 時取首次出現任一列）的 fetched_at。"""
     from cpbl.db import conn
 
@@ -1249,13 +1298,13 @@ def local_first_seen(year: int) -> dict[str, str | None]:
                       min(fetched_at) FILTER (WHERE raw_present_status = 1 AND raw_game_result = '0'),
                       min(fetched_at)
                FROM cpbl.game_schedule_status_revisions
-               WHERE year = %s AND kind_code IN ('E', 'C') GROUP BY 1, 2, 3""", (year,),
+               WHERE year = %s AND kind_code = ANY(%s) GROUP BY 1, 2, 3""", (year, _kinds_list(kinds)),
         ).fetchall()
     return {f"{y}-{k}-{s}": _iso(final or first) for y, k, s, final, first in rows}
 
 
-def local_signature(year: int) -> str:
-    """本機 E／C 的可同步狀態指紋：games 列（含兩隊先發）＋各場狀態修訂筆數、最新取得時刻，
+def local_signature(year: int, kinds: Iterable[str] | None = None) -> str:
+    """本機晚間賽別（#365 起含 A：A 不在指紋內時抓完永遠判 unchanged、不會同步）的可同步狀態指紋：games 列（含兩隊先發）＋各場狀態修訂筆數、最新取得時刻，
     以及**目前觀測版本**＝最近一次看到的 payload_hash 集合（依 ``last_seen_at``）。
 
     #292 A1：回到舊值（A→B→A）不會新增修訂列、只更新舊列 ``last_seen_at``，只看筆數與
@@ -1270,8 +1319,8 @@ def local_signature(year: int) -> str:
             """SELECT year, kind_code, game_sno, game_date, venue, away_team_code, home_team_code,
                       away_score, home_score, present_status, delay_kind, orig_date,
                       away_starter_id, home_starter_id
-               FROM cpbl.games WHERE year = %s AND kind_code IN ('E', 'C')
-               ORDER BY 1, 2, 3""", (year,)).fetchall()
+               FROM cpbl.games WHERE year = %s AND kind_code = ANY(%s)
+               ORDER BY 1, 2, 3""", (year, _kinds_list(kinds))).fetchall()
         revs = c.execute(
             """SELECT year, kind_code, game_sno, count(*), max(fetched_at),
                       array_agg(payload_hash ORDER BY payload_hash) FILTER (WHERE is_current)
@@ -1279,13 +1328,13 @@ def local_signature(year: int) -> str:
                             last_seen_at = max(last_seen_at)
                                 OVER (PARTITION BY year, kind_code, game_sno) AS is_current
                      FROM cpbl.game_schedule_status_revisions
-                     WHERE year = %s AND kind_code IN ('E', 'C')) r
+                     WHERE year = %s AND kind_code = ANY(%s)) r
                GROUP BY 1, 2, 3 ORDER BY 1, 2, 3""",
-            (year,)).fetchall()
+            (year, _kinds_list(kinds))).fetchall()
     return hashlib.sha256(repr((games, revs)).encode()).hexdigest()
 
 
-def local_www_starts(year: int) -> dict[str, str | None]:
+def local_www_starts(year: int, kinds: Iterable[str] | None = None) -> dict[str, str | None]:
     """#292 A1：每場最近一次 www payload 的 ``GameDateTimeS``（原字串，只作與 stats 開賽時刻並列）。"""
     from cpbl.db import conn
 
@@ -1294,9 +1343,9 @@ def local_www_starts(year: int) -> dict[str, str | None]:
             """SELECT DISTINCT ON (year, kind_code, game_sno) year, kind_code, game_sno,
                       NULLIF(raw_payload->>'GameDateTimeS', '')
                FROM cpbl.game_schedule_status_revisions
-               WHERE year = %s AND kind_code IN ('E', 'C')
+               WHERE year = %s AND kind_code = ANY(%s)
                ORDER BY year, kind_code, game_sno, last_seen_at DESC, fetched_at DESC""",
-            (year,)).fetchall()
+            (year, _kinds_list(kinds))).fetchall()
     return {f"{y}-{k}-{s}": start for y, k, s, start in rows}
 
 
@@ -1420,6 +1469,11 @@ def main(argv: list[str] | None = None) -> int:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s | %(message)s")
     now = _now()
     year = _season_year(now)
+    try:
+        evening_kinds = configured_evening_kinds()
+    except ValueError as exc:
+        print(f"FATAL: {exc}", file=sys.stderr)
+        return 64
     path = state_path()
     state = load_state(path)
 
@@ -1437,7 +1491,7 @@ def main(argv: list[str] | None = None) -> int:
         enabled = sc.flag_path().exists()
         action, reason = plan(
             state, now,
-            probe=lambda: stats_probe(year, _months(now, state)),
+            probe=lambda: stats_probe(year, _months(now, state), kinds=evening_kinds),
             load_local=lambda: load_local_games(year, now),
             local_first_seen=lambda: local_first_seen(year),
             starter_enabled=enabled,
@@ -1461,7 +1515,7 @@ def main(argv: list[str] | None = None) -> int:
         from cpbl.config import parse_postseason_kinds, settings
         from cpbl.ingest.run_refresh_recent import _postseason_games_step
 
-        configured = parse_postseason_kinds(settings.refresh_postseason_kinds) or KINDS
+        configured = parse_postseason_kinds(settings.refresh_postseason_kinds) or ("E", "C")
         # F2：只抓 plan 判定冷卻已過的賽別（既有 helper 的 kinds 參數，helper 本身不改）。
         kinds = tuple(k for k in configured if k in (state.get("scrape_kinds") or ()))
         cps = state.setdefault("starter_checkpoints", {})
