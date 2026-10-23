@@ -1,0 +1,316 @@
+"""#365 S3（驗收 h）：P-A-FETCH-GATE＋晚間 A 完賽判定（需求方裁定 #343 6361673244 第 1 項＝甲）。
+
+樣本：2026-09-07 的 A304／A306（``tests/fixtures/evening_schedule_2026_real.json`` 的 ``a_partial_2026_09_07``）。
+19:50:53（台北）www 在賽中回了兩場的部分比分（``GameResult=''``、PresentStatus=1；A304 主 3：客 2）——
+這是真實觀測。⚠️ 該晚兩場在同一時刻都還在賽中；「A306 已終局、A304 仍在賽中」的時序是**情境構造**：
+A306 用它的真實 final 列、A304 用它的真實賽中列，stats 狀態分別給 ``FINISHED``／``START``。
+
+①–⑤ 不連網、不碰 DB。⑥ 跑在**自行擁有的隔離 Postgres**（``CPBL_ISOLATED_TEST_DSN``，未設即 skip；該庫已有
+``cpbl.games`` 即拒跑，沿 tests/test_daily_chain_completion.py 的 ``isolated``）——⛔ 絕不在共用本機或正式庫建表寫列。
+CI 沒有 DB，⑥ 在 CI 必定 skip；本機實跑的指令與輸出見 #365 執行交付報告。
+"""
+
+from __future__ import annotations
+
+import json
+import os
+from datetime import datetime
+from pathlib import Path
+from zoneinfo import ZoneInfo
+
+import pytest
+
+from cpbl.completion import completed_games_sql_with_evidence, daily_chain_completed_games_sql
+from cpbl.ingest import postseason_evening as pe
+
+TPE = ZoneInfo("Asia/Taipei")
+FIXTURE = json.loads((Path(__file__).parent / "fixtures" / "evening_schedule_2026_real.json")
+                     .read_text(encoding="utf-8"))["a_partial_2026_09_07"]
+NOW = datetime(2026, 9, 7, 21, 0, tzinfo=TPE)
+
+
+def stats(sno: int, status: str, starts: str = "2026-09-07T18:35:00", kind: str = "A") -> pe.StatsGame:
+    g = FIXTURE["games"][f"2026-{kind}-{sno}"]
+    return pe.StatsGame(2026, kind, sno, status, starts, starts[:10], g["away_team_code"], g["home_team_code"],
+                        g["venue"])
+
+
+def local(sno: int, completed: bool, kind: str = "A") -> pe.LocalGame:
+    g = FIXTURE["games"][f"2026-{kind}-{sno}"]
+    return pe.LocalGame(2026, kind, sno, g["game_date"], g["away_team_code"], g["home_team_code"], g["venue"],
+                        completed)
+
+
+A306_FINAL_A304_LIVE = [stats(306, "FINISHED"), stats(304, "START")]
+# 本機：A306 尚未入庫終場（產生 final_not_ingested）；A304 的部分比分在晚間判準下不是完賽（⑤⑥ 證明）。
+LOCAL_NEITHER_DONE = {"2026-A-304": local(304, False), "2026-A-306": local(306, False)}
+
+
+def wake(state, now, games, local_games, *, enabled=False):
+    return pe.plan(state, now, probe=lambda: games, load_local=lambda: local_games, starter_enabled=enabled)
+
+
+# =========================================================== ① 另一場 A 仍在賽中 → 不對 A 發 www
+
+def test_a_www_waits_while_another_a_game_is_in_progress():
+    state = pe.empty_state()
+    assert wake(state, NOW, A306_FINAL_A304_LIVE, LOCAL_NEITHER_DONE) == ("idle", "a_fetch_gate")
+    assert "A" not in state["scrape_kinds"]
+    (ev,) = pe.open_events(state).values()
+    assert ev["key"] == "2026-A-306" and ev["attempts"] == [], "擋下不耗每事件 3 次額度"
+    assert state["www_requests"] == {}, "擋下不寫賽別冷卻帳本"
+    assert state["a_fetch_gate"]["reason"] == "a_in_progress:2026-A-304:START"
+    # 套用點 (3)：同一狀態下 A 場 box 缺 → boxpa 明細不抓、不計 detail_attempts。
+    rec = {"key": "2026-A-306", "game_date": "2026-09-07", "state": "open", "detail_attempts": [],
+           "sends": [], "sources": {"box": {"reason": "local_box_incomplete:game_livelog"}}}
+    state["boxpa"] = {"2026-A-306": rec}
+    assert pe.boxpa_plan(state, NOW, {"2026-A-306": rec}) == ("idle", [], [])
+    assert rec["detail_attempts"] == []
+
+
+def test_starter_checkpoints_for_a_wait_on_the_gate():
+    """套用點 (2)：#292 先發時點旗標開啟時，A 的時點同樣受擋（記 a_fetch_gate、不計次）。
+    情境：2026-09-27 真實開賽時刻 A355 15:05（進行中）／A357 17:05——16:05 是 A357 的 S-60。"""
+    rows = {g["game_sno"]: g for g in json.loads((Path(__file__).parent / "fixtures" /
+            "evening_schedule_2026_real.json").read_text(encoding="utf-8"))["schedule_files"]["2026-09-27"]["games"]}
+    games = [pe.StatsGame(2026, "A", 355, "START", rows[355]["starts_at"], "2026-09-27", "ADD011", "AKP011", "大巨蛋"),
+             pe.StatsGame(2026, "A", 357, "SCHEDULED", rows[357]["starts_at"], "2026-09-27", "ACN011", "AEO011",
+                          "新莊")]
+    local_games = {g.key: pe.LocalGame(2026, "A", g.game_sno, "2026-09-27", g.away_code, g.home_code, g.venue,
+                                       False) for g in games}
+    state = pe.empty_state()
+    t0 = datetime(2026, 9, 27, 14, 0, tzinfo=TPE)
+    wake(state, t0, games, local_games, enabled=True)
+    action, reason = wake(state, datetime(2026, 9, 27, 16, 5, tzinfo=TPE), games, local_games, enabled=True)
+    assert action == "idle"
+    s60 = [r for r in state["starter_checkpoints"].values() if r["key"] == "2026-A-357" and r["point"] == "S-60"]
+    assert len(s60) == 1 and s60[0]["wait_reason"] == "a_fetch_gate" and s60[0]["attempts"] == []
+    # 對照：A355 不在賽中（尚未開打）時同一時點照常抓 A。
+    calm = [pe.StatsGame(**{**pe.asdict(games[0]), "status": "SCHEDULED", "starts_at": "2026-09-27T18:35:00"}),
+            games[1]]
+    state = pe.empty_state()
+    wake(state, t0, calm, local_games, enabled=True)
+    assert wake(state, datetime(2026, 9, 27, 16, 5, tzinfo=TPE), calm, local_games, enabled=True) == (
+        "scrape", "starter_checkpoint")
+    assert state["scrape_kinds"] == ["A"]
+
+
+# =========================================================== ② 全部終局後才抓
+
+def test_all_a_final_then_scrape():
+    state = pe.empty_state()
+    wake(state, NOW, A306_FINAL_A304_LIVE, LOCAL_NEITHER_DONE)
+    later = datetime(2026, 9, 7, 21, 30, tzinfo=TPE)
+    both_final = [stats(306, "FINISHED"), stats(304, "FINISHED")]
+    assert wake(state, later, both_final, LOCAL_NEITHER_DONE) == ("scrape", "event")
+    assert state["scrape_kinds"] == ["A"]
+    assert all(e["attempts"] == [] for e in pe.open_events(state).values()), "前一步沒有耗用額度"
+    assert state["a_fetch_gate"] is None
+
+
+# =========================================================== ③ stats 不可用 → 只擋 A
+
+def test_stats_unavailable_blocks_a_only(monkeypatch):
+    """stats 讀取失敗：A 判不出狀態 → 擋（PLAN-r4 §6.3，交隔日 J1）。E 照現行規則——結果鏈本來就在
+    讀不到 stats 時不連 www（與無閘門時逐字相同）；box／PA 明細只擋 A、E 照抓。
+    ⚠️ E4（真實日期 10-12）與 A306 放在同一晚是情境構造，只為同時觀察兩個賽別。"""
+    games = [stats(306, "FINISHED"), stats(4, "FINISHED", kind="E")]
+    local_games = {**LOCAL_NEITHER_DONE, "2026-E-4": local(4, False, kind="E")}
+    state = pe.empty_state()
+    wake(state, NOW, games, local_games)
+    assert set(state["scrape_kinds"]) == {"A", "E"}, "前提：兩個賽別都有可抓的事件，A 沒有在賽中的場"
+
+    def broken():
+        raise pe.ProbeUnavailable("stats timeout")
+
+    t = datetime(2026, 9, 7, 21, 30, tzinfo=TPE)
+    gated = json.loads(json.dumps(state))
+    assert pe.plan(gated, t, probe=broken, load_local=lambda: {}) == ("idle", "probe_unavailable")
+    assert pe.a_fetch_blocked(gated, t) == (True, "stats_unavailable")
+    ungated = json.loads(json.dumps(state))
+    monkeypatch.setattr(pe, "a_fetch_blocked", lambda state, now: (False, ""))
+    assert pe.plan(ungated, t, probe=broken, load_local=lambda: {}) == ("idle", "probe_unavailable")
+    monkeypatch.undo()
+    gated.pop("a_fetch_gate"), ungated.pop("a_fetch_gate", None)
+    assert gated == ungated, "E 的結果鏈行為與無閘門時相同"
+    box_missing = {"box": {"reason": "local_box_incomplete:game_livelog"}}
+    recs = {k: {"key": k, "game_date": d, "state": "open", "detail_attempts": [], "sends": [],
+                "sources": box_missing} for k, d in (("2026-A-306", "2026-09-07"), ("2026-E-4", "2026-09-07"))}
+    gated["boxpa"] = recs
+    assert pe.boxpa_plan(gated, t, recs) == ("detail", ["2026-E-4"], [])
+
+
+# =========================================================== ④ 未知狀態字不算終局
+
+@pytest.mark.parametrize("status", ["SUSPENDED", "", "DELAYED"])
+def test_unknown_stats_status_is_not_terminal(status):
+    state = pe.empty_state()
+    state["schedule"] = [pe.asdict(stats(306, "FINISHED")), pe.asdict(stats(304, status))]
+    assert pe.a_fetch_blocked(state, NOW)[0] is True
+    # 開賽時刻缺值且非終態 → 擋；終態三字 → 不擋；SCHEDULED 且未到開賽 → 不擋。
+    state["schedule"] = [pe.asdict(stats(304, "SCHEDULED"))]
+    state["schedule"][0]["starts_at"] = None
+    assert pe.a_fetch_blocked(state, NOW)[0] is True
+    for terminal in ("FINISHED", "POSTPONED", "RESERVED"):
+        state["schedule"] = [pe.asdict(stats(304, terminal))]
+        assert pe.a_fetch_blocked(state, NOW) == (False, "")
+    state["schedule"] = [pe.asdict(stats(304, "SCHEDULED", "2026-09-07T21:35:00"))]
+    assert pe.a_fetch_blocked(state, NOW) == (False, "")
+
+
+def test_gate_ignores_e_c_and_other_nights():
+    """閘門只看該晚的 A：E／C 進行中不擋 A，也不擋 E／C；前一晚未結的 A 列不影響今晚。"""
+    state = pe.empty_state()
+    state["schedule"] = [pe.asdict(stats(4, "START", kind="E")),
+                         {**pe.asdict(stats(304, "START")), "game_date": "2026-09-06"}]
+    assert pe.a_fetch_blocked(state, NOW) == (False, "")
+
+
+# =========================================================== ⑤ 晚間 A 判定用每日鏈判準（SQL 文字）
+
+def _captured_sql(monkeypatch) -> str:
+    seen = []
+
+    class Conn:
+        def execute(self, sql, params=None):
+            seen.append((sql, params))
+            return self
+
+        def fetchall(self):
+            return []
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+    import cpbl.db
+
+    monkeypatch.setattr(cpbl.db, "conn", lambda: Conn())
+    pe.load_local_games(2026, NOW)
+    ((sql, _),) = seen
+    return sql
+
+
+def test_evening_a_completion_uses_daily_chain_criterion(monkeypatch):
+    sql = _captured_sql(monkeypatch)
+    daily = daily_chain_completed_games_sql("g", "%(as_of)s")
+    evidence = completed_games_sql_with_evidence("g", "%(as_of)s")
+    assert f"CASE WHEN g.kind_code = 'A' THEN {daily} ELSE {evidence} END" in sql
+
+
+# =========================================================== ⑥ 真實 SQL（隔離 Postgres）
+
+_DDL = """
+CREATE SCHEMA cpbl;
+CREATE TABLE cpbl.games (year smallint, kind_code text, game_sno int, game_date date,
+  away_team_code text, home_team_code text, venue text, home_score int, away_score int,
+  PRIMARY KEY (year, kind_code, game_sno));
+CREATE TABLE cpbl.game_completion_evidence (year smallint, kind_code text, game_sno int);
+CREATE TABLE cpbl.game_schedule_status_revisions (id bigint GENERATED ALWAYS AS IDENTITY,
+  year smallint, kind_code text, game_season_code text NOT NULL DEFAULT '', game_sno int,
+  raw_present_status int, raw_game_result text, raw_game_date date, raw_pre_exe_date date,
+  payload_hash text NOT NULL, raw_payload jsonb NOT NULL DEFAULT '{}'::jsonb,
+  fetched_at timestamptz NOT NULL, last_seen_at timestamptz NOT NULL, seen_count int NOT NULL DEFAULT 1);
+"""
+
+
+@pytest.fixture
+def isolated(monkeypatch):
+    dsn = os.environ.get("CPBL_ISOLATED_TEST_DSN")
+    if not dsn:
+        pytest.skip("未設 CPBL_ISOLATED_TEST_DSN（自行擁有的隔離 Postgres）")
+    import psycopg
+
+    import cpbl.db
+
+    with psycopg.connect(dsn, autocommit=True) as c:
+        if c.execute("SELECT to_regclass('cpbl.games')").fetchone()[0] is not None:
+            pytest.fail("隔離庫已有 cpbl.games：拒絕在疑似真實資料庫上建表寫列")
+        c.execute(_DDL)
+        monkeypatch.setattr(cpbl.db, "conn", lambda: psycopg.connect(dsn))
+        try:
+            yield c
+        finally:
+            c.execute("DROP SCHEMA cpbl CASCADE")
+
+
+def _load(c, key: str, scores: tuple[int, int], revision: str) -> None:
+    g = FIXTURE["games"][key]
+    r = FIXTURE["revisions"][key][revision]
+    c.execute("DELETE FROM cpbl.games WHERE year=%s AND kind_code=%s AND game_sno=%s",
+              (g["year"], g["kind_code"], g["game_sno"]))
+    c.execute("DELETE FROM cpbl.game_schedule_status_revisions WHERE year=%s AND kind_code=%s AND game_sno=%s",
+              (g["year"], g["kind_code"], g["game_sno"]))
+    c.execute("INSERT INTO cpbl.games VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s)",
+              (g["year"], g["kind_code"], g["game_sno"], g["game_date"], g["away_team_code"],
+               g["home_team_code"], g["venue"], scores[0], scores[1]))
+    c.execute("INSERT INTO cpbl.game_schedule_status_revisions (year, kind_code, game_season_code, game_sno, "
+              "raw_present_status, raw_game_result, raw_game_date, raw_pre_exe_date, payload_hash, "
+              "fetched_at, last_seen_at, seen_count) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
+              (r["year"], r["kind_code"], r["game_season_code"], r["game_sno"], r["raw_present_status"],
+               r["raw_game_result"], r["raw_game_date"], r["raw_pre_exe_date"], r["payload_hash"],
+               r["fetched_at"], r["last_seen_at"], r["seen_count"]))
+
+
+def _reference(c, key: str, as_of: str) -> bool:
+    """現行判準（讀端／E／C 晚間判準）在同一列上的結果。``as_of`` 只來自本檔常數。"""
+    y, k, s = key.split("-")
+    as_of_sql = f"DATE '{datetime.fromisoformat(as_of).date().isoformat()}'"
+    return c.execute(
+        f"SELECT COALESCE({completed_games_sql_with_evidence('g', as_of_sql)}, FALSE) FROM cpbl.games g "
+        "WHERE g.year=%s AND g.kind_code=%s AND g.game_sno=%s", (int(y), k, int(s))).fetchone()[0]
+
+
+def test_evening_a_completion_on_real_partial_row(isolated):
+    """A304 賽中（19:50 真實修訂列＋games 3：2）→ 晚間判定 false（讀端判準為 true，即 §3.3.1 的錯誤）；
+    改灌 09-08 官方 final 列（4：6）→ true。E4 真實列（賽前列＋8：2、final 列）→ 與現行判準相同。"""
+    c = isolated
+    partial = FIXTURE["revisions"]["2026-A-304"]["in_progress_1950"]
+    _load(c, "2026-A-304", (partial["home_score"], partial["visiting_score"]), "in_progress_1950")
+    _load(c, "2026-A-306", (0, 2), "in_progress_1950")
+    got = pe.load_local_games(2026, NOW)
+    assert got["2026-A-304"].completed is False, "賽中部分比分 3：2 不得判完賽"
+    assert got["2026-A-306"].completed is False
+    assert _reference(c, "2026-A-304", "2026-09-07") is True, "前提：讀端判準對 A 用比分自證（會判成完賽）"
+
+    _load(c, "2026-A-304", (4, 6), "final_0908")
+    after = datetime(2026, 9, 8, 0, 30, tzinfo=TPE)
+    assert pe.load_local_games(2026, after)["2026-A-304"].completed is True
+
+    for revision, scores, as_of, when in (
+            ("pregame_1010", (8, 2), "2026-10-12", datetime(2026, 10, 12, 21, 0, tzinfo=TPE)),
+            ("final_1013", (8, 2), "2026-10-13", datetime(2026, 10, 13, 0, 30, tzinfo=TPE))):
+        _load(c, "2026-E-4", scores, revision)
+        evening = pe.load_local_games(2026, when)["2026-E-4"].completed
+        # as_of 以 load_local_games 的台北日期為準（10-13 00:30 → 2026-10-13）
+        assert evening is _reference(c, "2026-E-4", as_of), revision
+
+
+# =========================================================== A 路徑：晚間 scrape 對 A 直呼既有 scrape_games
+
+def test_evening_scrape_uses_scrape_games_for_a_and_the_postseason_step_for_e_c(monkeypatch):
+    """A 走既有 ``scrape_games(year, year, "A")``（``_postseason_games_step`` 對 A 會 raise）；E／C 照舊。
+    單一賽別失敗只記 ``{"kind", "error"}``、不連坐（與 ``_postseason_games_step`` 同形）。"""
+    import sys
+    import types
+
+    calls = []
+    fake = types.ModuleType("cpbl.ingest.run_refresh_recent")
+    fake._postseason_games_step = lambda year, kinds: calls.append(("step", year, kinds)) or {
+        "games": {k: 1 for k in kinds}, "errors": []}
+
+    def scrape_games(start, end, kind="A"):
+        calls.append(("scrape_games", start, end, kind))
+        raise RuntimeError("HiNet 挑戰 428")
+
+    fake.scrape_games = scrape_games
+    monkeypatch.setitem(sys.modules, "cpbl.ingest.run_refresh_recent", fake)
+    out = pe.evening_games_step(2026, ("A", "C"))
+    assert calls == [("step", 2026, ("C",)), ("scrape_games", 2026, 2026, "A")]
+    assert out["games"] == {"C": 1} and out["errors"] == [{"kind": "A", "error": "HiNet 挑戰 428"}]
+    assert pe.scrape_failures(out["errors"], ("A", "C")) == ({"A"}, {"A"})
+    calls.clear()
+    pe.evening_games_step(2026, ("E",))
+    assert calls == [("step", 2026, ("E",))], "沒有 A 就不碰 scrape_games"

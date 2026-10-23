@@ -912,8 +912,9 @@ fi
 #        74 production psql 錯誤（不重送） · 其他＝備份或本機錯誤（不重送）
 if [ -n "${POSTSEASON_BOXPA_ONLY:-}" ]; then
   if [ -z "${POSTSEASON_BOXPA_GAMES:-}" ] \
-     || ! [[ "$POSTSEASON_BOXPA_GAMES" =~ ^[0-9]{4}-[EC]-[0-9]{1,3}(,[0-9]{4}-[EC]-[0-9]{1,3})*$ ]]; then
-    echo 'FATAL: POSTSEASON_BOXPA_GAMES 需為目標場鍵清單（YYYY-E|C-SNO，逗號分隔）' >&2
+     || ! [[ "$POSTSEASON_BOXPA_GAMES" =~ ^[0-9]{4}-[AEC]-[0-9]{1,3}(,[0-9]{4}-[AEC]-[0-9]{1,3})*$ ]]; then
+    # #365：晚間鏈涵蓋一軍 A（⛔ 不收 D）；A 與 E／C 同一送達單位，PARTS 預設 box,pa 不另設。
+    echo 'FATAL: POSTSEASON_BOXPA_GAMES 需為目標場鍵清單（YYYY-A|E|C-SNO，逗號分隔）' >&2
     exit 64
   fi
   # 這次要送的來源（#293 審核席 1 F3）：box＝box 七表、pa＝PA 五表；預設兩者。晚間鏈只傳仍有額度的來源。

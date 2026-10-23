@@ -124,7 +124,7 @@ class LocalGame:
     away_code: str | None
     home_code: str | None
     venue: str | None
-    completed: bool              # cpbl.completion 正式判準
+    completed: bool              # 晚間判準（:func:`evening_completed_sql`；A 用每日鏈判準）
 
     @property
     def key(self) -> str:
@@ -410,6 +410,37 @@ def kind_cooled(state: Mapping, kind: str, now: datetime) -> bool:
     return not stamps or now - max(stamps) >= WWW_COOLDOWN
 
 
+# #365 S3（P-A-FETCH-GATE，需求方裁定 #343 6361673244 第 1 項＝甲）：A 在賽中抓 www 會把部分比分寫進
+# games（#343 PLAN-r4 §3.3.1：2026-A-304 於 09-07 19:50 被寫成 3：2）。stats 原字的終態集合取自
+# StatsGame.status 的官方值；不在集合內的狀態一律視為未終局（fail closed：列漏只會讓 A 延到隔日 J1）。
+A_TERMINAL_STATUSES = frozenset({"FINISHED", "POSTPONED", "RESERVED"})
+
+
+def a_fetch_blocked(state: Mapping, now: datetime) -> tuple[bool, str]:
+    """該晚是否仍有 A 場「已開賽未終局」——是的話晚間鏈不對 A 發 www（結果、box／PA 明細、先發時點都算）。
+
+    只讀狀態檔的 ``schedule``（stats 列），不連網、不連 DB：
+    * 最近一次 stats 讀取失敗（``probe_failures`` > 0）或已判 ``probe_unavailable`` → 擋（判不出狀態，PLAN-r4 §6.3）。
+    * 該晚（:func:`night_of`；09:45–12:00 用台北當日）任一 A 場狀態不在 :data:`A_TERMINAL_STATUSES`，且不是
+      「SCHEDULED 而開賽時刻未到」→ 擋。開賽時刻缺值、狀態字未知都算已開賽（fail closed）。
+    只擋 A；E／C 與 stats 逐球重抓（``boxpa-tracking``）不受影響。⛔ 不提供關閉開關（卡面：⛔ 關閉
+    P-A-FETCH-GATE 作為營運設定）；測試要比對無閘門行為時以 monkeypatch 換掉本函式。"""
+    if int(state.get("probe_failures") or 0) > 0 or state.get("probe_status") == "probe_unavailable":
+        return True, "stats_unavailable"
+    night = night_of(now) or taipei(now).date()
+    for g in state.get("schedule") or []:
+        if g.get("kind_code") != "A" or g.get("game_date") != night.isoformat():
+            continue
+        status = str(g.get("status") or "")
+        if status in A_TERMINAL_STATUSES:
+            continue
+        starts = _starts(g)
+        if status == "SCHEDULED" and starts is not None and starts > now:
+            continue
+        return True, f"a_in_progress:{g.get('year')}-A-{g.get('game_sno')}:{status or '?'}"
+    return False, ""
+
+
 def www_decision(state: Mapping, now: datetime) -> tuple[bool, str]:
     """有未結事件時，這次喚醒能不能連 www（每事件 ≤3 次、間隔 ≥20 分鐘、挑戰兩次停當晚）。
     可抓的賽別見 :func:`www_kinds`。"""
@@ -529,11 +560,20 @@ def plan(state: dict, now: datetime, *, probe: Callable[[], list[StatsGame]],
     if probe_failed:
         sc.note_wait(cps, starter_due, "probe_unavailable")
         return with_signal_sync(state, now, "idle", "probe_unavailable")   # 讀不到 stats 就不連 www
-    starter = starter_kinds(state, now, starter_due)
+    # #365 P-A-FETCH-GATE：該晚仍有 A 場已開賽未終局 → 這次不對 A 發 www（事件與先發時點都不抓 A）。
+    # 擋下不計次、不寫 www_requests：全部終局後才抓，之後的重試照現行上限。
+    a_blocked, a_why = a_fetch_blocked(state, now)
+    state["a_fetch_gate"] = {"at": _iso(now), "reason": a_why} if a_blocked else None
+    starter = starter_kinds(state, now, starter_due, blocked=("A",) if a_blocked else ())
     ok, reason = www_decision(state, now) if open_events(state) else (False, "no_events")
+    event_kinds = set(www_kinds(state, now) if ok else ())
+    if a_blocked and "A" in event_kinds:
+        event_kinds.discard("A")
+        if not event_kinds:
+            ok, reason = False, "a_fetch_gate"
     if ok or starter:
         # 能連 www 就先抓（之後同一次喚醒的同步會一併帶上訊號表）；事件與時點同賽別合併成一次。
-        kinds = set(www_kinds(state, now) if ok else ()) | starter
+        kinds = event_kinds | starter
         state["scrape_kinds"] = [k for k in EVENING_KINDS if k in kinds]   # scrape 只抓這些賽別（F2）
         state["starter_inflight"] = [i for i in starter_due if sc.kind_of(i) in kinds]
         return "scrape", reason if ok else "starter_checkpoint"
@@ -566,9 +606,13 @@ def refresh_starter_checkpoints(state: dict, now: datetime, enabled: bool,
     return sc.due(cps, now)
 
 
-def starter_kinds(state: dict, now: datetime, due_ids: list[str]) -> set[str]:
+def starter_kinds(state: dict, now: datetime, due_ids: list[str],
+                  blocked: Iterable[str] = ()) -> set[str]:
     """到點的先發時點此刻可抓的賽別。閘門與事件相同：讓位 10:10、挑戰停（隔日 12:00）、賽別冷卻
-    20 分鐘（共用帳本）。擋下的只記等待原因、不計次（逾時才結清，見 :func:`starter_checkpoints.expire`）。"""
+    20 分鐘（共用帳本）。擋下的只記等待原因、不計次（逾時才結清，見 :func:`starter_checkpoints.expire`）。
+
+    ``blocked``＝#365 P-A-FETCH-GATE 此刻擋下的賽別（A）：與 ``yield_to_daily`` 同形，只記等待、不計次。"""
+    blocked = set(blocked)
     cps = state.get("starter_checkpoints") or {}
     if not due_ids:
         return set()
@@ -583,7 +627,9 @@ def starter_kinds(state: dict, now: datetime, due_ids: list[str]) -> set[str]:
         ids = [i for i in due_ids if sc.kind_of(i) == kind]
         if not ids:
             continue
-        if kind_cooled(state, kind, now):
+        if kind in blocked:
+            sc.note_wait(cps, ids, "a_fetch_gate")
+        elif kind_cooled(state, kind, now):
             kinds.add(kind)
         else:
             sc.note_wait(cps, ids, "cooldown")
@@ -1071,7 +1117,7 @@ def boxpa_plan(state: dict, now: datetime,
     build 出的 PA。
 
     * detail：本機 box 核心表仍缺、且該場 www 次數未用盡、該場與該賽別共用帳本的冷卻都已過、
-      當晚未被挑戰封鎖。
+      當晚未被挑戰封鎖；A 場另須通過 #365 P-A-FETCH-GATE（:func:`a_fetch_blocked`）。
     * sync：本機 box 已到齊（或 PA 已 published）而該來源尚未送達、且仍可送（1＋1 重送）。
     * 已用盡 www 次數而 box 仍缺 → 記 unreached（www_detail_incomplete_after_max_attempts）。
     * tracking：box 核心已送達但逐球仍落後（#293 fix-5）、距上次明細／逐球重抓已滿 20 分鐘 → 只向 stats
@@ -1084,6 +1130,7 @@ def boxpa_plan(state: dict, now: datetime,
     tracking: list[str] = []
     build: list[str] = []
     sync: list[tuple[str, list[str]]] = []
+    a_blocked = a_fetch_blocked(state, now)[0]   # #365 P-A-FETCH-GATE：A 的明細 www 同樣要等全部終局
     for key, rec in sorted(open_recs.items()):
         src = rec.get("sources") or {}
         box = src.get("box") or {}
@@ -1098,6 +1145,8 @@ def boxpa_plan(state: dict, now: datetime,
             if attempts and now - max(attempts) < BOXPA_WWW_COOLDOWN:
                 continue
             if not kind_cooled(state, _kind_of(key), now):   # C2：與結果鏈／先發時點共用賽別冷卻
+                continue
+            if a_blocked and _kind_of(key) == "A":         # 擋下不計 detail_attempts（不耗 3 次額度）
                 continue
             detail.append(key)
             continue
@@ -1276,8 +1325,8 @@ def boxpa_detail(year: int, keys: list[str], state: Mapping | None = None, *, de
     out: dict[str, Any] = {"games": {}, "errors": []}
     for y, kind, sno in _keys_tuple(keys):
         key = f"{y}-{kind}-{sno}"
-        if kind not in ("E", "C"):
-            raise ValueError(f"季後賽別只接受 E／C：{kind!r}")
+        if kind not in EVENING_KINDS:
+            raise ValueError(f"晚間賽別只接受 A／E／C：{kind!r}")
         issues: list[str] = []
         summary: dict[str, Any] = {}
         try:
@@ -1302,7 +1351,9 @@ def boxpa_detail(year: int, keys: list[str], state: Mapping | None = None, *, de
                     issues.append(f"{key}:pitch_games=0")
                 elif not pitches.get("pitcher_flags"):
                     issues.append(f"{key}:pitcher_flags=0")
-            gaps = rr._postseason_detail_gaps(y, kind, [sno], rr._POSTSEASON_CORE_DETAIL_TABLES)
+            # E／C 沿用每日鏈同一支（含季後賽別守衛）；A（#365）走同一段對帳 SQL、不帶季後守衛。
+            gaps_of = rr._detail_gaps if kind == "A" else rr._postseason_detail_gaps
+            gaps = gaps_of(y, kind, [sno], rr._POSTSEASON_CORE_DETAIL_TABLES)
             summary["missing"] = gaps.get(sno, [])
             if gaps:
                 out["errors"].append({"kind": kind, "stage": "detail_missing",
@@ -1325,8 +1376,8 @@ def boxpa_tracking(year: int, keys: list[str], *, delay: float = 1.2) -> dict:
     out: dict[str, Any] = {"games": {}, "errors": []}
     for y, kind, sno in _keys_tuple(keys):
         key = f"{y}-{kind}-{sno}"
-        if kind not in ("E", "C"):
-            raise ValueError(f"季後賽別只接受 E／C：{kind!r}")
+        if kind not in EVENING_KINDS:
+            raise ValueError(f"晚間賽別只接受 A／E／C：{kind!r}")
         if is_frozen(y, kind, sno):
             out["games"][key] = {"skipped_frozen": 1}
             continue
@@ -1375,6 +1426,33 @@ def marking_scrape_games(state: Mapping, year: int) -> Iterator[None]:
         rr.scrape_games = original
 
 
+def evening_games_step(year: int, kinds: Iterable[str]) -> dict[str, Any]:
+    """晚間結果抓取（只有 ``scrape`` 子命令會呼叫；這裡才 import 爬蟲）。
+
+    E／C 照舊走每日鏈的 ``_postseason_games_step``（季後守衛、官方完賽範圍）；A（#365）直接呼叫既有
+    ``scrape_games(year, year, "A")``——``_postseason_games_step`` 對 A 會 raise。錯誤形狀相同
+    （``{"kind", "error"}``，單一賽別失敗不連坐），``record_scrape``／``scrape_failures`` 不需改。
+    經 ``run_refresh_recent.scrape_games`` 屬性呼叫，:func:`marking_scrape_games` 的 www 標記同樣包得到 A。"""
+    import importlib
+
+    rr = importlib.import_module("cpbl.ingest.run_refresh_recent")   # 同 marking_scrape_games：照 sys.modules 取
+
+    kinds = tuple(kinds)
+    out: dict[str, Any] = {"games": {}, "errors": []}
+    ec = tuple(k for k in kinds if k in ("E", "C"))
+    if ec:
+        result = rr._postseason_games_step(year, ec)
+        out["games"].update(result.get("games") or {})
+        out["errors"].extend(result.get("errors") or [])
+    if "A" in kinds:
+        try:
+            out["games"]["A"] = rr.scrape_games(year, year, "A")
+        except Exception as exc:  # noqa: BLE001 — 單一賽別失敗不連坐，同 _postseason_games_step
+            log.exception("晚間賽程更新失敗 kind=A")
+            out["errors"].append({"kind": "A", "error": str(exc)})
+    return out
+
+
 def boxpa_game_dates(keys: Iterable[str]) -> list[str]:
     from cpbl.db import conn
 
@@ -1406,13 +1484,26 @@ def boxpa_pa_build(year: int, keys: list[str]) -> dict:
             "build_states": result.get("build_states"), "errors": result.get("errors")}
 
 
+def evening_completed_sql() -> str:
+    """#365 P-EVENING-A-COMPLETION（裁定 6361673244 第 1 項）：晚間鏈內部的本機完賽判準。
+
+    A 用每日鏈判準 ``daily_chain_completed_games_sql``（2026+ 只認官方 final 或完賽證據，比分不作依據）——
+    讀端判準對 A 用比分自證，賽中被寫進的部分比分（2026-A-304 的 3：2）會被判成完賽，事件偵測就不再抓終場、
+    box／PA 就送半場明細。E／C 維持 ``completed_games_sql_with_evidence``（2026 起走官方 final 分支，結果不變）。
+    兩支 helper 只呼叫、⛔ 不修改（讀端 API、前端、每日鏈共用）。不設開關（PLAN-r4 §3.8）。"""
+    from cpbl.completion import completed_games_sql_with_evidence, daily_chain_completed_games_sql
+
+    return (f"(CASE WHEN g.kind_code = 'A' THEN {daily_chain_completed_games_sql('g', '%(as_of)s')} "
+            f"ELSE {completed_games_sql_with_evidence('g', '%(as_of)s')} END)")
+
+
 def load_local_games(year: int, now: datetime,
                      kinds: Iterable[str] | None = None) -> dict[str, LocalGame]:
-    from cpbl.completion import completed_games_sql_with_evidence
+    """本機晚間賽別的場次與完賽判定（:func:`evening_completed_sql`）；事件偵測、box／PA 選場共用這一支。"""
     from cpbl.coverage import taipei_date
     from cpbl.db import conn
 
-    done = completed_games_sql_with_evidence("g", "%(as_of)s")
+    done = evening_completed_sql()
     with conn() as c:
         rows = c.execute(
             f"""SELECT g.year, g.kind_code, g.game_sno, g.game_date, g.away_team_code,
@@ -1677,13 +1768,9 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if args.command == "scrape":
-        # 只有這裡會 import 爬蟲（Playwright／www）；plan 階段一律不載入。
-        from cpbl.config import parse_postseason_kinds, settings
-        from cpbl.ingest.run_refresh_recent import _postseason_games_step
-
-        configured = parse_postseason_kinds(settings.refresh_postseason_kinds) or ("E", "C")
-        # F2：只抓 plan 判定冷卻已過的賽別（既有 helper 的 kinds 參數，helper 本身不改）。
-        kinds = tuple(k for k in configured if k in (state.get("scrape_kinds") or ()))
+        # #365：晚間 scrape 讀晚間賽別（POSTSEASON_EVENING_KINDS），⛔ 不再經 parse_postseason_kinds
+        # （它只收 E、C，且管每日鏈與 live worker）。F2：只抓 plan 判定冷卻已過、未被 A 閘門擋下的賽別。
+        kinds = tuple(k for k in evening_kinds if k in (state.get("scrape_kinds") or ()))
         cps = state.setdefault("starter_checkpoints", {})
         inflight = state.get("starter_inflight") or []
         if not kinds:
@@ -1696,7 +1783,7 @@ def main(argv: list[str] | None = None) -> int:
         # #293 r3：每個賽別的賽程抓取包一層 www 標記（src／kind 見 scrape_marker_args）；
         # 呼叫介面不變，只在這次呼叫期間包住 run_refresh_recent.scrape_games。
         with marking_scrape_games(state, year):
-            result = _postseason_games_step(year, kinds)
+            result = evening_games_step(year, kinds)
         after = local_signature(year)
         stats_has_c = any(g.get("kind_code") == "C" for g in state.get("schedule") or [])
         local_c = sum(1 for k in load_local_games(year, now) if k.split("-")[1] == "C")
