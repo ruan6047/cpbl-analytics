@@ -547,7 +547,9 @@ def test_gate_reads_the_night_from_parsed_pre_exe_date_not_the_game_date_string(
 
 
 NON_CANONICAL = ["20260907T183500", "2026-W37-1T18:35:00", "2026-09-07 18:35:00", "2026-09-07T18:35:00Z",
-                 "2026-09-07T18:35:00+08:00", "2026-09-07T18:35", "2026-09-07", "2026-250T18:35:00"]
+                 "2026-09-07T18:35:00+08:00", "2026-09-07T18:35", "2026-09-07", "2026-250T18:35:00",
+                 # 沒補零：strptime 會接受，靠嚴格正規式擋
+                 "2026-9-07T18:35:00", "2026-09-07T8:35:00"]
 
 
 @pytest.mark.parametrize("status", ["RESERVED", "START", "SCHEDULED", "UNKNOWN"])
