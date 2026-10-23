@@ -460,7 +460,9 @@ A_FETCH_RELEASE_STATUSES = frozenset({"FINISHED", "POSTPONED"})
 # docs/CPBL_SITE_MAP.md 觀測到的唯一格式），且須為有效日期時刻；⛔ 不支援 ISO 週日期（2026-W37-1…）、基本格式
 # （20260907T183500）、時區尾碼等其他寫法——``fromisoformat`` 都會接受，但那樣「驗有效」與「判當晚」會用兩套解讀。
 # 閘門的有效性檢查、同場取最新、當晚判定與排序**全部用這一個解析結果**，不再拿原字串或其切片。
-A_PRE_EXE_RE = re.compile(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}")
+# review-4（需求方裁定 6371670410）：只認 ASCII 數字。``\d`` 與 ``strptime`` 都會接受 Unicode 十進位數字
+# （全形 ２０２６、阿拉伯文 ٢٠٢٦），所以用 ``[0-9]``＋``re.ASCII``，在 strptime 之前就擋下。
+A_PRE_EXE_RE = re.compile(r"[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}", re.ASCII)
 A_PRE_EXE_FORMAT = "%Y-%m-%dT%H:%M:%S"
 
 

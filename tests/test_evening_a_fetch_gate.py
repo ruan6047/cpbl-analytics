@@ -549,7 +549,10 @@ def test_gate_reads_the_night_from_parsed_pre_exe_date_not_the_game_date_string(
 NON_CANONICAL = ["20260907T183500", "2026-W37-1T18:35:00", "2026-09-07 18:35:00", "2026-09-07T18:35:00Z",
                  "2026-09-07T18:35:00+08:00", "2026-09-07T18:35", "2026-09-07", "2026-250T18:35:00",
                  # 沒補零：strptime 會接受，靠嚴格正規式擋
-                 "2026-9-07T18:35:00", "2026-09-07T8:35:00"]
+                 "2026-9-07T18:35:00", "2026-09-07T8:35:00",
+                 # 非 ASCII 數字（review-4）：\d 與 strptime 都會接受，靠 ASCII 限定擋——整串與部分混用
+                 "２０２６-０９-０７T１８:３５:００", "２０２６-09-07T18:35:00", "2026-09-07T１8:35:00",
+                 "٢٠٢٦-٠٩-٠٧T١٨:٣٥:٠٠", "٢٠٢٦-09-07T18:35:00", "2026-09-07T18:35:٠٠"]
 
 
 @pytest.mark.parametrize("status", ["RESERVED", "START", "SCHEDULED", "UNKNOWN"])
@@ -589,3 +592,15 @@ def test_canonical_shape_but_invalid_datetime_blocks(bad):
     state = pe.empty_state()
     state["a_stats_rows"] = [pe.asdict(stats(304, "RESERVED", bad)), pe.asdict(stats(306, "FINISHED"))]
     assert pe.a_fetch_blocked(state, NOW) == (True, "a_date_unknown:2026-A-304:RESERVED")
+
+
+
+@pytest.mark.parametrize("bad", ["２０２６-09-07T18:35:00", "٢٠٢٦-09-07T18:35:00"])
+def test_non_ascii_digits_are_rejected_before_strptime(bad):
+    """review-4：Unicode 十進位數字在 strptime 之前就被嚴格正規式擋下（_a_starts 回 None），不是靠 strptime 拒絕。
+    （本環境 strptime 只在 %Y 接受 Unicode 數字；其他欄位混用 strptime 本來就拒，見 NON_CANONICAL 的混用例。）"""
+    from datetime import datetime as _dt
+
+    assert _dt.strptime(bad, pe.A_PRE_EXE_FORMAT).date().isoformat() == "2026-09-07", "前提：strptime 會接受"
+    assert pe.A_PRE_EXE_RE.fullmatch(bad) is None
+    assert pe._a_starts({"starts_at": bad}) is None
