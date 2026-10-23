@@ -923,6 +923,75 @@ def gate_targets(schedule: TodaySchedule | None, now: datetime,
     return [g.key for g in sorted(games, key=lambda g: (allowed.index(g.kind_code), g.game_sno))]
 
 
+# =========================================================================== #365 每晚首次同步前備份一次（P-EVENING-BACKUP）
+#
+# 需求方裁定 #343 6361011713 第 2 項（6361069621：A／E／C 一律適用）：同一晚只在第一次寫正式站的同步前做整庫備份，
+# 之後的同步沿用該晚「已驗證」的備份。不變量（PLAN-r4 §3.3 4a）：
+#   * 一晚＝:func:`night_of`；09:45–12:00 不屬任何一晚 ⇒ 一律重備。
+#   * 沿用的前提：狀態檔 ``night_backup`` 的 night 等於此刻的晚、檔案仍在、sha256 相符；任一不成立就重備（fail closed）。
+#     refresh-cpbl-prod.sh 在**同一行程**、緊接同步之前再驗一次（存在／位於本次 BACKUP_DIR／sha256），才是最後一道。
+#   * 首次備份在驗證前就失敗 ⇒ 不會產生紀錄、不記 ``night_backup``，下一次同步仍算「首次」。
+# 回退（PLAN-r4 §6.2）：旗標檔 :func:`backup_per_sync_flag` 存在＝每次同步都備份（下次喚醒生效，不需重新 bootstrap）。
+
+BACKUP_PER_SYNC_FLAG_ENV = "POSTSEASON_BACKUP_PER_SYNC_FLAG"
+BACKUP_RECORD_ENV = "POSTSEASON_BACKUP_RECORD"
+
+
+def backup_per_sync_flag() -> Path:
+    return Path(os.environ.get(BACKUP_PER_SYNC_FLAG_ENV) or "logs/postseason-evening-backup-per-sync.enabled")
+
+
+def file_sha256(path: str | Path) -> str | None:
+    """檔案的 sha256（不存在或讀不到 → None）。"""
+    import hashlib
+
+    digest = hashlib.sha256()
+    try:
+        with open(path, "rb") as fh:
+            for chunk in iter(lambda: fh.read(1 << 20), b""):
+                digest.update(chunk)
+    except OSError:
+        return None
+    return digest.hexdigest()
+
+
+def backup_plan(state: Mapping, now: datetime, *, per_sync: bool = False,
+                sha_of: Callable[[str], str | None] = file_sha256) -> tuple[str, str, str]:
+    """這次同步前要不要備份：回 ``("reuse", sha256, path)`` 或 ``("backup", "", "")``（純判斷，不寫）。"""
+    night = night_of(now)
+    nb = state.get("night_backup") or {}
+    path, want = str(nb.get("path") or ""), str(nb.get("sha256") or "")
+    if (per_sync or night is None or nb.get("night") != night.isoformat() or not path or not want
+            or sha_of(path) != want):
+        return "backup", "", ""
+    return "reuse", want, path
+
+
+def apply_backup_record(state: dict, now: datetime, record: Path | None) -> str | None:
+    """refresh-cpbl-prod.sh 寫的備份紀錄（一行 ``new|reuse <sha256> <path>``）入帳；回 mode 或 None。
+
+    ``new`` ⇒ 記 ``night_backup``（該晚＝:func:`night_of`；09:45–12:00 不記，下一次照樣重備）。紀錄缺或格式不符 ⇒
+    不記（備份在驗證前失敗就不會有紀錄＝下一次仍算首次）。每次使用另記 ``backup_uses``，``finish`` 寫進本機
+    refresh_log 後清空（「沿用 night_backup=…」／「新備份」，PLAN-r4 4a 第 3 點）。"""
+    if record is None or not record.exists():
+        return None
+    parts = record.read_text(encoding="utf-8").strip().split(" ", 2)
+    if len(parts) != 3 or parts[0] not in ("new", "reuse") or len(parts[1]) != 64 or not parts[2]:
+        log.warning("備份紀錄格式不符，不入帳：%r", parts)
+        return None
+    mode, sha, path = parts
+    night = night_of(now)
+    if mode == "new" and night is not None:
+        state["night_backup"] = {"night": night.isoformat(), "path": path, "sha256": sha, "at": _iso(now)}
+    state.setdefault("backup_uses", []).append({"at": _iso(now), "mode": mode, "path": path})
+    return mode
+
+
+def _backup_record_path() -> Path | None:
+    raw = os.environ.get(BACKUP_RECORD_ENV)
+    return Path(raw) if raw else None
+
+
 # =========================================================================== #293 目標場 box／PA 階段（純函式）
 #
 # 結果鏈（上面）只同步 games／狀態軌跡／訊號表；本段在其後對「本機已完賽、box 或 PA 尚未送達
@@ -1591,7 +1660,9 @@ def local_www_starts(year: int, kinds: Iterable[str] | None = None) -> dict[str,
 
 
 def log_local_refresh(state: Mapping, ok: bool, note: str | None) -> None:
-    """只寫**本機** refresh_log（scope postseason-evening）；prod 不寫任何標記。"""
+    """只寫**本機** refresh_log（scope postseason-evening）；prod 不寫任何標記。
+
+    #365：detail 另記這次喚醒的備份使用（``backup``：「沿用 night_backup=<路徑>」或「新備份 <路徑>」）。"""
     from cpbl.db import conn
 
     with conn() as c:
@@ -1600,7 +1671,10 @@ def log_local_refresh(state: Mapping, ok: bool, note: str | None) -> None:
                VALUES ('postseason-evening', %s, %s, %s::jsonb, %s, %s)""",
             (taipei(_now()).date(), taipei(_now()).date(),
              json.dumps({"timeline": timeline(state), "halted": state.get("halted"),
-                         "www_blocked_at": state.get("www_blocked_at")}), ok, note),
+                         "www_blocked_at": state.get("www_blocked_at"),
+                         "backup": [f"沿用 night_backup={u['path']}" if u["mode"] == "reuse"
+                                    else f"新備份 {u['path']}" for u in state.get("backup_uses") or []]}),
+             ok, note),
         )
 
 
@@ -1685,6 +1759,8 @@ def _parser():
     pl.add_argument("--now", help="只配 --dry：以此時刻（ISO，無時區視為台北）預覽")
     sub.add_parser("scrape", help="既有 _postseason_games_step（www）；印 changed／unchanged／failed／halted")
     sub.add_parser("sync-due", help="印 signals（本機異動訊號表待同步且允許）或 no；唯讀狀態檔")
+    sub.add_parser("backup-plan", help="#365：這次同步前印 reuse <sha256> <path>（沿用當晚已驗證備份）或 backup；"
+                                       "唯讀狀態檔")
     rs = sub.add_parser("record-sync", help="記錄 refresh-cpbl-prod.sh 的結果")
     rs.add_argument("--code", type=int, required=True)
     sub.add_parser("finish", help="寫最終狀態檔（與必要時的本機 refresh_log）")
@@ -1760,6 +1836,11 @@ def main(argv: list[str] | None = None) -> int:
         state["last_run"] = {"at": _iso(now), "action": action, "reason": reason}
         save_json(path, state)
         print(action)
+        return 0
+
+    if args.command == "backup-plan":
+        mode, sha, bpath = backup_plan(state, now, per_sync=backup_per_sync_flag().exists())
+        print(f"reuse {sha} {bpath}" if mode == "reuse" else "backup")
         return 0
 
     if args.command == "sync-due":
@@ -1875,6 +1956,7 @@ def main(argv: list[str] | None = None) -> int:
         manifest = json.loads(mpath.read_text(encoding="utf-8")) if mpath.exists() else None
         _boxpa_prepare_state(state, now, year)          # 先以送出前的分類決定「這次送了哪些來源」
         parts = [p for p in args.parts.split(",") if p]
+        apply_backup_record(state, now, _backup_record_path())   # #365：同步前的備份（新／沿用）入帳
         outcome = boxpa_record_sync(state, now, keys, args.code, manifest, args.elapsed, parts)
         _boxpa_prepare_state(state, now, year)          # 再以新 manifest 重算分類
         state["boxpa_last"] = {"at": _iso(now), "action": "sync", "games": keys, "code": args.code,
@@ -1884,6 +1966,7 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if args.command == "record-sync":
+        apply_backup_record(state, now, _backup_record_path())   # #365：同步前的備份（新／沿用）入帳
         outcome = record_sync(state, now, args.code)
         sc.record_sync(state.setdefault("starter_checkpoints", {}),
                        state.get("starter_inflight") or [], args.code)   # #292 A1
@@ -1904,6 +1987,8 @@ def main(argv: list[str] | None = None) -> int:
                "pending_sync": state.get("pending_sync"), "timeline": timeline(state),
                "starter_checkpoints": sc.timeline(state.get("starter_checkpoints") or {}),
                "boxpa": boxpa_timeline(state), "boxpa_last": state.get("boxpa_last")}
+    summary["night_backup"] = state.get("night_backup")
+    summary["backup_uses"] = state.get("backup_uses") or []
     save_json(status_path(), summary)
     if attempted:
         ok = not state.get("halted") and last.get("outcome") in ("changed", "unchanged", "synced")
@@ -1912,6 +1997,9 @@ def main(argv: list[str] | None = None) -> int:
             log_local_refresh(state, ok, None if ok else str(last.get("outcome")))
         except Exception:  # noqa: BLE001 — 本機紀錄失敗不改變結果；狀態檔已寫
             log.exception("本機 refresh_log 寫入失敗")
+    if state.get("backup_uses"):
+        state["backup_uses"] = []        # 已寫進 last-postseason-evening.json（與 refresh_log）；下次喚醒重新累計
+        save_json(path, state)
     print("halted" if state.get("halted") else "ok")
     return 0
 

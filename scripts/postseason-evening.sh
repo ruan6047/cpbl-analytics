@@ -188,16 +188,35 @@ elif [ "$ACTION" = "sync" ]; then
   SYNC_NEEDED=1   # plan=sync：前次本機已變化但未同步，或僅訊號變動（plan 理由 signals_only）
 fi
 
+# #365 S4 每晚首次同步前備份一次：每次同步前問 backup-plan（reuse <sha256> <path>／backup）。
+# reuse 時帶 REUSE_VERIFIED_BACKUP／_SHA256 給 refresh-cpbl-prod.sh——它在同一行程、緊接同步之前重驗
+# （存在、位於本次 BACKUP_DIR、sha256），不符就照現行重備（fail closed）。BACKUP_RECORD 由 refresh 寫
+# （新備份或沿用），record-sync／boxpa-record 讀它入帳（POSTSEASON_BACKUP_RECORD）。
+BACKUP_RECORD_PATH="$REPO_DIR/logs/postseason-backup-record-$$.txt"
+backup_plan() {  # → REUSE_PATH／REUSE_SHA（空＝這次照現行備份）
+  REUSE_PATH="" REUSE_SHA=""
+  rm -f "$BACKUP_RECORD_PATH"
+  local plan
+  plan="$(py backup-plan)" || plan="backup"
+  case "$plan" in
+    "reuse "*) read -r _ REUSE_SHA REUSE_PATH <<< "$plan" ;;
+  esac
+  note "backup-plan → ${plan:-backup}"
+}
+
 # 4. 同步（只三表＋異動訊號表；獨立備份目錄；不訓練、不 migration、不寫 prod 標記）。
 EXIT_CODE=0
 if [ "$SYNC_NEEDED" -eq 1 ]; then
+  backup_plan
   note "sync → POSTSEASON_RESULTS_ONLY=1 SKIP_SCRAPE=1 BACKUP_DIR=${BACKUP_DIR_EVENING}"
   POSTSEASON_RESULTS_ONLY=1 SKIP_SCRAPE=1 \
     BACKUP_DIR="$BACKUP_DIR_EVENING" BACKUP_KEEP="$BACKUP_KEEP_EVENING" \
+    REUSE_VERIFIED_BACKUP="$REUSE_PATH" REUSE_VERIFIED_BACKUP_SHA256="$REUSE_SHA" BACKUP_RECORD="$BACKUP_RECORD_PATH" \
     bash "$REPO_DIR/scripts/refresh-cpbl-prod.sh" >>"$LOG" 2>&1
   SYNC_CODE=$?
   note "sync exit=${SYNC_CODE}"
-  RECORDED="$(py record-sync --code "$SYNC_CODE")" || RECORDED="halted"
+  RECORDED="$(POSTSEASON_BACKUP_RECORD="$BACKUP_RECORD_PATH" py record-sync --code "$SYNC_CODE")" || RECORDED="halted"
+  rm -f "$BACKUP_RECORD_PATH"
   # 68＝data-only 對帳不等：停止當晚（不 bootout）；其餘非零＝halt（立即停、bootout、交人工）。
   if [ "$RECORDED" = "blocked" ]; then
     EXIT_CODE=68
@@ -239,16 +258,20 @@ if [ "$EXIT_CODE" -ne 69 ]; then
   # BOXPA_PARTS＝這次真的要送的來源（審核席 1 F3：已送達的來源不隨整組同步再送；額度以場計）。
   if [ "$BOXPA_ACT" = "sync" ] && [ -n "$BOXPA_GAMES" ] && [ -n "$BOXPA_PARTS" ]; then
     BOXPA_MANIFEST_PATH="$REPO_DIR/logs/postseason-boxpa-manifest-$(date +%Y%m%d-%H%M%S).json"
+    backup_plan
     note "boxpa sync → POSTSEASON_BOXPA_ONLY=1 SKIP_SCRAPE=1 POSTSEASON_BOXPA_GAMES=${BOXPA_GAMES} POSTSEASON_BOXPA_PARTS=${BOXPA_PARTS} BACKUP_DIR=${BACKUP_DIR_EVENING}"
     BOXPA_STARTED="$(date +%s)"
     POSTSEASON_BOXPA_ONLY=1 SKIP_SCRAPE=1 POSTSEASON_BOXPA_GAMES="$BOXPA_GAMES" POSTSEASON_BOXPA_PARTS="$BOXPA_PARTS" \
       BACKUP_DIR="$BACKUP_DIR_EVENING" BACKUP_KEEP="$BACKUP_KEEP_EVENING" BOXPA_MANIFEST="$BOXPA_MANIFEST_PATH" \
+      REUSE_VERIFIED_BACKUP="$REUSE_PATH" REUSE_VERIFIED_BACKUP_SHA256="$REUSE_SHA" BACKUP_RECORD="$BACKUP_RECORD_PATH" \
       bash "$REPO_DIR/scripts/refresh-cpbl-prod.sh" >>"$LOG" 2>&1
     BOXPA_CODE=$?
     BOXPA_ELAPSED=$(( $(date +%s) - BOXPA_STARTED ))
     note "boxpa sync exit=${BOXPA_CODE} elapsed=${BOXPA_ELAPSED}s"
-    BOXPA_RECORDED="$(py boxpa-record --games "$BOXPA_GAMES" --code "$BOXPA_CODE" \
-      --manifest "$BOXPA_MANIFEST_PATH" --elapsed "$BOXPA_ELAPSED" --parts "$BOXPA_PARTS")" || BOXPA_RECORDED="halted"
+    BOXPA_RECORDED="$(POSTSEASON_BACKUP_RECORD="$BACKUP_RECORD_PATH" py boxpa-record --games "$BOXPA_GAMES" \
+      --code "$BOXPA_CODE" --manifest "$BOXPA_MANIFEST_PATH" --elapsed "$BOXPA_ELAPSED" --parts "$BOXPA_PARTS")" \
+      || BOXPA_RECORDED="halted"
+    rm -f "$BACKUP_RECORD_PATH"
     note "boxpa-record → ${BOXPA_RECORDED}"
     [ "$BOXPA_RECORDED" = "halted" ] && EXIT_CODE=69
   fi
