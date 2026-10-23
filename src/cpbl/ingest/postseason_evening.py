@@ -1,11 +1,15 @@
-"""#268 WP3：事件觸發的晚間季後鏈（A7）。**只製作，不安裝、不啟用**——啟用屬 P1 共享操作。
+"""#268 WP3：事件觸發的晚間鏈（A7）；#365（#343 WP2）起**常設**：涵蓋一軍 A，A／E／C 有排定比賽的夜晚才動作。
+
+名稱刻意保留 ``postseason_*``（改名會連坐登記表、plist、Runbook §10、#358 check 名）。安裝狀態由
+``scripts/schedule-registry.json`` 長期宣告（``expected_installed=true``）；重新 bootstrap 仍需授權。
 
 用法（由 ``scripts/postseason-evening.sh`` 依序呼叫；一般不需手動跑）::
 
     python -m cpbl.ingest.postseason_evening --help
-    python -m cpbl.ingest.postseason_evening plan          # 讀狀態檔、必要時唯讀讀 stats、決定下一步
-    python -m cpbl.ingest.postseason_evening plan --dry    # #292 A1：只列先發查核時點（不連網、不寫）
-    python -m cpbl.ingest.postseason_evening scrape        # 跑既有 _postseason_games_step（www）
+    python -m cpbl.ingest.postseason_evening plan          # 動作條件→讀狀態檔、必要時唯讀讀 stats、決定下一步
+    python -m cpbl.ingest.postseason_evening plan --dry    # 列先發查核時點＋動作條件＋今晚目標場（不連網、不碰 DB、不寫）
+    python -m cpbl.ingest.postseason_evening scrape        # E／C 既有 _postseason_games_step、A 既有 scrape_games（www）
+    python -m cpbl.ingest.postseason_evening backup-plan   # #365：同步前印 reuse <sha256> <path> 或 backup
     python -m cpbl.ingest.postseason_evening sync-due      # 三表沒變時，異動訊號表是否仍需同步
     python -m cpbl.ingest.postseason_evening record-sync --code N
     python -m cpbl.ingest.postseason_evening finish
@@ -16,6 +20,15 @@
     python -m cpbl.ingest.postseason_evening boxpa-prepare --games 2026-C-2
     python -m cpbl.ingest.postseason_evening boxpa-record --games 2026-C-2 --code N --manifest F --elapsed S
     python -m cpbl.ingest.postseason_evening boxpa-status
+
+#365 常設化（#343 PLAN-r4 §3.3；#365 規劃 3）：
+
+* **動作條件**（:func:`evening_gate`）：今晚（:func:`night_of`，12:00～次日 09:45）沒有 A／E／C 的排定場、也沒有
+  待辦 → ``plan`` 印 ``quiet``，不寫狀態檔、不連 DB、不連 stats；stats 只查該晚有排定的賽別。
+* **A**：``P-A-FETCH-GATE``（:func:`a_fetch_blocked`）——該晚仍有 A 場已開賽未終局時不對 A 發 www；晚間 A 完賽判定
+  用每日鏈判準（:func:`evening_completed_sql`）。
+* **每晚首次同步前備份一次**（:func:`backup_plan`／:func:`apply_backup_record`；refresh-cpbl-prod.sh 同一行程重驗）。
+* **P-TM-RECHECK**（:func:`boxpa_tm_recheck_due`）：首見完賽後 45 分再抓一次逐球；⛔ 沒有進階排行（P-LB）重抓。
 
 設計（核定規劃 revision4 §4）：
 

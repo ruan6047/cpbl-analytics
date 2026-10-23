@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # LIFECYCLE: standing · 常設工具——這就是給你跑的；不要刪
-# 季後期間才安裝的事件觸發晚間鏈（#268 WP3）；製作≠啟用，安裝屬 P1 共享操作。
-# 季後晚間事件鏈：只在官方 stats 出現「完賽未入庫／新場次／異動」時才連 www，
-# 本機三表或異動訊號表有變化才「獨立備份 → 同步三表＋訊號表 → data-only 對帳」。不訓練、不跑 migration、不寫 prod 標記。
+# 常設的事件觸發晚間鏈（#268 WP3；#365 起全年安裝，A／E／C 有排定比賽的夜晚才動作，其餘喚醒 plan 回 quiet 即退出）。
+# 名稱刻意保留 postseason_*（改名會連坐登記表、plist、Runbook §10、#358 check 名）。
+# 只在官方 stats 出現「完賽未入庫／新場次／異動」時才連 www，本機三表或異動訊號表有變化才
+# 「（每晚首次）獨立備份 → 同步三表＋訊號表 → data-only 對帳」。不訓練、不跑 migration、不寫 prod 標記。
 #
 # 用法：scripts/postseason-evening.sh --help   # 只印用法，不碰任何東西
 #       scripts/postseason-evening.sh          # launchd 每 5 分鐘喚醒一次（REFRESH_TRIGGER=launchd）
@@ -13,18 +14,23 @@ set -uo pipefail
 # 不得造成損害）。本腳本不收任何位置參數。
 usage() {
   cat <<'EOF'
-scripts/postseason-evening.sh — 季後事件觸發晚間鏈（#268；launchd 每 5 分鐘喚醒）
+scripts/postseason-evening.sh — 常設事件觸發晚間鏈（#268／#365；launchd 每 5 分鐘喚醒）
 
 在做什麼（每次喚醒）
-  1. plan：讀狀態檔；到期才以 httpx 唯讀讀官方 stats 賽程 API（不取鎖；本機 DB 只寫異動訊號表），
-     與本機 DB 比對出事件。沒有事件 → 直接結束（不連 www）。
+  0. 動作條件（#365）：讀今日賽程檔（POSTSEASON_TODAY_SCHEDULE）。該晚（12:00～次日 09:45）沒有 A／E／C
+     的排定場、狀態檔也沒有待辦 → plan 印 quiet 即結束：不寫狀態檔、不連 DB、不連 stats、不取鎖。
+     賽程檔缺／壞／日期不是該晚 → 退回連本機 DB 判定（fallback_db），不判 quiet。
+  1. plan：讀狀態檔；到期才以 httpx 唯讀讀官方 stats 賽程 API（只查該晚有排定的賽別；不取鎖；本機 DB
+     只寫異動訊號表），與本機 DB 比對出事件。沒有事件 → 直接結束（不連 www）。
      #292 先發查核時點（旗標檔存在才開）：開賽前 1h／0.5h、終場後 1h 到點也走第 2 步（同一組閘門）。
   2. 有事件且允許（每事件 ≤3 次、間隔 ≥20 分鐘、挑戰類失敗兩次即停當晚、讓位 10:10）：
-     取 refresh lock，跑既有 _postseason_games_step（www getgamedatas，E／C）。
-  3. 本機 E／C 有變化（或前次已變化未同步），或只有本機異動訊號表變了（www／同步失敗時亦然）：
+     取 refresh lock，E／C 跑既有 _postseason_games_step、A 跑既有 scrape_games（www getgamedatas）。
+     P-A-FETCH-GATE：該晚仍有 A 場已開賽未終局（或 stats 讀不到）→ 不對 A 發 www（結果／明細／先發時點），
+     全部終局後才抓；只擋 A，不計次。
+  3. 本機有變化（或前次已變化未同步），或只有本機異動訊號表變了（www／同步失敗時亦然）：
      POSTSEASON_RESULTS_ONLY=1 SKIP_SCRAPE=1 scripts/refresh-cpbl-prod.sh
-     ＝獨立 BACKUP_DIR 已驗證備份 → 只同步 games／game_schedule_status_revisions／
-       game_source_revisions／official_change_signals → /api/info data-only 對帳。
+     ＝已驗證備份（每晚首次同步前一次；同晚之後沿用、同一行程重驗 sha256，不符即重備）→ 只同步 games／
+       game_schedule_status_revisions／game_source_revisions／official_change_signals → /api/info data-only 對帳。
   4. #293 目標場 box／PA 階段（結果同步之後；沒有結果事件時也會看）：
      本機已完賽、box 或 PA 尚未送達 production 的今晚目標場 →
      a. 本機 box 核心表仍缺：既有 _postseason_detail_step（www；每場每晚 ≤3 次、間隔 ≥20 分鐘、
@@ -34,6 +40,8 @@ scripts/postseason-evening.sh — 季後事件觸發晚間鏈（#268；launchd �
         （同來源 1 次＋1 次重送；不 TRUNCATE、不 CASCADE、不 migrate、不呼叫 prod_cpbl_api）。
      c. box 已送達但逐球晚到（既有逐球覆蓋判準：設備球場、覆蓋 < 85%）：狀態記待更新、不判送達；
         每 20 分鐘只向 stats 重抓逐球（不連 www）→ PA build → 同一次送 box＋PA（仍以場計 ≤2 次）。
+     d. P-TM-RECHECK（#365）：首見完賽後滿 POSTSEASON_TM_RECHECK_MIN 分（預設 45）再向 stats 抓一次逐球
+        （同 c 的路徑；已送達的場重開一次）。⛔ 沒有進階排行重抓。
   5. 寫狀態檔與（有嘗試時）本機 refresh_log（scope postseason-evening）。
   #293 r3：本鏈每次官網 www 導頁在 log 留一行 `WWW_REQ card=293 kind=… src=<292|293> at=… game=… status=…`
   （同頁 POST 不記＝導頁次數下限），另以 Playwright 導頁事件寫 `WWW_NAV card=293 …` 供獨立對帳；
@@ -41,17 +49,18 @@ scripts/postseason-evening.sh — 季後事件觸發晚間鏈（#268；launchd �
   沒有鐘點截止：跨過 24:00 照常處理；T1–T3 以實際日期時刻記錄。
 
 會寫什麼（⚠️ 有事件時高後果）
-  · 本機 PostgreSQL：scrape_games 的 E／C 寫入；refresh_log 一列；official_change_signals（異動訊號）
+  · 本機 PostgreSQL：scrape_games 的 A／E／C 寫入；refresh_log 一列；official_change_signals（異動訊號）
   · production PostgreSQL：上述四表非破壞性 upsert（只在本機三表或訊號表有變化時）；
     #293：今晚目標場的 box 七表 upsert、PA 五表目標鍵替換（只動目標場鍵）
   · 本機 PostgreSQL（#293）：目標場明細（gamelog 四類、game_detail、pitching_game_flags、pitch_tracking、
     game_source_revisions）與 PA 五表（既有 builder）
-  · 本機檔案：POSTSEASON_BACKUP_DIR 下的備份（只留 POSTSEASON_BACKUP_KEEP 份）、
-    logs/postseason-evening-state.json、logs/last-postseason-evening.json、logs/postseason-evening-*.log
+  · 本機檔案：POSTSEASON_BACKUP_DIR 下的備份（每晚首次同步前一份；只留 POSTSEASON_BACKUP_KEEP 份）、
+    logs/postseason-evening-state.json、logs/last-postseason-evening.json、logs/postseason-evening-*.log、
+    logs/postseason-backup-record-<pid>.txt（同步期間的備份紀錄暫存，入帳後即刪）
   不寫：prod refresh 標記、game_features、模型、migration；非目標場的明細／打席列。
 
 怎麼呼叫（不接受位置參數，設定一律走環境變數）
-  launchd：ops/launchd/com.cpbl.postseason-evening.plist（StartInterval 300；安裝屬 P1，需另行核定）
+  launchd：ops/launchd/com.cpbl.postseason-evening.plist（StartInterval 300；常設安裝，重新 bootstrap 需授權）
   手動單次：REFRESH_TRIGGER=manual bash scripts/postseason-evening.sh
   只跑 box／PA 階段（手動單次）：POSTSEASON_EVENING_STAGE=boxpa REFRESH_TRIGGER=manual bash scripts/postseason-evening.sh
   查看狀態：cat logs/last-postseason-evening.json
@@ -66,13 +75,18 @@ scripts/postseason-evening.sh — 季後事件觸發晚間鏈（#268；launchd �
   POSTSEASON_STARTER_FLAG  #292 先發查核時點旗標檔（預設 logs/postseason-starter-checkpoints.enabled；
                            存在＝開，touch／rm 下次喚醒生效；預覽：uv run python -m cpbl.ingest.postseason_evening plan --dry）
   POSTSEASON_EVENING_STAGE all（預設：結果鏈＋box／PA 階段）或 boxpa（只跑 box／PA 階段）；其他值 exit 64
+  POSTSEASON_EVENING_KINDS 晚間賽別（預設 A,E,C；只收不重複的 A／E／C，含 D 或其他值 exit 64）
+  POSTSEASON_TODAY_SCHEDULE 今日賽程檔（預設 logs/today-schedule.json；格式由 #364 定稿，缺檔退回連本機 DB）
+  POSTSEASON_TM_RECHECK_MIN 首見完賽後幾分鐘再抓一次逐球（預設 45；非正整數 exit 64）
+  POSTSEASON_BACKUP_PER_SYNC_FLAG 回退旗標檔（預設 logs/postseason-evening-backup-per-sync.enabled；
+                           存在＝每次同步都備份，不存在＝每晚首次同步前一次；下次喚醒生效）
 
 離開碼
-  0 正常（含無事件、讓位、冷卻）· 64 參數錯 · 68 對帳不等（停止當晚，隔日 12:00 後再試）
+  0 正常（含 quiet、無事件、讓位、冷卻）· 64 參數錯 · 68 對帳不等（停止當晚，隔日 12:00 後再試）
   69 其他同步失敗已 halt（bootout，等人工）
   70 狀態檔寫入失敗 · 75 鎖被佔用（不刪、不搶，等下次喚醒）
 
-停止與回復：docs/AI_RUNBOOK.md〈季後晚間事件鏈〉
+停止與回復：docs/AI_RUNBOOK.md §10〈晚間事件鏈〉
 EOF
 }
 
