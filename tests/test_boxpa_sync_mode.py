@@ -373,3 +373,12 @@ def test_a_game_key_is_accepted_and_defaults_to_box_and_pa(tmp_path):
     precheck = [c["argv"] for c in calls("uv") if "precheck" in c["argv"]]
     assert precheck and "2026-A-355" in precheck[0]
     assert backup_log.exists()
+
+
+def test_shell_refuses_a_d_key_before_any_python_step(tmp_path):
+    """#365 (d) 負控（shell 層）：D 場鍵在 refresh-cpbl-prod.sh 的正規式就回 64，⛔ 不進任何 uv／Python 步驟。
+    上一條參數表的 2026-D-2 即使 shell 放行，也會被 Python ``parse_games`` 擋成 64——那條測不出 shell 這一層。"""
+    result, calls, backup_log = _run(tmp_path, POSTSEASON_BOXPA_GAMES="2026-D-229")
+    assert result.returncode == 64
+    assert "YYYY-A|E|C-SNO" in result.stderr
+    assert calls("uv") == [] and calls("ssh") == [] and not backup_log.exists()
