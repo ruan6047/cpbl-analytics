@@ -65,6 +65,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import re
 import sys
 from collections.abc import Callable, Iterable, Iterator, Mapping
 from contextlib import contextmanager
@@ -455,53 +456,65 @@ def kind_cooled(state: Mapping, kind: str, now: datetime) -> bool:
 A_FETCH_RELEASE_STATUSES = frozenset({"FINISHED", "POSTPONED"})
 
 
-def _latest_rows_per_game(rows: Iterable[Mapping]) -> list[Mapping]:
-    """同一場多筆 stats 列時取最新 ``PreExeDate``（``starts_at``）那筆（比照 game_tm_shadow.dedupe_latest_per_game）。
-    開賽時刻相同或缺值而分不出新舊時，保留全部同場列——呼叫端「任一筆非放行即擋」。"""
-    by_key: dict[str, list[Mapping]] = {}
-    for g in rows:
-        by_key.setdefault(f"{g.get('year')}-{g.get('kind_code')}-{g.get('game_sno')}", []).append(g)
-    out: list[Mapping] = []
-    for group in by_key.values():
-        latest = max((str(g.get("starts_at") or "") for g in group), default="")
-        out.extend(g for g in group if str(g.get("starts_at") or "") == latest)
-    return out
+# #365 審核 review-3 F2-R2（需求方裁定 6371248157）：A 列的 PreExeDate 只認 ``YYYY-MM-DDTHH:MM:SS``（stats 與
+# docs/CPBL_SITE_MAP.md 觀測到的唯一格式），且須為有效日期時刻；⛔ 不支援 ISO 週日期（2026-W37-1…）、基本格式
+# （20260907T183500）、時區尾碼等其他寫法——``fromisoformat`` 都會接受，但那樣「驗有效」與「判當晚」會用兩套解讀。
+# 閘門的有效性檢查、同場取最新、當晚判定與排序**全部用這一個解析結果**，不再拿原字串或其切片。
+A_PRE_EXE_RE = re.compile(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}")
+A_PRE_EXE_FORMAT = "%Y-%m-%dT%H:%M:%S"
 
 
-def _a_row_dated(g: Mapping) -> bool:
-    """這一列能判出屬於哪一晚：``starts_at``（PreExeDate）可解析成日期時刻，且 ``game_date`` 是有效日期。
-
-    #365 審核 review-2 F2-R：只檢查非空不夠——``parse_stats_games`` 取 PreExeDate 前十碼當 ``game_date``，
-    ``not-a-date``、``2026-99-99T18:35:00`` 這類值非空卻判不出日期，會被 ``game_date == night`` 濾掉而放行。"""
+def _a_starts(g: Mapping) -> datetime | None:
+    """A 列 ``starts_at``（PreExeDate，台北無時區字串）的嚴格解析；格式不符或不是有效日期時刻回 None。"""
+    raw = g.get("starts_at")
+    if not isinstance(raw, str) or not A_PRE_EXE_RE.fullmatch(raw):
+        return None
     try:
-        date.fromisoformat(str(g.get("game_date") or ""))
+        return datetime.strptime(raw, A_PRE_EXE_FORMAT)
     except ValueError:
-        return False
-    return _starts(g) is not None
+        return None
+
+
+def _latest_rows_per_game(rows: Iterable[tuple[Mapping, datetime]]) -> list[tuple[Mapping, datetime]]:
+    """同一場多筆 stats 列時取最新 PreExeDate 那筆（比照 game_tm_shadow.dedupe_latest_per_game；比的是
+    :func:`_a_starts` 的解析值）。同一時刻多筆時保留全部——呼叫端「任一筆非放行即擋」。"""
+    by_key: dict[str, list[tuple[Mapping, datetime]]] = {}
+    for g, at in rows:
+        by_key.setdefault(f"{g.get('year')}-{g.get('kind_code')}-{g.get('game_sno')}", []).append((g, at))
+    out: list[tuple[Mapping, datetime]] = []
+    for group in by_key.values():
+        latest = max(at for _, at in group)
+        out.extend((g, at) for g, at in group if at == latest)
+    return out
 
 
 def a_fetch_blocked(state: Mapping, now: datetime) -> tuple[bool, str]:
     """該晚是否要擋下 A 的 www（結果、box／PA 明細、先發時點都算）。只讀狀態檔，不連網、不連 DB。
 
     reason：``probe_unavailable``（最近一次 stats 讀取失敗或已判不可用）／``a_date_unknown``（任一 A 列的
-    ``PreExeDate`` 缺值或不是有效日期時刻：判不出它屬於哪一晚，#365 審核 F2／F2-R，見 :func:`_a_row_dated`）／``a_reserved``／``a_in_progress_or_pending``（START、
-    SCHEDULED）／``a_status_unknown``（其他字串或缺值），後接場鍵與原字。
+    PreExeDate 不是嚴格 ``YYYY-MM-DDTHH:MM:SS`` 有效日期時刻，見 :func:`_a_starts`：判不出它屬於哪一晚，
+    #365 審核 F2／F2-R／F2-R2）／``a_reserved``／``a_in_progress_or_pending``（START、SCHEDULED）／
+    ``a_status_unknown``（其他字串或缺值），後接場鍵與原字。
 
-    讀的是 stats 的**原始** A 列（狀態檔 ``a_stats_rows``；舊狀態檔沒有時退回已去重的 ``schedule``），同一場先取
-    最新 ``PreExeDate``，同時刻多筆時任一筆非放行即擋（:func:`_latest_rows_per_game`；#365 審核 F1）。
+    讀的是 stats 的**原始** A 列（狀態檔 ``a_stats_rows``；舊狀態檔沒有時退回已去重的 ``schedule``）。每列只解析
+    一次，同場取最新、當晚判定（解析值的日期＝該晚）與排序都用這個解析值；⛔ 不讀 ``game_date`` 字串。
+    同時刻多筆時任一筆非放行即擋（:func:`_latest_rows_per_game`；#365 審核 F1）。
     只擋 A；E／C 與 stats 逐球重抓（``boxpa-tracking``）不受影響。⛔ 不提供關閉開關（卡面：⛔ 關閉
     P-A-FETCH-GATE 作為營運設定）；測試要比對無閘門行為時以 monkeypatch 換掉本函式。"""
     if int(state.get("probe_failures") or 0) > 0 or state.get("probe_status") == "probe_unavailable":
         return True, "probe_unavailable"
-    night = (night_of(now) or taipei(now).date()).isoformat()
+    night = night_of(now) or taipei(now).date()
     source = state.get("a_stats_rows")
-    a_rows = [g for g in (source if source is not None else state.get("schedule") or [])
-              if g.get("kind_code") == "A"]
-    for g in a_rows:
-        if not _a_row_dated(g):
+    parsed: list[tuple[Mapping, datetime]] = []
+    for g in (source if source is not None else state.get("schedule") or []):
+        if g.get("kind_code") != "A":
+            continue
+        at = _a_starts(g)
+        if at is None:
             return True, f"a_date_unknown:{g.get('year')}-A-{g.get('game_sno')}:{g.get('status') or '?'}"
-    rows = [g for g in _latest_rows_per_game(a_rows) if g.get("game_date") == night]
-    for g in sorted(rows, key=lambda g: (str(g.get("starts_at") or ""), int(g.get("game_sno") or 0))):
+        parsed.append((g, at))
+    tonight = [(g, at) for g, at in _latest_rows_per_game(parsed) if at.date() == night]
+    for g, _ in sorted(tonight, key=lambda r: (r[1], int(r[0].get("game_sno") or 0))):
         status = str(g.get("status") or "")
         if status in A_FETCH_RELEASE_STATUSES:
             continue

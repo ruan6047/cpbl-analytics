@@ -796,9 +796,9 @@ GitHub 會自動標記。判斷是否經 PR 合併要看 `gh api repos/.../commi
   2. 有事件：取 refresh lock，E／C 跑既有 `_postseason_games_step`、A 直呼既有 `scrape_games(year, year, "A")`（www getgamedatas），只抓冷卻已過的賽別（請求以賽別為單位，冷卻亦以賽別計）。每事件最多 3 次、間隔 ≥20 分鐘；
      挑戰類失敗第 2 次即停止當晚所有 www（`www_blocked_at`，隔日 12:00 後才解除）；10:10 前後（09:45–10:15）讓位給每日鏈。
      **`P-A-FETCH-GATE`**（#343 裁定 6361673244 第 1 項；放行集合依 #365 規劃 4、#343 PLAN-r6 §3.8）：該晚**每一場** A 的 stats 狀態都在放行白名單 `{FINISHED, POSTPONED}` 才對 A 發 www；
-     `RESERVED`（保留賽可能帶非零比分）、`START`、`SCHEDULED`（含尚未開賽）、未知字、缺值、任一 A 列缺 `PreExeDate`、最近一次 stats 讀取失敗一律擋
+     `RESERVED`（保留賽可能帶非零比分）、`START`、`SCHEDULED`（含尚未開賽）、未知字、缺值、任一 A 列的 `PreExeDate` 不是嚴格 `YYYY-MM-DDTHH:MM:SS` 有效日期時刻（週日期、基本格式、時區尾碼等都不收）、最近一次 stats 讀取失敗一律擋
      （reason `a_reserved`／`a_in_progress_or_pending`／`a_status_unknown`／`a_date_unknown`／`probe_unavailable`）。閘門讀 stats 的**未去重原始 A 列**（狀態檔 `a_stats_rows`）：
-     同一場先取最新 `PreExeDate`（與回傳順序無關），同時刻多筆時任一筆非放行即擋。stats 回應必須是明確的 `Data.Games` list（`[]`＝合法空月份）；
+     每列只解析一次，同一場取最新 `PreExeDate`（與回傳順序無關）、當晚判定都用這個解析值（不讀 `game_date` 字串），同時刻多筆時任一筆非放行即擋。stats 回應必須是明確的 `Data.Games` list（`[]`＝合法空月份）；
      `{}`、缺 `Data`／`Games`、`null` 都算讀取失敗（不會清空賽程）。擋下時結果抓取、box／PA 明細、先發時點都不抓 A（記 `a_fetch_gate`，不計次、不寫冷卻帳本）。
      保留賽那晚的 A 交隔日每日鏈。⚠️ 閘門只管 www 抓取，不管同步：該晚若本機已有其他待同步變化或待同步的異動訊號（`pending_sync`／`signals_unsynced`），
      既有的 `POSTSEASON_RESULTS_ONLY` 同步仍會照常執行並整表帶上 `games`（上游已接受的殘餘風險：手動或他卡路徑寫入的部分比分會隨之同步）。

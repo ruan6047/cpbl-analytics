@@ -226,7 +226,7 @@ def test_gate_ignores_e_c_and_other_nights():
     """閘門只看該晚的 A：E／C 進行中不擋 A，也不擋 E／C；前一晚未結的 A 列不影響今晚。"""
     state = pe.empty_state()
     state["schedule"] = [pe.asdict(stats(4, "START", kind="E")),
-                         {**pe.asdict(stats(304, "START")), "game_date": "2026-09-06"}]
+                         pe.asdict(stats(304, "START", "2026-09-06T18:35:00"))]
     assert pe.a_fetch_blocked(state, NOW) == (False, "")
 
 
@@ -533,10 +533,57 @@ def test_a_pregame_starter_checkpoints_are_always_held_by_the_gate():
     assert {r["outcome"] for r in state["starter_checkpoints"].values() if r["key"] == "2026-A-357"} == {"missed"}
 
 
-def test_stored_a_row_with_invalid_game_date_blocks():
-    """F2-R 的另一半：閘門用 game_date 比對該晚。經 stats_probe 時 game_date 取自 PreExeDate（starts_at 能解析即有效），
-    但狀態檔裡的列也可能來自舊版或手動修補——game_date 不是有效日期時同樣擋，不因比對不到該晚而放行。"""
+def test_gate_reads_the_night_from_parsed_pre_exe_date_not_the_game_date_string():
+    """review-3 F2-R2：當晚判定用 PreExeDate 的嚴格解析結果，⛔ 不讀 game_date 字串。
+    狀態列 game_date 是垃圾、但 PreExeDate 是當晚 → 仍算當晚（RESERVED 擋）；game_date 寫當晚、PreExeDate 是別晚 → 不算當晚。"""
     state = pe.empty_state()
-    bad = {**pe.asdict(stats(304, "RESERVED")), "game_date": "2026-99-99"}
-    state["a_stats_rows"] = [bad, pe.asdict(stats(306, "FINISHED"))]
+    state["a_stats_rows"] = [{**pe.asdict(stats(304, "RESERVED")), "game_date": "2026-99-99"},
+                             pe.asdict(stats(306, "FINISHED"))]
+    assert pe.a_fetch_blocked(state, NOW) == (True, "a_reserved:2026-A-304:RESERVED")
+    state["a_stats_rows"] = [{**pe.asdict(stats(304, "RESERVED", "2026-09-12T17:05:00")), "game_date": "2026-09-07"},
+                             pe.asdict(stats(306, "FINISHED"))]
+    assert pe.a_fetch_blocked(state, NOW) == (False, "")
+
+
+
+NON_CANONICAL = ["20260907T183500", "2026-W37-1T18:35:00", "2026-09-07 18:35:00", "2026-09-07T18:35:00Z",
+                 "2026-09-07T18:35:00+08:00", "2026-09-07T18:35", "2026-09-07", "2026-250T18:35:00"]
+
+
+@pytest.mark.parametrize("status", ["RESERVED", "START", "SCHEDULED", "UNKNOWN"])
+@pytest.mark.parametrize("bad", NON_CANONICAL)
+def test_non_canonical_pre_exe_date_blocks_through_real_probe(bad, status):
+    """review-3 F2-R2（兩席重現值＋同類寫法）：PreExeDate 不是嚴格 YYYY-MM-DDTHH:MM:SS 就擋（a_date_unknown），
+    即使 fromisoformat 能解析成 2026-09-07。走真實 stats_probe → plan，2026-09-07 21:00，A306 FINISHED。
+    ⛔ 不另外支援週日期、基本格式、空白分隔、時區尾碼。"""
+    state = pe.empty_state()
+    rows = [_raw(304, status, bad), _raw(306, "FINISHED", T1835)]
+    assert _plan_via_probe(state, NOW, _fetch({"A": rows}), LOCAL_NEITHER_DONE) == ("idle", "a_fetch_gate")
+    assert state["a_fetch_gate"]["reason"] == f"a_date_unknown:2026-A-304:{status}"
+    assert "A" not in state["scrape_kinds"]
+
+
+def test_whole_response_in_basic_format_does_not_open_the_gate():
+    """review-3 Claude 重現：整份回應都漂成基本格式（A304 START 賽中、A306 FINISHED）→ 仍擋，不得整個打開閘門。"""
+    state = pe.empty_state()
+    rows = [_raw(304, "START", "20260907T183500"), _raw(306, "FINISHED", "20260907T183500")]
+    assert _plan_via_probe(state, NOW, _fetch({"A": rows}), LOCAL_NEITHER_DONE) == ("idle", "a_fetch_gate")
+    assert state["a_fetch_gate"]["reason"].startswith("a_date_unknown:")
+
+
+def test_canonical_pre_exe_date_on_an_a_night_still_releases():
+    """正控：合法 YYYY-MM-DDTHH:MM:SS 的 A 夜（兩場都 FINISHED／一場 POSTPONED）照常放行；另一晚的 RESERVED 不影響今晚。"""
+    for rows in ([_raw(304, "FINISHED", T1835), _raw(306, "FINISHED", T1835)],
+                 [_raw(304, "POSTPONED", T1835), _raw(306, "FINISHED", T1835)],
+                 [_raw(304, "RESERVED", "2026-09-12T17:05:00"), _raw(306, "FINISHED", T1835)]):
+        state = pe.empty_state()
+        assert _plan_via_probe(state, NOW, _fetch({"A": rows}), LOCAL_NEITHER_DONE) == ("scrape", "event"), rows
+        assert state["scrape_kinds"] == ["A"] and state["a_fetch_gate"] is None
+
+
+@pytest.mark.parametrize("bad", ["2026-02-30T18:35:00", "2026-09-07T24:00:00", "2026-13-01T18:35:00"])
+def test_canonical_shape_but_invalid_datetime_blocks(bad):
+    """格式符合但不是有效日期時刻（strptime 拒絕）→ 擋。"""
+    state = pe.empty_state()
+    state["a_stats_rows"] = [pe.asdict(stats(304, "RESERVED", bad)), pe.asdict(stats(306, "FINISHED"))]
     assert pe.a_fetch_blocked(state, NOW) == (True, "a_date_unknown:2026-A-304:RESERVED")
