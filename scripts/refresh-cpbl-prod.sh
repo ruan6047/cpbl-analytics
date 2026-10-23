@@ -777,6 +777,53 @@ ON CONFLICT (${pk}) DO UPDATE SET $(_excl "$@");"
   echo "    ✓ ${t}"
 }
 
+# 整表鏡像（#344）：單交易 TRUNCATE 目標表 → `_stage` 暫存 → 全量 INSERT，id 與序列一併鏡像本機。
+#
+# 適用：本機寫入語意與 sync_table（只 UPSERT、不 DELETE）對不上的表——
+#   - box_pitching_revisions：只有 identity `id`，072 刻意拿掉內容 UNIQUE；兩邊各自配號，
+#     拿 id 當衝突鍵就是 game_recap_source_revisions 事故的形狀（見 sync_pa_build 上方註解），
+#     而 sync_revision_table 需要內容唯一鍵。
+#   - championship_members：本機 builder 每次 TRUNCATE 重建；sync_table 會讓本機已移除的列殘留在 prod。
+# 形狀同 sync_pa_build：`_stage`（**非** `_stage_noseq`）——dump 帶出的 setval 把 prod 序列設成本機值，
+# 與 OVERRIDING SYSTEM VALUE 明確帶入的本機 id 一致，是對的（見 sync_revision_table 上方說明）。
+# 前提：prod 不是這些表的權威 writer，本機值整表覆蓋 prod（#344 需求方裁定：以本機為準）。
+# 第二參數 `identity`：該表有 GENERATED ALWAYS identity 欄，INSERT 需 OVERRIDING SYSTEM VALUE。
+#
+# fail-closed：本機 0 列（或取不到列數）拒寫——TRUNCATE 後灌入空表等於清空 prod。
+# payload 先落地、斷言只 TRUNCATE 目標表一張（無 CASCADE）＋恰 1 個 COPY＋1 個 INSERT 才送出。
+mirror_table() {  # $1=表 $2=identity（可省略）
+  local t="$1" mode="${2:-}" n payload why overriding=""
+  [ "$mode" = identity ] && overriding="OVERRIDING SYSTEM VALUE "
+  n="$(docker exec "$LOCAL_DB" psql -U cpbl -d cpbl -At -c "SELECT count(*) FROM cpbl.${t}" || true)"
+  if ! [[ "$n" =~ ^[0-9]+$ ]] || [ "$n" -eq 0 ]; then
+    echo "FATAL: mirror_table ${t}：本機列數為 '${n}'，拒絕以 TRUNCATE 整表鏡像（未送出，生產未被觸碰）" >&2
+    exit 67
+  fi
+  payload="$(mktemp "${TMPDIR:-/tmp}/cpbl-mirror-${t}.XXXXXX")"
+  {
+    echo "TRUNCATE cpbl.${t};"
+    _stage "$t" _mirror_stg
+    echo "INSERT INTO cpbl.${t} ${overriding}SELECT * FROM _mirror_stg;"
+  } > "$payload"
+  why="$(awk -v t="$t" '
+    in_copy { if ($0 == "\\.") in_copy = 0; next }
+    /^COPY _mirror_stg / { copies++; in_copy = 1; next }
+    /^TRUNCATE / { truncs++; if ($0 != "TRUNCATE cpbl." t ";") print "TRUNCATE 對象不符：" substr($0, 1, 80) }
+    /^INSERT INTO / { inserts++; if (index($0, "INSERT INTO cpbl." t " ") != 1) print "INSERT 對象不符：" substr($0, 1, 80) }
+    toupper($0) ~ /^(DELETE|DROP|ALTER)([^A-Z_]|$)|(^|[^A-Z_])CASCADE([^A-Z_]|$)/ { print "禁止語句：" substr($0, 1, 80) }
+    END { if (truncs != 1 || copies != 1 || inserts != 1 || in_copy) print "形狀不符：TRUNCATE=" truncs+0 " COPY=" copies+0 " INSERT=" inserts+0 " 未結束=" in_copy+0 }
+  ' "$payload")"
+  if [ -n "$why" ]; then
+    echo "FATAL: mirror_table ${t} 的 payload 未通過送出前守衛（未送出；payload 保留於 ${payload}）：${why}" >&2
+    exit 67
+  fi
+  ssh -o BatchMode=yes "$VPS" \
+      "cd ${DEPLOY_PATH} && set -a && . ./.env && docker exec -i prod_pg psql \
+        -v ON_ERROR_STOP=1 -q --single-transaction -U \"\$DB_USER\" -d \"\$DB_NAME\"" < "$payload"
+  rm -f "$payload"
+  echo "    ✓ ${t}（整表鏡像 ${n} 列）"
+}
+
 # 季後賽果三表（#268）：games 與兩張官方狀態軌跡表，加上官方賽程異動訊號表（B1）。完整鏈與
 # POSTSEASON_RESULTS_ONLY 共用**同一份**欄位清單——兩處各寫一份會漂（sync_table 的「只插不更」教訓見上方）。
 sync_postseason_results() {
@@ -1075,6 +1122,14 @@ sync_table batter_traits "year,kind_code,player_id" \
 sync_table pitcher_traits "year,kind_code,player_id" bf p_pa go fo two_strike_pa two_strike_k
 sync_table team_standings "year,kind_code,season_code,team_code" \
   team_name rank g w t l win_pct gb elim home_record away_record streak last10 h2h updated_at
+# #344：每日鏈本機寫入、prod API 有讀取端但原本沒同步的表。
+# 球員升降一／二軍事件（每日鏈 scrape_transactions；players.py 一／二軍判定）。
+sync_table player_transactions "year,acnt,trans_date,kind_code" name team_name reason updated_at
+# 完成場外部證據（completion.py 完賽判準的輸入；寫入者目前只有一次性腳本）。
+sync_table game_completion_evidence "year,kind_code,game_sno,evidence_kind" \
+  source_url payload_sha256 innings_played approved_by note created_at
+# 總冠軍成員：本機每日 TRUNCATE 重建，故整表鏡像（見 mirror_table）。
+mirror_table championship_members
 
 # 賽事預測特徵：完整鏡像（先 TRUNCATE 清掉 prod 舊版＝早期未過濾 kind 混入的二軍/季後列），
 # 再把本機全史 kind A 特徵灌入。derived 資料，安全可重建。
@@ -1123,6 +1178,9 @@ if [ -n "${WITH_DETAIL:-}" ]; then
   sync_box_pitching_game_flags
   sync_box_batting_gamelog
   sync_box_pitching_gamelog
+  # 官方 box 逐投手快照（#344；與 gamelog 同一個單場請求寫入）：只有 identity id、無內容唯一鍵，
+  # 故整表鏡像（見 mirror_table）。
+  mirror_table box_pitching_revisions identity
   # canonical PA build（INGEST-PA-DAILY1）：衍生自上面剛同步的 game_livelog／pitch_tracking／
   # batting_gamelog／pitching_gamelog，故放在其後；父子表 FK 順序見檔首 sync_pa_build。
   sync_pa_build
@@ -1139,6 +1197,8 @@ if [ -n "${WITH_DETAIL:-}" ]; then
     team_name g pa ab rbi r h b1 b2 b3 hr tb so sb gidp sh sf bb ibb hbp cs go fo
   sync_table pitching_seasons "player_id,year,team_id" \
     team_name g gs gr cg sho nbb w l sv hld ip bf np h hr bb ibb hbp so wp bk r er go fo
+  # 同一寫入者（cpbl-backfill-season）的守備表；#344 前只同步了打／投兩表。
+  sync_table fielding_seasons "player_id,year,team_id,pos" team_name g tc po a e dp tp pb cs sb
 fi
 
 # 遠端跑訓練並**保留 trainer 的 exit code**。ssh 回傳的是遠端命令串最後一個指令的碼，
