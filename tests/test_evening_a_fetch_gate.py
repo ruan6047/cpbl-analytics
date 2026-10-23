@@ -418,16 +418,19 @@ def _plan_via_probe(state, at, fetch, local_games):
 T1835 = "2026-09-07T18:35:00"
 
 
-@pytest.mark.parametrize("order", ["reserved_first", "finished_first"])
-def test_same_time_conflict_from_real_probe_blocks_in_either_order(order):
-    """F1：同場同時刻回 RESERVED 與 FINISHED（兩種回傳順序）→ 不得只剩最後一筆而放行。A306 FINISHED 產生事件。"""
-    pair = [_raw(304, "RESERVED", T1835), _raw(304, "FINISHED", T1835)]
+@pytest.mark.parametrize("other", ["RESERVED", "CANCELLED"])
+@pytest.mark.parametrize("order", ["other_first", "finished_first"])
+def test_same_time_conflict_from_real_probe_blocks_in_either_order(order, other):
+    """F1：同場同時刻回「非放行狀態」與 FINISHED（兩種回傳順序）→ 不得只剩一筆而放行。A306 FINISHED 產生事件。
+    CANCELLED（未觀測過的假設字，字母序排在 FINISHED 之前）確保閘門讀的是原始列、不是去重後剛好留下的那筆。"""
+    pair = [_raw(304, other, T1835), _raw(304, "FINISHED", T1835)]
     if order == "finished_first":
         pair.reverse()
     state = pe.empty_state()
     action = _plan_via_probe(state, NOW, _fetch({"A": [*pair, _raw(306, "FINISHED", T1835)]}), LOCAL_NEITHER_DONE)
     assert action == ("idle", "a_fetch_gate"), state["a_fetch_gate"]
-    assert state["a_fetch_gate"]["reason"] == "a_reserved:2026-A-304:RESERVED"
+    why = "a_reserved" if other == "RESERVED" else "a_status_unknown"
+    assert state["a_fetch_gate"]["reason"] == f"{why}:2026-A-304:{other}"
     assert "A" not in state["scrape_kinds"] and len(state["a_stats_rows"]) == 3
 
 
