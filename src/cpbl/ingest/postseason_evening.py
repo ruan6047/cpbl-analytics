@@ -738,6 +738,145 @@ def timeline(state: Mapping) -> list[dict]:
     return sorted(out, key=lambda r: (r["t1_stats_first_seen"] or "", r["key"]))
 
 
+# =========================================================================== #365 動作條件（純函式）
+#
+# 晚間鏈常設化後，每次喚醒先看「今晚有沒有事」：今日賽程檔（WP1／#364 的 J1 每日寫出；只讀檔，⛔ 不
+# import cpbl.db／httpx）有晚間賽別的排定場，或狀態檔有待辦 → 照現行鏈跑；兩者皆無 → ``quiet``（不寫狀態檔、
+# 不連 DB、不連 stats）。賽程檔缺、壞、日期不是該晚 → 退回連本機 DB 判定（``fallback_db``），⛔ 不判 quiet：
+# J1 沒跑（例：Mac 睡過 10:10）不得連坐晚間鏈。「今晚」用 :func:`night_of`（一晚＝12:00～次日 09:45），
+# 延長賽跨過 24:00、隔天又無賽時，00:00 後仍屬同一晚（照日曆日判會在 00:00 後 quiet、漏掉該場終局）。
+
+TODAY_SCHEDULE_ENV = "POSTSEASON_TODAY_SCHEDULE"
+# ⚠️ 格式與預設路徑由 #364 交付時定稿；在那之前依 #365 規劃 3 §5.1 的介面假設（只讀 date、
+# games[].kind_code／game_sno／game_date／year／starts_at），檔案不存在就一律 fallback_db（＝現況每次連 DB）。
+TODAY_SCHEDULE_DEFAULT = "logs/today-schedule.json"
+
+
+@dataclass(frozen=True)
+class ScheduledGame:
+    year: int
+    kind_code: str
+    game_sno: int
+    game_date: str
+    starts_at: str | None
+
+    @property
+    def key(self) -> str:
+        return f"{self.year}-{self.kind_code}-{self.game_sno}"
+
+
+@dataclass(frozen=True)
+class TodaySchedule:
+    date: str
+    games: tuple[ScheduledGame, ...]
+
+
+def today_schedule_path() -> Path:
+    return Path(os.environ.get(TODAY_SCHEDULE_ENV) or TODAY_SCHEDULE_DEFAULT)
+
+
+def read_today_schedule(path: Path) -> tuple[TodaySchedule | None, str]:
+    """純讀檔。回 ``(schedule, problem)``；檔案缺或形狀不符 → ``(None, "schedule_missing"／"schedule_invalid")``。
+
+    形狀不符一律整檔作廢（不挑能用的列）：半套清單會讓「這場不在檔裡」被誤讀成今晚沒有比賽。"""
+    try:
+        raw = json.loads(path.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        return None, "schedule_missing"
+    except (OSError, ValueError):
+        return None, "schedule_invalid"
+    try:
+        day = date.fromisoformat(str(raw["date"])).isoformat()
+        rows = raw["games"]
+        if not isinstance(rows, list):
+            return None, "schedule_invalid"
+        games = []
+        for g in rows:
+            sno, year = g["game_sno"], g.get("year", int(day[:4]))
+            if isinstance(sno, bool) or not isinstance(sno, int) or isinstance(year, bool) or not isinstance(year, int):
+                return None, "schedule_invalid"
+            starts = g.get("starts_at")
+            games.append(ScheduledGame(year, str(g["kind_code"]), sno,
+                                       date.fromisoformat(str(g["game_date"])).isoformat(),
+                                       str(starts) if starts else None))
+    except (KeyError, TypeError, ValueError):
+        return None, "schedule_invalid"
+    return TodaySchedule(day, tuple(games)), ""
+
+
+def _kind_order(kinds: Iterable[str]) -> tuple[str, ...]:
+    kinds = set(kinds)
+    return tuple(k for k in EVENING_KINDS if k in kinds)
+
+
+def pending_work(state: Mapping, now: datetime) -> tuple[list[str], set[str]]:
+    """狀態檔裡跨次留下、還要晚間鏈處理的待辦（純函式）：回 ``(原因, 所屬賽別)``。
+
+    halted／pending_sync／signals_unsynced 照現行規則處理（halted 由 plan 回 halted）；未結事件；目標窗內
+    （:func:`boxpa_window`）未到終態的 box／PA 紀錄。過窗的 box／PA 紀錄不算待辦：它們下一次被讀到就會記
+    ``handed_to_daily_chain``，不該讓休賽季每次喚醒都連 DB。"""
+    reasons: list[str] = []
+    kinds: set[str] = set()
+    for flag in ("halted", "pending_sync", "signals_unsynced"):
+        if state.get(flag):
+            reasons.append(flag)
+    events = open_events(state)
+    if events:
+        reasons.append("open_events")
+        kinds |= {_kind_of(e["key"]) for e in events.values()}
+    boxpa = [k for k, r in (state.get("boxpa") or {}).items()
+             if r.get("state") not in BOXPA_TERMINAL and boxpa_window(r.get("game_date"), now)]
+    if boxpa:
+        reasons.append("boxpa_open")
+        kinds |= {_kind_of(k) for k in boxpa}
+    return reasons, kinds
+
+
+def evening_gate(state: Mapping, now: datetime, schedule: TodaySchedule | None, *,
+                 problem: str = "", kinds: Iterable[str] = EVENING_KINDS,
+                 db_lookup: Callable[[date], set[str]] | None = None) -> tuple[str, str, tuple[str, ...]]:
+    """#365 S2 動作條件：回 ``(decision, reason, kinds)``；decision ∈ ``quiet``／``run``／``fallback_db``。
+
+    * ``kinds``（回傳）＝該晚有排定的晚間賽別 ∪ 待辦所屬賽別，供 stats 只查這些賽別（驗收 c）。
+      有待辦而沒有可歸屬的賽別（例：只有 pending_sync）時回全部晚間賽別（＝現行行為）。
+    * ``db_lookup``＝賽程檔不可用時查本機 DB 的函式（``None``＝不查；``plan --dry`` 用）。"""
+    allowed = _kind_order(kinds)
+    night = night_of(now)
+    reasons, pending_kinds = pending_work(state, now)
+    pending_kinds &= set(allowed)
+
+    def run(decision: str, why: str, scheduled: set[str]) -> tuple[str, str, tuple[str, ...]]:
+        if not scheduled and not reasons:
+            return "quiet", why, ()
+        out = _kind_order(scheduled | pending_kinds) or allowed
+        detail = ",".join(([f"scheduled:{''.join(_kind_order(scheduled))}"] if scheduled else []) + reasons)
+        return decision, f"{why}；{detail}", out
+
+    if night is None:
+        return run("run", "outside_night", set())
+    if schedule is not None and schedule.date != night.isoformat():
+        schedule, problem = None, "schedule_stale"
+    if schedule is not None:
+        scheduled = {g.kind_code for g in schedule.games
+                     if g.kind_code in allowed and g.game_date == night.isoformat()}
+        return run("run", f"schedule {schedule.date}", scheduled)
+    problem = problem or "schedule_missing"
+    if db_lookup is None:
+        return "fallback_db", f"{problem}；dry 不查 DB", _kind_order(pending_kinds)
+    return run("fallback_db", f"{problem}；本機 DB {night.isoformat()}", set(db_lookup(night)) & set(allowed))
+
+
+def gate_targets(schedule: TodaySchedule | None, now: datetime,
+                 kinds: Iterable[str] = EVENING_KINDS) -> list[str]:
+    """``plan --dry`` 的目標場：賽程檔中該晚有排定、屬晚間賽別的場鍵（依 A、E、C 與場次排序）。"""
+    night = night_of(now)
+    if schedule is None or night is None or schedule.date != night.isoformat():
+        return []
+    allowed = _kind_order(kinds)
+    games = [g for g in schedule.games if g.kind_code in allowed and g.game_date == night.isoformat()]
+    return [g.key for g in sorted(games, key=lambda g: (allowed.index(g.kind_code), g.game_sno))]
+
+
 # =========================================================================== #293 目標場 box／PA 階段（純函式）
 #
 # 結果鏈（上面）只同步 games／狀態軌跡／訊號表；本段在其後對「本機已完賽、box 或 PA 尚未送達
@@ -1288,6 +1427,17 @@ def load_local_games(year: int, now: datetime,
     return out
 
 
+def local_scheduled_kinds(night: date, kinds: Iterable[str] | None = None) -> set[str]:
+    """#365 動作條件的退路：本機 ``cpbl.games`` 在該晚（台北日期）有排定場的晚間賽別。"""
+    from cpbl.db import conn
+
+    with conn() as c:
+        rows = c.execute(
+            "SELECT DISTINCT kind_code FROM cpbl.games WHERE game_date = %s AND kind_code = ANY(%s)",
+            (night, _kinds_list(kinds))).fetchall()
+    return {r[0] for r in rows}
+
+
 def local_first_seen(year: int, kinds: Iterable[str] | None = None) -> dict[str, str | None]:
     """T2：本機狀態修訂表首次出現 final 列（沒有 final 時取首次出現任一列）的 fetched_at。"""
     from cpbl.db import conn
@@ -1437,9 +1587,10 @@ def _months(now: datetime, state: Mapping | None = None) -> list[int]:
 def _parser():
     p = cli_parser("python -m cpbl.ingest.postseason_evening", __doc__)
     sub = p.add_subparsers(dest="command", required=True)
-    pl = sub.add_parser("plan", help="讀狀態、必要時唯讀讀 stats，印出 idle／halted／scrape／sync")
+    pl = sub.add_parser("plan", help="讀狀態、必要時唯讀讀 stats，印出 quiet／idle／halted／scrape／sync")
     pl.add_argument("--dry", action="store_true",
-                    help="#292 A1：只依狀態檔賽程列出先發查核時點（不連網、不碰 DB、不寫狀態）")
+                    help="#292 A1：只依狀態檔賽程列出先發查核時點；#365 另列動作條件與今晚目標場"
+                         "（不連網、不碰 DB、不寫狀態）")
     pl.add_argument("--now", help="只配 --dry：以此時刻（ISO，無時區視為台北）預覽")
     sub.add_parser("scrape", help="既有 _postseason_games_step（www）；印 changed／unchanged／failed／halted")
     sub.add_parser("sync-due", help="印 signals（本機異動訊號表待同步且允許）或 no；唯讀狀態檔")
@@ -1482,16 +1633,31 @@ def main(argv: list[str] | None = None) -> int:
         if args.now:
             at = datetime.fromisoformat(args.now)
             at = at.replace(tzinfo=TAIPEI) if at.tzinfo is None else at
+        # #365：新增 gate／kinds／targets；既有 now／starter_enabled／points 三鍵是 #292 契約（Runbook §10），只增不改。
+        today, problem = read_today_schedule(today_schedule_path())
+        decision, why, gate_kinds = evening_gate(state, at, today, problem=problem, kinds=evening_kinds)
         print(json.dumps({"now": taipei(at).isoformat(), "starter_enabled": sc.flag_path().exists(),
                           "points": sc.preview(state.get("schedule") or [],
-                                               state.get("finished_first_seen") or {}, at)},
+                                               state.get("finished_first_seen") or {}, at),
+                          "gate": {"decision": decision, "reason": why}, "kinds": list(gate_kinds),
+                          "targets": gate_targets(today, at, evening_kinds)},
                          ensure_ascii=False, indent=2))
         return 0
     if args.command == "plan":
+        # #365 動作條件：quiet ⇒ 不寫狀態檔、不連 DB、不連 stats，直接結束（postseason-evening.sh 隨即 exit 0）。
+        today, problem = read_today_schedule(today_schedule_path())
+        decision, why, gate_kinds = evening_gate(
+            state, now, today, problem=problem, kinds=evening_kinds,
+            db_lookup=lambda night: local_scheduled_kinds(night, evening_kinds))
+        if decision == "quiet":
+            print("quiet")
+            return 0
+        log.info("動作條件：%s（%s）stats 賽別=%s", decision, why, ",".join(gate_kinds))
+        state["gate"] = {"at": _iso(now), "decision": decision, "reason": why, "kinds": list(gate_kinds)}
         enabled = sc.flag_path().exists()
         action, reason = plan(
             state, now,
-            probe=lambda: stats_probe(year, _months(now, state), kinds=evening_kinds),
+            probe=lambda: stats_probe(year, _months(now, state), kinds=gate_kinds),
             load_local=lambda: load_local_games(year, now),
             local_first_seen=lambda: local_first_seen(year),
             starter_enabled=enabled,

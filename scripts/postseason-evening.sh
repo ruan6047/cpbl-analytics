@@ -125,9 +125,12 @@ if [ "$STAGE" = "all" ]; then
   ACTION="$(py plan)" || { note "FATAL: plan 失敗（狀態檔可能未寫）"; exit 70; }
   note "plan → ${ACTION}"
   case "$ACTION" in
-    idle|halted|scrape|sync) ;;
+    quiet|idle|halted|scrape|sync) ;;
     *) note "FATAL: 未知 plan 結果：${ACTION}"; exit 70 ;;
   esac
+  # #365 動作條件：今晚沒有排定的晚間賽別、也沒有待辦 → plan 未寫狀態檔、未連 DB／stats；
+  # 這裡連 boxpa-plan --dry（會連 DB）都不跑、不取鎖，直接結束。休賽季每次喚醒只留這一行 log。
+  [ "$ACTION" = "quiet" ] && exit 0
 fi
 # 1b. #293 box／PA 預檢：不取鎖、不寫狀態檔、不連 www（只讀本機 DB 與狀態檔）。
 #     結果鏈沒事、box／PA 也沒事 → 直接結束（與原本「無事件不取鎖」相同）。
