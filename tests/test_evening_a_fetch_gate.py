@@ -460,6 +460,17 @@ def test_negative_control_final_tonight_with_older_postponed_row_releases(order)
     assert state["scrape_kinds"] == ["A"]
 
 
+@pytest.mark.parametrize("bad", ["not-a-date", "2026-99-99T18:35:00", "2026-09-07T25:61:00", "2026-02-30T18:35:00"])
+def test_a_row_with_invalid_pre_exe_date_blocks(bad):
+    """review-2 F2-R（Codex 重現情境）：2026-09-07 21:00，A304 RESERVED 的 PreExeDate 無效、A306 FINISHED。
+    走真實 stats_probe → plan：無效值非空卻判不出日期，⛔ 不得因 game_date ≠ night 被濾掉而放行 A。"""
+    state = pe.empty_state()
+    rows = [_raw(304, "RESERVED", bad), _raw(306, "FINISHED", T1835)]
+    assert _plan_via_probe(state, NOW, _fetch({"A": rows}), LOCAL_NEITHER_DONE) == ("idle", "a_fetch_gate")
+    assert state["a_fetch_gate"]["reason"] == "a_date_unknown:2026-A-304:RESERVED"
+    assert "A" not in state["scrape_kinds"]
+
+
 def test_a_row_without_pre_exe_date_blocks():
     """F2 事實一：A304 RESERVED 缺 PreExeDate（判不出屬於哪一晚）＋A306 FINISHED → 擋（a_date_unknown）。"""
     state = pe.empty_state()
@@ -504,3 +515,19 @@ def test_reserved_night_still_syncs_pending_signals_documented_residual():
     state["signals_unsynced"] = True
     assert wake(state, AT_1001, games, local_games) == ("sync", "signals_only")
     assert state["scrape_kinds"] == [] and state["a_fetch_gate"]["reason"].startswith("a_reserved")
+
+
+def test_a_pregame_starter_checkpoints_are_always_held_by_the_gate():
+    """review-2 Claude N2（Runbook §10 依此改寫）：SCHEDULED 不在放行集合 ⇒ 即使該晚沒有任何 A 在賽中，
+    A 的 S−60／S−30 也一律被擋（a_fetch_gate、不計次），過最遲時刻記 missed。樣本：2026-09-27 A357 17:05。"""
+    a357 = pe.StatsGame(2026, "A", 357, "SCHEDULED", "2026-09-27T17:05:00", "2026-09-27", "ACN011", "AEO011", "新莊")
+    local_games = {a357.key: pe.LocalGame(2026, "A", 357, "2026-09-27", "ACN011", "AEO011", "新莊", False)}
+    state = pe.empty_state()
+    wake(state, datetime(2026, 9, 27, 14, 0, tzinfo=TPE), [a357], local_games, enabled=True)
+    for hh, mm in ((16, 5), (16, 35)):
+        assert wake(state, datetime(2026, 9, 27, hh, mm, tzinfo=TPE), [a357], local_games, enabled=True)[0] == "idle"
+    recs = {r["point"]: r for r in state["starter_checkpoints"].values() if r["key"] == "2026-A-357"}
+    assert {p: (r["wait_reason"], r["attempts"]) for p, r in recs.items()} == {
+        "S-60": ("a_fetch_gate", []), "S-30": ("a_fetch_gate", [])}
+    wake(state, datetime(2026, 9, 27, 17, 10, tzinfo=TPE), [a357], local_games, enabled=True)
+    assert {r["outcome"] for r in state["starter_checkpoints"].values() if r["key"] == "2026-A-357"} == {"missed"}

@@ -468,11 +468,23 @@ def _latest_rows_per_game(rows: Iterable[Mapping]) -> list[Mapping]:
     return out
 
 
+def _a_row_dated(g: Mapping) -> bool:
+    """這一列能判出屬於哪一晚：``starts_at``（PreExeDate）可解析成日期時刻，且 ``game_date`` 是有效日期。
+
+    #365 審核 review-2 F2-R：只檢查非空不夠——``parse_stats_games`` 取 PreExeDate 前十碼當 ``game_date``，
+    ``not-a-date``、``2026-99-99T18:35:00`` 這類值非空卻判不出日期，會被 ``game_date == night`` 濾掉而放行。"""
+    try:
+        date.fromisoformat(str(g.get("game_date") or ""))
+    except ValueError:
+        return False
+    return _starts(g) is not None
+
+
 def a_fetch_blocked(state: Mapping, now: datetime) -> tuple[bool, str]:
     """該晚是否要擋下 A 的 www（結果、box／PA 明細、先發時點都算）。只讀狀態檔，不連網、不連 DB。
 
-    reason：``probe_unavailable``（最近一次 stats 讀取失敗或已判不可用）／``a_date_unknown``（任一 A 列缺
-    ``PreExeDate``：判不出它屬於哪一晚，#365 審核 F2）／``a_reserved``／``a_in_progress_or_pending``（START、
+    reason：``probe_unavailable``（最近一次 stats 讀取失敗或已判不可用）／``a_date_unknown``（任一 A 列的
+    ``PreExeDate`` 缺值或不是有效日期時刻：判不出它屬於哪一晚，#365 審核 F2／F2-R，見 :func:`_a_row_dated`）／``a_reserved``／``a_in_progress_or_pending``（START、
     SCHEDULED）／``a_status_unknown``（其他字串或缺值），後接場鍵與原字。
 
     讀的是 stats 的**原始** A 列（狀態檔 ``a_stats_rows``；舊狀態檔沒有時退回已去重的 ``schedule``），同一場先取
@@ -486,7 +498,7 @@ def a_fetch_blocked(state: Mapping, now: datetime) -> tuple[bool, str]:
     a_rows = [g for g in (source if source is not None else state.get("schedule") or [])
               if g.get("kind_code") == "A"]
     for g in a_rows:
-        if not g.get("game_date") or not g.get("starts_at"):
+        if not _a_row_dated(g):
             return True, f"a_date_unknown:{g.get('year')}-A-{g.get('game_sno')}:{g.get('status') or '?'}"
     rows = [g for g in _latest_rows_per_game(a_rows) if g.get("game_date") == night]
     for g in sorted(rows, key=lambda g: (str(g.get("starts_at") or ""), int(g.get("game_sno") or 0))):

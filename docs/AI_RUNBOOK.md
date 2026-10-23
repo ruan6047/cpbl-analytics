@@ -812,7 +812,7 @@ GitHub 會自動標記。判斷是否經 PR 合併要看 `gh api repos/.../commi
   `backup-plan` 判可沿用時帶 `REUSE_VERIFIED_BACKUP`／`_SHA256`，`refresh-cpbl-prod.sh` 在同一行程、緊接同步前重驗（存在、位於本次 BACKUP_DIR、sha256 相符）
   才略過備份，log 記 `沿用 night_backup=<路徑>`；任一不符就照常重備（fail closed）。09:45–12:00 的同步一律重備；首次備份在驗證前失敗不記，下一次仍算首次。
   每次喚醒的使用紀錄（結果同步與 box／PA 同步都算）寫進 `last-postseason-evening.json` 的 `backup_uses`；結果鏈有嘗試、或只有 box／PA 同步用到備份時，
-  另寫本機 `refresh_log`（detail 的 `backup`：「沿用 night_backup=…」／「新備份 …」）。refresh_log 寫入失敗時保留到下一次喚醒再寫。
+  另寫本機 `refresh_log`（detail 的 `backup`：「沿用 night_backup=…」／「新備份 …」）。refresh_log 寫入失敗時紀錄保留在狀態檔，**下次執行到 `finish` 時**才補寫（`plan → quiet`、或結果鏈與 box／PA 都 idle 而提前退出的喚醒不會執行 finish，補寫可能延後；紀錄不會遺失）。
   回退：`touch logs/postseason-evening-backup-per-sync.enabled`＝每次同步都備份（`POSTSEASON_BACKUP_PER_SYNC_FLAG` 可改路徑；下次喚醒生效、不需重新 bootstrap），`rm` 即回每晚一次。
   代價（需求方已接受）：還原粒度變粗——同晚後面的同步若寫壞，只能退回該晚首次同步前。
 - 備份範圍：`backup-prod-db.sh` 備的是**整庫**（cpbl schema＋主站 public）。晚間鏈用獨立的 `POSTSEASON_BACKUP_DIR`（預設
@@ -853,7 +853,9 @@ GitHub 會自動標記。判斷是否經 PR 合併要看 `gh api repos/.../commi
 - 旗標：`logs/postseason-starter-checkpoints.enabled`（可用 `POSTSEASON_STARTER_FLAG` 改路徑）。**存在＝開**：`touch` 開、`rm` 關，下次喚醒生效、不需重新 bootstrap；開啟前已到點的時點不補建。
   預覽（不連網、不碰 DB、不寫狀態）：`uv run python -m cpbl.ingest.postseason_evening plan --dry [--now 2026-10-17T12:00:00]`。
   輸出既有三鍵 `now`／`starter_enabled`／`points` 不變；#365 另加 `gate`（`decision`／`reason`）、`kinds`、`targets`（該晚目標場；賽程檔不可用時 dry 不查 DB、`targets` 為空）。
-  #365 起 A 也會產生時點；該晚有 A 場在賽中時，A 的時點受 `P-A-FETCH-GATE` 擋下（記 `a_fetch_gate`、不計次，F+60 會延到最後一場終局後）。
+  #365 起 A 也會產生時點，但 `P-A-FETCH-GATE` 的放行集合只有 `FINISHED`／`POSTPONED`（`SCHEDULED` 不放行）：**A 的 S−60／S−30 在開賽前一律被擋**
+  （記 `a_fetch_gate`、不計次，過最遲時刻記 `missed`），實際上抓不到 A 的賽前先發；A 的 F+60 要等該晚每一場 A 都 `FINISHED`／`POSTPONED` 才會放行。
+  ⇒ A 的賽前先發公告若要同晚取得，須另案（#342），⛔ 不得以關閉閘門達成。
 - 紀錄：狀態檔 `starter_checkpoints`（每時點 `key／point／phase／due_at／deadline_at／fired_at／attempts[]／outcome／sync_code`）、`finished_first_seen`；`last-postseason-evening.json` 的 `starter_checkpoints` 為摘要。
   outcome ∈ `changed／unchanged／failed／missed／blocked／start_time_unknown／no_final`；`phase`：S 兩點 `pregame`、F+60 `postgame`（**開賽後觀測，⛔ 不是賽前公告**）。
 - ⚠️ 時間語意：`fired_at`、修訂列 `fetched_at`（首見）／`last_seen_at`（最後一次看到）都是**本機觀測時刻**，⛔ 不是官方公布時刻；任何層都不得產生或宣稱「公布時刻」。`last_seen_at` 只留最後一次，不能重建每次查詢歷史——查詢歷史以時點紀錄為準。
