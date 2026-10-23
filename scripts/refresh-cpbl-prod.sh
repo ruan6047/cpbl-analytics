@@ -1016,11 +1016,12 @@ cd "$REPO_DIR"
 # 4/4 的 cpbl-train-outcome（無新完賽場時三者內容都不變，PLAN-r2 §3.5）。
 # RUN_SIMPLE＝auto 時於 4/4 讀正式站 artifact 的 trained_through 再決定。
 #
-# 正式站最新 model_versions(task='outcome') 的 cv_metrics（trainer 自己寫的 test_seasons／n_train／n_test）。
-# 唯讀 psql；讀不到一律印空字串 → daily_gate train-gate 判照跑（fail open）。不依賴新碼部署。
+# 正式站兩個量（一次唯讀 psql，印一行 JSON）：最新 model_versions(task='outcome') 的 cv_metrics（trainer
+# 自己寫的 test_seasons／n_train／n_test），與 game_features 各季 completed 列數（含和局，#364 第 2 輪 F1）。
+# 讀不到一律印空字串 → daily_gate train-gate 判照跑（fail open）。不依賴新碼部署。
 remote_outcome_model_metrics() {
   ssh -o BatchMode=yes "$VPS" \
-    "cd ${DEPLOY_PATH} && set -a && . ./.env && docker exec prod_pg psql -At -U \"\$DB_USER\" -d \"\$DB_NAME\" -c \"SELECT cv_metrics::text FROM cpbl.model_versions WHERE task = 'outcome' ORDER BY trained_at DESC LIMIT 1\"" \
+    "cd ${DEPLOY_PATH} && set -a && . ./.env && docker exec prod_pg psql -At -U \"\$DB_USER\" -d \"\$DB_NAME\" -c \"SELECT json_build_object('model', (SELECT cv_metrics FROM cpbl.model_versions WHERE task = 'outcome' ORDER BY trained_at DESC LIMIT 1), 'features_completed', (SELECT json_object_agg(season, n) FROM (SELECT season, count(*) AS n FROM cpbl.game_features WHERE completed GROUP BY season) s))::text\"" \
     2>/dev/null | tail -n 1 || true
 }
 RUN_OUTCOME=1

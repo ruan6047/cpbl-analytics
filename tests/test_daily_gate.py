@@ -777,6 +777,18 @@ def test_g_sync_only_daily_chain_syncs_after_derived(tmp_path) -> None:
 REAL_SIGNATURE = {"test_seasons": [2022, 2023, 2024, 2025, 2026], "n_train": 9185, "n_test": 1652}
 REAL_JULY_MODEL = {"test_seasons": [2022, 2023, 2024, 2025, 2026], "n_train": 9185, "n_test": 1508,
                    "best": "LightGBM（全特徵）"}
+# 2026-10-24 本機唯讀實測（exec-4 readonly-checks.txt）：2022–2026 各季完成場（含和局）＝非和局
+# 290／289／358／358／357 加完成和局 10／11／2／2／3。只取這五季做 game_features 完成數的樣本。
+REAL_COMPLETED = {"2022": 300, "2023": 300, "2024": 360, "2025": 360, "2026": 360}
+
+
+def _prod(model=REAL_SIGNATURE, completed=REAL_COMPLETED) -> dict:
+    """正式站兩個量（refresh-cpbl-prod.sh remote_outcome_model_metrics 的一行 JSON）。"""
+    return {"model": model, "features_completed": completed}
+
+
+def _local(signature=REAL_SIGNATURE, completed=REAL_COMPLETED) -> dict:
+    return {"signature": signature, "completed_by_season": completed}
 
 
 def test_d_f1_walk_seasons_constant_matches_trainer() -> None:
@@ -804,30 +816,49 @@ def test_d_f1_signature_equals_what_the_real_backtest_writes(monkeypatch) -> Non
         k: result[k] for k in ("test_seasons", "n_train", "n_test")}
 
 
-def test_d_f1_local_signature_reads_completed_non_tie_A_games() -> None:
-    db = FakeDB(season_rows=[(2025, 358), (2026, 357)])
-    sig = dg.local_outcome_signature(db)
+def test_d_f1_local_state_counts_completed_ties_and_non_tie_signature() -> None:
+    """第 2 輪 F1：完成場集合含和局。非和局數給 trainer 規模比對，含和局總數給 game_features 比對。"""
+    db = FakeDB(season_rows=[(2025, 360, 358), (2026, 360, 357)])
+    state = dg.local_outcome_state(db)
     sql = db.statements[-1]
-    assert "g.kind_code = 'A'" in sql and "g.home_score <> g.away_score" in sql
-    assert sig == {"test_seasons": [2026], "n_train": 358, "n_test": 357}
+    assert "g.kind_code = 'A'" in sql
+    assert "FILTER (WHERE g.home_score IS NOT NULL" in sql      # 非和局只用於 trainer 規模
+    assert state["signature"] == {"test_seasons": [2026], "n_train": 358, "n_test": 357}
+    assert state["completed_by_season"] == {"2025": 360, "2026": 360}       # 和局有算進來
+
+
+def test_d_f1_tie_only_addition_triggers_training() -> None:
+    """Codex 第 2 輪 F1 重現：正式站與本機非和局場數同為 {2025:358, 2026:357}，本機只多一場完成和局
+    → 必須跑（舊判準回 (False, '…無新增…')）。"""
+    before = dg.local_outcome_state(FakeDB(season_rows=[(2025, 360, 358), (2026, 360, 357)]))
+    after = dg.local_outcome_state(FakeDB(season_rows=[(2025, 360, 358), (2026, 361, 357)]))
+    assert before["signature"] == after["signature"]                        # trainer 規模看不到和局
+    prod = _prod(model=before["signature"], completed=before["completed_by_season"])
+    assert dg.outcome_train_decision(before, prod)[0] is False
+    run, reason = dg.outcome_train_decision(after, prod)
+    assert run is True and "含和局" in reason, reason
 
 
 @pytest.mark.parametrize(("prod", "run"), [
-    (REAL_SIGNATURE, False),                 # 正式站上次回測＝本機現況（含 VPS 手動重訓後）→ 不跑
-    (REAL_JULY_MODEL, True),                 # 正式站還原到 7 月模型 → 跑
-    ({**REAL_SIGNATURE, "n_test": 1651}, True),   # 本機多一場完成場 → 跑
-    ({**REAL_SIGNATURE, "test_seasons": [2021, 2022, 2023, 2024, 2025]}, True),   # 新球季
-    (None, True),                            # 讀不到正式站
-    ({"error": "no completed games"}, True),  # 形狀不符
+    (_prod(), False),                          # 正式站上次回測＋鏡像＝本機現況（含 VPS 手動重訓後）→ 不跑
+    (_prod(model=REAL_JULY_MODEL), True),      # 正式站還原到 7 月模型 → 跑
+    (_prod(model={**REAL_SIGNATURE, "n_test": 1651}), True),   # 本機多一場非和局完成場 → 跑
+    (_prod(model={**REAL_SIGNATURE, "test_seasons": [2021, 2022, 2023, 2024, 2025]}), True),   # 新球季
+    (_prod(completed={**REAL_COMPLETED, "2026": 359}), True),  # 只多一場完成和局 → 跑
+    (_prod(completed={}), True),               # 讀不到正式站 game_features 完成數
+    (_prod(completed=None), True),
+    (None, True),                              # 讀不到正式站
+    ({"model": None, "features_completed": REAL_COMPLETED}, True),   # 正式站無 outcome 模型
+    ({"model": {"error": "no completed games"}, "features_completed": REAL_COMPLETED}, True),
 ])
-def test_d_f1_decision_is_against_production_model_versions(prod, run) -> None:
-    assert dg.outcome_train_decision(REAL_SIGNATURE, prod)[0] is run
+def test_d_f1_decision_is_against_production_state(prod, run) -> None:
+    assert dg.outcome_train_decision(_local(), prod)[0] is run
 
 
 def test_d_f1_parse_prod_metrics() -> None:
     assert dg.parse_prod_metrics("") is None
     assert dg.parse_prod_metrics("not json") is None
-    assert dg.parse_prod_metrics(json.dumps(REAL_SIGNATURE) + "\n")["n_test"] == 1652
+    assert dg.parse_prod_metrics(json.dumps(_prod()) + "\n")["model"]["n_test"] == 1652
 
 
 _TRAIN_SSH_PREFIX = '''\
@@ -843,12 +874,17 @@ if _mv and "cpbl-train-outcome" in _cmd:
     open(_mv, "w", encoding="utf-8").write(json.dumps(rows))
     print("已寫入 model_versions：%s" % rows[-1]["id"])
     raise SystemExit(0)
+_feat = os.environ.get("STUB_PROD_FEATURES")
+if _feat and "TRUNCATE cpbl.game_features" in _cmd:
+    # 3/4 全鏡像：正式站 game_features 的完成數變成本機的；之後交給原樁記錄這次 ssh（不 exit）。
+    open(_feat, "w", encoding="utf-8").write(os.environ["STUB_LOCAL_COMPLETED"])
 if _mv and "FROM cpbl.model_versions WHERE task = 'outcome'" in _cmd:
     if os.environ.get("STUB_PROD_DOWN") == "1":
         raise SystemExit(255)
     outcome = [r for r in json.loads(open(_mv, encoding="utf-8").read()) if r["task"] == "outcome"]
-    if outcome and outcome[-1].get("cv_metrics") is not None:
-        print(json.dumps(outcome[-1]["cv_metrics"]))
+    model = outcome[-1].get("cv_metrics") if outcome else None
+    print(json.dumps({"model": model,
+                      "features_completed": json.loads(open(_feat, encoding="utf-8").read())}))
     raise SystemExit(0)
 if "trained_through" in _cmd:
     print(os.environ.get("STUB_TRAINED_THROUGH", ""))
@@ -860,13 +896,16 @@ _GATE_HELPER = """
 import contextlib, json, os, sys
 from cpbl.ingest import daily_gate as dg
 dg._readonly_conn = lambda: contextlib.nullcontext(None)
-dg.local_outcome_signature = lambda c: json.loads(os.environ["STUB_LOCAL_SIGNATURE"])
+dg.local_outcome_state = lambda c: {"signature": json.loads(os.environ["STUB_LOCAL_SIGNATURE"]),
+                                    "completed_by_season": json.loads(os.environ["STUB_LOCAL_COMPLETED"])}
 sys.exit(dg.main(["train-gate", "--prod-metrics", "-"]))
 """
 
 
 def _run_prod_sync(tmp_path: Path, *, prod_model: dict | None, trained_through: str,
-                   local=REAL_SIGNATURE, model_versions: Path | None = None, **env_extra: str):
+                   local=REAL_SIGNATURE, model_versions: Path | None = None,
+                   prod_completed: dict | None = None, local_completed: dict | None = None,
+                   **env_extra: str):
     """跑真 refresh-cpbl-prod.sh（沿用 test_prod_sync_revision_seq 的假樁 harness）。
 
     假正式站 DB：``model_versions.json``——假 ssh 回答 ``model_versions(task='outcome')`` 查詢，
@@ -893,6 +932,9 @@ esac
         model_versions.write_text(json.dumps([
             {"id": "outcome-1", "task": "outcome", "cv_metrics": prod_model},
             {"id": "outcome_simple-2", "task": "outcome_simple"}]))
+    prod_features = model_versions.with_name(model_versions.stem + "-features.json")
+    if not prod_features.exists():    # 假正式站 game_features 各季完成數（與 model_versions 同壽命）
+        prod_features.write_text(json.dumps(prod_completed or REAL_COMPLETED), encoding="utf-8")
     (tmp_path / "tmp").mkdir(exist_ok=True)
     env = {
         "PATH": f"{harness['bin']}:/usr/bin:/bin", "HOME": str(tmp_path / "home"),
@@ -904,6 +946,8 @@ esac
         "SKIP_SCRAPE": "1", "WITH_DETAIL": "1", "DAILY_DAY_TYPE": "full",
         "STUB_MODEL_VERSIONS": str(model_versions), "STUB_TRAINED_THROUGH": trained_through,
         "STUB_LOCAL_SIGNATURE": json.dumps(local),
+        "STUB_PROD_FEATURES": str(prod_features),
+        "STUB_LOCAL_COMPLETED": json.dumps(local_completed or REAL_COMPLETED),
         **env_extra,
     }
     result = subprocess.run(["/bin/bash", str(harness["repo"] / "scripts" / "refresh-cpbl-prod.sh")],
@@ -1166,3 +1210,41 @@ def test_f4_gate_failure_also_removes_file(tmp_path) -> None:
     result, status, _calls, _repo = _run_daily(tmp_path, gate_type="garbage",
                                                 extra_env={"STUB_TODAY_FAIL": "1"})
     assert status["day_type"] == "full" and not stale.exists()
+
+
+# ============================================================== 第 2 輪 F1：只新增完成和局（端到端）
+
+def test_d_f1_tie_only_addition_rebuilds_mirrors_and_retrains_end_to_end(tmp_path: Path) -> None:
+    """正式站模型與本機非和局規模相同，本機只多一場 2026 完成和局 → 1/4 重建、3/4 全鏡像、4/4 回測都要跑。"""
+    result, ids, uv_calls, ssh_cmds = _run_prod_sync(
+        tmp_path, prod_model=REAL_SIGNATURE, trained_through=_prev_year(),
+        local_completed={**REAL_COMPLETED, "2026": 361})
+    assert result.returncode == 0, result.stderr[-2000:]
+    assert "含和局" in result.stdout
+    assert ids[2:] == ["outcome-3"]
+    assert any("cpbl-build-features" in c for c in uv_calls)
+    assert any("TRUNCATE cpbl.game_features" in c for c in ssh_cmds)
+
+
+# ============================================================== 第 2 輪 F2：讀不懂的日期 ≠ 確定無新場
+
+@pytest.mark.parametrize(("pre_exe", "status"), [
+    ("not-a-date", "unavailable"),
+    ("2026/10/08T18:35:00", "unavailable"),
+    ("2026-13-45T18:35:00", "unavailable"),
+    ("2026-10-08 nonsense", "unavailable"),
+    ("2026-10-08T18:35:00", "new"),            # 合法日期維持原行為
+    ("2026-10-08", "new"),
+])
+def test_f2_round2_unreadable_pre_exe_date_is_unavailable(pre_exe, status) -> None:
+    """Codex 第 2 輪 F2 重現：查詢日 2026-10-08，本機沒有 2026-A-1，身分欄位合法，只換 PreExeDate。"""
+    def fetch(path, params):
+        rows = []
+        if params["kindCode"] == "A" and params["month"] == "10":
+            rows = [{"GameId": "2026-A-1", "KindCode": "A", "GameSno": 1, "GameStatus": "SCHEDULED",
+                     "PreExeDate": pre_exe}]
+        return {"Data": {"Games": rows}}
+    result = dg.stats_probe(date(2026, 10, 8), fetch=fetch, local_lookup=lambda _g: {})
+    assert result.status == status, result
+    if status == "unavailable":
+        assert dg.classify(_inputs(date(2026, 10, 8)), lambda: result).day_type == dg.LIGHT

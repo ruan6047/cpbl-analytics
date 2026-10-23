@@ -360,8 +360,10 @@ def parse_probe_rows(rows: Iterable[Mapping], year: int, kinds: Iterable[str], *
             continue
         starts = row.get("PreExeDate")
         starts = str(starts) if starts else None
-        if strict and not (starts and len(starts) >= 10):
-            raise ProbeUnavailable(f"stats schedule 列缺 PreExeDate：{row.get('GameId')}")
+        if strict and not _iso_datetime_ok(starts):
+            # #364 第 2 輪審核 F2：讀不懂的日期（not-a-date、2026/10/08T…）不能被截前 10 字後拿去做
+            # 字串比較而得出「不在窗口＝確定無新場」。讀不懂＝探測不明 → 升級乙型。
+            raise ProbeUnavailable(f"stats schedule 列 PreExeDate 讀不懂：{row.get('GameId')}={starts!r}")
         venue = row.get("Field")
         out.append(StatsGame(
             year=year, kind_code=kind, game_sno=sno,
@@ -402,6 +404,18 @@ def compare_probe(stats_games: Iterable[Any], local: Mapping[str, str | None],
         elif g.game_date and local_date and g.game_date != str(local_date) and (in_window or local_in_window):
             found.append(f"日期異動 {g.key} 本機 {local_date} → stats {g.game_date}")
     return found
+
+
+def _iso_datetime_ok(value: str | None) -> bool:
+    """``PreExeDate`` 是否為可解析的 ISO 日期／時刻（``YYYY-MM-DD`` 開頭）。"""
+    if not value or len(value) < 10:
+        return False
+    try:
+        datetime.fromisoformat(value)
+        date.fromisoformat(value[:10])
+    except ValueError:
+        return False
+    return True
 
 
 def probe_rows(body: Any) -> list[Any]:
@@ -753,46 +767,72 @@ def outcome_dataset_signature(per_season: Mapping[int, int]) -> dict[str, Any] |
     }
 
 
-def local_outcome_signature(connection: Any) -> dict[str, Any] | None:
-    """本機 ``cpbl.games`` 依 ``cpbl-build-features`` 的語意算出的 :func:`outcome_dataset_signature`。
+def local_outcome_state(connection: Any) -> dict[str, Any]:
+    """本機 ``cpbl.games`` 依 ``cpbl-build-features`` 的語意算出的兩個量：
 
-    完成判準與 ``features/outcome.py`` 同一支（``completed_games_sql_with_evidence``）；``home_win``
-    只有比分不等時才是 0／1（和局為 NULL，被 ``_load`` 排除）。本機特徵尚未重建也無妨：這裡算的是
-    「這次若重建＋鏡像，正式站 trainer 會讀到的資料規模」。
+    - ``signature``：完成且**非和局**的各季場數 → :func:`outcome_dataset_signature`（trainer 寫進
+      ``cv_metrics`` 的同定義；和局 ``home_win`` 為 NULL，被 ``_load`` 排除，所以 trainer 規模看不到和局）。
+    - ``completed_by_season``：完成場（**含和局**）各季場數＝``game_features`` 中 ``completed`` 的列數。
+      #364 第 2 輪審核 F1：§3.5 的對象是「完成場集合」，只新增完成和局也要重建＋鏡像＋回測——和局會
+      推進得失分／場數等 running state，改變其後各場的特徵。
+
+    完成判準與 ``features/outcome.py`` 同一支（``completed_games_sql_with_evidence``）。2026-10-24 本機
+    唯讀實測：本函式各季完成數與本機 ``game_features`` 的 ``completed`` 各季列數 37 季逐季相同（9796）。
     """
     from cpbl.completion import completed_games_sql_with_evidence
 
     cond = completed_games_sql_with_evidence("g")
     rows = connection.execute(
-        "SELECT g.year, count(*) FROM cpbl.games g "
-        "WHERE g.kind_code = 'A' AND g.game_date IS NOT NULL "
-        "AND g.home_score IS NOT NULL AND g.away_score IS NOT NULL AND g.home_score <> g.away_score "
-        f"AND {cond} GROUP BY g.year ORDER BY g.year"
+        "SELECT g.year, count(*), count(*) FILTER (WHERE g.home_score IS NOT NULL "
+        "AND g.away_score IS NOT NULL AND g.home_score <> g.away_score) FROM cpbl.games g "
+        f"WHERE g.kind_code = 'A' AND g.game_date IS NOT NULL AND {cond} GROUP BY g.year ORDER BY g.year"
     ).fetchall()
-    return outcome_dataset_signature({int(y): int(n) for y, n in rows})
+    return {
+        "signature": outcome_dataset_signature({int(y): int(non_tie) for y, _all, non_tie in rows}),
+        "completed_by_season": {str(int(y)): int(n) for y, n, _non_tie in rows},
+    }
 
 
 def outcome_train_decision(local: Mapping[str, Any] | None,
-                           prod_metrics: Mapping[str, Any] | None) -> tuple[bool, str]:
+                           prod: Mapping[str, Any] | None) -> tuple[bool, str]:
     """§3.5：本機完成場集合自正式站上次 ``model_versions(task='outcome')`` 後有新增 → 跑。
 
-    比對對象是**正式站**最新那一列的 ``cv_metrics``（trainer 自己寫下的訓練資料規模），所以正式站
-    還原到舊模型 → 規模不同 → 跑；VPS 上已手動重訓 → 規模相同 → 不重跑（#364 審核 F1）。
-    任一側讀不到或形狀不對 → 跑（fail open 到現況）。
+    兩個條件**都**成立才略過（任一不成立或讀不到 → 跑，fail open）：
+
+    1. 本機非和局規模＝正式站最新 ``model_versions(task='outcome').cv_metrics`` 的
+       ``test_seasons``／``n_train``／``n_test``（trainer 自己寫的；正式站還原 → 不同 → 跑；
+       VPS 已手動重訓 → 相同；#364 第 1 輪審核 F1）。
+    2. 本機各季完成場數（含和局）＝正式站 ``game_features`` 各季 ``completed`` 列數——trainer 規模看不到
+       和局，這一條補上「只新增完成和局」（#364 第 2 輪審核 F1）。
+
+    ``prod``：``{"model": cv_metrics, "features_completed": {"季": 列數}}``（見 refresh-cpbl-prod.sh
+    ``remote_outcome_model_metrics``）。
     """
-    if local is None:
+    local = local or {}
+    signature = local.get("signature")
+    if signature is None:
         return True, "本機訓練資料規模算不出來（不足兩季）→ 照跑"
-    if not isinstance(prod_metrics, Mapping):
+    if not isinstance(prod, Mapping) or not isinstance(prod.get("model"), Mapping):
         return True, "讀不到正式站最新 model_versions(task='outcome') → 照跑"
+    model = prod["model"]
     try:
-        prod = {"test_seasons": [int(s) for s in prod_metrics["test_seasons"]],
-                "n_train": int(prod_metrics["n_train"]), "n_test": int(prod_metrics["n_test"])}
-    except (KeyError, TypeError, ValueError):
-        return True, "正式站 model_versions(task='outcome') 的 cv_metrics 形狀不符 → 照跑"
-    if prod == dict(local):
-        return False, (f"本機一軍完成場自正式站上次回測後無新增（test={prod['test_seasons']}、"
-                       f"n_train={prod['n_train']}、n_test={prod['n_test']}）")
-    return True, (f"本機一軍完成場與正式站上次回測不同（正式站 {prod} → 本機 {dict(local)}）")
+        prod_sig = {"test_seasons": [int(s) for s in model["test_seasons"]],
+                    "n_train": int(model["n_train"]), "n_test": int(model["n_test"])}
+        prod_completed = {str(int(k)): int(v) for k, v in (prod.get("features_completed") or {}).items()}
+    except (KeyError, TypeError, ValueError, AttributeError):
+        return True, "正式站 model_versions／game_features 形狀不符 → 照跑"
+    if prod_sig != dict(signature):
+        return True, f"本機一軍非和局完成場與正式站上次回測不同（正式站 {prod_sig} → 本機 {dict(signature)}）"
+    if not prod_completed:
+        return True, "讀不到正式站 game_features 完成場數 → 照跑"
+    local_completed = dict(local.get("completed_by_season") or {})
+    if prod_completed != local_completed:
+        diff = {k: (prod_completed.get(k), local_completed.get(k))
+                for k in sorted(set(prod_completed) | set(local_completed))
+                if prod_completed.get(k) != local_completed.get(k)}
+        return True, f"本機一軍完成場（含和局）與正式站 game_features 不同（季：正式站→本機 {diff}）"
+    return False, (f"本機一軍完成場自正式站上次回測後無新增（test={prod_sig['test_seasons']}、"
+                   f"n_train={prod_sig['n_train']}、n_test={prod_sig['n_test']}；含和局完成場各季相同）")
 
 
 def parse_prod_metrics(text: str) -> Mapping[str, Any] | None:
@@ -887,7 +927,8 @@ def _parser() -> argparse.ArgumentParser:
 
     gate = sub.add_parser("train-gate", help="§3.5：對照正式站 model_versions，印 RUN_OUTCOME=0|1")
     gate.add_argument("--prod-metrics", type=Path, required=True,
-                      help="正式站最新 model_versions(task='outcome').cv_metrics 的 JSON 檔（- ＝stdin；空＝讀不到）")
+                      help="正式站 {model: 最新 model_versions(task='outcome').cv_metrics, features_completed: "
+                           "game_features 各季 completed 列數} 的 JSON（- ＝stdin；空＝讀不到）")
     return parser
 
 
@@ -933,7 +974,7 @@ def main(argv: list[str] | None = None) -> int:
         raw = sys.stdin.read() if str(args.prod_metrics) == "-" else args.prod_metrics.read_text(
             encoding="utf-8")
         with _readonly_conn() as c:
-            local = local_outcome_signature(c)
+            local = local_outcome_state(c)
         run, reason = outcome_train_decision(local, parse_prod_metrics(raw))
         print(f"OUTCOME_LOCAL={json.dumps(local, ensure_ascii=False)}")
         print(f"OUTCOME_REASON={reason}")
