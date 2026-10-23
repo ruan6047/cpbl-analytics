@@ -339,9 +339,27 @@ grammar 拒收、且環境名有四種寫法，致 **`#136` 自己的資源宣�
 
 ---
 
+### 近期成果優先方向
+
+需求方於 2026-10-23 接受以下三組成果優先討論方向：先收斂已投入的可信成果，再擴大更新承諾。**§0 四目標原排序與本節投資限制不變**；這是此次接受的價值／成本取捨，不是既有卡新的施工排序、技術前置、解凍或操作授權。獨立工作與已核定唯讀取證不因列序串行等待；具體承接仍由各原卡 PM 依有效裁定處理。
+
+| 成果優先方向／所連目標 | 已核定成果與有限範圍 | 沿用證據、延後內容與回看界線 |
+|---|---|---|
+| **先：終場與最後事件可信**；目標 1 | [#345 兩頁終場窗口](https://github.com/ruan6047/cpbl-analytics/issues/345#issuecomment-6328790157)：單場頁及 `/playoffs` 不顯示錯誤事實，系統首見終場起 5 分鐘內呈現終場比分；[#357 指定切片](https://github.com/ruan6047/cpbl-analytics/issues/357#issuecomment-6360667104)保護 G5–G7 新場次；[#361 既定取捨](https://github.com/ruan6047/cpbl-analytics/issues/361#issuecomment-6360070156)先補 2026 已完成 C／E 共 8 場最後事件，並沿[後續裁定](https://github.com/ruan6047/cpbl-analytics/issues/361#issuecomment-6360365854)處理 `content`、`is_special_event`。 | 先守眼前正確性，不為全史補救延誤新場次：#361 的 A／D 600 場、#357 其餘賽後範圍沿原卡，不提前恢復全量。**成果／方式已核定不等於已交付或驗收全完成**；#345 沿[原交付](https://github.com/ruan6047/cpbl-analytics/issues/345#issuecomment-6333088135)取得下一場真實終場證據。#357 新碼合併、主 checkout 快轉 [Fast-forward] 也不證明首次真實寫入或 G5 消費端成果；#361 寫入與正式站結果依原卡證據判定。 |
+| **再：已投入正式資料送達且狀態可辨**；目標 1／2 | [#293 G4 同晚送達及晚到路徑接受](https://github.com/ruan6047/cpbl-analytics/issues/293#issuecomment-6320896632)直接沿用，保留[原 A7 收尾](https://github.com/ruan6047/cpbl-analytics/issues/293#issuecomment-6332436216)；[#344 一次性 10 表一致性對帳](https://github.com/ruan6047/cpbl-analytics/issues/344#issuecomment-6347158911)及 [7 表逐表處置](https://github.com/ruan6047/cpbl-analytics/issues/344#issuecomment-6356261690)沿原裁定；[#355 已核定查證](https://github.com/ruan6047/cpbl-analytics/issues/355) box／逐打席 [Plate Appearance, PA] 已到而狀態仍待更新是否造成讀者錯誤，由 #343 承接後續更新設計。 | 沿既有投入收斂，不重做 #293；#344 只證一致、不證本機來源正確，也不擴成長期每日守衛。#355 查證已核定、修法未定，[系列內不趕修](https://github.com/ruan6047/cpbl-analytics/issues/355#issuecomment-6357629484)；只有證實讀者受害，才由原卡討論修法。資料到正式站與狀態現象，均不能單獨證明消費者受害或長期可靠送達。 |
+| **接著：更新期間仍讀得到服務**；目標 2 | [#353 可用性與通知成果](https://github.com/ruan6047/cpbl-analytics/issues/353#issuecomment-6347141249)：每日鏈全程與部署後首請求零無回應、每次 <5 秒，異常當天主動通知；保留[先程式優化](https://github.com/ruan6047/cpbl-analytics/issues/353#issuecomment-6328917312)取捨。#343 承接資料分群更新時機、整體設計及實際衝突／相依順序，減少無謂執行；#353 處理單次寫入尖峰、記憶體與常駐用量。 | 成果與原卡門檻已核定，根因、方案及產品驗收仍依原卡證據，不由方向檔宣稱完成。#353 依[根因量測裁定](https://github.com/ruan6047/cpbl-analytics/issues/353#issuecomment-6357831577)選方案，優化不足才考慮搬移回測或擴容；#343 的設計不等於實作交付。#358 [既有告警規劃保留但擱置](https://github.com/ruan6047/cpbl-analytics/issues/358#issuecomment-6348817137)，[納為子卡仍未恢復](https://github.com/ruan6047/cpbl-analytics/issues/358#issuecomment-6360308909)，不列可續行工作；告警不能代替服務可用或資料送達。 |
+
+- **已接受直接沿用**：[#281 今年範圍收斂](https://github.com/ruan6047/cpbl-analytics/issues/281#issuecomment-6262733557)、[(c) 整合驗收接受](https://github.com/ruan6047/cpbl-analytics/issues/281#issuecomment-6328851033)及 #293 上列接受證據不因本次更新重跑；原卡剩餘收尾保留，不恢復全四區產品需求文件 [Product Requirements Document, PRD]，不追加全站驗收。
+- **已決不重問**：[#343 總卡與四子卡承接](https://github.com/ruan6047/cpbl-analytics/issues/343#issuecomment-6360284741)保留各自 PM、需求與驗收，#343 只交研究、整體排程設計及子卡改動順序，不寫程式；[#343 第 4 項 A／D 裁定](https://github.com/ruan6047/cpbl-analytics/issues/343#issuecomment-6360709278)只對例行賽 A／二軍 D 的賽後 box、失誤、觀眾等欄位，以「A 有排定比賽才跑晚間鏈、D 維持隔日 10:10」為設計前提，不推成所有資料同晚／隔日。其餘 9 項沿現行做法、設計中標為可調參數。[完成且無衝突／相依即可合併](https://github.com/ruan6047/cpbl-analytics/issues/343#issuecomment-6360648737)的原則不新增固定等待；各卡有效限制、既有窗口與原授權仍保留，本節不代行合併或分派。
+- **仍待原卡後續取捨**：[#343 三格暫定值待樣本驗證](https://github.com/ruan6047/cpbl-analytics/issues/343#issuecomment-6360725306)，其餘可調參數後續逐項裁定；#355 是否修及如何修、#353 依根因選方案，均循上列原來源，不成為此次新增必答問題或確認關卡。
+- **方向已提出、方案未選定**：避免本機影響是需求方[已提出的方向](https://github.com/ruan6047/cpbl-analytics/issues/358#issuecomment-6348299825)；本機不可用仍送達所需方案、可行性與成本尚未選定，不能以電源設定或告警代替成果。遠端取得／備援實作未獲本次投入或操作授權，不解除只能本機政策、不恢復 #358。
+- **候選暫不投入**：新分析深度、更多模擬／守備洞察及其他未投入方向保留於[候選清單](REQUIREMENT_IDEAS.md)，不因這次更新開卡、投資或補成近期功能承諾。
+
+以上只引用 2026-10-23 建議所沿用的正式來源快照，未巡查即時卡況；後續有效原卡裁定優先。日期與指定場次只定位取捨及證據適用範圍，不是現在時鐘，也不改原卡驗收義務。
+
 ### 候選成果群與來源（內容示例，非投入決定）
 
-以下四群只示範可回看的使用者成果與現有卡的有限貢獻，**不是新排序、投入承諾、全案驗收或目前進度表**。列序不替各卡排操作；目標 4「深度」與未投入候選照原取捨保留，不為湊成果群開新卡。來源為各卡正式契約及後續裁定；這裡只連原結論，不搬入源卡全部驗收。持續整合 [CI]、合併、部署或卡數都不能代替成果里程碑 [Milestone] 達成證據。
+以下四群只示範可回看的使用者成果與現有卡的有限貢獻，**不是新排序、投入承諾、全案驗收或目前進度表**；前述三組則是此次接受的成果優先討論方向，兩者用途不同。列序不替各卡排操作；目標 4「深度」與未投入候選照原取捨保留，不為湊成果群開新卡。來源為各卡正式契約及後續裁定；這裡只連原結論，不搬入源卡全部驗收。持續整合 [CI]、合併、部署或卡數都不能代替成果里程碑 [Milestone] 達成證據。
 
 | 候選使用者成果／所連目標 | 原卡可提供的有限貢獻與來源 | 剩餘問題與回看界線 |
 |---|---|---|
@@ -363,7 +381,7 @@ grammar 拒收、且環境名有四種寫法，致 **`#136` 自己的資源宣�
 | 業務界線：#293 A7、#355 系列內不改、#358 擱置（各列原裁定） | 各自依原收尾／停止指示，不能跨卡挪驗收或解除；#358 即使原規劃前提成立，也須需求方另行恢復指示。本次不恢復任何擱置工作。 |
 | 共享操作：#344／#353 VPS 快照、#357 本機採集（[#344 提前裁定](https://github.com/ruan6047/cpbl-analytics/issues/344#issuecomment-6357771723)、[#353 改期裁定](https://github.com/ruan6047/cpbl-analytics/issues/353#issuecomment-6357963155)、[#357 範圍與停止條件](https://github.com/ruan6047/cpbl-analytics/issues/357#issuecomment-6357608122)） | 原窗口與反爬停止條件只約束其實際操作，不證明現在仍占用資源。相關讀寫／整合／採集前才核對當前基準、程序、原租用與授權；不阻隔離文件工作，也不把舊窗口當鎖。 |
 
-#343 的研究交付、穩定資料送達與 #358 的偵測通知是不同成果：依 [#358 範圍裁定](https://github.com/ruan6047/cpbl-analytics/issues/358#issuecomment-6347140590)，告警不等於消除睡眠影響，更不等於 Mac 睡著時仍能送達資料。#358 已核定需求／規劃保留，但依後續擱置裁定不開工。遠端取得是否可行、值得投入及是否改本機政策尚未裁定，仍留[候選清單](REQUIREMENT_IDEAS.md)，不開卡、不遷 VPS、不解除只能本機限制。
+#343 的研究交付、穩定資料送達與 #358 的偵測通知是不同成果：依 [#358 範圍裁定](https://github.com/ruan6047/cpbl-analytics/issues/358#issuecomment-6347140590)，告警不等於消除睡眠影響，更不等於 Mac 睡著時仍能送達資料。#358 已核定需求／規劃保留，但依後續擱置裁定不開工。避免本機影響的方向沿前段保留；遠端取得／備援的具體方案、可行性、成本及是否改本機政策尚未選定或授權，實作仍留[候選清單](REQUIREMENT_IDEAS.md)，不開卡、不遷 VPS、不解除只能本機限制。
 
 來源更新不自動改鎖定卡。例如 #344 舊 body 的凍結句已被[局部解凍](https://github.com/ruan6047/cpbl-analytics/issues/344#issuecomment-6357633744)及[時段提前](https://github.com/ruan6047/cpbl-analytics/issues/344#issuecomment-6357771723)取代其指定部分；S7／S8 範圍及「不手動跑 refresh」未撤銷，不得外推任意刷新授權。#353 減少執行次數歸 #343、單次尖峰／常駐記憶體歸 #353 是責任分工，不是等 #343 整卡或擴容的技術前置。
 
