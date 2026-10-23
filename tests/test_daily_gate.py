@@ -259,7 +259,9 @@ def test_a_unsynced_writes_compares_marker_with_counter(tmp_path: Path) -> None:
 # ============================================================== (b) --plan 步驟清單 ＝ §3.2 表
 
 PLAN_TABLE = {
-    # PLAN-r2 §3.2 表「跑什麼」逐列：跑／略過。KEEP（表未列、維持現況）與 COND 另列。
+    # PLAN-r5 §3.2 表「跑什麼」逐列＋§3.2.3：跑／略過。KEEP（表未列、維持現況）與 COND 另列。
+    # 衍生步驟（PA build、球種、當季衍生、分項＋生涯、改名同步）在乙型／甲型只同步一律是 COND
+    # （§3.2.3 來源訊號），⛔ 不得因日型直接列為「略過」。
     dg.FULL: {
         "run": {"ad_games", "ec_games", "season_stats", "standings", "transactions", "championships",
                 "incremental", "missing_gamelog", "postseason_detail", "pa_build", "pitch_type",
@@ -270,14 +272,16 @@ PLAN_TABLE = {
     dg.LIGHT: {
         "run": {"ad_games", "ec_games", "season_stats", "standings", "transactions", "missing_gamelog",
                 "incremental", "backup", "sync", "freshness"},
-        "cond": {"pitch_type"},          # 「球種推算整季重算（無新逐球時略過）」
-        "skip": {"pa_build", "derived", "splits", "build_features", "train_outcome", "train_simple",
-                 "status_skipped"},
-        "keep": {"championships", "postseason_detail", "name_sync", "team_comparison"},
+        "cond": set(dg.DERIVED_STEPS),   # §3.2.3
+        "skip": {"build_features", "train_outcome", "train_simple", "status_skipped"},
+        "keep": {"championships", "postseason_detail", "team_comparison"},
     },
     dg.SYNC_ONLY: {
         "run": {"backup", "sync", "freshness"},
-        "skip": {k for k, _ in dg.STEPS} - {"backup", "sync", "freshness"},
+        "cond": set(dg.DERIVED_STEPS),   # §3.2.3（不爬；J3／J4 訊號）
+        "keep": {"team_comparison"},
+        "skip": ({k for k, _ in dg.STEPS} - {"backup", "sync", "freshness", "team_comparison"}
+                 - set(dg.DERIVED_STEPS)),
     },
     dg.SKIP: {
         "run": {"status_skipped"},
@@ -307,9 +311,9 @@ def test_b_force_full_plan_has_no_gated_steps() -> None:
     ("2026-10-08", "甲型（skip）", ["狀態寫「成功、skipped=true」"], ["A／D 賽程", "正式站整庫備份", "同步（migration"]),
     ("2026-10-15", "甲型（skip）", ["狀態寫「成功、skipped=true」"], ["A／D 賽程", "正式站整庫備份"]),
     ("2026-07-21", "乙型（light）", ["A／D 賽程", "季累計", "補缺 gamelog", "同步（migration"],
-     ["PA build", "當季衍生", "分項", "cpbl-build-features", "4/4 cpbl-train-outcome"]),
+     ["cpbl-build-features", "4/4 cpbl-train-outcome"]),
     ("2026-08-11", "乙型（light）", ["A／D 賽程", "戰績", "升降", "同步（migration"],
-     ["PA build", "4/4 cpbl-train-outcome-simple"]),
+     ["4/4 cpbl-train-outcome-simple"]),
     ("2026-10-21", "有賽型（full）", ["A／D 賽程", "PA build", "分項", "同步（migration"], []),
 ])
 def test_b_refresh_recent_plan_cli_prints_steps_for_real_dates(
@@ -337,6 +341,10 @@ def test_b_refresh_recent_plan_cli_prints_steps_for_real_dates(
         assert any(line.startswith("  [跑]") and name in line for line in lines), (name, out)
     for name in must_skip:
         assert any(line.startswith("  [略過]") and name in line for line in lines), (name, out)
+    if "乙型" in label:   # §3.2.3：衍生步驟是條件，不是略過
+        for name in ("PA build", "球種推算整季重算", "當季衍生", "分項", "改名同步"):
+            assert any(line.startswith("  [條件]") and name in line and "§3.2.3" in line
+                       for line in lines), (name, out)
     # 唯讀：只碰 SELECT／pg_stat，從不寫
     assert not [s for s in fake_db.statements if s.split()[0].upper() in ("INSERT", "UPDATE", "DELETE")]
 
@@ -465,17 +473,20 @@ def test_c_missing_record_is_still_missing_control(tmp_path: Path) -> None:
     assert "MISSING" in {c["verdict"] for c in result["cycles"]}
 
 
-@pytest.mark.parametrize(("gate_type", "scrapes", "syncs"), [
-    ("light", True, True), ("full", True, True), ("sync_only", False, True),
+@pytest.mark.parametrize(("gate_type", "writes_today_file"), [
+    ("light", True), ("full", True), ("sync_only", False),
 ])
-def test_c_other_day_types_route_through_scrape_and_sync(tmp_path, gate_type, scrapes, syncs) -> None:
+def test_c_other_day_types_route_through_refresh_and_sync(tmp_path, gate_type, writes_today_file) -> None:
+    """light／full／sync_only 都進 cpbl-refresh-recent（sync_only 在程式內不爬、只做 §3.2.3 衍生），
+    之後同步並記同步標記；只有爬過賽程的日型覆寫今日賽程檔。"""
     result, status, calls, _repo = _run_daily(tmp_path, gate_type=gate_type)
     assert result.returncode == 0, result.stderr
     assert status["skipped"] is False and status["day_type"] == gate_type
-    assert any(c == f"refresh-recent DAILY_DAY_TYPE={gate_type}" for c in calls) is scrapes, calls
-    assert any(c.startswith(f"sync DAILY_DAY_TYPE={gate_type}") for c in calls) is syncs, calls
-    assert ("mark-synced" in calls) is syncs
-    assert any(c.startswith("today-schedule") for c in calls) is scrapes
+    refresh = calls.index(f"refresh-recent DAILY_DAY_TYPE={gate_type}")
+    sync = next(i for i, c in enumerate(calls) if c.startswith(f"sync DAILY_DAY_TYPE={gate_type}"))
+    assert refresh < sync and "mark-synced" in calls[sync:], calls
+    assert "team-comparison" in calls
+    assert any(c.startswith("today-schedule") for c in calls) is writes_today_file
 
 
 def test_c_gate_failure_falls_back_to_full_chain(tmp_path: Path) -> None:
@@ -503,19 +514,26 @@ def test_e_force_full_in_classifier() -> None:
     assert decision.day_type == dg.FULL
 
 
-def test_e_force_full_makes_refresh_recent_ignore_light(monkeypatch) -> None:
-    """``DAILY_FORCE_FULL=1`` 時 cpbl-refresh-recent 不認 DAILY_DAY_TYPE=light（完整步驟）。"""
+@pytest.mark.parametrize("day_type", ["light", "sync_only"])
+def test_e_force_full_makes_refresh_recent_ignore_gating(monkeypatch, day_type) -> None:
+    """``DAILY_FORCE_FULL=1`` 時 cpbl-refresh-recent 不認 DAILY_DAY_TYPE（無訊號也全跑衍生、照爬）。"""
     from cpbl.ingest import run_refresh_recent as rr
 
     ran: list[str] = []
     _stub_refresh_main(monkeypatch, rr, ran)
-    monkeypatch.setenv(dg.DAY_TYPE_ENV, "light")
+    monkeypatch.setenv(dg.DAY_TYPE_ENV, day_type)
     monkeypatch.setenv(dg.FORCE_ENV, "1")
     rr.main()
-    assert {"pa_build", "pitch_type", "derived", "splits"} <= set(ran)
+    assert _DERIVED_RAN <= set(ran) and "log:full" in ran
 
 
-def _stub_refresh_main(monkeypatch, rr, ran: list[str], *, new_pitches: int = 0) -> None:
+def _stub_refresh_main(monkeypatch, rr, ran: list[str], *, new_pitches: int = 0,
+                       games_written: int = 0, weekly=None, backfill_snos=(), pa_build=None) -> None:
+    """main() 的對外出口全換成記錄型替身；衍生步驟被呼叫就記進 ``ran``。
+
+    ``weekly``：§3.2.3 訊號 3／4 的替身（預設兩者皆 False）；傳 callable 則用它（可接真函式＋假 DB）。
+    ``pa_build``：傳入則 ``_pa_build_step`` 用真函式、其下層換成假已發布集合（(f) 用）。
+    """
     monkeypatch.setattr(rr.sys, "argv", ["cpbl-refresh-recent"])
     monkeypatch.setattr(rr, "_GAMELOG_GAPS", [])
     stubs = {
@@ -523,44 +541,218 @@ def _stub_refresh_main(monkeypatch, rr, ran: list[str], *, new_pitches: int = 0)
         "scrape_standings": lambda *a, **k: {}, "standings_failures": lambda: [],
         "reset_standings_failures": lambda: None, "scrape_transactions": lambda *a, **k: 0,
         "build_championships": lambda: None,
-        "_incremental_detail": lambda *a, **k: {"pitches": {"pitches": new_pitches}, "farm": {}},
-        "_missing_gamelog_snos": lambda *a, **k: [],
-        "_pa_build_step": lambda *a, **k: ran.append("pa_build") or {"errors": []},
+        "_incremental_detail": lambda *a, **k: {
+            "gamelog": {"games": games_written}, "pitches": {"pitches": new_pitches}, "farm": {}},
+        "_missing_gamelog_snos": lambda year, kind="A": list(backfill_snos) if kind == "A" else [],
+        "scrape_gamelogs": lambda year, snos, kind="A", **k: (
+            ran.append(f"backfill:{kind}:{','.join(map(str, snos))}")
+            or {"target": len(snos), "games": len(snos), "failed": [], "failures": []}),
+        "scrape_game_details": lambda *a, **k: 1,
         "_pitch_type_step": lambda *a, **k: ran.append("pitch_type") or {"errors": []},
         "_derived_step": lambda *a, **k: ran.append("derived") or {"errors": []},
         "build_splits": lambda *a, **k: ran.append("splits") or {},
-        "build_career": lambda *a, **k: {},
-        "_sync_player_names": lambda: 0, "_recent_counts": lambda *a, **k: [],
+        "build_career": lambda *a, **k: ran.append("career") or {},
+        "_sync_player_names": lambda: ran.append("name_sync") or 0,
+        "_recent_counts": lambda *a, **k: [],
         "_log_refresh": lambda *a, **k: ran.append(f"log:{a[5].get('day_type')}"),
     }
+    if pa_build is None:
+        stubs["_pa_build_step"] = lambda *a, **k: ran.append("pa_build") or {"errors": []}
+    else:
+        published, completed = pa_build
+
+        def build_scope(y0, y1, kinds, only_games):
+            ran.append("pa_build")
+            for game in only_games:
+                published.add(game)
+            return {"games": len(only_games), "actions": {}, "errors": [],
+                    "build_states": {f"{y}-{k}-{s}": "published" for y, k, s in only_games}}
+
+        stubs.update({
+            "_active_kinds": lambda year, kinds: ["A"],
+            # 與真 SQL 同語意的假集合：當日窗（此處無）∪ 全域缺口（完成但無 published）
+            "_pa_build_targets": lambda year, kinds, days: sorted(completed - published),
+            "build_scope": build_scope,
+            "_pa_build_coverage": lambda year, kinds: {
+                "A": {"gap": len(completed - published), "reconciliation_outstanding": 0}},
+        })
     for name, value in stubs.items():
         monkeypatch.setattr(rr, name, value)
+    monkeypatch.setattr(dg, "weekly_signals", weekly or (lambda *a, **k: [
+        dg.DerivedSignal("j3_pitches", False, "fixture"), dg.DerivedSignal("j4_box", False, "fixture")]))
 
 
-@pytest.mark.parametrize(("new_pitches", "pitch_type_runs"), [(0, False), (12, True)])
-def test_light_day_skips_pa_derived_splits_and_gates_pitch_type(
-        monkeypatch, new_pitches, pitch_type_runs) -> None:
+_REAL_WEEKLY_SIGNALS = dg.weekly_signals   # 替身會蓋掉 dg.weekly_signals，先留真函式
+_DERIVED_RAN = {"pa_build", "pitch_type", "derived", "splits", "career", "name_sync"}
+
+
+def _run_main(monkeypatch, day_type: str | None, **kw) -> list[str]:
     from cpbl.ingest import run_refresh_recent as rr
 
     ran: list[str] = []
-    _stub_refresh_main(monkeypatch, rr, ran, new_pitches=new_pitches)
-    monkeypatch.setenv(dg.DAY_TYPE_ENV, "light")
+    _stub_refresh_main(monkeypatch, rr, ran, **kw)
     monkeypatch.delenv(dg.FORCE_ENV, raising=False)
+    if day_type is None:
+        monkeypatch.delenv(dg.DAY_TYPE_ENV, raising=False)
+    else:
+        monkeypatch.setenv(dg.DAY_TYPE_ENV, day_type)
     rr.main()
-    assert not {"pa_build", "derived", "splits"} & set(ran), ran
-    assert ("pitch_type" in ran) is pitch_type_runs
+    return ran
+
+
+def test_light_day_with_no_source_signal_skips_all_derived_steps(monkeypatch) -> None:
+    ran = _run_main(monkeypatch, "light")
+    assert not _DERIVED_RAN & set(ran), ran
     assert "log:light" in ran
 
 
-def test_full_day_runs_every_refresh_step(monkeypatch) -> None:
+@pytest.mark.parametrize("kw", [{"new_pitches": 12}, {"games_written": 1}])
+def test_light_day_with_any_j1_signal_runs_same_set_as_full_chain(monkeypatch, kw) -> None:
+    gated = set(_run_main(monkeypatch, "light", **kw)) & _DERIVED_RAN
+    full = set(_run_main(monkeypatch, None, **kw)) & _DERIVED_RAN
+    assert gated == full == _DERIVED_RAN
+
+
+def test_unknown_signal_fails_open(monkeypatch) -> None:
+    weekly = lambda *a, **k: [dg.DerivedSignal("j3_pitches", None, "讀不到"),  # noqa: E731
+                              dg.DerivedSignal("j4_box", False, "")]
+    assert set(_run_main(monkeypatch, "light", weekly=weekly)) & _DERIVED_RAN == _DERIVED_RAN
+
+
+def test_sync_only_never_scrapes(monkeypatch) -> None:
     from cpbl.ingest import run_refresh_recent as rr
 
     ran: list[str] = []
     _stub_refresh_main(monkeypatch, rr, ran)
-    monkeypatch.delenv(dg.DAY_TYPE_ENV, raising=False)
+    boom = lambda *a, **k: pytest.fail("甲型只同步不得爬")  # noqa: E731
+    for name in ("scrape_games", "scrape_all", "scrape_standings", "scrape_transactions",
+                 "_incremental_detail", "_missing_gamelog_snos", "build_championships"):
+        monkeypatch.setattr(rr, name, boom)
     monkeypatch.delenv(dg.FORCE_ENV, raising=False)
+    monkeypatch.setenv(dg.DAY_TYPE_ENV, "sync_only")
     rr.main()
-    assert {"pa_build", "pitch_type", "derived", "splits", "log:full"} <= set(ran)
+    assert "log:sync_only" in ran and not _DERIVED_RAN & set(ran)
+
+
+def test_full_day_runs_every_refresh_step(monkeypatch) -> None:
+    ran = _run_main(monkeypatch, None)
+    assert _DERIVED_RAN | {"log:full"} <= set(ran)
+
+
+# ============================================================== (f) 乙型補缺有新資料（08-11 型）
+
+def test_f_light_backfill_runs_pa_derived_splits_and_publishes_the_game(tmp_path, monkeypatch) -> None:
+    """08-11 樣本：08-10 J1 失敗 → 乙型；當日補缺迴圈補回 2026/A/253（R5 §1 實例）。
+
+    判日型用真分類器＋假歷史；main() 用真 ``_pa_build_step``／``_build_pa_daily``，下層換成假的
+    「已 published」集合——A-253 原本是缺口，跑完必須在 published 裡。
+    """
+    day = date(2026, 8, 11)
+    history = _ok_history(tmp_path, day, previous_state="failed")
+    ok, detail = dg.last_j1_status(history, before=datetime(2026, 8, 11, 10, 10, tzinfo=TPE))
+    decision = dg.classify(dg.DayInputs(day, REAL_2026_SCHEDULE, ok, detail, False, ""),
+                           lambda: pytest.fail("乙型不打 stats"))
+    assert decision.day_type == dg.LIGHT
+
+    published = {(2026, "A", 251), (2026, "A", 252)}
+    completed = published | {(2026, "A", 253)}
+    ran = _run_main(monkeypatch, decision.day_type, backfill_snos=(253,),
+                    pa_build=(published, completed))
+    assert "backfill:A:253" in ran
+    assert {"pa_build", "derived", "splits", "career", "name_sync"} <= set(ran), ran
+    assert (2026, "A", 253) in published
+
+
+# ============================================================== (g) 甲型承接週回補
+
+class WeeklyDB:
+    """§3.2.3 訊號 3／4 的假 DB：refresh_log 兩個時刻＋box_pitching_revisions 新列數。"""
+
+    def __init__(self, last_pitch_type, last_derived, new_revisions):
+        self.marks = (last_pitch_type, last_derived)
+        self.new_revisions = new_revisions
+        self.params = []
+
+    def execute(self, sql, params=None):
+        if "FROM cpbl.refresh_log" in sql:
+            return FakeResult([self.marks])
+        if "box_pitching_revisions" in sql:
+            self.params.append(params)
+            return FakeResult([(self.new_revisions,)])
+        raise AssertionError(sql)
+
+
+def _weekly_fixture(tmp_path: Path, *, j3_finished: str, j3_pitches: list[int], j4_finished: str,
+                    new_revisions: int):
+    """真 ``weekly_signals``＋假 DB＋假 J3／J4 狀態檔（格式照 2026-10-19 真實檔）。"""
+    base = tmp_path / "repo"
+    (base / "logs").mkdir(parents=True, exist_ok=True)
+    log = "logs/weekly-game-pitches-20261019-131005.log"
+    (base / log).write_text("".join(
+        f"2026-10-19 13:22:37,412 INFO cpbl.pitch | done: {{'games': 238, 'pitches': {n}, "
+        f"'skipped_frozen': 1}}\n" for n in j3_pitches), encoding="utf-8")
+    (base / "logs/last-weekly-pitches.json").write_text(json.dumps(
+        {"result": "ok", "exit_code": 0, "year": 2026, "started_at": "2026-10-19T13:10:05+0800",
+         "finished_at": j3_finished, "log": log}), encoding="utf-8")
+    (base / "logs/last-weekly-box-revisions.json").write_text(json.dumps(
+        {"result": "ok", "exit_code": 0, "year": 2026, "days_back": 30,
+         "started_at": "2026-10-19T14:10:04+0800", "finished_at": j4_finished}), encoding="utf-8")
+    db = WeeklyDB(datetime(2026, 10, 18, 10, 30, tzinfo=TPE), datetime(2026, 10, 18, 10, 30, tzinfo=TPE),
+                  new_revisions)
+    return lambda *a, **k: _REAL_WEEKLY_SIGNALS(db, base=base)
+
+
+@pytest.mark.parametrize(("case", "fixture", "must_run"), [
+    ("J3 新逐球", dict(j3_finished="2026-10-19T13:22:37+0800", j3_pitches=[74033, 42369],
+                    j4_finished="2026-10-12T14:11:41+0800", new_revisions=0), {"pitch_type"}),
+    ("J4 新修訂列", dict(j3_finished="2026-10-12T13:22:37+0800", j3_pitches=[1],
+                     j4_finished="2026-10-12T14:11:41+0800", new_revisions=3),
+     {"pa_build", "derived", "splits", "career"}),
+])
+def test_g_jia_sync_only_takes_over_weekly_backfill(tmp_path, monkeypatch, case, fixture, must_run) -> None:
+    weekly = _weekly_fixture(tmp_path, **fixture)
+    gated = set(_run_main(monkeypatch, "sync_only", weekly=weekly)) & _DERIVED_RAN
+    # 對照：同一來源狀態下完整鏈（未設 DAILY_DAY_TYPE）執行的衍生步驟集合
+    full = set(_run_main(monkeypatch, None, weekly=weekly)) & _DERIVED_RAN
+    assert must_run <= gated, (case, gated)
+    assert gated == full, (case, gated, full)
+
+
+def test_g_all_signals_zero_runs_no_derived_step(tmp_path, monkeypatch) -> None:
+    weekly = _weekly_fixture(tmp_path, j3_finished="2026-10-12T13:22:37+0800", j3_pitches=[5],
+                             j4_finished="2026-10-12T14:11:41+0800", new_revisions=0)
+    signals = weekly()
+    assert [s.fired for s in signals] == [False, False], signals
+    ran = set(_run_main(monkeypatch, "sync_only", weekly=weekly))
+    assert not {"pa_build", "pitch_type", "derived", "splits", "career"} & ran, ran
+
+
+def test_g_j3_with_zero_pitches_is_not_a_signal(tmp_path) -> None:
+    weekly = _weekly_fixture(tmp_path, j3_finished="2026-10-19T13:22:37+0800", j3_pitches=[0, 0],
+                             j4_finished="2026-10-12T14:11:41+0800", new_revisions=0)
+    assert [s.fired for s in weekly()] == [False, False]
+
+
+def test_g_j4_status_newer_than_last_derived_fires_even_without_new_revision_rows(tmp_path) -> None:
+    """§3.2.3 訊號 4 是「新修訂列 **或** J4 完成時刻晚於上次衍生」。"""
+    weekly = _weekly_fixture(tmp_path, j3_finished="2026-10-12T13:22:37+0800", j3_pitches=[5],
+                             j4_finished="2026-10-19T14:11:41+0800", new_revisions=0)
+    assert [s.fired for s in weekly()] == [False, True]
+
+
+def test_g_signal_reads_fail_open(tmp_path) -> None:
+    class Broken:
+        def execute(self, *a, **k):
+            raise RuntimeError("db down")
+    assert [s.fired for s in dg.weekly_signals(Broken(), base=tmp_path)] == [None, None]
+
+
+def test_g_sync_only_daily_chain_syncs_after_derived(tmp_path) -> None:
+    """「並同步」：sync_only 日 scrape-daily 先跑 cpbl-refresh-recent（衍生）再同步。"""
+    result, _status, calls, _repo = _run_daily(tmp_path, gate_type="sync_only")
+    assert result.returncode == 0
+    assert calls.index("refresh-recent DAILY_DAY_TYPE=sync_only") < next(
+        i for i, c in enumerate(calls) if c.startswith("sync DAILY_DAY_TYPE=sync_only"))
 
 
 # ============================================================== (d) 訓練閘門（假 DB）

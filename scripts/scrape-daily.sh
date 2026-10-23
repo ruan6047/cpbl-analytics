@@ -52,8 +52,8 @@ scripts/scrape-daily.sh — 每日本機自動爬取，成功後同步 productio
 日型閘門（#364；PLAN-r2 §3.2，判定在 src/cpbl/ingest/daily_gate.py）
   取鎖後先判日型（只讀本機 games＋狀態檔；甲型候選另唯讀查 stats 賽程）：
     有賽型 full      昨天有 A／D／E／C 排定場 → 完整鏈（4/4 套訓練閘門）
-    乙型   light     昨天無、今天有／上次失敗／探測有新場 → 爬取（略過 PA build／衍生／分項）＋同步
-    甲型   sync_only 昨今皆無但本機有未同步寫入 → 只同步（SKIP_SCRAPE=1），不爬、不訓練
+    乙型   light     昨天無、今天有／上次失敗／探測有新場 → 爬取＋同步；衍生依來源變動訊號
+    甲型   sync_only 昨今皆無但本機有未同步寫入 → 不爬；衍生依來源訊號（J3／J4）＋同步，不訓練
     甲型   skip      其餘 → 不爬、不備份、不同步；狀態寫成功＋skipped=true
   判定程式本身失敗 → 完整鏈（現況）。每次都寫今日賽程檔 logs/daily-schedule-today.json。
   `cpbl-refresh-recent --plan` 可先看今天會跑哪些步驟（唯讀）。
@@ -197,12 +197,14 @@ else
   echo "[$(date '+%F %T')] day type=${DAY_TYPE}（${DAY_REASON}）" | tee -a "$LOG"
 
   case "$DAY_TYPE" in
-    skip|sync_only)
-      # 甲型：不爬。CODE=0 讓下方同步（sync_only）照既有規則判斷。
+    skip)
+      # 甲型：不爬、不做衍生、不同步（PLAN-r5 §3.2）。
       echo "[$(date '+%F %T')] 甲型：略過 cpbl-refresh-recent（不爬 www）" | tee -a "$LOG"
       CODE=0
       ;;
     *)
+      # full／light／sync_only 都進 cpbl-refresh-recent：sync_only 在程式內不爬，只依 §3.2.3
+      # 來源訊號（J3／J4 週回補）跑衍生；light 爬取後同樣依訊號決定衍生（⛔ 不依日型直接略過）。
       # --group scrape：官網爬蟲需 playwright（scrape group）。uv run 為 inexact sync
       # 不會主動剪套件，但顯式帶 group 可防有人跑過 `uv sync`（exact）剪掉後靜默失敗。
       if [ -n "$ARGS" ]; then
@@ -211,7 +213,7 @@ else
         DAILY_DAY_TYPE="$DAY_TYPE" "$UV" run --group scrape cpbl-refresh-recent >>"$LOG" 2>&1
       fi
       CODE=$?
-      if [ "$CODE" -eq 0 ] || [ "$CODE" -eq 69 ]; then
+      if { [ "$CODE" -eq 0 ] || [ "$CODE" -eq 69 ]; } && [ "$DAY_TYPE" != sync_only ]; then
         # 賽程剛更新：覆寫今日賽程檔（stage=after_scrape）。失敗只記 log——消費端缺檔會退回 DB。
         "$UV" run python -m cpbl.ingest.daily_gate today-schedule --out "$TODAY_FILE" \
           --day-type "$DAY_TYPE" >>"$LOG" 2>&1 \
@@ -228,7 +230,7 @@ echo "[$(date '+%F %T')] scrape exit=${CODE}" | tee -a "$LOG"
 #    記一列 scope=team-comparison-build，舊摘要保留並標待更新。摘要表尚未 migrate 時為 exit 6（只記 log）。
 # 寫入對象只有本機 team_comparison_* 三表；同步到 production 在 refresh-cpbl-prod.sh 的 gamelog 之後。
 TC_BUILD_CODE=skip
-if { [ "$CODE" -eq 0 ] || [ "$CODE" -eq 69 ]; } && [ "$DAY_TYPE" != skip ] && [ "$DAY_TYPE" != sync_only ]; then
+if { [ "$CODE" -eq 0 ] || [ "$CODE" -eq 69 ]; } && [ "$DAY_TYPE" != skip ]; then
   "$UV" run cpbl-build-team-comparison --year "$(date +%Y)" --record-failure >>"$LOG" 2>&1
   TC_BUILD_CODE=$?
 fi

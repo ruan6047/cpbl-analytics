@@ -174,6 +174,14 @@ STEPS: tuple[tuple[str, str], ...] = (
     ("status_skipped", "狀態寫「成功、skipped=true」並 append 歷史"),
 )
 
+# —— PLAN-r5 §3.2.3：衍生步驟依來源變動決定 ——
+# 完整鏈（run_refresh_recent.main）在爬取之後依序執行的衍生步驟；fast 模式不跑球種與當季衍生。
+DERIVED_STEPS: tuple[str, ...] = ("pa_build", "pitch_type", "derived", "splits", "name_sync")
+DERIVED_NOTE = ("§3.2.3：任一來源訊號（本次寫入場／逐球、J3 新逐球、J4 新修訂）或判斷不了 → "
+                "跑與完整鏈同一組衍生步驟；全部訊號為 0 → 略過")
+DEFAULT_J3_STATUS = Path("logs/last-weekly-pitches.json")
+DEFAULT_J4_STATUS = Path("logs/last-weekly-box-revisions.json")
+
 _SCRAPE = ("ad_games", "ec_games", "season_stats", "standings", "transactions", "championships",
            "incremental", "missing_gamelog", "postseason_detail", "pa_build", "pitch_type",
            "derived", "splits", "name_sync", "team_comparison")
@@ -196,15 +204,18 @@ def plan_steps(day_type: str, *, force: bool = False) -> list[tuple[str, str, st
         for key in ("ad_games", "ec_games", "season_stats", "standings", "transactions",
                     "incremental", "missing_gamelog", *_SYNC):
             table[key] = (RUN, "")
-        for key in ("championships", "postseason_detail", "name_sync", "team_comparison"):
+        for key in ("championships", "postseason_detail", "team_comparison"):
             table[key] = (KEEP, "")
-        for key in ("pa_build", "derived", "splits", "build_features", "train_outcome",
-                    "train_simple", "status_skipped"):
+        for key in DERIVED_STEPS:
+            table[key] = (COND, DERIVED_NOTE)
+        for key in ("build_features", "train_outcome", "train_simple", "status_skipped"):
             table[key] = (SKIP_STEP, "")
-        table["pitch_type"] = (COND, "本次增量寫入新逐球才跑（無新逐球時略過）")
     elif day_type == SYNC_ONLY:
         for key in _SCRAPE + ("build_features", "train_outcome", "train_simple", "status_skipped"):
             table[key] = (SKIP_STEP, "")
+        for key in DERIVED_STEPS:
+            table[key] = (COND, DERIVED_NOTE + "（不爬，訊號主要來自 J3／J4）")
+        table["team_comparison"] = (KEEP, "來源未變＝no-op")
         for key in _SYNC:
             table[key] = (RUN, "SKIP_SCRAPE=1" if key == "sync" else "")
     elif day_type == SKIP:
@@ -415,6 +426,137 @@ def _local_lookup_db(games: list[Any], day: date) -> dict[str, str | None]:
              day, hi),
         ).fetchall()
     return {f"{y}-{k}-{s}": (d.isoformat() if d else None) for y, k, s, d in rows}
+
+
+# =========================================================================== 衍生步驟訊號（§3.2.3）
+
+@dataclass(frozen=True)
+class DerivedSignal:
+    """一個來源訊號。``fired``：True＝有寫入、False＝確定沒有、None＝判斷不了（視同有，fail open）。"""
+    key: str
+    fired: bool | None
+    detail: str = ""
+
+
+def full_chain_derived(*, skip_detail: bool = False) -> set[str]:
+    """完整鏈在同一模式下會執行的衍生步驟集合（run_refresh_recent.main 的現況）。"""
+    steps = set(DERIVED_STEPS)
+    if skip_detail:
+        steps -= {"pitch_type", "derived"}       # fast 模式現況就不跑這兩步
+    return steps
+
+
+def derived_decision(signals: Iterable[DerivedSignal], full_set: set[str]) -> tuple[set[str], dict]:
+    """任一訊號為 True／None → 與完整鏈同一組；全部 False → 空集合。
+
+    ⚠️ 為什麼不是「訊號 → 子集合」：WP1 驗收 (g) 要求閘門下的衍生步驟集合與「同一來源狀態下
+    完整鏈會執行的集合」相同；完整鏈對任何來源變動都跑整組。依來源細分（例如 J3 只跑球種）會
+    與完整鏈不同，故只在「全為 0」時整組略過（#364 exec-2 報告第 7 節）。
+    """
+    signals = list(signals)
+    fired = [s for s in signals if s.fired is not False]
+    steps = set(full_set) if fired else set()
+    return steps, {
+        "gated": True,
+        "steps": sorted(steps),
+        "signals": [{"key": s.key, "fired": s.fired, "detail": s.detail} for s in signals],
+    }
+
+
+def _aware(value: Any) -> datetime | None:
+    if value is None:
+        return None
+    if isinstance(value, datetime):
+        return value if value.tzinfo else value.astimezone()
+    return _parse_ts(str(value))
+
+
+def last_refresh_marks(connection: Any) -> tuple[datetime | None, datetime | None]:
+    """(上次成功的球種推算時刻, 上次衍生（分項）時刻)，取自本機 ``refresh_log``（scope recent-games）。
+
+    refresh_log 在 main() 結尾才寫，時刻晚於該次衍生完成；略過的步驟 detail 帶 ``skipped`` 鍵，不計。
+    """
+    row = connection.execute(
+        "SELECT "
+        "max(refreshed_at) FILTER (WHERE detail ? 'pitch_type' AND NOT (detail->'pitch_type' ? 'skipped') "
+        "  AND COALESCE(jsonb_array_length(detail->'pitch_type'->'errors'), 0) = 0), "
+        "max(refreshed_at) FILTER (WHERE detail ? 'splits_built' AND NOT (detail->'splits_built' ? 'skipped')) "
+        "FROM cpbl.refresh_log WHERE scope = 'recent-games'"
+    ).fetchone()
+    return _aware(row[0]), _aware(row[1])
+
+
+def _j3_pitches(status: Mapping[str, Any], base: Path) -> int | None:
+    """J3 log 的 ``done: {... 'pitches': N ...}`` 加總（A＋D）。讀不到／沒有 done 行 → None。"""
+    import re
+
+    try:
+        text = (base / str(status["log"])).read_text(encoding="utf-8", errors="replace")
+    except (OSError, KeyError, TypeError):
+        return None
+    counts = [int(m.group(1)) for line in text.splitlines() if "done: {" in line
+              for m in [re.search(r"'pitches': (\d+)", line)] if m]
+    return sum(counts) if counts else None
+
+
+def weekly_signals(connection: Any | None = None, *, j3_status: Path = DEFAULT_J3_STATUS,
+                   j4_status: Path = DEFAULT_J4_STATUS, base: Path = Path(".")) -> list[DerivedSignal]:
+    """§3.2.3 訊號 3（J3）與 4（J4）。任何讀取失敗 → fired=None（判斷不了就跑）。"""
+    if connection is None:
+        with _readonly_conn() as c:
+            return weekly_signals(c, j3_status=j3_status, j4_status=j4_status, base=base)
+    try:
+        last_pitch_type, last_derived = last_refresh_marks(connection)
+    except Exception as error:  # noqa: BLE001 — fail open
+        reason = f"讀不到 refresh_log（{type(error).__name__}）→ 跑"
+        return [DerivedSignal("j3_pitches", None, reason), DerivedSignal("j4_box", None, reason)]
+
+    # 訊號 3：J3 成功、完成時刻晚於上次成功的球種推算、寫入球數 > 0。
+    try:
+        j3 = json.loads((base / j3_status).read_text(encoding="utf-8"))
+        finished = _aware(j3.get("finished_at"))
+        if j3.get("result") != "ok" or finished is None:
+            j3_signal = DerivedSignal("j3_pitches", False, f"J3 狀態 result={j3.get('result')}")
+        elif last_pitch_type is not None and finished <= last_pitch_type:
+            j3_signal = DerivedSignal("j3_pitches", False,
+                                      f"J3 完成 {finished} 早於上次球種推算 {last_pitch_type}")
+        else:
+            pitches = _j3_pitches(j3, base)
+            if pitches is None:
+                j3_signal = DerivedSignal("j3_pitches", None, f"J3 完成 {finished} 但讀不到球數 → 跑")
+            else:
+                j3_signal = DerivedSignal("j3_pitches", pitches > 0,
+                                          f"J3 完成 {finished}（晚於 {last_pitch_type}），球數 {pitches}")
+    except FileNotFoundError:
+        j3_signal = DerivedSignal("j3_pitches", False, f"無 J3 狀態檔 {j3_status}")
+    except (OSError, ValueError, TypeError) as error:
+        j3_signal = DerivedSignal("j3_pitches", None, f"J3 狀態檔讀不懂（{type(error).__name__}）→ 跑")
+
+    # 訊號 4：box_pitching_revisions 自上次衍生後有新列，或 J4 完成時刻晚於上次衍生。
+    if last_derived is None:
+        j4_signal = DerivedSignal("j4_box", None, "沒有上次衍生紀錄 → 跑")
+    else:
+        try:
+            new_rows = int(connection.execute(
+                "SELECT count(*) FROM cpbl.box_pitching_revisions WHERE fetched_at > %s",
+                (last_derived,),
+            ).fetchone()[0])
+        except Exception as error:  # noqa: BLE001 — fail open
+            new_rows = None
+            j4_signal = DerivedSignal("j4_box", None, f"讀不到 box_pitching_revisions（{type(error).__name__}）→ 跑")
+        if new_rows is not None:
+            try:
+                j4 = json.loads((base / j4_status).read_text(encoding="utf-8"))
+                j4_finished = _aware(j4.get("finished_at")) if j4.get("result") == "ok" else None
+            except FileNotFoundError:
+                j4_finished = None
+            except (OSError, ValueError, TypeError):
+                j4_finished = last_derived + timedelta(seconds=1)   # 讀不懂 → 視同較新（fail open）
+            newer = j4_finished is not None and j4_finished > last_derived
+            j4_signal = DerivedSignal(
+                "j4_box", new_rows > 0 or newer,
+                f"box_pitching_revisions 自 {last_derived} 後新列 {new_rows}；J4 完成 {j4_finished}")
+    return [j3_signal, j4_signal]
 
 
 # =========================================================================== 今日賽程檔
