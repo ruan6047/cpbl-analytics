@@ -531,3 +531,12 @@ def test_a_pregame_starter_checkpoints_are_always_held_by_the_gate():
         "S-60": ("a_fetch_gate", []), "S-30": ("a_fetch_gate", [])}
     wake(state, datetime(2026, 9, 27, 17, 10, tzinfo=TPE), [a357], local_games, enabled=True)
     assert {r["outcome"] for r in state["starter_checkpoints"].values() if r["key"] == "2026-A-357"} == {"missed"}
+
+
+def test_stored_a_row_with_invalid_game_date_blocks():
+    """F2-R 的另一半：閘門用 game_date 比對該晚。經 stats_probe 時 game_date 取自 PreExeDate（starts_at 能解析即有效），
+    但狀態檔裡的列也可能來自舊版或手動修補——game_date 不是有效日期時同樣擋，不因比對不到該晚而放行。"""
+    state = pe.empty_state()
+    bad = {**pe.asdict(stats(304, "RESERVED")), "game_date": "2026-99-99"}
+    state["a_stats_rows"] = [bad, pe.asdict(stats(306, "FINISHED"))]
+    assert pe.a_fetch_blocked(state, NOW) == (True, "a_date_unknown:2026-A-304:RESERVED")
