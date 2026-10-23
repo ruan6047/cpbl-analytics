@@ -43,9 +43,13 @@ def _outside_roster(data):
 # LINEUP_ONLY／POSTSEASON_RESULTS_ONLY 的行為仍由下方測試對 BASE 逐項比對（未改）。
 # #344（需求方裁定 #344 issuecomment-6356772769：只改基準，保護不減）：區塊之後新增 mirror_table 與
 # 五表同步呼叫，「區塊之後」基準由 0c0143d8…（57789 bytes）更新為下值；區塊之前未變。
+# #365（#343 WP2；需求方核定規劃 4 S3／S4，只改基準、保護不減）：區塊之前（usage 新增 REUSE_VERIFIED_BACKUP 等說明）
+# 與區塊之後（evening_backup 函式、兩個晚間早退模式改呼叫它、BOXPA 場鍵正規式收 A）都改了；無沿用時兩個晚間
+# 模式的命令、payload、順序、退出碼與輸出仍與 BASE 逐項相同（下方 test_existing_modes_… 未改、仍綠）。
+# 舊值：區塊之前 8bb65a65…ae90（16517 bytes）、區塊之後 fd65aafa…2f94（62063 bytes）。
 OUTSIDE_ROSTER_SHA256 = (
-    "8bb65a65c9d990f0ddb7c52b0a71f333074a81c347892dfb66972a50cc76ae90",   # 區塊之前（16517 bytes）
-    "fd65aafa5627e94e358b4b689323dad9158155353ccbb1448e03ed8b29c24f94",   # 區塊之後（62063 bytes）
+    "791e0acd6a1d9653f21c4c3241b85bdba2f8a36fa8abfe321d412177ce753fcc",   # 區塊之前（16983 bytes）
+    "1e343e0ecbd060f667adb4e8011755b3b0add2f5b88f255ff012372c9d7c509f",   # 區塊之後（64190 bytes）
 )
 # #316 的成果（ROSTER_ONLY 區塊本身）以 main 上合併後的版本為準：#293 不得改動它。
 ROSTER_RESULT = "a473695dfca536e365b08c44aa2e85374e8f3e69"

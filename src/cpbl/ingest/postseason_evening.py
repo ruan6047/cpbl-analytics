@@ -25,7 +25,7 @@
 
 * **動作條件**（:func:`evening_gate`）：今晚（:func:`night_of`，12:00～次日 09:45）沒有 A／E／C 的排定場、也沒有
   待辦 → ``plan`` 印 ``quiet``，不寫狀態檔、不連 DB、不連 stats；stats 只查該晚有排定的賽別。
-* **A**：``P-A-FETCH-GATE``（:func:`a_fetch_blocked`）——該晚仍有 A 場已開賽未終局時不對 A 發 www；晚間 A 完賽判定
+* **A**：``P-A-FETCH-GATE``（:func:`a_fetch_blocked`）——該晚每一場 A 都 FINISHED／POSTPONED 才對 A 發 www；晚間 A 完賽判定
   用每日鏈判準（:func:`evening_completed_sql`）。
 * **每晚首次同步前備份一次**（:func:`backup_plan`／:func:`apply_backup_record`；refresh-cpbl-prod.sh 同一行程重驗）。
 * **P-TM-RECHECK**（:func:`boxpa_tm_recheck_due`）：首見完賽後 45 分再抓一次逐球；⛔ 沒有進階排行（P-LB）重抓。
@@ -303,7 +303,10 @@ def empty_state() -> dict[str, Any]:
             "signals_unsynced": False, "www_requests": {}, "scrape_kinds": [],
             # #292 A1：先發查核時點紀錄、F 近似（本機首見 FINISHED）、旗標開啟起點、本次喚醒要查的紀錄。
             "starter_checkpoints": {}, "finished_first_seen": {}, "starter_enabled_since": None,
-            "starter_inflight": []}
+            "starter_inflight": [],
+            # #365：動作條件判定、A 閘門、每晚一次備份（舊狀態檔沒有這些鍵 ⇒ load_state 以此補上；
+            # revert 後舊碼載入時原樣保留不讀）。每場 box／PA 的 tm_recheck 在紀錄內，缺＝尚未排。
+            "gate": None, "a_fetch_gate": None, "night_backup": None, "backup_uses": []}
 
 
 def _starts(g: Mapping) -> datetime | None:
@@ -423,34 +426,46 @@ def kind_cooled(state: Mapping, kind: str, now: datetime) -> bool:
     return not stamps or now - max(stamps) >= WWW_COOLDOWN
 
 
-# #365 S3（P-A-FETCH-GATE，需求方裁定 #343 6361673244 第 1 項＝甲）：A 在賽中抓 www 會把部分比分寫進
-# games（#343 PLAN-r4 §3.3.1：2026-A-304 於 09-07 19:50 被寫成 3：2）。stats 原字的終態集合取自
-# StatsGame.status 的官方值；不在集合內的狀態一律視為未終局（fail closed：列漏只會讓 A 延到隔日 J1）。
-A_TERMINAL_STATUSES = frozenset({"FINISHED", "POSTPONED", "RESERVED"})
+# #365 S3（P-A-FETCH-GATE，需求方裁定 #343 6361673244 第 1 項＝甲；放行集合依 #365 規劃 4 §12 第 1 項、
+# #343 PLAN-r6 §3.8）：A 在賽中抓 www 會把部分比分寫進 games（2026-A-304 於 09-07 19:50 被寫成 3：2）。
+# **放行集合是白名單**：該晚每一場 A 都在集合內才放行。⛔ 不放 RESERVED——保留賽可能帶非零比分，放行後
+# 整年抓取會把它整表送上正式站並被讀端判成完賽（#343 第 1 輪審核 F1）。START／SCHEDULED（含尚未開賽）、
+# 未知字串、缺值、stats 讀取失敗一律擋（fail closed：只會讓 A 延到隔日 J1）。⛔ 不改寫成黑名單。
+A_FETCH_RELEASE_STATUSES = frozenset({"FINISHED", "POSTPONED"})
+
+
+def _latest_rows_per_game(rows: Iterable[Mapping]) -> list[Mapping]:
+    """同一場多筆 stats 列時取最新 ``PreExeDate``（``starts_at``）那筆（比照 game_tm_shadow.dedupe_latest_per_game）。
+    開賽時刻相同或缺值而分不出新舊時，保留全部同場列——呼叫端「任一筆非放行即擋」。"""
+    by_key: dict[str, list[Mapping]] = {}
+    for g in rows:
+        by_key.setdefault(f"{g.get('year')}-{g.get('kind_code')}-{g.get('game_sno')}", []).append(g)
+    out: list[Mapping] = []
+    for group in by_key.values():
+        latest = max((str(g.get("starts_at") or "") for g in group), default="")
+        out.extend(g for g in group if str(g.get("starts_at") or "") == latest)
+    return out
 
 
 def a_fetch_blocked(state: Mapping, now: datetime) -> tuple[bool, str]:
-    """該晚是否仍有 A 場「已開賽未終局」——是的話晚間鏈不對 A 發 www（結果、box／PA 明細、先發時點都算）。
+    """該晚是否要擋下 A 的 www（結果、box／PA 明細、先發時點都算）。只讀狀態檔，不連網、不連 DB。
 
-    只讀狀態檔的 ``schedule``（stats 列），不連網、不連 DB：
-    * 最近一次 stats 讀取失敗（``probe_failures`` > 0）或已判 ``probe_unavailable`` → 擋（判不出狀態，PLAN-r4 §6.3）。
-    * 該晚（:func:`night_of`；09:45–12:00 用台北當日）任一 A 場狀態不在 :data:`A_TERMINAL_STATUSES`，且不是
-      「SCHEDULED 而開賽時刻未到」→ 擋。開賽時刻缺值、狀態字未知都算已開賽（fail closed）。
+    reason：``probe_unavailable``（最近一次 stats 讀取失敗或已判不可用）／``a_reserved``／
+    ``a_in_progress_or_pending``（START、SCHEDULED）／``a_status_unknown``（其他字串或缺值），後接場鍵與原字。
     只擋 A；E／C 與 stats 逐球重抓（``boxpa-tracking``）不受影響。⛔ 不提供關閉開關（卡面：⛔ 關閉
     P-A-FETCH-GATE 作為營運設定）；測試要比對無閘門行為時以 monkeypatch 換掉本函式。"""
     if int(state.get("probe_failures") or 0) > 0 or state.get("probe_status") == "probe_unavailable":
-        return True, "stats_unavailable"
-    night = night_of(now) or taipei(now).date()
-    for g in state.get("schedule") or []:
-        if g.get("kind_code") != "A" or g.get("game_date") != night.isoformat():
-            continue
+        return True, "probe_unavailable"
+    night = (night_of(now) or taipei(now).date()).isoformat()
+    rows = [g for g in _latest_rows_per_game(g for g in state.get("schedule") or [] if g.get("kind_code") == "A")
+            if g.get("game_date") == night]
+    for g in sorted(rows, key=lambda g: (str(g.get("starts_at") or ""), int(g.get("game_sno") or 0))):
         status = str(g.get("status") or "")
-        if status in A_TERMINAL_STATUSES:
+        if status in A_FETCH_RELEASE_STATUSES:
             continue
-        starts = _starts(g)
-        if status == "SCHEDULED" and starts is not None and starts > now:
-            continue
-        return True, f"a_in_progress:{g.get('year')}-A-{g.get('game_sno')}:{status or '?'}"
+        why = ("a_reserved" if status == "RESERVED" else
+               "a_in_progress_or_pending" if status in ("START", "SCHEDULED") else "a_status_unknown")
+        return True, f"{why}:{g.get('year')}-A-{g.get('game_sno')}:{status or '?'}"
     return False, ""
 
 
@@ -573,7 +588,7 @@ def plan(state: dict, now: datetime, *, probe: Callable[[], list[StatsGame]],
     if probe_failed:
         sc.note_wait(cps, starter_due, "probe_unavailable")
         return with_signal_sync(state, now, "idle", "probe_unavailable")   # 讀不到 stats 就不連 www
-    # #365 P-A-FETCH-GATE：該晚仍有 A 場已開賽未終局 → 這次不對 A 發 www（事件與先發時點都不抓 A）。
+    # #365 P-A-FETCH-GATE：該晚不是每一場 A 都 FINISHED／POSTPONED → 這次不對 A 發 www（事件與先發時點都不抓 A）。
     # 擋下不計次、不寫 www_requests：全部終局後才抓，之後的重試照現行上限。
     a_blocked, a_why = a_fetch_blocked(state, now)
     state["a_fetch_gate"] = {"at": _iso(now), "reason": a_why} if a_blocked else None
@@ -806,9 +821,12 @@ def timeline(state: Mapping) -> list[dict]:
 # 延長賽跨過 24:00、隔天又無賽時，00:00 後仍屬同一晚（照日曆日判會在 00:00 後 quiet、漏掉該場終局）。
 
 TODAY_SCHEDULE_ENV = "POSTSEASON_TODAY_SCHEDULE"
-# ⚠️ 格式與預設路徑由 #364 交付時定稿；在那之前依 #365 規劃 3 §5.1 的介面假設（只讀 date、
-# games[].kind_code／game_sno／game_date／year／starts_at），檔案不存在就一律 fallback_db（＝現況每次連 DB）。
-TODAY_SCHEDULE_DEFAULT = "logs/today-schedule.json"
+# #364（WP1，J1 每日鏈）寫出的今日賽程檔；介面依 #365 規劃 4 §5.1（#364 exec-1 交付、尚未經審核）。
+# 只認 ``schema_version == 1``、``stage`` ∈ decide／after_scrape；排定場＝``games[]`` 中晚間賽別且 ``game_date == date``，
+# ⛔ 不看 ``present_status``（延賽／保留由 stats 與 P-A-FETCH-GATE 處理）；其他欄位忽略。不符一律 fallback_db。
+TODAY_SCHEDULE_DEFAULT = "logs/daily-schedule-today.json"
+TODAY_SCHEDULE_VERSION = 1
+TODAY_SCHEDULE_STAGES = ("decide", "after_scrape")
 
 
 @dataclass(frozen=True)
@@ -817,7 +835,6 @@ class ScheduledGame:
     kind_code: str
     game_sno: int
     game_date: str
-    starts_at: str | None
 
     @property
     def key(self) -> str:
@@ -837,7 +854,8 @@ def today_schedule_path() -> Path:
 def read_today_schedule(path: Path) -> tuple[TodaySchedule | None, str]:
     """純讀檔。回 ``(schedule, problem)``；檔案缺或形狀不符 → ``(None, "schedule_missing"／"schedule_invalid")``。
 
-    形狀不符一律整檔作廢（不挑能用的列）：半套清單會讓「這場不在檔裡」被誤讀成今晚沒有比賽。"""
+    形狀不符（含 ``schema_version`` 不是 1、``stage`` 不認得）一律整檔作廢（不挑能用的列）：半套清單會讓
+    「這場不在檔裡」被誤讀成今晚沒有比賽。"""
     try:
         raw = json.loads(path.read_text(encoding="utf-8"))
     except FileNotFoundError:
@@ -845,6 +863,11 @@ def read_today_schedule(path: Path) -> tuple[TodaySchedule | None, str]:
     except (OSError, ValueError):
         return None, "schedule_invalid"
     try:
+        version = raw["schema_version"]
+        if isinstance(version, bool) or version != TODAY_SCHEDULE_VERSION:
+            return None, "schedule_invalid"
+        if raw.get("stage") not in TODAY_SCHEDULE_STAGES:
+            return None, "schedule_invalid"
         day = date.fromisoformat(str(raw["date"])).isoformat()
         rows = raw["games"]
         if not isinstance(rows, list):
@@ -854,10 +877,8 @@ def read_today_schedule(path: Path) -> tuple[TodaySchedule | None, str]:
             sno, year = g["game_sno"], g.get("year", int(day[:4]))
             if isinstance(sno, bool) or not isinstance(sno, int) or isinstance(year, bool) or not isinstance(year, int):
                 return None, "schedule_invalid"
-            starts = g.get("starts_at")
             games.append(ScheduledGame(year, str(g["kind_code"]), sno,
-                                       date.fromisoformat(str(g["game_date"])).isoformat(),
-                                       str(starts) if starts else None))
+                                       date.fromisoformat(str(g["game_date"])).isoformat()))
     except (KeyError, TypeError, ValueError):
         return None, "schedule_invalid"
     return TodaySchedule(day, tuple(games)), ""
@@ -1071,14 +1092,26 @@ def tm_anchor(state: Mapping, key: str) -> datetime | None:
 
 
 def boxpa_tm_recheck_due(state: Mapping, rec: Mapping, now: datetime, minutes: int | None = None) -> bool:
-    """這一場的 P-TM-RECHECK 是否到期：錨點後滿 N 分，且錨點＋N 分之後還沒有任何一次明細或逐球抓取。"""
+    """這一場的 P-TM-RECHECK 是否到期：錨點後滿 N 分，且尚未排過（``tm_recheck`` 紀錄存在＝已排／已做，只做一次）。"""
     anchor = tm_anchor(state, rec["key"])
-    if anchor is None:
-        return False
     minutes = tm_recheck_minutes() if minutes is None else minutes
-    due_at = anchor + timedelta(minutes=minutes)
-    stamps = [_parse(a) for a in (rec.get("detail_attempts") or []) + (rec.get("tracking_attempts") or [])]
-    return tm_recheck_due(anchor, now, minutes, done=any(s is not None and s >= due_at for s in stamps))
+    return tm_recheck_due(anchor, now, minutes, done=rec.get("tm_recheck") is not None)
+
+
+def boxpa_tm_recheck_pending(rec: Mapping) -> bool:
+    """已到期、還沒真的抓（:func:`boxpa_plan` 對它回 ``tracking``）。"""
+    tm = rec.get("tm_recheck") or {}
+    return bool(tm) and tm.get("fetched_at") is None
+
+
+def _tm_recheck_settle(rec: dict) -> None:
+    """抓過之後依重算的分類記 outcome（只記一次）：來源有變且仍有額度 → changed；有變但額度已用完 →
+    quota_exhausted（不第三次同步，交隔日每日鏈）；沒變 → unchanged。``failed`` 由 :func:`boxpa_record_tracking` 記。"""
+    tm = rec.get("tm_recheck") or {}
+    if not tm.get("fetched_at") or tm.get("outcome"):
+        return
+    changed = [x for x in ("box", "pa") if ((rec.get("sources") or {}).get(x) or {}).get("reason") in _NEEDS_SEND]
+    tm["outcome"] = ("unchanged" if not changed else "changed" if boxpa_game_can_sync(rec) else "quota_exhausted")
 
 
 def boxpa_window(game_date: str | None, now: datetime) -> bool:
@@ -1197,9 +1230,18 @@ def boxpa_refresh(state: dict, now: datetime, local: Mapping[str, LocalGame],
         # 仍開著（逐球待更新等）而額度已用完時來源才變：同樣照實記「待隔日每日鏈補上」（6204889879）。
         elif rec["state"] == "open" and changed and not boxpa_game_can_sync(rec):
             rec["reason"] = "source_changed_after_quota"
-        tm_due = boxpa_window(rec.get("game_date"), now) and boxpa_tm_recheck_due(state, rec, now, tm_minutes)
-        if tm_due and rec["state"] in BOXPA_REOPENABLE:
-            rec["state"], rec["reason"] = "open", "reopened_tm_recheck"
+        # #365 P-TM-RECHECK：在終態 continue 之前判；到期＋窗內＋未做 → 記 due 並重開（只重開已送達／更正待同步）。
+        in_window = boxpa_window(rec.get("game_date"), now)
+        if in_window and boxpa_tm_recheck_due(state, rec, now, tm_minutes) and (
+                rec["state"] in BOXPA_REOPENABLE or rec["state"] == "open"):
+            anchor = tm_anchor(state, key)
+            minutes = tm_recheck_minutes() if tm_minutes is None else tm_minutes
+            rec["tm_recheck"] = {"due_at": _iso(anchor + timedelta(minutes=minutes)), "fetched_at": None,
+                                 "outcome": None}
+            if rec["state"] in BOXPA_REOPENABLE:
+                rec["state"], rec["reason"] = "open", "reopened_tm_recheck"
+        _tm_recheck_settle(rec)
+        tm_due = in_window and boxpa_tm_recheck_pending(rec)
         if rec["state"] in BOXPA_TERMINAL:
             continue
         if not boxpa_window(rec.get("game_date"), now):
@@ -1281,7 +1323,7 @@ def boxpa_plan(state: dict, now: datetime,
                 continue
             detail.append(key)
             continue
-        if boxpa_tracking_due(rec, now) or boxpa_tm_recheck_due(state, rec, now):   # #365 P-TM-RECHECK
+        if boxpa_tracking_due(rec, now) or boxpa_tm_recheck_pending(rec):   # #365 P-TM-RECHECK
             tracking.append(key)
         wants = boxpa_wants(rec)
         # build：(a) box 到齊而 PA 尚未 published；(b) 有來源變了但該場同步額度已用完——不再送，但仍讓
@@ -1328,8 +1370,14 @@ def boxpa_record_detail(state: dict, now: datetime, keys: Iterable[str], errors:
 def boxpa_record_tracking(state: dict, now: datetime, keys: Iterable[str], errors: list[dict]) -> str:
     """逐球重抓入帳（#293 fix-5）：只記該場 ``tracking_attempts``。⛔ 不寫 ``www_requests``（C2 帳本只記 www）、
     ⛔ 不計挑戰（stats 無 HiNet 挑戰）、⛔ 不佔 ``detail_attempts``（明細 www 的 3 次額度）。"""
+    failed = {str(e.get("key") or "") for e in errors}
     for key in keys:
-        state["boxpa"][key].setdefault("tracking_attempts", []).append(_iso(now))
+        rec = state["boxpa"][key]
+        rec.setdefault("tracking_attempts", []).append(_iso(now))
+        if boxpa_tm_recheck_pending(rec):   # #365：這次就是 TM 重抓；失敗也算做過（只做一次，不新增重試）
+            rec["tm_recheck"]["fetched_at"] = _iso(now)
+            if errors and (not failed - {""} or key in failed):
+                rec["tm_recheck"]["outcome"] = "failed"
     return "failed" if errors else "ok"
 
 

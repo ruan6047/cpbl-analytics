@@ -915,7 +915,7 @@ if [ -n "${POSTSEASON_RESULTS_ONLY:-}" ]; then
     echo "FATAL: 無法取得本機 freshness 基準：${LOCAL_FRESHNESS}" >&2
     exit 65
   fi
-  echo '==> 季後晚間：獨立目錄備份 production（整庫；同一晚已有已驗證備份則沿用）；驗證不過即中止'
+  echo '==> 季後晚間：獨立目錄備份 production（整庫）；驗證不過即中止'
   # 檔案 0600／目錄 0700 由 backup-prod-db.sh 自身的 umask 077 保證（producer 是唯一責任層，
   # #268 需求方裁定 6138860627）；這裡不重複設 umask，只指定晚間專用的 BACKUP_DIR／BACKUP_KEEP。
   evening_backup "$BACKUP_DIR"
@@ -994,7 +994,7 @@ if [ -n "${POSTSEASON_BOXPA_ONLY:-}" ]; then
   BOXPA_PA_PAYLOAD="$(mktemp "${TMPDIR:-/tmp}/cpbl-boxpa-pa.XXXXXX")"
   uv run python -m cpbl.ingest.boxpa_sync pa-payload --games "$POSTSEASON_BOXPA_GAMES" \
     --pa-games "$BOXPA_PA_GAMES" --local-psql "$BOXPA_LOCAL_PSQL" --out "$BOXPA_PA_PAYLOAD"
-  echo '==> 季後目標場 box／PA：獨立目錄備份 production（整庫；同一晚已有已驗證備份則沿用）；驗證不過即中止'
+  echo '==> 季後目標場 box／PA：獨立目錄備份 production（整庫）；驗證不過即中止'
   evening_backup "$BOXPA_BACKUP_DIR"
   case ",${BOXPA_PARTS}," in
     *,box,*)

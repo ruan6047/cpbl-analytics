@@ -59,7 +59,7 @@ def test_a_www_waits_while_another_a_game_is_in_progress():
     (ev,) = pe.open_events(state).values()
     assert ev["key"] == "2026-A-306" and ev["attempts"] == [], "擋下不耗每事件 3 次額度"
     assert state["www_requests"] == {}, "擋下不寫賽別冷卻帳本"
-    assert state["a_fetch_gate"]["reason"] == "a_in_progress:2026-A-304:START"
+    assert state["a_fetch_gate"]["reason"] == "a_in_progress_or_pending:2026-A-304:START"
     # 套用點 (3)：同一狀態下 A 場 box 缺 → boxpa 明細不抓、不計 detail_attempts。
     rec = {"key": "2026-A-306", "game_date": "2026-09-07", "state": "open", "detail_attempts": [],
            "sends": [], "sources": {"box": {"reason": "local_box_incomplete:game_livelog"}}}
@@ -71,10 +71,9 @@ def test_a_www_waits_while_another_a_game_is_in_progress():
 def test_starter_checkpoints_for_a_wait_on_the_gate():
     """套用點 (2)：#292 先發時點旗標開啟時，A 的時點同樣受擋（記 a_fetch_gate、不計次）。
     情境：2026-09-27 真實開賽時刻 A355 15:05（進行中）／A357 17:05——16:05 是 A357 的 S-60。"""
-    rows = {g["game_sno"]: g for g in json.loads((Path(__file__).parent / "fixtures" /
-            "evening_schedule_2026_real.json").read_text(encoding="utf-8"))["schedule_files"]["2026-09-27"]["games"]}
-    games = [pe.StatsGame(2026, "A", 355, "START", rows[355]["starts_at"], "2026-09-27", "ADD011", "AKP011", "大巨蛋"),
-             pe.StatsGame(2026, "A", 357, "SCHEDULED", rows[357]["starts_at"], "2026-09-27", "ACN011", "AEO011",
+    # 開賽時刻＝本機 game_schedule_status_revisions 的 PreExeDate 真實值（fixture _provenance.sql_schedule）。
+    games = [pe.StatsGame(2026, "A", 355, "START", "2026-09-27T15:05:00", "2026-09-27", "ADD011", "AKP011", "大巨蛋"),
+             pe.StatsGame(2026, "A", 357, "SCHEDULED", "2026-09-27T17:05:00", "2026-09-27", "ACN011", "AEO011",
                           "新莊")]
     local_games = {g.key: pe.LocalGame(2026, "A", g.game_sno, "2026-09-27", g.away_code, g.home_code, g.venue,
                                        False) for g in games}
@@ -85,14 +84,16 @@ def test_starter_checkpoints_for_a_wait_on_the_gate():
     assert action == "idle"
     s60 = [r for r in state["starter_checkpoints"].values() if r["key"] == "2026-A-357" and r["point"] == "S-60"]
     assert len(s60) == 1 and s60[0]["wait_reason"] == "a_fetch_gate" and s60[0]["attempts"] == []
-    # 對照：A355 不在賽中（尚未開打）時同一時點照常抓 A。
-    calm = [pe.StatsGame(**{**pe.asdict(games[0]), "status": "SCHEDULED", "starts_at": "2026-09-27T18:35:00"}),
-            games[1]]
-    state = pe.empty_state()
-    wake(state, t0, calm, local_games, enabled=True)
-    assert wake(state, datetime(2026, 9, 27, 16, 5, tzinfo=TPE), calm, local_games, enabled=True) == (
-        "scrape", "starter_checkpoint")
-    assert state["scrape_kinds"] == ["A"]
+    # 對照（負控）：同一情境換掉閘門（無閘門行為）→ 同一時點照常抓 A，證明擋下的是閘門而不是別的條件。
+    import pytest as _pytest
+
+    with _pytest.MonkeyPatch.context() as mp:
+        mp.setattr(pe, "a_fetch_blocked", lambda state, now: (False, ""))
+        state = pe.empty_state()
+        wake(state, t0, games, local_games, enabled=True)
+        assert wake(state, datetime(2026, 9, 27, 16, 5, tzinfo=TPE), games, local_games, enabled=True) == (
+            "scrape", "starter_checkpoint")
+        assert state["scrape_kinds"] == ["A"]
 
 
 # =========================================================== ② 全部終局後才抓
@@ -126,7 +127,7 @@ def test_stats_unavailable_blocks_a_only(monkeypatch):
     t = datetime(2026, 9, 7, 21, 30, tzinfo=TPE)
     gated = json.loads(json.dumps(state))
     assert pe.plan(gated, t, probe=broken, load_local=lambda: {}) == ("idle", "probe_unavailable")
-    assert pe.a_fetch_blocked(gated, t) == (True, "stats_unavailable")
+    assert pe.a_fetch_blocked(gated, t) == (True, "probe_unavailable")
     ungated = json.loads(json.dumps(state))
     monkeypatch.setattr(pe, "a_fetch_blocked", lambda state, now: (False, ""))
     assert pe.plan(ungated, t, probe=broken, load_local=lambda: {}) == ("idle", "probe_unavailable")
@@ -140,22 +141,83 @@ def test_stats_unavailable_blocks_a_only(monkeypatch):
     assert pe.boxpa_plan(gated, t, recs) == ("detail", ["2026-E-4"], [])
 
 
-# =========================================================== ④ 未知狀態字不算終局
+# =========================================================== ④ 放行集合是白名單 {FINISHED, POSTPONED}（規劃 4 §12 第 1 項）
+
+def _night_state(*games: pe.StatsGame) -> dict:
+    state = pe.empty_state()
+    state["schedule"] = [pe.asdict(g) for g in games]
+    return state
+
 
 @pytest.mark.parametrize("status", ["SUSPENDED", "", "DELAYED"])
 def test_unknown_stats_status_is_not_terminal(status):
+    """④ 同晚另一場 FINISHED，本場狀態是未知字或缺值 → 擋（a_status_unknown）；plan 不回 scrape、也不因 A 回 sync。"""
+    games = [stats(306, "FINISHED"), stats(304, status)]
+    assert pe.a_fetch_blocked(_night_state(*games), NOW) == (True, f"a_status_unknown:2026-A-304:{status or '?'}")
     state = pe.empty_state()
-    state["schedule"] = [pe.asdict(stats(306, "FINISHED")), pe.asdict(stats(304, status))]
-    assert pe.a_fetch_blocked(state, NOW)[0] is True
-    # 開賽時刻缺值且非終態 → 擋；終態三字 → 不擋；SCHEDULED 且未到開賽 → 不擋。
-    state["schedule"] = [pe.asdict(stats(304, "SCHEDULED"))]
-    state["schedule"][0]["starts_at"] = None
-    assert pe.a_fetch_blocked(state, NOW)[0] is True
-    for terminal in ("FINISHED", "POSTPONED", "RESERVED"):
-        state["schedule"] = [pe.asdict(stats(304, terminal))]
-        assert pe.a_fetch_blocked(state, NOW) == (False, "")
-    state["schedule"] = [pe.asdict(stats(304, "SCHEDULED", "2026-09-07T21:35:00"))]
-    assert pe.a_fetch_blocked(state, NOW) == (False, "")
+    assert wake(state, NOW, games, LOCAL_NEITHER_DONE) == ("idle", "a_fetch_gate")
+    assert state["scrape_kinds"] == [] and state["pending_sync"] is False
+
+
+A1001 = FIXTURE["games"]
+
+
+def stats_1001(sno: int, status: str) -> pe.StatsGame:
+    g = A1001[f"2026-A-{sno}"]
+    return pe.StatsGame(2026, "A", sno, status, "2026-10-01T18:35:00", "2026-10-01", g["away_team_code"],
+                        g["home_team_code"], g["venue"])
+
+
+def local_1001(sno: int, completed: bool) -> pe.LocalGame:
+    g = A1001[f"2026-A-{sno}"]
+    return pe.LocalGame(2026, "A", sno, "2026-10-01", g["away_team_code"], g["home_team_code"], g["venue"], completed)
+
+
+AT_1001 = datetime(2026, 10, 1, 22, 0, tzinfo=TPE)
+
+
+def test_reserved_night_holds_all_a_until_next_day():
+    """④b 2026-10-01：A277 FINISHED、A326 RESERVED（09-19 真實保留列；本機灌非零比分是構造，⑥ 證明晚間判準判它未完成）。
+    A277 未入庫（產生 final_not_ingested）→ 不抓 A、boxpa 不抓 A 明細、plan 回 idle（不是 scrape／sync），
+    reason＝a_reserved。保留賽可能帶非零比分：放行就會把它整表送上正式站（#343 審核 F1）。"""
+    games = [stats_1001(277, "FINISHED"), stats_1001(326, "RESERVED")]
+    local_games = {"2026-A-277": local_1001(277, False), "2026-A-326": local_1001(326, False)}
+    state = pe.empty_state()
+    assert wake(state, AT_1001, games, local_games) == ("idle", "a_fetch_gate")
+    assert state["a_fetch_gate"]["reason"] == "a_reserved:2026-A-326:RESERVED"
+    assert state["scrape_kinds"] == [] and state["pending_sync"] is False and state["www_requests"] == {}
+    rec = {"key": "2026-A-277", "game_date": "2026-10-01", "state": "open", "detail_attempts": [], "sends": [],
+           "sources": {"box": {"reason": "local_box_incomplete:game_livelog"}}}
+    assert pe.boxpa_plan(state, AT_1001, {"2026-A-277": rec}) == ("idle", [], [])
+
+
+def test_scheduled_later_game_blocks():
+    """④c 同晚一場 FINISHED、一場 SCHEDULED 且尚未開賽 → 仍擋（規劃 4 拿掉規劃 3 的 starts_at ≤ now 條件）。"""
+    later = pe.StatsGame(**{**pe.asdict(stats(304, "SCHEDULED")), "starts_at": "2026-09-07T21:35:00"})
+    assert pe.a_fetch_blocked(_night_state(stats(306, "FINISHED"), later), NOW) == (
+        True, "a_in_progress_or_pending:2026-A-304:SCHEDULED")
+
+
+def test_postponed_before_start_releases():
+    """④d 一場 FINISHED、一場 POSTPONED → 放行（兩者都在放行集合）。"""
+    games = [stats_1001(277, "FINISHED"), stats_1001(326, "POSTPONED")]
+    assert pe.a_fetch_blocked(_night_state(*games), AT_1001) == (False, "")
+    state = pe.empty_state()
+    assert wake(state, AT_1001, games, {"2026-A-277": local_1001(277, False),
+                                        "2026-A-326": local_1001(326, False)}) == ("scrape", "event")
+    assert state["scrape_kinds"] == ["A"]
+
+
+def test_same_game_rows_use_latest_start_and_ties_fail_closed():
+    """規劃 4 §12 第 2 項：同場多筆 stats 列取最新 PreExeDate 那筆；開賽時刻相同分不出新舊 → 任一筆非放行即擋。"""
+    old = pe.asdict(stats(304, "SCHEDULED", "2026-09-02T18:35:00"))
+    old["game_date"] = "2026-09-07"            # 舊開賽時刻的列（改期前），刻意留在同晚
+    new = pe.asdict(stats(304, "FINISHED"))
+    state = pe.empty_state()
+    state["schedule"] = [old, new, pe.asdict(stats(306, "FINISHED"))]
+    assert pe.a_fetch_blocked(state, NOW) == (False, ""), "取最新那筆（FINISHED）"
+    state["schedule"] = [pe.asdict(stats(304, "FINISHED")), pe.asdict(stats(304, "RESERVED"))]
+    assert pe.a_fetch_blocked(state, NOW)[0] is True, "同一開賽時刻、狀態不一致 → 擋"
 
 
 def test_gate_ignores_e_c_and_other_nights():
@@ -263,7 +325,7 @@ def _reference(c, key: str, as_of: str) -> bool:
         "WHERE g.year=%s AND g.kind_code=%s AND g.game_sno=%s", (int(y), k, int(s))).fetchone()[0]
 
 
-def test_evening_a_completion_on_real_partial_row(isolated):
+def test_evening_a_completion_on_real_partial_and_reserved_rows(isolated):
     """A304 賽中（19:50 真實修訂列＋games 3：2）→ 晚間判定 false（讀端判準為 true，即 §3.3.1 的錯誤）；
     改灌 09-08 官方 final 列（4：6）→ true。E4 真實列（賽前列＋8：2、final 列）→ 與現行判準相同。"""
     c = isolated
@@ -278,6 +340,12 @@ def test_evening_a_completion_on_real_partial_row(isolated):
     _load(c, "2026-A-304", (4, 6), "final_0908")
     after = datetime(2026, 9, 8, 0, 30, tzinfo=TPE)
     assert pe.load_local_games(2026, after)["2026-A-304"].completed is True
+
+    # 規劃 4：A326 的 09-19 真實保留列（GameResult='2'）＋構造的非零比分 2：1 → 晚間判定 false；讀端判準為 true。
+    _load(c, "2026-A-326", (2, 1), "reserved_0919")
+    at_1001 = datetime(2026, 10, 1, 22, 0, tzinfo=TPE)
+    assert pe.load_local_games(2026, at_1001)["2026-A-326"].completed is False, "保留賽帶比分不得判完賽"
+    assert _reference(c, "2026-A-326", "2026-10-01") is True, "前提：讀端判準對 A 用比分自證"
 
     for revision, scores, as_of, when in (
             ("pregame_1010", (8, 2), "2026-10-12", datetime(2026, 10, 12, 21, 0, tzinfo=TPE)),

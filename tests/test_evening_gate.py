@@ -230,18 +230,37 @@ def test_missing_or_stale_schedule_file_falls_back_to_db(tmp_path, variant):
                            db_lookup=lambda night: set())[0] == "quiet"
 
 
-def test_invalid_rows_void_the_whole_file():
-    """形狀不符整檔作廢（不挑能用的列）：半套清單會讓「這場不在檔裡」被讀成今晚沒有比賽。"""
-    for body in ({"date": "2026-09-27", "games": [{"kind_code": "A", "game_sno": "355", "game_date": "2026-09-27"}]},
-                 {"date": "2026-09-27", "games": [{"kind_code": "A", "game_date": "2026-09-27"}]},
-                 {"date": "2026-09-27", "games": {"A": 355}},
-                 {"games": []}):
-        from tempfile import NamedTemporaryFile
+def _write(tmp_path: Path, body) -> Path:
+    path = tmp_path / "today.json"
+    path.write_text(json.dumps(body, ensure_ascii=False), encoding="utf-8")
+    return path
 
-        with NamedTemporaryFile("w", suffix=".json", delete=False) as f:
-            json.dump(body, f)
-        assert pe.read_today_schedule(Path(f.name)) == (None, "schedule_invalid"), body
-        Path(f.name).unlink()
+
+def test_reader_follows_the_364_interface(tmp_path):
+    """規劃 4 §5.1：只認 schema_version == 1、stage ∈ decide／after_scrape；不看 present_status、忽略其他欄位。"""
+    good = json.loads(json.dumps(FIXTURE["schedule_files"]["2026-09-27"]))
+    for stage in ("decide", "after_scrape"):
+        today, problem = pe.read_today_schedule(_write(tmp_path, {**good, "stage": stage}))
+        assert problem == "" and [g.key for g in today.games][:3] == ["2026-A-355", "2026-A-356", "2026-A-357"]
+    postponed = {**good, "games": [{**g, "present_status": 0} for g in good["games"]]}
+    assert pe.gate_targets(pe.read_today_schedule(_write(tmp_path, postponed))[0], tpe(2026, 9, 27, 21, 0)) == [
+        "2026-A-355", "2026-A-356", "2026-A-357"], "present_status 不影響排定場"
+    for bad in ({**good, "schema_version": 2}, {**good, "schema_version": True}, {**good, "schema_version": "1"},
+                {k: v for k, v in good.items() if k != "schema_version"}, {**good, "stage": "draft"},
+                {k: v for k, v in good.items() if k != "stage"}):
+        assert pe.read_today_schedule(_write(tmp_path, bad)) == (None, "schedule_invalid"), bad
+
+
+def test_invalid_rows_void_the_whole_file(tmp_path):
+    """形狀不符整檔作廢（不挑能用的列）：半套清單會讓「這場不在檔裡」被讀成今晚沒有比賽。"""
+    head = {"schema_version": 1, "stage": "decide", "date": "2026-09-27"}
+    for body in ({**head, "games": [{"kind_code": "A", "game_sno": "355", "game_date": "2026-09-27"}]},
+                 {**head, "games": [{"kind_code": "A", "game_date": "2026-09-27"}]},
+                 {**head, "games": [{"kind_code": "A", "game_sno": 355}]},
+                 {**head, "games": {"A": 355}},
+                 {k: v for k, v in head.items() if k != "date"} | {"games": []}):
+        assert pe.read_today_schedule(_write(tmp_path, body)) == (None, "schedule_invalid"), body
+    assert pe.read_today_schedule(_write(tmp_path, ["not", "an", "object"])) == (None, "schedule_invalid")
 
 
 def test_night_window_keeps_last_nights_games_alive_after_midnight(tmp_path):
@@ -269,7 +288,10 @@ def test_stats_probe_queries_only_kinds_scheduled_tonight(monkeypatch, tmp_path,
     def fetcher(timeout):
         def fetch(path, params):
             requested.append(dict(params))
-            return {"Data": {"Games": []}}
+            # 規劃 4 §12 第 4 項負控：stats 實測對 D 也回列（#364：kindCode=D、2026-08 回 51 列）。
+            # 混一列 KindCode=D（2026-09-27 真實 D229）：不得產生 D 的 StatsGame／事件。
+            return {"Data": {"Games": [{"GameId": "2026-D-229", "KindCode": "D", "GameSno": 229,
+                                        "GameStatus": "FINISHED", "PreExeDate": "2026-09-27T14:05:00"}]}}
         return fetch
 
     monkeypatch.setattr(pe, "_httpx_fetch", fetcher)
@@ -283,3 +305,4 @@ def test_stats_probe_queries_only_kinds_scheduled_tonight(monkeypatch, tmp_path,
     assert len(requested) == len(kinds) * len(months), "每個賽別 × 月份恰好一次"
     saved = json.loads((tmp_path / "state.json").read_text(encoding="utf-8"))
     assert saved["gate"]["kinds"] == sorted(kinds) and saved["gate"]["decision"] == "run"
+    assert all(g["kind_code"] != "D" for g in saved["schedule"]) and not any("-D-" in k for k in saved["events"])

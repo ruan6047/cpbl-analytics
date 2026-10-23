@@ -25,8 +25,8 @@ scripts/postseason-evening.sh — 常設事件觸發晚間鏈（#268／#365；la
      #292 先發查核時點（旗標檔存在才開）：開賽前 1h／0.5h、終場後 1h 到點也走第 2 步（同一組閘門）。
   2. 有事件且允許（每事件 ≤3 次、間隔 ≥20 分鐘、挑戰類失敗兩次即停當晚、讓位 10:10）：
      取 refresh lock，E／C 跑既有 _postseason_games_step、A 跑既有 scrape_games（www getgamedatas）。
-     P-A-FETCH-GATE：該晚仍有 A 場已開賽未終局（或 stats 讀不到）→ 不對 A 發 www（結果／明細／先發時點），
-     全部終局後才抓；只擋 A，不計次。
+     P-A-FETCH-GATE：該晚每一場 A 都是 FINISHED／POSTPONED 才對 A 發 www（結果／明細／先發時點）；
+     保留、進行中、未開賽、未知狀態或 stats 讀不到一律擋（只擋 A，不計次）。
   3. 本機有變化（或前次已變化未同步），或只有本機異動訊號表變了（www／同步失敗時亦然）：
      POSTSEASON_RESULTS_ONLY=1 SKIP_SCRAPE=1 scripts/refresh-cpbl-prod.sh
      ＝已驗證備份（每晚首次同步前一次；同晚之後沿用、同一行程重驗 sha256，不符即重備）→ 只同步 games／
@@ -76,7 +76,7 @@ scripts/postseason-evening.sh — 常設事件觸發晚間鏈（#268／#365；la
                            存在＝開，touch／rm 下次喚醒生效；預覽：uv run python -m cpbl.ingest.postseason_evening plan --dry）
   POSTSEASON_EVENING_STAGE all（預設：結果鏈＋box／PA 階段）或 boxpa（只跑 box／PA 階段）；其他值 exit 64
   POSTSEASON_EVENING_KINDS 晚間賽別（預設 A,E,C；只收不重複的 A／E／C，含 D 或其他值 exit 64）
-  POSTSEASON_TODAY_SCHEDULE 今日賽程檔（預設 logs/today-schedule.json；格式由 #364 定稿，缺檔退回連本機 DB）
+  POSTSEASON_TODAY_SCHEDULE 今日賽程檔（預設 logs/daily-schedule-today.json，#364 J1 寫出；缺／壞／非該晚退回連本機 DB）
   POSTSEASON_TM_RECHECK_MIN 首見完賽後幾分鐘再抓一次逐球（預設 45；非正整數 exit 64）
   POSTSEASON_BACKUP_PER_SYNC_FLAG 回退旗標檔（預設 logs/postseason-evening-backup-per-sync.enabled；
                            存在＝每次同步都備份，不存在＝每晚首次同步前一次；下次喚醒生效）

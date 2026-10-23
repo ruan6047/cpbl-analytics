@@ -778,12 +778,14 @@ GitHub 會自動標記。判斷是否經 PR 合併要看 `gh api repos/.../commi
 - 入口：`bash scripts/postseason-evening.sh --help`（只印用法）；邏輯在 `src/cpbl/ingest/postseason_evening.py`。
 - launchd 樣板：`ops/launchd/com.cpbl.postseason-evening.plist`（`StartInterval` 300 秒；留在 `ops/` 不改變清冊對 `scripts/` 排程的分類）。
   已登記於 `scripts/schedule-registry.json`（cadence `interval`）：偵測器只對帳 plist、安裝狀態與狀態檔 `halted`，不做週期缺席判定。
-  #365 起登記為**長期** `expected_installed=true`（授權：#365 需求完成卡 6361271444）；⛔ 不再於系列結束 bootout、改回 `false`。
+  #365 起登記為**長期** `expected_installed=true`（授權：#365 需求完成卡 6361271444、Q4 裁定 6361900121）；不再有「系列結束 bootout、改回 `false`」的例行步驟。
+  與 #293 A7 的先後（#365 規劃 4 §5.4）：**分支 A**（#365 先於 A7 合併）＝不 bootout、不重新 bootstrap，`effective_from` 維持 2026-10-14，A7 不翻回休眠、只收尾；
+  **分支 B**（A7 先於 #365 合併）＝A7 照原授權 bootout 並翻回休眠，#365 合併後在授權窗口重新 bootstrap，登記翻回 `true`、`effective_from`＝重新安裝日。
   休賽季狀態檔可能很久不更新（plan 回 `quiet` 不寫檔），偵測器不因此告警。
 - 賽別：`POSTSEASON_EVENING_KINDS`（預設 `A,E,C`；只收不重複的 A／E／C，含 D 或其他值 exit 64）。晚間 scrape 讀它，⛔ 不讀 plist 的 `REFRESH_POSTSEASON_KINDS`（那是每日鏈／live worker 的設定，plist 裡保留不動）。
 - 每次喚醒：
   0. **動作條件**（#365）：「一晚」＝台北 12:00 起到次日 09:45（延長賽跨 24:00 仍屬同一晚；09:45–12:00 不屬任何一晚）。
-     讀今日賽程檔 `POSTSEASON_TODAY_SCHEDULE`（預設 `logs/today-schedule.json`；格式與預設路徑由 #364 J1 定稿，現依 #365 規劃 3 §5.1 介面假設，只讀 `date` 與 `games[].kind_code／game_sno／game_date`）：
+     讀 #364 J1 寫的今日賽程檔 `POSTSEASON_TODAY_SCHEDULE`（預設 `logs/daily-schedule-today.json`；只認 `schema_version == 1`、`stage` ∈ decide／after_scrape、`date`＝該晚；排定場＝`games[]` 中晚間賽別且 `game_date == date`，**不看 `present_status`**，其他欄位忽略）：
      該晚有晚間賽別的排定場，或狀態檔有待辦（`halted`、`pending_sync`、`signals_unsynced`、未結事件、目標窗內未終態的 box／PA）→ 照下列流程跑；
      兩者皆無 → `plan → quiet`：**不寫狀態檔、不連 DB、不連 stats、不取鎖**，連 `boxpa-plan --dry` 都不跑，log 只留這一行。
      賽程檔缺、壞、日期不是該晚 → `fallback_db`：連本機 DB 查該晚 `cpbl.games` 有無晚間賽別的場（⛔ 不判 quiet，避免 J1 沒跑時連坐晚間鏈）。
@@ -793,8 +795,9 @@ GitHub 會自動標記。判斷是否經 PR 合併要看 `gh api repos/.../commi
      stats 資料不寫賽程／狀態表、不作完賽依據（判準仍是 `cpbl.completion`）；唯一例外是 #268 D1 待更新訊號：新場次／異動寫本機 `cpbl.official_change_signals`（migration 075），同步對帳通過或偵測不再成立才寫 `resolved_at`，首頁／季後頁／日曆據此標「賽程待更新」（`official_change_not_ingested`）。此表隨三表一起同步到 prod（每日鏈與晚間鏈共用 `sync_postseason_results`，需求方裁定 6142744045）；本機表變了而三表沒變（www／同步失敗、對帳通過後才解決）時，晚間鏈另走一次**僅訊號變動**的同步（plan／sync-due 回 `signals`；同一條已驗證備份→同步→對帳路徑，同樣受 halted／68 停當晚／讓位 10:10 約束）。⚠️ prod 須先部署含 075 的映像，否則同步在此表失敗（同 073 前例）。
   2. 有事件：取 refresh lock，E／C 跑既有 `_postseason_games_step`、A 直呼既有 `scrape_games(year, year, "A")`（www getgamedatas），只抓冷卻已過的賽別（請求以賽別為單位，冷卻亦以賽別計）。每事件最多 3 次、間隔 ≥20 分鐘；
      挑戰類失敗第 2 次即停止當晚所有 www（`www_blocked_at`，隔日 12:00 後才解除）；10:10 前後（09:45–10:15）讓位給每日鏈。
-     **`P-A-FETCH-GATE`**（#343 裁定 6361673244 第 1 項）：該晚仍有 A 場在 stats 為已開賽未終局（狀態不在 `FINISHED`／`POSTPONED`／`RESERVED`；未知狀態、開賽時刻缺值都算未終局），
-     或最近一次 stats 讀取失敗 → 這次**不對 A 發 www**（結果抓取、box／PA 明細、先發時點都算；記 `a_fetch_gate`，不計次、不寫冷卻帳本），全部終局後才抓。
+     **`P-A-FETCH-GATE`**（#343 裁定 6361673244 第 1 項；放行集合依 #365 規劃 4、#343 PLAN-r6 §3.8）：該晚**每一場** A 的 stats 狀態都在放行白名單 `{FINISHED, POSTPONED}` 才對 A 發 www；
+     `RESERVED`（保留賽可能帶非零比分）、`START`、`SCHEDULED`（含尚未開賽）、未知字、缺值、最近一次 stats 讀取失敗一律擋（reason `a_reserved`／`a_in_progress_or_pending`／`a_status_unknown`／`probe_unavailable`；
+     同場多筆 stats 列取最新 PreExeDate）。擋下時結果抓取、box／PA 明細、先發時點都不抓 A（記 `a_fetch_gate`，不計次、不寫冷卻帳本）。保留賽那晚的 A 交隔日每日鏈。
      只擋 A；E／C 與 stats 逐球重抓不受影響；沒有關閉開關。代價（需求方已接受）：同晚多場時先結束者延到最後一場終局後送達；手動或他卡在賽中抓 A 仍會寫入部分比分。
      晚間鏈內部的 A 完賽判定用每日鏈判準 `daily_chain_completed_games_sql`（官方 final 或證據；比分不作依據），E／C 不變。
   3. 本機有變化：`POSTSEASON_RESULTS_ONLY=1 SKIP_SCRAPE=1 BACKUP_DIR=<晚間專用> bash scripts/refresh-cpbl-prod.sh`
@@ -821,10 +824,12 @@ GitHub 會自動標記。判斷是否經 PR 合併要看 `gh api repos/.../commi
   直到人工檢視後把 `logs/postseason-evening-state.json` 與 `logs/last-postseason-evening.json` 兩檔的 `halted` 都改回 `null`（偵測器讀後者，閒置喚醒不重寫它）。www 成功但本機 C 列仍為 0 → 只停該項（`needs_owner_decision`），交需求方，不換工具、不繞道。
 - 晚間跑過後隔日 10:10 若出現挑戰類失敗：具名本機角色 bootout 本 job 並回報（以 `logs/last-launchd-status.json` 核對；本鏈不自動判讀它）。
 - **TM 重抓**（#365，P-TM-RECHECK）：本機首見完賽（`finished_first_seen` 的 `finished_at`，沒有時用 `first_seen_finished_at`）後滿 `POSTSEASON_TM_RECHECK_MIN`
-  分（預設 45；非正整數 exit 64），且之後還沒抓過明細或逐球 → 目標窗內已送達的場以 `reopened_tm_recheck` 重開，跑一次既有 `boxpa-tracking`（只打 stats、不連 www、
+  分（預設 45；非正整數 exit 64）→ 目標窗內已送達（或更正待同步）的場以 `reopened_tm_recheck` 重開，每場只做一次（box／PA 紀錄 `tm_recheck {due_at, fetched_at, outcome}`，
+  outcome ∈ changed／unchanged／failed／quota_exhausted），跑一次既有 `boxpa-tracking`（只打 stats、不連 www、
   不寫冷卻帳本），之後照既有 PA build → sync（同步額度仍以場計 2 次，不新增重試）。晚間鏈**沒有** E／C 進階 leaderboard 重抓（P-LB-RECHECK 已刪，#343 裁定 6361673244 第 2 項）。
 - 回復（各自可單獨執行）：排程＝`launchctl bootout gui/$(id -u)/com.cpbl.postseason-evening` 並移除 LaunchAgents 連結；
-  程式＝revert 本卡 PR（主 checkout fast-forward 後下一次喚醒即回舊碼；舊碼載入新狀態檔時多出的 `night_backup`／`gate`／`a_fetch_gate`／`backup_uses` 原樣保留不讀）；
+  程式＝revert 本卡 PR（主 checkout fast-forward 後下一次喚醒即回舊碼；舊碼載入新狀態檔時多出的 `night_backup`／`gate`／`a_fetch_gate`／`backup_uses`／`tm_recheck` 原樣保留不讀；
+  A7 之後才 revert 時，bootout 與 revert 授權一起向需求方請示，⛔ 不預先執行）；
   只退備份規則＝per-sync 旗標（見上）；資料＝見上方備份範圍（晚間出錯時先複製保全該晚 `night_backup` 再做任何操作）。
 - 常設前提：Mac 晚間保持喚醒且登入（不改個人電源設定，只記錄）、登記表 `expected_installed=true` 且主 checkout 在含它的 main；
   因停止條件停用前先處置本機未解決的 `official_change_signals`（否則每日鏈會持續把它鏡像成公站「賽程待更新」）。
