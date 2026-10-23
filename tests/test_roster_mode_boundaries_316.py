@@ -41,9 +41,11 @@ def _outside_roster(data):
 # ⛔ 不釘某個分支 commit 的 SHA：合併方式若不是 merge commit，那個 SHA 不會留在 main 的歷史裡。
 # 保護強度與原本相同：區塊以外任何一個位元組改變都會紅。日後有卡要合法改區塊以外，須在該卡更新這兩個值並說明。
 # LINEUP_ONLY／POSTSEASON_RESULTS_ONLY 的行為仍由下方測試對 BASE 逐項比對（未改）。
+# #344（需求方裁定 #344 issuecomment-6356772769：只改基準，保護不減）：區塊之後新增 mirror_table 與
+# 五表同步呼叫，「區塊之後」基準由 0c0143d8…（57789 bytes）更新為下值；區塊之前未變。
 OUTSIDE_ROSTER_SHA256 = (
     "8bb65a65c9d990f0ddb7c52b0a71f333074a81c347892dfb66972a50cc76ae90",   # 區塊之前（16517 bytes）
-    "0c0143d881ca14f6cf16759317d2073983cc6e93337ab023580d86077f4a08ed",   # 區塊之後（57789 bytes）
+    "fd65aafa5627e94e358b4b689323dad9158155353ccbb1448e03ed8b29c24f94",   # 區塊之後（62063 bytes）
 )
 # #316 的成果（ROSTER_ONLY 區塊本身）以 main 上合併後的版本為準：#293 不得改動它。
 ROSTER_RESULT = "a473695dfca536e365b08c44aa2e85374e8f3e69"
