@@ -1248,3 +1248,56 @@ def test_f2_round2_unreadable_pre_exe_date_is_unavailable(pre_exe, status) -> No
     assert result.status == status, result
     if status == "unavailable":
         assert dg.classify(_inputs(date(2026, 10, 8)), lambda: result).day_type == dg.LIGHT
+
+
+# ============================================================== 第 3 輪 F2：窗口用解析後的日期比較
+
+def _probe_one(pre_exe: str, *, day: date = date(2026, 10, 8), local: dict | None = None) -> dg.ProbeResult:
+    """查詢日 2026-10-08；stats 只回 2026-A-1（身分合法），只換 PreExeDate。"""
+    def fetch(path, params):
+        rows = []
+        if params["kindCode"] == "A" and params["month"] == "10":
+            rows = [{"GameId": "2026-A-1", "KindCode": "A", "GameSno": 1, "GameStatus": "SCHEDULED",
+                     "PreExeDate": pre_exe}]
+        return {"Data": {"Games": rows}}
+    return dg.stats_probe(day, fetch=fetch, local_lookup=lambda _g: local or {})
+
+
+@pytest.mark.parametrize(("pre_exe", "status"), [
+    # Fable 第 3 輪：合法 ISO 8601、但不是 YYYY-MM-DD 開頭；解析後落在窗口內 → 新場次，⛔ 不得 clean
+    ("20261008T183500", "new"),
+    ("2026-W41-4T18:35", "new"),
+    # Codex 第 2 輪四案例：讀不懂 → unavailable
+    ("not-a-date", "unavailable"),
+    ("2026/10/08T18:35:00", "unavailable"),
+    ("2026-13-45T18:35:00", "unavailable"),
+    ("2026-10-08 nonsense", "unavailable"),
+    # 合法擴充格式：原行為
+    ("2026-10-08T18:35:00", "new"),
+    ("2026-10-08", "new"),
+])
+def test_f2_round3_window_uses_parsed_date(pre_exe, status) -> None:
+    result = _probe_one(pre_exe)
+    assert result.status == status, (pre_exe, result)
+    if status == "new":
+        assert result.detail == ("新場次 2026-A-1@2026-10-08",), result
+    else:
+        assert dg.classify(_inputs(date(2026, 10, 8)), lambda: result).day_type == dg.LIGHT
+
+
+@pytest.mark.parametrize("pre_exe", ["20261020T183500", "2026-W43-2T18:35"])
+def test_f2_round3_parsed_date_outside_window_is_clean(pre_exe) -> None:
+    """負控：解析後是 2026-10-20（窗口 10-08～10-15 之外）→ clean；證明不是一律判 new。"""
+    assert _probe_one(pre_exe).status == "clean"
+
+
+def test_f2_round3_date_change_detected_with_basic_format() -> None:
+    """日期異動也以解析後日期比：本機 10-10，stats 以基本格式給 10-12 → 異動；給 10-10 → 無異動。"""
+    moved = _probe_one("20261012T183500", local={"2026-A-1": "2026-10-10"})
+    assert moved.status == "new" and moved.detail == ("日期異動 2026-A-1 本機 2026-10-10 → stats 2026-10-12",)
+    same = _probe_one("20261010T183500", local={"2026-A-1": "2026-10-10"})
+    assert same.status == "clean", same
+
+
+def test_f2_round3_unreadable_local_date_is_unavailable() -> None:
+    assert _probe_one("2026-10-12T18:35:00", local={"2026-A-1": "garbage"}).status == "unavailable"

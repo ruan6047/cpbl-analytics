@@ -360,16 +360,22 @@ def parse_probe_rows(rows: Iterable[Mapping], year: int, kinds: Iterable[str], *
             continue
         starts = row.get("PreExeDate")
         starts = str(starts) if starts else None
-        if strict and not _iso_datetime_ok(starts):
-            # #364 第 2 輪審核 F2：讀不懂的日期（not-a-date、2026/10/08T…）不能被截前 10 字後拿去做
-            # 字串比較而得出「不在窗口＝確定無新場」。讀不懂＝探測不明 → 升級乙型。
-            raise ProbeUnavailable(f"stats schedule 列 PreExeDate 讀不懂：{row.get('GameId')}={starts!r}")
+        if strict:
+            # #364 第 2／3 輪審核 F2：窗口判定一律用「解析後的日期」。讀不懂（not-a-date、2026/10/08T…）
+            # ＝探測不明 → 升級乙型；讀得懂但不是 YYYY-MM-DD 開頭的合法 ISO（20261008T183500、
+            # 2026-W41-4T18:35）必須以解析出的日期進窗口，⛔ 不得截前 10 字做字串比較。
+            parsed = parse_pre_exe_date(starts)
+            if parsed is None:
+                raise ProbeUnavailable(f"stats schedule 列 PreExeDate 讀不懂：{row.get('GameId')}={starts!r}")
+            game_date = parsed.isoformat()
+        else:
+            game_date = starts[:10] if starts and len(starts) >= 10 else None
         venue = row.get("Field")
         out.append(StatsGame(
             year=year, kind_code=kind, game_sno=sno,
             status=str(row.get("GameStatus") or ""),
             starts_at=starts,
-            game_date=starts[:10] if starts and len(starts) >= 10 else None,
+            game_date=game_date,
             away_code=_team_code(row.get("Visiting")),
             home_code=_team_code(row.get("Home")),
             venue=str(venue["Abbe"]) if isinstance(venue, Mapping) and venue.get("Abbe") else None,
@@ -391,31 +397,49 @@ def compare_probe(stats_games: Iterable[Any], local: Mapping[str, str | None],
     """純函式：窗口內「本機沒有的場次」或「日期異動」→ 差異清單（空＝clean）。
 
     ``local``：``"YYYY-K-SNO" → 本機 game_date（ISO 字串）``。stats 沒列到的本機場次不視為取消。
+    窗口與異動一律以 :class:`date` 比較（#364 第 3 輪審核 F2）；任一側日期讀不懂 →
+    :class:`ProbeUnavailable`（呼叫端判探測不明 → 升級乙型），⛔ 不當成「不在窗口」。
     """
-    lo, hi = day.isoformat(), (day + timedelta(days=ahead)).isoformat()
+    from cpbl.ingest.postseason_evening import ProbeUnavailable
+
+    def as_date(value: Any, what: str) -> date | None:
+        if value is None:
+            return None
+        parsed = parse_pre_exe_date(str(value))
+        if parsed is None:
+            raise ProbeUnavailable(f"探測比較時{what}日期讀不懂：{value!r}")
+        return parsed
+
+    lo, hi = day, day + timedelta(days=ahead)
     found: list[str] = []
     for g in stats_games:
-        local_date = local.get(g.key, "<missing>")
-        in_window = g.game_date is not None and lo <= g.game_date <= hi
-        local_in_window = local_date not in (None, "<missing>") and lo <= str(local_date) <= hi
-        if local_date == "<missing>":
-            if in_window:
-                found.append(f"新場次 {g.key}@{g.game_date}")
-        elif g.game_date and local_date and g.game_date != str(local_date) and (in_window or local_in_window):
-            found.append(f"日期異動 {g.key} 本機 {local_date} → stats {g.game_date}")
+        stats_date = as_date(g.game_date, f" stats {g.key} ")
+        raw_local = local.get(g.key, "<missing>")
+        if raw_local == "<missing>":
+            if stats_date is not None and lo <= stats_date <= hi:
+                found.append(f"新場次 {g.key}@{stats_date}")
+            continue
+        local_date = as_date(raw_local, f"本機 {g.key} ")
+        in_window = stats_date is not None and lo <= stats_date <= hi
+        local_in_window = local_date is not None and lo <= local_date <= hi
+        if stats_date and local_date and stats_date != local_date and (in_window or local_in_window):
+            found.append(f"日期異動 {g.key} 本機 {local_date} → stats {stats_date}")
     return found
 
 
-def _iso_datetime_ok(value: str | None) -> bool:
-    """``PreExeDate`` 是否為可解析的 ISO 日期／時刻（``YYYY-MM-DD`` 開頭）。"""
-    if not value or len(value) < 10:
-        return False
+def parse_pre_exe_date(value: str | None) -> date | None:
+    """``PreExeDate``（或本機 ISO 日期）→ 解析後的 :class:`date`；讀不懂 → None。
+
+    以 ``datetime.fromisoformat`` 為唯一判準（接受 ISO 8601 擴充／基本格式與週曆）；回傳它解析出的
+    日期本身，⛔ 不再拿原字串前 10 字做字串比較（#364 第 3 輪審核 F2：``20261008T183500``、
+    ``2026-W41-4T18:35`` 合法卻不是 ``YYYY-MM-DD`` 開頭）。
+    """
+    if not value:
+        return None
     try:
-        datetime.fromisoformat(value)
-        date.fromisoformat(value[:10])
+        return datetime.fromisoformat(value).date()
     except ValueError:
-        return False
-    return True
+        return None
 
 
 def probe_rows(body: Any) -> list[Any]:
@@ -453,7 +477,13 @@ def stats_probe(day: date, *, fetch: Callable[[str, dict], Mapping] | None = Non
                 games += parse_probe_rows(probe_rows(body), year, (kind,), strict=True)
     except Exception as exc:  # noqa: BLE001 — 逾時／HTTP／JSON／形狀漂移一律 fail closed
         return ProbeResult("unavailable", (f"{type(exc).__name__}: {exc}"[:200],))
-    diffs = compare_probe(games, local_lookup(games), day)
+    from cpbl.ingest.postseason_evening import ProbeUnavailable
+
+    local = local_lookup(games)
+    try:
+        diffs = compare_probe(games, local, day)
+    except ProbeUnavailable as exc:   # 比較時日期讀不懂 → 探測不明（#364 第 3 輪 F2）
+        return ProbeResult("unavailable", (str(exc)[:200],))
     return ProbeResult("new" if diffs else "clean", tuple(diffs[:10]))
 
 
