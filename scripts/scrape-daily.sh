@@ -49,10 +49,20 @@ scripts/scrape-daily.sh — 每日本機自動爬取，成功後同步 productio
   SYNC_PROD=0 scripts/scrape-daily.sh   # 只爬本機，不同步 production
   位置參數只接受 fast；其餘一律 exit 64。launchd 以無參數呼叫。
 
+日型閘門（#364；PLAN-r2 §3.2，判定在 src/cpbl/ingest/daily_gate.py）
+  取鎖後先判日型（只讀本機 games＋狀態檔；甲型候選另唯讀查 stats 賽程）：
+    有賽型 full      昨天有 A／D／E／C 排定場 → 完整鏈（4/4 套訓練閘門）
+    乙型   light     昨天無、今天有／上次失敗／探測有新場 → 爬取（略過 PA build／衍生／分項）＋同步
+    甲型   sync_only 昨今皆無但本機有未同步寫入 → 只同步（SKIP_SCRAPE=1），不爬、不訓練
+    甲型   skip      其餘 → 不爬、不備份、不同步；狀態寫成功＋skipped=true
+  判定程式本身失敗 → 完整鏈（現況）。每次都寫今日賽程檔 logs/daily-schedule-today.json。
+  `cpbl-refresh-recent --plan` 可先看今天會跑哪些步驟（唯讀）。
+
 環境變數
   REFRESH_TRIGGER   manual（預設）或 launchd；其他值一律 exit 64
   SYNC_PROD         0＝爬完不同步 production（預設 1）
   REFRESH_LOCK_DIR  互斥鎖目錄（預設 /private/tmp/cpbl-analytics-refresh.lock）
+  DAILY_FORCE_FULL  1＝不判日型、強制完整鏈且不套訓練閘門（逃生閥，不需 revert）
 
 離開碼
   0 成功 · 64 參數錯 · 69 有部分步驟失敗但其餘完成（仍會同步 production）
@@ -152,19 +162,63 @@ if ! python3 "$REPO_DIR/scripts/refresh_status.py" start \
   exit 70
 fi
 
+# 日型（#364）：預設 full＝現況。判定讀不到／判定程式失敗一律退回 full（fail closed＝多跑）。
+DAY_TYPE=full
+DAY_REASON="未判定"
+SYNC_MARKER="logs/daily-sync-marker.json"
+TODAY_FILE="logs/daily-schedule-today.json"
+
 # 前置檢查：本機 DB（OrbStack/Docker 上的 5433）必須在
 if ! docker ps --format '{{.Names}}' 2>/dev/null | grep -q cpbl-analytics-db; then
   echo "[$(date '+%F %T')] FATAL: 本機 DB 容器未啟動（OrbStack 沒開？）" | tee -a "$LOG"
   CODE=127
 else
-  # --group scrape：官網爬蟲需 playwright（scrape group）。uv run 為 inexact sync
-  # 不會主動剪套件，但顯式帶 group 可防有人跑過 `uv sync`（exact）剪掉後靜默失敗。
-  if [ -n "$ARGS" ]; then
-    "$UV" run --group scrape cpbl-refresh-recent "$ARGS" >>"$LOG" 2>&1
+  if [ "${DAILY_FORCE_FULL:-0}" = "1" ]; then
+    DAY_REASON="DAILY_FORCE_FULL=1：強制完整鏈（逃生閥）"
   else
-    "$UV" run --group scrape cpbl-refresh-recent >>"$LOG" 2>&1
+    # 只讀本機 games＋歷史＋同步標記；甲型候選才唯讀查 stats（不連 www）。順手寫今日賽程檔。
+    GATE_OUT="$("$UV" run python -m cpbl.ingest.daily_gate decide \
+      --history "logs/schedule-history/com.cpbl.scrape-daily.jsonl" \
+      --sync-marker "$SYNC_MARKER" --today-file "$TODAY_FILE" \
+      --started-at "$STARTED_AT" 2>>"$LOG")"
+    GATE_CODE=$?
+    printf '%s\n' "$GATE_OUT" >>"$LOG"
+    GATE_TYPE="$(printf '%s\n' "$GATE_OUT" | sed -n 's/^DAY_TYPE=//p' | tail -n 1)"
+    case "$GATE_CODE:$GATE_TYPE" in
+      0:full|0:light|0:sync_only|0:skip)
+        DAY_TYPE="$GATE_TYPE"
+        DAY_REASON="$(printf '%s\n' "$GATE_OUT" | sed -n 's/^REASON=//p' | tr '\n' ';' | sed 's/;$//')"
+        ;;
+      *)
+        DAY_REASON="日型判定失敗（exit=${GATE_CODE}，輸出無合法 DAY_TYPE）→ 完整鏈（fail closed）"
+        ;;
+    esac
   fi
-  CODE=$?
+  echo "[$(date '+%F %T')] day type=${DAY_TYPE}（${DAY_REASON}）" | tee -a "$LOG"
+
+  case "$DAY_TYPE" in
+    skip|sync_only)
+      # 甲型：不爬。CODE=0 讓下方同步（sync_only）照既有規則判斷。
+      echo "[$(date '+%F %T')] 甲型：略過 cpbl-refresh-recent（不爬 www）" | tee -a "$LOG"
+      CODE=0
+      ;;
+    *)
+      # --group scrape：官網爬蟲需 playwright（scrape group）。uv run 為 inexact sync
+      # 不會主動剪套件，但顯式帶 group 可防有人跑過 `uv sync`（exact）剪掉後靜默失敗。
+      if [ -n "$ARGS" ]; then
+        DAILY_DAY_TYPE="$DAY_TYPE" "$UV" run --group scrape cpbl-refresh-recent "$ARGS" >>"$LOG" 2>&1
+      else
+        DAILY_DAY_TYPE="$DAY_TYPE" "$UV" run --group scrape cpbl-refresh-recent >>"$LOG" 2>&1
+      fi
+      CODE=$?
+      if [ "$CODE" -eq 0 ] || [ "$CODE" -eq 69 ]; then
+        # 賽程剛更新：覆寫今日賽程檔（stage=after_scrape）。失敗只記 log——消費端缺檔會退回 DB。
+        "$UV" run python -m cpbl.ingest.daily_gate today-schedule --out "$TODAY_FILE" \
+          --day-type "$DAY_TYPE" >>"$LOG" 2>&1 \
+          || echo "[$(date '+%F %T')] WARN 今日賽程檔覆寫失敗（不影響 overall）" | tee -a "$LOG"
+      fi
+      ;;
+  esac
 fi
 echo "[$(date '+%F %T')] scrape exit=${CODE}" | tee -a "$LOG"
 
@@ -174,7 +228,7 @@ echo "[$(date '+%F %T')] scrape exit=${CODE}" | tee -a "$LOG"
 #    記一列 scope=team-comparison-build，舊摘要保留並標待更新。摘要表尚未 migrate 時為 exit 6（只記 log）。
 # 寫入對象只有本機 team_comparison_* 三表；同步到 production 在 refresh-cpbl-prod.sh 的 gamelog 之後。
 TC_BUILD_CODE=skip
-if [ "$CODE" -eq 0 ] || [ "$CODE" -eq 69 ]; then
+if { [ "$CODE" -eq 0 ] || [ "$CODE" -eq 69 ]; } && [ "$DAY_TYPE" != skip ] && [ "$DAY_TYPE" != sync_only ]; then
   "$UV" run cpbl-build-team-comparison --year "$(date +%Y)" --record-failure >>"$LOG" 2>&1
   TC_BUILD_CODE=$?
 fi
@@ -200,13 +254,26 @@ echo "[$(date '+%F %T')] team-comparison build exit=${TC_BUILD_CODE}（不影響
 # refresh_log 記 ok=false 並在 note 列出失敗場號／未寫入的 season_code。
 SYNC_ATTEMPTED=0
 SYNC_CODE=0
-if { [ "$CODE" -eq 0 ] || [ "$CODE" -eq 69 ]; } && [ "$SYNC_ENABLED" -eq 1 ]; then
+SKIPPED=0
+if [ "$DAY_TYPE" = skip ]; then
+  # 甲型（#364 §3.2.2）：不備份、不同步；狀態寫「成功、skipped=true、reason」並 append 歷史，
+  # schedule_watch.py 才不會把刻意略過判成 MISSING／SKIPPED_CONSECUTIVE。
+  SKIPPED=1
+  echo "[$(date '+%F %T')] 甲型：略過備份與同步（skipped=true）" | tee -a "$LOG"
+elif { [ "$CODE" -eq 0 ] || [ "$CODE" -eq 69 ]; } && [ "$SYNC_ENABLED" -eq 1 ]; then
   SYNC_ATTEMPTED=1
-  echo "[$(date '+%F %T')] sync prod (SKIP_SCRAPE=1 WITH_DETAIL=1)" | tee -a "$LOG"
+  echo "[$(date '+%F %T')] sync prod (SKIP_SCRAPE=1 WITH_DETAIL=1 DAILY_DAY_TYPE=${DAY_TYPE})" | tee -a "$LOG"
+  # DAILY_DAY_TYPE 讓 refresh-cpbl-prod.sh 套 §3.5 訓練閘門（乙型／只同步不訓練）；同步與備份路徑不變。
+  # 呼叫行刻意維持原字面（tests/test_shell_help_guard.py 釘住），日型改由 export 帶入。
+  export DAILY_DAY_TYPE="$DAY_TYPE"
   SKIP_SCRAPE=1 WITH_DETAIL=1 bash "$REPO_DIR/scripts/refresh-cpbl-prod.sh" >>"$LOG" 2>&1
   SYNC_CODE=$?
   if [ "$SYNC_CODE" -eq 0 ]; then
     echo "[$(date '+%F %T')] sync prod ok" | tee -a "$LOG"
+    # 記下本機寫入計數器：之後的甲型日據此判「自上次同步後本機有沒有新寫入」。失敗只記 log——
+    # 標記缺／舊的代價是下一個甲型日多同步一次（fail closed 方向）。
+    "$UV" run python -m cpbl.ingest.daily_gate mark-synced --sync-marker "$SYNC_MARKER" >>"$LOG" 2>&1 \
+      || echo "[$(date '+%F %T')] WARN 同步標記寫入失敗（下一個甲型日會改為只同步）" | tee -a "$LOG"
   else
     echo "[$(date '+%F %T')] sync prod FAILED exit=${SYNC_CODE} (見 log)" | tee -a "$LOG"
   fi
@@ -232,7 +299,11 @@ FINISH_ARGS=(
   --started-at "$STARTED_AT" --finished-at "$(date '+%Y-%m-%dT%H:%M:%S%z')"
   --sync-enabled "$SYNC_ENABLED" --scrape-code "$CODE"
   --sync-attempted "$SYNC_ATTEMPTED"
+  --day-type "$DAY_TYPE" --skipped "$SKIPPED"
 )
+if [ "$SKIPPED" -eq 1 ]; then
+  FINISH_ARGS+=(--skip-reason "$DAY_REASON")
+fi
 if [ "$SYNC_ATTEMPTED" -eq 1 ]; then
   FINISH_ARGS+=(--sync-code "$SYNC_CODE")
 fi

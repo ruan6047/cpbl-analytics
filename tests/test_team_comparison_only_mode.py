@@ -201,6 +201,9 @@ def _daily(tmp_path, *, scrape_exit=0, build_exit=0):
     r = subprocess.run(["/bin/bash", str(scripts / "scrape-daily.sh")], cwd=repo, env=env, text=True,
                        capture_output=True, check=False)
     lines = calls.read_text().splitlines() if calls.exists() else []
+    # #364：每日鏈另有日型閘門的 uv 呼叫（decide／today-schedule／mark-synced）。本檔只驗 builder 與
+    # 爬取／同步的相對順序，故濾掉 daily_gate 呼叫；閘門本身由 tests/test_daily_gate.py 驗。
+    lines = [ln for ln in lines if "cpbl.ingest.daily_gate" not in ln]
     return r, lines
 
 

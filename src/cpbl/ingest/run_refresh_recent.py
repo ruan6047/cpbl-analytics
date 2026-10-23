@@ -35,12 +35,19 @@
 
     uv run cpbl-refresh-recent          # 含增量對戰/分項
     uv run cpbl-refresh-recent fast     # 只更新 games+累計，跳過對戰/分項
+    uv run cpbl-refresh-recent --plan --date 2026-10-08   # 只印該日日型與步驟清單（唯讀，#364）
+
+日型（#364；判定與步驟清單見 ``cpbl.ingest.daily_gate``）：``scripts/scrape-daily.sh`` 以環境變數
+``DAILY_DAY_TYPE`` 告知本次日型。``light``（乙型：昨天無賽、今天有賽）略過 PA build、當季衍生、
+分項，球種推算只在本次增量寫入新逐球時才跑；其餘步驟照跑。未設定或 ``full``＝現況完整流程；
+``DAILY_FORCE_FULL=1`` 時一律完整流程。甲型日 scrape-daily.sh 根本不呼叫本程式。
 """
 
 from __future__ import annotations
 
 import json
 import logging
+import os
 import sys
 from datetime import date, timedelta
 from typing import Any
@@ -970,9 +977,31 @@ def _log_refresh(scope: str, frm: date, to: date, total: int, completed: int,
         )
 
 
+def _new_pitches_written(detail_inc: dict) -> int:
+    """本次增量（一軍＋二軍）逐球步驟回報的寫入球數；乙型據此決定要不要整季重算球種。"""
+    total = 0
+    for part in (detail_inc, detail_inc.get("farm") or {}):
+        pitches = part.get("pitches") if isinstance(part, dict) else None
+        if isinstance(pitches, dict):
+            total += int(pitches.get("pitches") or 0)
+    return total
+
+
 def main() -> None:
+    if "--plan" in sys.argv[1:]:
+        # #364 (b)：只印日型與步驟清單，不 migrate、不爬、不寫 refresh_log（交給 daily_gate 的唯讀 plan）。
+        from cpbl.ingest.daily_gate import main as gate_main
+
+        sys.exit(gate_main(["plan", *[a for a in sys.argv[1:] if a != "--plan"]]))
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s | %(message)s")
     skip_detail = len(sys.argv) > 1 and sys.argv[1] == "fast"
+    # #364 日型：乙型（light）略過 PA build／當季衍生／分項，球種推算視本次新逐球而定。
+    from cpbl.ingest.daily_gate import DAY_TYPE_ENV, LIGHT, force_full
+
+    day_type = "full" if force_full() else (os.environ.get(DAY_TYPE_ENV) or "full")
+    light = day_type == LIGHT
+    if light:
+        log.info("日型＝乙型（light）：略過 PA build、當季衍生、分項；球種推算僅在有新逐球時跑")
     _GAMELOG_GAPS.clear()   # 一次執行一份帳（模組級累積器，同程序內重複呼叫不得互相污染）
     reset_standings_failures()   # 同上；官方戰績的失敗帳
     standings: dict = {}
@@ -1032,16 +1061,29 @@ def main() -> None:
         # canonical PA build（INGEST-PA-DAILY1）：gamelog 寫入後對當日窗＋全域缺口逐場
         # build，使「完成場皆有 published build」恆成立。fail-closed：build 失敗（含
         # reconciliation_required）只記錄，不擋其餘 refresh 步驟（見 _pa_build_step）。
-        pa_build_result = _pa_build_step(year, [yesterday, today], include_farm=True)
+        if light:
+            pa_build_result = {**pa_build_result, "skipped": "乙型（無新 box 時本來 0）"}
+        else:
+            pa_build_result = _pa_build_step(year, [yesterday, today], include_farm=True)
         # 球種推算（fail-closed，見 _pitch_type_step）。放在逐球增量之後，才涵蓋今天補進的球。
         if not skip_detail:
-            pitch_type_result = _pitch_type_step(year)
+            new_pitches = _new_pitches_written(detail_inc)
+            if light and not new_pitches:
+                pitch_type_result = {"skipped": "乙型且本次無新逐球", "errors": []}
+            else:
+                pitch_type_result = _pitch_type_step(year)
             # 當季衍生重建（fail-closed，見 _derived_step）：*_current 與 livelog 都寫完之後。
-            derived_result = _derived_step(year)
+            if light:
+                derived_result = {"skipped": "乙型", "errors": []}
+            else:
+                derived_result = _derived_step(year)
         # 分項＋vs各隊全面重算寫回：本季=gamelog/livelog 重算、生涯=base+本季
         # （apart/vs-team 爬蟲全停，見 splits_calc / anchor_career）
-        splits_built = build_splits(year, ("A", "D"))
-        splits_built["career"] = build_career(year, ("A", "D"))
+        if light:
+            splits_built = {"skipped": "乙型"}
+        else:
+            splits_built = build_splits(year, ("A", "D"))
+            splits_built["career"] = build_career(year, ("A", "D"))
         log.info("重算分項寫回：%s", splits_built)
         renamed = _sync_player_names()  # 由最新 gamelog 名同步 players.name（改名自動修正）
         if renamed:
@@ -1105,6 +1147,7 @@ def main() -> None:
     total = sum(t for _, t, _ in recent)
     completed = sum(comp for _, _, comp in recent)
     detail = {
+        "day_type": day_type,
         "games": games, "games_farm": games_farm, "games_postseason": postseason_result,
         "stats": stats, "transactions": trans,
         "standings": standings, "standings_failures": standings_failed,
