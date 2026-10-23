@@ -89,10 +89,43 @@ def _scoreboard_rows(year: int, kind: str, sno: int, data: list[dict]) -> list[t
     ]
 
 
+# 結束標記（#357）：www LiveLogJson 每場最後一個事件號下，實際打席／事件之後會再跟一筆
+# 同號的「比賽結束」或「主審裁定比賽結束」。比對前去空白、去句末「。」。
+_END_MARKERS = frozenset({"比賽結束", "主審裁定比賽結束"})
+
+
+def _is_end_marker(content: str | None) -> bool:
+    return (content or "").strip().rstrip("。").strip() in _END_MARKERS
+
+
+def _primary_indices(data: list[dict]) -> set[int]:
+    """同一事件號只留一列：取原文中第一筆非結束標記列；全組都是標記時取第一筆。
+
+    為什麼要在這裡選：`game_livelog` 鍵是 (year, kind_code, game_sno, main_event_no)，
+    `_upsert` 逐列 ON CONFLICT DO UPDATE、後到者勝，同號多筆照原文順序送進去時，
+    每場最後事件的 content 會被尾隨的結束標記覆蓋（#357；2026 全 608 場皆此形狀）。
+
+    ⚠️ 刻意行為（#357 今日切片）：結束標記列**暫不入庫**；附加表於 #357 賽後上線。
+    ⛔ 不得從 `game_livelog` 沒有標記列推出「該場原文沒有結束標記」——原文仍有，
+    且 `record_source_revision` 收的 payload 是未經篩選的原文。
+    """
+    chosen: dict[str, int] = {}
+    for i, r in enumerate(data):
+        no = r.get("MainEventNo")
+        if not no:
+            continue
+        if no not in chosen:
+            chosen[no] = i
+        elif _is_end_marker(data[chosen[no]].get("Content")) and not _is_end_marker(r.get("Content")):
+            chosen[no] = i
+    return set(chosen.values())
+
+
 def _livelog_rows(year: int, kind: str, sno: int, data: list[dict]) -> list[tuple]:
     out = []
-    for r in data:
-        if not r.get("MainEventNo"):
+    keep = _primary_indices(data)
+    for i, r in enumerate(data):
+        if i not in keep:
             continue
         out.append((
             year, kind, sno, r.get("MainEventNo"), _i(r.get("InningSeq")), r.get("VisitingHomeType"),
