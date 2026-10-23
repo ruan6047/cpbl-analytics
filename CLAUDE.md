@@ -18,7 +18,8 @@
 >
 > **舊制度已退場**：[user Project #4](https://github.com/users/ruan6047/projects/4) 已於 [ai-workflow#417](https://github.com/ruan6047/ai-workflow/issues/417) 結案時關閉（2026-10-08；可 `gh project close 4 --owner ruan6047 --undo` 還原）；未結案舊卡（#53、#90、#119、#158）依 #417 Q6 裁定改照 vNext 繼續，各卡已留通知。舊流程（T 級、舊狀態值、claim／lease、Ledger、`wfcli`）⛔ 不用於任何卡；[`docs/AI_WORKFLOW.md`](docs/AI_WORKFLOW.md)、[`docs/CONTROL_PLANE_CONTRACT.md`](docs/CONTROL_PLANE_CONTRACT.md)、[`docs/MODEL_ROUTING.md`](docs/MODEL_ROUTING.md)、[`docs/TASKS.md`](docs/TASKS.md) 只作歷史查閱。舊 `.ai-workflow` 子模組已退役、本機殘留已於 #417 清除；ai-workflow 舊制已自其 main 移除（最後版本 `a1ea86f`），舊規則原文見 [ai-workflow @ `f207d2e`](https://github.com/ruan6047/ai-workflow/tree/f207d2ecf80556d6b90beeb0438bf648288a5fd9)，⛔ 不引為判準。
 > **CPBL 操作事實讀 [`docs/AI_RUNBOOK.md`](docs/AI_RUNBOOK.md)**（指令、資料流、同步、API/web、陷阱）；操作事實衝突時以現實＋Runbook 為準並回頭修正，但流程治理一律以 vNext 規則為準，Runbook 內舊治理段不得覆蓋。DB 技術邊界見 [`docs/DATABASE_CONTRACT.md`](docs/DATABASE_CONTRACT.md)。
-> **開新卡前先讀 [`docs/ROADMAP.md`](docs/ROADMAP.md)**：目標排序、開卡前檢查與降級清單的**唯一依據**——講不出這張卡服務哪一個目標就不該開。
+> **方向定位**：依 [`.wf/cpbl-local.md`](.wf/cpbl-local.md)「任務框架」後的短定位，窄讀 [`docs/ROADMAP.md`](docs/ROADMAP.md) 有效 §0 四目標／原排序、§1 成果定義／投資取捨及原來源，並承接各卡後續有效裁定；L1–L5 只是內容分類，候選成果群不代表投入。產品設計讀 [`docs/PRODUCT_UX_BLUEPRINT.md`](docs/PRODUCT_UX_BLUEPRINT.md) 適用段落，定案不代表交付；未投入需求留 [`docs/REQUIREMENT_IDEAS.md`](docs/REQUIREMENT_IDEAS.md)，契約／狀態留 GitHub。本檔及 ROADMAP／PRODUCT_UX 的舊流程、註冊與排程安排對所有卡均只作歷史，流程一律依 vNext，不整本注入或自動修改鎖定卡。
+> **使用路徑**：無卡先回共同入口查重、附方向來源及本次貢獻後分流，由受派任務 PM 開卡，入口不完成每卡需求討論、不自行開卡；有卡回原卡 PM 對話續談，不重新排隊、不接管別卡。§0／§1 原投資限制與本卡已核定驗收保留，方向引用不新增確認關卡。
 
 ## 專案概覽
 

@@ -7,6 +7,9 @@
 > 需求方：ruan6047
 > 共同設計依據：[`PRODUCT_UX_BLUEPRINT_CO_DESIGN_PROMPT.md`](handoffs/PRODUCT_UX_BLUEPRINT_CO_DESIGN_PROMPT.md)
 
+> **效力定位**：以上定案／查核是產品設計事實，不代表已實作、部署或驗收。§1 六項核心決策、使用者旅程及適用頁面設計保留；§11 是既有設計目標，不自動成為每卡新指標。方向與優先取捨依 [`ROADMAP.md`](ROADMAP.md) 有效 §0／§1 及各卡後續有效裁定，當期交付以本卡已採用規格為準，不能由全站藍圖恢復已收斂或排除的範圍。
+> **歷史界線**：§9／§10／§13 的任務註冊、T3／T4、control-plane、Blueprint Gate、優先表及當時進度只作歷史；所有卡（含原舊卡）的流程均依已安裝 `wfx` 的 vNext 規則及原卡正式來源。ROADMAP 保留的 `6dab17b` 引用未在本次前推，也不宣稱與本檔新舊全文等價。
+
 ## 1. Executive Decision
 
 Ruan's CPBL Lab 不應是「把所有抓到的數據展示出來」的資料網站，而應成為：
@@ -434,6 +437,8 @@ ML 使用：UMP 模型不進公開 UI；count-aware run-value 只保留研究元
 
 ## 9. Roadmap 與候選任務卡
 
+> **本節效力**：下文是當時分期／註冊／相依安排，對所有卡都不作目前狀態、開卡、派工或流程 Gate。產品理由可供本卡窄讀，是否採用仍沿 ROADMAP 有效方向與本卡後續裁定；不能因表中有列就視為已投入或已交付，不重跑原已接受的驗收。
+
 > 需求方已於 2026-07-17 完成查核並授權註冊。表中具正式卡號者已寫入 control-plane；仍受資料／研究條件限制者維持候選，不提前開空殼卡。
 
 ### Phase 0：全站基線與資訊架構
@@ -523,6 +528,8 @@ Checkpoint：5 個主要入口＋「更多」在 mobile 可用；歷史入口零
 
 ## 10. 優先順序
 
+> **本表只保留當時的優先安排及理由**，不與 ROADMAP 有效四目標排序或本卡後續有效裁定競爭，不作現在全案排程、卡片進度或新驗收清單。
+
 | 優先 | 工作 | 原因 |
 |---|---|---|
 | P0 | Blueprint v0.2 查核與任務註冊 | 需求方已完成查核；後續每張實作卡仍各自遵守獨立查核與 merge gate |
@@ -575,6 +582,8 @@ Checkpoint：5 個主要入口＋「更多」在 mobile 可用；歷史入口零
 不再開放 prototype 改變的基線：方案 B 導覽、無 `/players`／`/explore` hub、首頁 v1 無 WPA、裁判無聯盟排行、`pa_sim` 首版只進 Matchups。
 
 ## 13. Gate 狀態
+
+> **本節為當時設計定案／註冊及舊治理紀錄**：下列 T3／T4、control-plane、Coordinator／claim 與註冊／merge Gate 對所有卡均無現行流程效力，不能用作今天的派工或進度。本卡既有資料正確性要求及已承接驗收仍保留，依原正式契約／後續裁定及 vNext 執行；設計接受不替代實作與產品驗收。
 
 - 本文件未修改 `docs/TASKS.md`、control-plane event 或既有卡 lifecycle。
 - Fable-5 共同設計、需求方 ruan6047 定案與人工查核均已完成；v0.2 可作新卡與既有卡的產品／Design baseline。
