@@ -179,7 +179,9 @@ AT_1001 = datetime(2026, 10, 1, 22, 0, tzinfo=TPE)
 def test_reserved_night_holds_all_a_until_next_day():
     """④b 2026-10-01：A277 FINISHED、A326 RESERVED（09-19 真實保留列；本機灌非零比分是構造，⑥ 證明晚間判準判它未完成）。
     A277 未入庫（產生 final_not_ingested）→ 不抓 A、boxpa 不抓 A 明細、plan 回 idle（不是 scrape／sync），
-    reason＝a_reserved。保留賽可能帶非零比分：放行就會把它整表送上正式站（#343 審核 F1）。"""
+    reason＝a_reserved。保留賽可能帶非零比分：放行就會把它整表送上正式站（#343 審核 F1）。
+    ⚠️ 前提：狀態檔沒有待同步資料／訊號（pending_sync、signals_unsynced 皆否）。有待同步訊號時既有的僅訊號同步
+    仍會走 RESULTS_ONLY（#365 審核 N1；見 test_reserved_night_still_syncs_pending_signals_documented_residual）。"""
     games = [stats_1001(277, "FINISHED"), stats_1001(326, "RESERVED")]
     local_games = {"2026-A-277": local_1001(277, False), "2026-A-326": local_1001(326, False)}
     state = pe.empty_state()
@@ -382,3 +384,120 @@ def test_evening_scrape_uses_scrape_games_for_a_and_the_postseason_step_for_e_c(
     calls.clear()
     pe.evening_games_step(2026, ("E",))
     assert calls == [("step", 2026, ("E",))], "沒有 A 就不碰 scrape_games"
+
+
+# =========================================================== 審核 F1／F2：走真實 stats_probe → plan 路徑
+
+def _raw(sno: int, status: str, starts: str | None, kind: str = "A") -> dict:
+    g = FIXTURE["games"].get(f"2026-{kind}-{sno}") or {"away_team_code": "ADD011", "home_team_code": "AAA011",
+                                                       "venue": "洲際"}
+    row = {"GameId": f"2026-{kind}-{sno}", "KindCode": kind, "GameSno": sno, "GameStatus": status,
+           "Visiting": {"Team": {"Code": g["away_team_code"]}}, "Home": {"Team": {"Code": g["home_team_code"]}},
+           "Field": {"Abbe": g["venue"]}}
+    if starts is not None:
+        row["PreExeDate"] = starts
+    return row
+
+
+_ROWS = object()
+
+
+def _fetch(rows_by_kind: dict[str, list[dict]] | None = None, body=_ROWS):
+    def fetch(path, params):
+        if body is not _ROWS:
+            return body
+        return {"Data": {"Games": (rows_by_kind or {}).get(params["kindCode"], [])}}
+    return fetch
+
+
+def _plan_via_probe(state, at, fetch, local_games):
+    return pe.plan(state, at, probe=lambda: pe.stats_probe(2026, [9], kinds=("A",), fetch=fetch),
+                   load_local=lambda: local_games)
+
+
+T1835 = "2026-09-07T18:35:00"
+
+
+@pytest.mark.parametrize("order", ["reserved_first", "finished_first"])
+def test_same_time_conflict_from_real_probe_blocks_in_either_order(order):
+    """F1：同場同時刻回 RESERVED 與 FINISHED（兩種回傳順序）→ 不得只剩最後一筆而放行。A306 FINISHED 產生事件。"""
+    pair = [_raw(304, "RESERVED", T1835), _raw(304, "FINISHED", T1835)]
+    if order == "finished_first":
+        pair.reverse()
+    state = pe.empty_state()
+    action = _plan_via_probe(state, NOW, _fetch({"A": [*pair, _raw(306, "FINISHED", T1835)]}), LOCAL_NEITHER_DONE)
+    assert action == ("idle", "a_fetch_gate"), state["a_fetch_gate"]
+    assert state["a_fetch_gate"]["reason"] == "a_reserved:2026-A-304:RESERVED"
+    assert "A" not in state["scrape_kinds"] and len(state["a_stats_rows"]) == 3
+
+
+@pytest.mark.parametrize("order", ["start_first", "postponed_first"])
+def test_tonight_start_beats_an_older_postponed_row(order):
+    """F1：當晚 START 與較早日期的 POSTPONED 歷史列（延賽改期都會留列）→ 依最新 PreExeDate 取 START → 擋。"""
+    pair = [_raw(304, "START", T1835), _raw(304, "POSTPONED", "2026-09-02T18:35:00")]
+    if order == "postponed_first":
+        pair.reverse()
+    state = pe.empty_state()
+    assert _plan_via_probe(state, NOW, _fetch({"A": [*pair, _raw(306, "FINISHED", T1835)]}),
+                           LOCAL_NEITHER_DONE) == ("idle", "a_fetch_gate")
+    assert state["a_fetch_gate"]["reason"] == "a_in_progress_or_pending:2026-A-304:START"
+    (row,) = [g for g in state["schedule"] if g["game_sno"] == 304]
+    assert row["status"] == "START", "去重後的 schedule 也取最新 PreExeDate，不看回傳順序"
+
+
+@pytest.mark.parametrize("order", ["final_first", "postponed_first"])
+def test_negative_control_final_tonight_with_older_postponed_row_releases(order):
+    """負控：當晚 FINISHED＋較早 POSTPONED 歷史列 → 放行（證明上兩條不是一律擋）。"""
+    pair = [_raw(304, "FINISHED", T1835), _raw(304, "POSTPONED", "2026-09-02T18:35:00")]
+    if order == "postponed_first":
+        pair.reverse()
+    state = pe.empty_state()
+    assert _plan_via_probe(state, NOW, _fetch({"A": [*pair, _raw(306, "FINISHED", T1835)]}),
+                           LOCAL_NEITHER_DONE) == ("scrape", "event")
+    assert state["scrape_kinds"] == ["A"]
+
+
+def test_a_row_without_pre_exe_date_blocks():
+    """F2 事實一：A304 RESERVED 缺 PreExeDate（判不出屬於哪一晚）＋A306 FINISHED → 擋（a_date_unknown）。"""
+    state = pe.empty_state()
+    rows = [_raw(304, "RESERVED", None), _raw(306, "FINISHED", T1835)]
+    assert _plan_via_probe(state, NOW, _fetch({"A": rows}), LOCAL_NEITHER_DONE) == ("idle", "a_fetch_gate")
+    assert state["a_fetch_gate"]["reason"] == "a_date_unknown:2026-A-304:RESERVED"
+
+
+@pytest.mark.parametrize("body", [{}, {"Data": {}}, {"Data": None}, {"Data": {"Games": None}},
+                                  {"Data": {"Games": {}}}, [], None])
+def test_structurally_missing_response_is_unavailable_not_an_empty_month(body):
+    """F2 事實二：結構缺失不是空清單 → ProbeUnavailable；合法的 {"Data": {"Games": []}} 才是空月份。"""
+    with pytest.raises(pe.ProbeUnavailable):
+        pe.stats_probe(2026, [9], kinds=("A",), fetch=_fetch(body=body))
+    assert pe.stats_probe(2026, [9], kinds=("A",), fetch=_fetch(body={"Data": {"Games": []}})) == []
+
+
+def test_empty_object_response_keeps_the_gate_closed_across_wakes():
+    """F2 事實二（入口到決策）：先因 A304 START 擋住、留下 A306 未結事件；之後 stats 回 {} → 不得清空賽程、
+    下一輪也不得放行。負控：stats 恢復且兩場都 FINISHED 才回 scrape。"""
+    state = pe.empty_state()
+    live = _fetch({"A": [_raw(304, "START", T1835), _raw(306, "FINISHED", T1835)]})
+    assert _plan_via_probe(state, NOW, live, LOCAL_NEITHER_DONE) == ("idle", "a_fetch_gate")
+    schedule_before = list(state["schedule"])
+    for minutes in (5, 10, 15):
+        at = datetime(2026, 9, 7, 21, minutes, tzinfo=TPE)
+        action = _plan_via_probe(state, at, _fetch(body={}), LOCAL_NEITHER_DONE)
+        assert action == ("idle", "probe_unavailable") and state["schedule"] == schedule_before
+        assert pe.a_fetch_blocked(state, at)[0] is True
+    final = _fetch({"A": [_raw(304, "FINISHED", T1835), _raw(306, "FINISHED", T1835)]})
+    assert _plan_via_probe(state, datetime(2026, 9, 7, 21, 30, tzinfo=TPE), final,
+                           LOCAL_NEITHER_DONE) == ("scrape", "event")
+
+
+def test_reserved_night_still_syncs_pending_signals_documented_residual():
+    """審核 N1：④b 的「不觸發 RESULTS_ONLY」只在**沒有待同步資料／訊號**的前提下成立。本機異動訊號表待同步
+    （signals_unsynced）時，既有的僅訊號同步仍會走 RESULTS_ONLY（它整表帶 games；上游已接受的殘餘風險，
+    ⛔ 本卡不擴張或收窄同步範圍）。A 閘門照樣不抓 A。"""
+    games = [stats_1001(277, "FINISHED"), stats_1001(326, "RESERVED")]
+    local_games = {"2026-A-277": local_1001(277, False), "2026-A-326": local_1001(326, False)}
+    state = pe.empty_state()
+    state["signals_unsynced"] = True
+    assert wake(state, AT_1001, games, local_games) == ("sync", "signals_only")
+    assert state["scrape_kinds"] == [] and state["a_fetch_gate"]["reason"].startswith("a_reserved")

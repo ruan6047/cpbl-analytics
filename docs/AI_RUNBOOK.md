@@ -796,8 +796,12 @@ GitHub 會自動標記。判斷是否經 PR 合併要看 `gh api repos/.../commi
   2. 有事件：取 refresh lock，E／C 跑既有 `_postseason_games_step`、A 直呼既有 `scrape_games(year, year, "A")`（www getgamedatas），只抓冷卻已過的賽別（請求以賽別為單位，冷卻亦以賽別計）。每事件最多 3 次、間隔 ≥20 分鐘；
      挑戰類失敗第 2 次即停止當晚所有 www（`www_blocked_at`，隔日 12:00 後才解除）；10:10 前後（09:45–10:15）讓位給每日鏈。
      **`P-A-FETCH-GATE`**（#343 裁定 6361673244 第 1 項；放行集合依 #365 規劃 4、#343 PLAN-r6 §3.8）：該晚**每一場** A 的 stats 狀態都在放行白名單 `{FINISHED, POSTPONED}` 才對 A 發 www；
-     `RESERVED`（保留賽可能帶非零比分）、`START`、`SCHEDULED`（含尚未開賽）、未知字、缺值、最近一次 stats 讀取失敗一律擋（reason `a_reserved`／`a_in_progress_or_pending`／`a_status_unknown`／`probe_unavailable`；
-     同場多筆 stats 列取最新 PreExeDate）。擋下時結果抓取、box／PA 明細、先發時點都不抓 A（記 `a_fetch_gate`，不計次、不寫冷卻帳本）。保留賽那晚的 A 交隔日每日鏈。
+     `RESERVED`（保留賽可能帶非零比分）、`START`、`SCHEDULED`（含尚未開賽）、未知字、缺值、任一 A 列缺 `PreExeDate`、最近一次 stats 讀取失敗一律擋
+     （reason `a_reserved`／`a_in_progress_or_pending`／`a_status_unknown`／`a_date_unknown`／`probe_unavailable`）。閘門讀 stats 的**未去重原始 A 列**（狀態檔 `a_stats_rows`）：
+     同一場先取最新 `PreExeDate`（與回傳順序無關），同時刻多筆時任一筆非放行即擋。stats 回應必須是明確的 `Data.Games` list（`[]`＝合法空月份）；
+     `{}`、缺 `Data`／`Games`、`null` 都算讀取失敗（不會清空賽程）。擋下時結果抓取、box／PA 明細、先發時點都不抓 A（記 `a_fetch_gate`，不計次、不寫冷卻帳本）。
+     保留賽那晚的 A 交隔日每日鏈。⚠️ 閘門只管 www 抓取，不管同步：該晚若本機已有其他待同步變化或待同步的異動訊號（`pending_sync`／`signals_unsynced`），
+     既有的 `POSTSEASON_RESULTS_ONLY` 同步仍會照常執行並整表帶上 `games`（上游已接受的殘餘風險：手動或他卡路徑寫入的部分比分會隨之同步）。
      只擋 A；E／C 與 stats 逐球重抓不受影響；沒有關閉開關。代價（需求方已接受）：同晚多場時先結束者延到最後一場終局後送達；手動或他卡在賽中抓 A 仍會寫入部分比分。
      晚間鏈內部的 A 完賽判定用每日鏈判準 `daily_chain_completed_games_sql`（官方 final 或證據；比分不作依據），E／C 不變。
   3. 本機有變化：`POSTSEASON_RESULTS_ONLY=1 SKIP_SCRAPE=1 BACKUP_DIR=<晚間專用> bash scripts/refresh-cpbl-prod.sh`
@@ -807,7 +811,8 @@ GitHub 會自動標記。判斷是否經 PR 合併要看 `gh api repos/.../commi
   （`POSTSEASON_RESULTS_ONLY` 或 `POSTSEASON_BOXPA_ONLY`）照常備份並驗證，路徑＋sha256 記進狀態檔 `night_backup`；同晚之後的同步由
   `backup-plan` 判可沿用時帶 `REUSE_VERIFIED_BACKUP`／`_SHA256`，`refresh-cpbl-prod.sh` 在同一行程、緊接同步前重驗（存在、位於本次 BACKUP_DIR、sha256 相符）
   才略過備份，log 記 `沿用 night_backup=<路徑>`；任一不符就照常重備（fail closed）。09:45–12:00 的同步一律重備；首次備份在驗證前失敗不記，下一次仍算首次。
-  使用紀錄寫進 `last-postseason-evening.json` 的 `backup_uses` 與本機 `refresh_log` detail。
+  每次喚醒的使用紀錄（結果同步與 box／PA 同步都算）寫進 `last-postseason-evening.json` 的 `backup_uses`；結果鏈有嘗試、或只有 box／PA 同步用到備份時，
+  另寫本機 `refresh_log`（detail 的 `backup`：「沿用 night_backup=…」／「新備份 …」）。refresh_log 寫入失敗時保留到下一次喚醒再寫。
   回退：`touch logs/postseason-evening-backup-per-sync.enabled`＝每次同步都備份（`POSTSEASON_BACKUP_PER_SYNC_FLAG` 可改路徑；下次喚醒生效、不需重新 bootstrap），`rm` 即回每晚一次。
   代價（需求方已接受）：還原粒度變粗——同晚後面的同步若寫壞，只能退回該晚首次同步前。
 - 備份範圍：`backup-prod-db.sh` 備的是**整庫**（cpbl schema＋主站 public）。晚間鏈用獨立的 `POSTSEASON_BACKUP_DIR`（預設

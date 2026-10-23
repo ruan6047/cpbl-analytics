@@ -223,24 +223,44 @@ def stats_probe(year: int, months: Iterable[int], *, kinds: Iterable[str] = EVEN
     """唯讀讀 stats 賽程（``kinds`` × 指定月份）。任一請求失敗即整批 :class:`ProbeUnavailable`——
     半套結果會讓「這場不在 stats」被誤讀成取消，故 fail closed；每次只送 GET、不重試。
 
-    #365 S2：``kinds`` 由呼叫端傳「當晚有排定的賽別」（:func:`evening_gate`），不再固定查全部賽別。"""
+    #365 S2：``kinds`` 由呼叫端傳「當晚有排定的賽別」（:func:`evening_gate`），不再固定查全部賽別。
+
+    #365 審核 F1／F2（review-1）：
+    * 只有**明確的** ``Data.Games`` list 才算讀到（``[]`` 是合法的空月份）；``{}``、``Data`` 缺、``Games`` 缺或
+      ``null`` 都是結構缺失 → :class:`ProbeUnavailable`（同 ``readiness_checks.inspect_partition`` 的 explicit_list 慣例）。
+      ⛔ 不折成空清單——那會清空狀態檔賽程，下一輪 A 閘門就看不到任何未終局的 A 而放行。
+    * 同一場多筆列（延賽／保留改期的歷史列會同時出現）**不再依回傳順序覆寫**：回傳值以最新 ``PreExeDate`` 為準
+      去重（同時刻以狀態字串排序取最後一筆，與回傳順序無關），完整的原始列另存在 ``.all_rows``，供 A 閘門
+      逐列判斷（:func:`a_fetch_blocked`：同時刻衝突、缺日期都擋）。"""
     kinds = tuple(kinds)
     fetch = fetch or _httpx_fetch(timeout)
-    games: dict[str, StatsGame] = {}
+    all_rows: list[StatsGame] = []
     for kind in kinds:
         for month in months:
             try:
                 body = fetch(SCHEDULE_PATH, {"kindCode": kind, "year": str(year), "month": str(month)})
-                rows = ((body or {}).get("Data") or {}).get("Games") or []
             except ProbeUnavailable:
                 raise
             except Exception as exc:  # noqa: BLE001 — 逾時／HTTP／JSON 一律 fail closed
                 raise ProbeUnavailable(f"{kind}/{month}: {type(exc).__name__}") from exc
+            data = body.get("Data") if isinstance(body, Mapping) else None
+            rows = data.get("Games") if isinstance(data, Mapping) else None
             if not isinstance(rows, list):
-                raise ProbeUnavailable("stats schedule schema drift: Games 不是 list")
-            for g in parse_stats_games(rows, year, kinds):
-                games[g.key] = g
-    return sorted(games.values(), key=lambda g: (g.starts_at or "", g.kind_code, g.game_sno))
+                raise ProbeUnavailable(f"stats schedule schema drift: {kind}/{month} Data.Games 不是 list")
+            all_rows.extend(parse_stats_games(rows, year, kinds))
+    latest: dict[str, StatsGame] = {}
+    for g in sorted(all_rows, key=lambda g: (g.starts_at or "", g.status)):
+        latest[g.key] = g
+    return ProbeRows(sorted(latest.values(), key=lambda g: (g.starts_at or "", g.kind_code, g.game_sno)),
+                     all_rows=all_rows)
+
+
+class ProbeRows(list):
+    """:func:`stats_probe` 的回傳：去重後的場次（list 本身），另帶未去重的原始列 ``all_rows``。"""
+
+    def __init__(self, games: Iterable[StatsGame], *, all_rows: Iterable[StatsGame]):
+        super().__init__(games)
+        self.all_rows = list(all_rows)
 
 
 def detect_events(stats: Iterable[StatsGame], local: Mapping[str, LocalGame]) -> list[Event]:
@@ -306,7 +326,8 @@ def empty_state() -> dict[str, Any]:
             "starter_inflight": [],
             # #365：動作條件判定、A 閘門、每晚一次備份（舊狀態檔沒有這些鍵 ⇒ load_state 以此補上；
             # revert 後舊碼載入時原樣保留不讀）。每場 box／PA 的 tm_recheck 在紀錄內，缺＝尚未排。
-            "gate": None, "a_fetch_gate": None, "night_backup": None, "backup_uses": []}
+            "gate": None, "a_fetch_gate": None, "night_backup": None, "backup_uses": [],
+            "a_stats_rows": None}
 
 
 def _starts(g: Mapping) -> datetime | None:
@@ -450,15 +471,24 @@ def _latest_rows_per_game(rows: Iterable[Mapping]) -> list[Mapping]:
 def a_fetch_blocked(state: Mapping, now: datetime) -> tuple[bool, str]:
     """該晚是否要擋下 A 的 www（結果、box／PA 明細、先發時點都算）。只讀狀態檔，不連網、不連 DB。
 
-    reason：``probe_unavailable``（最近一次 stats 讀取失敗或已判不可用）／``a_reserved``／
-    ``a_in_progress_or_pending``（START、SCHEDULED）／``a_status_unknown``（其他字串或缺值），後接場鍵與原字。
+    reason：``probe_unavailable``（最近一次 stats 讀取失敗或已判不可用）／``a_date_unknown``（任一 A 列缺
+    ``PreExeDate``：判不出它屬於哪一晚，#365 審核 F2）／``a_reserved``／``a_in_progress_or_pending``（START、
+    SCHEDULED）／``a_status_unknown``（其他字串或缺值），後接場鍵與原字。
+
+    讀的是 stats 的**原始** A 列（狀態檔 ``a_stats_rows``；舊狀態檔沒有時退回已去重的 ``schedule``），同一場先取
+    最新 ``PreExeDate``，同時刻多筆時任一筆非放行即擋（:func:`_latest_rows_per_game`；#365 審核 F1）。
     只擋 A；E／C 與 stats 逐球重抓（``boxpa-tracking``）不受影響。⛔ 不提供關閉開關（卡面：⛔ 關閉
     P-A-FETCH-GATE 作為營運設定）；測試要比對無閘門行為時以 monkeypatch 換掉本函式。"""
     if int(state.get("probe_failures") or 0) > 0 or state.get("probe_status") == "probe_unavailable":
         return True, "probe_unavailable"
     night = (night_of(now) or taipei(now).date()).isoformat()
-    rows = [g for g in _latest_rows_per_game(g for g in state.get("schedule") or [] if g.get("kind_code") == "A")
-            if g.get("game_date") == night]
+    source = state.get("a_stats_rows")
+    a_rows = [g for g in (source if source is not None else state.get("schedule") or [])
+              if g.get("kind_code") == "A"]
+    for g in a_rows:
+        if not g.get("game_date") or not g.get("starts_at"):
+            return True, f"a_date_unknown:{g.get('year')}-A-{g.get('game_sno')}:{g.get('status') or '?'}"
+    rows = [g for g in _latest_rows_per_game(a_rows) if g.get("game_date") == night]
     for g in sorted(rows, key=lambda g: (str(g.get("starts_at") or ""), int(g.get("game_sno") or 0))):
         status = str(g.get("status") or "")
         if status in A_FETCH_RELEASE_STATUSES:
@@ -572,6 +602,8 @@ def plan(state: dict, now: datetime, *, probe: Callable[[], list[StatsGame]],
             state["probe_status"] = "ok"
             state["last_probe_at"] = _iso(now)
             state["schedule"] = [asdict(g) for g in stats]
+            # #365 審核 F1：A 閘門要看未去重的原始列（同場同時刻衝突、缺日期都擋）；只存 A，舊碼不讀此鍵。
+            state["a_stats_rows"] = [asdict(g) for g in getattr(stats, "all_rows", stats) if g.kind_code == "A"]
             apply_detection(state, detect_events(stats, load_local()), now, local_first_seen(),
                             observed_keys=[g.key for g in stats])
             sc.note_finished(state.setdefault("finished_first_seen", {}), state["schedule"], now)
@@ -2090,6 +2122,10 @@ def main(argv: list[str] | None = None) -> int:
     # finish
     last = state.get("last_run") or {}
     attempted = last.get("action") in ("scrape", "sync")
+    # #365 審核 F3：結果鏈 idle、只有 box／PA 實際同步時也要把這次的備份使用（新備份／沿用）寫進本機 refresh_log。
+    # backup_uses 只由本次喚醒的同步入帳（finish 寫完即清），所以它非空＝這次真的有同步用到備份。
+    boxpa_last = state.get("boxpa_last") or {}
+    boxpa_only = not attempted and bool(state.get("backup_uses"))
     summary = {"finished_at": _iso(now), "last_run": last, "halted": state.get("halted"),
                "www_blocked_at": state.get("www_blocked_at"), "probe_status": state.get("probe_status"),
                "sync_blocked_at": state.get("sync_blocked_at"),
@@ -2101,15 +2137,24 @@ def main(argv: list[str] | None = None) -> int:
     summary["night_backup"] = state.get("night_backup")
     summary["backup_uses"] = state.get("backup_uses") or []
     save_json(status_path(), summary)
-    if attempted:
-        ok = not state.get("halted") and last.get("outcome") in ("changed", "unchanged", "synced")
-        ok = bool(ok)
+    logged = False
+    if attempted or boxpa_only:
+        if attempted:
+            ok = bool(not state.get("halted") and last.get("outcome") in ("changed", "unchanged", "synced"))
+            note = None if ok else str(last.get("outcome"))
+        else:
+            ok = bool(not state.get("halted") and boxpa_last.get("action") == "sync"
+                      and boxpa_last.get("outcome") == "ok")
+            note = None if ok else f"boxpa_{boxpa_last.get('outcome')}"
         try:
-            log_local_refresh(state, ok, None if ok else str(last.get("outcome")))
+            log_local_refresh(state, ok, note)
+            logged = True
         except Exception:  # noqa: BLE001 — 本機紀錄失敗不改變結果；狀態檔已寫
             log.exception("本機 refresh_log 寫入失敗")
-    if state.get("backup_uses"):
-        state["backup_uses"] = []        # 已寫進 last-postseason-evening.json（與 refresh_log）；下次喚醒重新累計
+    if state.get("backup_uses") and logged:
+        # 已寫進 last-postseason-evening.json 與 refresh_log；下次喚醒重新累計。寫 refresh_log 失敗時保留，
+        # 下一次 finish 再寫（⛔ 不在沒寫進資料庫紀錄時清空）。
+        state["backup_uses"] = []
         save_json(path, state)
     print("halted" if state.get("halted") else "ok")
     return 0

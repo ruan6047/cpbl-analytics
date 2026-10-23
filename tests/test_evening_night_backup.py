@@ -324,3 +324,66 @@ def test_evening_wrapper_passes_reuse_and_record_to_refresh_and_record_sync(tmp_
     assert f"record-sync --code 0 | BACKUP_RECORD={record}" in uv, "record-sync 讀同一個紀錄檔"
     assert (calls / "record-seen.txt").exists()
     assert not Path(record).exists(), "入帳後刪掉暫存紀錄"
+
+
+# =========================================================== 審核 F3：結果鏈 idle、只有 box／PA 同步時也寫 refresh_log
+
+def _finish_env(tmp_path, monkeypatch, state: dict):
+    path = tmp_path / "state.json"
+    path.write_text(json.dumps(state), encoding="utf-8")
+    monkeypatch.setenv("POSTSEASON_STATE", str(path))
+    monkeypatch.setenv("POSTSEASON_STATUS", str(tmp_path / "last.json"))
+    monkeypatch.setattr(pe, "_now", lambda: tpe(10, 21, 22, 46))
+    return path
+
+
+def _boxpa_only_state() -> dict:
+    """10-21 C4 夜的形狀：結果鏈這次 idle，box／PA 同步沿用當晚備份且對帳通過。"""
+    return {**pe.empty_state(),
+            "last_run": {"at": "2026-10-21T14:44:00+00:00", "action": "idle", "reason": "no_events"},
+            "boxpa_last": {"at": "2026-10-21T14:46:00+00:00", "action": "sync", "games": ["2026-C-4"], "code": 0,
+                           "outcome": "ok"},
+            "backup_uses": [{"at": "2026-10-21T14:44:30+00:00", "mode": "reuse",
+                             "path": "/x/backups-postseason-evening/cpbl-20261021.sql.gz"}]}
+
+
+def test_boxpa_only_sync_writes_refresh_log_then_clears_uses(tmp_path, monkeypatch, capsys):
+    path = _finish_env(tmp_path, monkeypatch, _boxpa_only_state())
+    calls = []
+    monkeypatch.setattr(pe, "log_local_refresh",
+                        lambda state, ok, note: calls.append((ok, note, list(state["backup_uses"]))))
+    assert pe.main(["finish"]) == 0 and capsys.readouterr().out.strip() == "ok"
+    assert len(calls) == 1
+    ok, note, uses = calls[0]
+    assert ok is True and note is None and uses[0]["mode"] == "reuse"
+    assert json.loads(path.read_text())["backup_uses"] == [], "寫進 refresh_log 之後才清空"
+    status = json.loads((tmp_path / "last.json").read_text())
+    assert status["backup_uses"][0]["path"].endswith("cpbl-20261021.sql.gz")
+
+
+def test_refresh_log_failure_keeps_uses_for_the_next_finish(tmp_path, monkeypatch):
+    path = _finish_env(tmp_path, monkeypatch, _boxpa_only_state())
+
+    def broken(state, ok, note):
+        raise RuntimeError("PoolTimeout")
+
+    monkeypatch.setattr(pe, "log_local_refresh", broken)
+    assert pe.main(["finish"]) == 0
+    assert len(json.loads(path.read_text())["backup_uses"]) == 1, "沒寫進資料庫紀錄就不清空"
+
+
+def test_idle_wake_without_backup_use_writes_no_refresh_log(tmp_path, monkeypatch):
+    """負控：結果鏈 idle、這次沒有任何同步用到備份 → 不寫 refresh_log（不因舊的 boxpa_last 重寫）。"""
+    _finish_env(tmp_path, monkeypatch, {**_boxpa_only_state(), "backup_uses": []})
+    calls = []
+    monkeypatch.setattr(pe, "log_local_refresh", lambda *a: calls.append(a))
+    assert pe.main(["finish"]) == 0 and calls == []
+
+
+def test_boxpa_only_failed_sync_is_logged_as_not_ok(tmp_path, monkeypatch):
+    state = _boxpa_only_state()
+    state["boxpa_last"] = {**state["boxpa_last"], "code": 68, "outcome": "retry"}
+    _finish_env(tmp_path, monkeypatch, state)
+    calls = []
+    monkeypatch.setattr(pe, "log_local_refresh", lambda state, ok, note: calls.append((ok, note)))
+    assert pe.main(["finish"]) == 0 and calls == [(False, "boxpa_retry")]

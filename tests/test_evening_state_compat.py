@@ -36,9 +36,9 @@ def test_pre_merge_state_file_is_carried_forward(tmp_path):
     for key, value in RAW.items():
         assert state[key] == value, key
     new = set(pe.empty_state()) - set(RAW)
-    assert new == {"gate", "a_fetch_gate", "night_backup", "backup_uses"}
+    assert new == {"gate", "a_fetch_gate", "night_backup", "backup_uses", "a_stats_rows"}
     assert {k: state[k] for k in new} == {"gate": None, "a_fetch_gate": None, "night_backup": None,
-                                         "backup_uses": []}
+                                         "backup_uses": [], "a_stats_rows": None}
     assert pe.backup_plan(state, NO_GAME_NIGHT) == ("backup", "", ""), "沒有 night_backup ⇒ 第一次同步照常備份"
 
 
