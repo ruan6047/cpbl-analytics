@@ -1,24 +1,17 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- 事件觸發晚間鏈（#268 WP3；#365 起常設：A／E／C 有排定比賽的夜晚才動作）的 launchd 樣板。
-     常設（#365 需求完成卡 https://github.com/ruan6047/cpbl-analytics/issues/365#issuecomment-6361271444 ）：
-     全年安裝、不再「季後才安裝／系列結束 bootout」；休賽季與無賽日靠動作條件靜默（plan 回 quiet：
-     不連 DB、不連 stats、不取鎖）。安裝與重新 bootstrap 仍屬共享操作，須需求方授權。
+<!-- 季後事件觸發晚間鏈（#268 WP3）的 launchd 樣板。製作不等於啟用：
+     安裝／啟用屬 P1 共享操作，須另經需求方核定的具體操作包（備份、排他、錯誤即停、真釋放）。
 
-     ⚠️ 名稱刻意保留 postseason_*（本檔名、Label、scripts/postseason-evening.sh、狀態檔 logs/postseason-evening-*）：
-     名稱已不準確（含一軍 A），但改名會連坐 scripts/schedule-registry.json 登記、本 plist、Runbook §10 與 #358 的
-     check 名（#343 PLAN-r4 §3.3）。⛔ 不要為了名稱好看而改。
-
-     登記：scripts/schedule-registry.json 已登記本 job（cadence interval 300 秒；expected_installed=true 長期），
-     偵測器只對帳 plist、安裝狀態與狀態檔 halted，不做週期缺席判定。
+     登記：scripts/schedule-registry.json 已登記本 job（cadence interval 300 秒），偵測器只對帳 plist、
+     安裝狀態與狀態檔 halted，不做週期缺席判定。未授權前登記為 expected_installed=false，
+     此時被安裝會報 REGISTRY_CONFLICT；啟用時先把該欄改 true 再安裝（同一窗口）。
      為什麼留在 ops/launchd/ 而不放 scripts/：清冊把 scripts/ 下的 plist 視為已安裝排程的起點，
-     本 job 的安裝狀態由登記表宣告，不應改變清冊對其他腳本的分類。
-     REFRESH_POSTSEASON_KINDS=E,C 刻意保留不動：#365 起晚間 scrape 改讀 POSTSEASON_EVENING_KINDS（預設 A,E,C），
-     已不讀它；改動 EnvironmentVariables 需重新 bootstrap，故不在常設化時順手刪。
+     本 job 只在季後期間安裝，不應改變清冊對其他腳本的分類。
 
-     安裝（由具名本機角色在授權窗口執行，完整步驟見 Runbook §10）：
+     安裝（僅在 P1 核定後由具名本機角色執行，完整步驟見 Runbook 季後晚間事件鏈一節與啟用操作包）：
        ln -sf "$PWD/ops/launchd/com.cpbl.postseason-evening.plist" ~/Library/LaunchAgents/com.cpbl.postseason-evening.plist
        launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.cpbl.postseason-evening.plist
-     停用（只在停止條件或錯誤即停後；不再是例行的「系列結束」步驟）：
+     停用（系列決定後或任何停止條件）：
        launchctl bootout gui/$(id -u)/com.cpbl.postseason-evening
        並確認 launchctl print gui/$(id -u)/com.cpbl.postseason-evening 已查無此 job。
      ⛔ 不得用 kickstart 冒充事件（未核定的手動觸發）。 -->

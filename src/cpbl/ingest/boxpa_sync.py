@@ -50,9 +50,8 @@ EXIT_TARGET = 72          # ssh 連線失敗（rc 255）：暫時性
 EXIT_NOT_FINAL = 73
 EXIT_TARGET_SQL = 74      # production psql 本身報錯：不重送
 
-# 晚間鏈目標場只收 A／E／C（#365 起含一軍 A；⛔ 不收 D）；一次最多 7 場（台灣大賽上限；A 每晚 ≤3 場），
-# 防呆避免誤傳整季清單。
-GAME_KEY_RE = re.compile(r"^(\d{4})-([AEC])-(\d{1,3})$")
+# 季後只收 E／C；一次最多 7 場（台灣大賽上限），防呆避免誤傳整季清單。
+GAME_KEY_RE = re.compile(r"^(\d{4})-([EC])-(\d{1,3})$")
 MAX_GAMES = 7
 
 # box 七表：欄位清單**不在這裡**——住在 refresh-cpbl-prod.sh 的 sync_box_* 函式（與完整鏈共用）。
@@ -94,7 +93,7 @@ class GameKey:
 def parse_games(raw: str) -> list[GameKey]:
     """``2026-C-2,2026-C-3`` → 去重排序的鍵。格式不符、空、超過上限一律 :class:`SyncError` 64。
 
-    值已逐一以正規式驗成數字／A|E|C，才會被內插進 SQL（:func:`keys_sql`）——不接受任何其他字元。"""
+    值已逐一以正規式驗成數字／E|C，才會被內插進 SQL（:func:`keys_sql`）——不接受任何其他字元。"""
     parts = [p.strip() for p in (raw or "").split(",") if p.strip()]
     if not parts:
         raise SyncError(EXIT_USAGE, "目標場清單為空")
@@ -102,7 +101,7 @@ def parse_games(raw: str) -> list[GameKey]:
     for p in parts:
         m = GAME_KEY_RE.fullmatch(p)
         if not m:
-            raise SyncError(EXIT_USAGE, f"目標場鍵格式不符（需 YYYY-A|E|C-SNO）：{p!r}")
+            raise SyncError(EXIT_USAGE, f"目標場鍵格式不符（需 YYYY-E|C-SNO）：{p!r}")
         keys.add(GameKey(int(m.group(1)), m.group(2), int(m.group(3))))
     if len(keys) > MAX_GAMES:
         raise SyncError(EXIT_USAGE, f"目標場最多 {MAX_GAMES} 場：{len(keys)}")

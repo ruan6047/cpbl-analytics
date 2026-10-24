@@ -45,14 +45,10 @@ def test_parse_reads_identity_teams_and_venue_and_skips_mismatched_rows():
     rows = [raw_game("C", 1, "SCHEDULED", "2026-10-17T17:05:00", away="ACN011", home="AAA011",
                      venue="大巨蛋"),
             {**raw_game("C", 2, "SCHEDULED", "2026-10-18T17:05:00"), "GameSno": 9},  # 身分不一致
-            raw_game("D", 229, "FINISHED", "2026-09-27T14:05:00")]                   # 非晚間賽別
+            raw_game("A", 300, "FINISHED", "2026-10-01T18:35:00")]                   # 非季後
     games = pe.parse_stats_games(rows, 2026)
     assert [(g.kind_code, g.game_sno, g.away_code, g.home_code, g.venue, g.game_date)
             for g in games] == [("C", 1, "ACN011", "AAA011", "大巨蛋", "2026-10-17")]
-    # #365 S1：A 是晚間賽別（解析得到）；只把賽別縮成 E、C 時 A 就被略過。
-    a_row = [raw_game("A", 355, "FINISHED", "2026-09-27T15:05:00")]
-    assert [g.key for g in pe.parse_stats_games(a_row, 2026)] == ["2026-A-355"]
-    assert pe.parse_stats_games(a_row, 2026, ("E", "C")) == []
 
 
 def test_stats_probe_is_get_only_and_fails_closed():
@@ -62,7 +58,7 @@ def test_stats_probe_is_get_only_and_fails_closed():
         calls.append((path, params))
         return {"Data": {"Games": [raw_game(params["kindCode"], 1, "SCHEDULED", "2026-10-17T17:05:00")]}}
 
-    games = pe.stats_probe(2026, [10, 11], kinds=("E", "C"), fetch=fetch)
+    games = pe.stats_probe(2026, [10, 11], fetch=fetch)
     assert {(p["kindCode"], p["month"]) for _, p in calls} == {("E", "10"), ("E", "11"), ("C", "10"), ("C", "11")}
     assert all(path == pe.SCHEDULE_PATH for path, _ in calls)
     assert {g.key for g in games} == {"2026-E-1", "2026-C-1"}

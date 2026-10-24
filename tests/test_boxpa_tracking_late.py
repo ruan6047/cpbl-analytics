@@ -267,8 +267,8 @@ def test_boxpa_tracking_only_calls_stats_pitches_for_target_games(monkeypatch):
     monkeypatch.setattr(rr, "scrape_game_details", boom)
     out = pe.boxpa_tracking(2026, [KEY], delay=0)
     assert calls == [[(2026, "C", 3)]] and out["errors"] == []
-    with pytest.raises(ValueError):   # #365：A 已是晚間賽別；D 仍不收（負控）
-        pe.boxpa_tracking(2026, ["2026-D-3"], delay=0)
+    with pytest.raises(ValueError):
+        pe.boxpa_tracking(2026, ["2026-A-3"], delay=0)
 
 
 def test_lagging_sql_is_the_single_shared_source(monkeypatch):
