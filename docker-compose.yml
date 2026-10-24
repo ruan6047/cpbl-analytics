@@ -4,6 +4,7 @@
 services:
   redis:
     image: redis:7-alpine
+    restart: unless-stopped
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
@@ -12,6 +13,7 @@ services:
 
   db:
     image: postgres:17-alpine
+    restart: unless-stopped
     # ⚠️ **刻意不設 TZ**：生產的 `prod_pg` 是主站 PersonalWebsite 與 cpbl 共用的單一
     # `alpha_db`，server-wide timezone 不歸本專案管、也不能改。本機跟著留 UTC 才是
     # 忠實鏡像；台北日界由 `cpbl.db` 的 pool `configure` 逐連線 `SET TIME ZONE` 提供。
