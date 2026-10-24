@@ -35,12 +35,23 @@
 
     uv run cpbl-refresh-recent          # 含增量對戰/分項
     uv run cpbl-refresh-recent fast     # 只更新 games+累計，跳過對戰/分項
+    uv run cpbl-refresh-recent --plan --date 2026-10-08   # 只印該日日型與步驟清單（唯讀，#364）
+
+日型（#364；判定與步驟清單見 ``cpbl.ingest.daily_gate``）：``scripts/scrape-daily.sh`` 以環境變數
+``DAILY_DAY_TYPE`` 告知本次日型（PLAN-r5 §3.2、§3.2.3）：
+
+- 未設定或 ``full``＝現況完整流程；``DAILY_FORCE_FULL=1`` 時一律完整流程。
+- ``light``（乙型）：爬取步驟照跑；衍生步驟（PA build、球種推算、當季衍生、分項＋生涯、改名同步）
+  ⛔ 不依日型略過，而是依來源變動訊號決定——任一訊號（含判斷不了）就跑與完整鏈同一組，全為 0 才略過。
+- ``sync_only``（甲型但本機有未同步寫入）：不爬，只依同一套訊號（主要是 J3／J4 週回補）跑衍生。
+- 甲型略過日 scrape-daily.sh 根本不呼叫本程式。
 """
 
 from __future__ import annotations
 
 import json
 import logging
+import os
 import sys
 from datetime import date, timedelta
 from typing import Any
@@ -970,9 +981,49 @@ def _log_refresh(scope: str, frm: date, to: date, total: int, completed: int,
         )
 
 
+def _new_pitches_written(detail_inc: dict, postseason_detail: dict | None = None) -> int:
+    """本次逐球步驟回報的寫入球數（一軍＋二軍增量＋季後明細）。§3.2.3 訊號 2。"""
+    total = 0
+    for part in (detail_inc, detail_inc.get("farm") or {}, *((postseason_detail or {}).values())):
+        pitches = part.get("pitches") if isinstance(part, dict) else None
+        if isinstance(pitches, dict):
+            total += int(pitches.get("pitches") or 0)
+    return total
+
+
+def _games_written(detail_inc: dict, backfill: list[dict], postseason_detail: dict | None) -> int:
+    """本次增量明細／補缺迴圈／季後明細實際寫入的場數（gamelog 成功場）。§3.2.3 訊號 1。"""
+    total = 0
+    for part in (detail_inc, detail_inc.get("farm") or {}):
+        gamelog = part.get("gamelog") if isinstance(part, dict) else None
+        if isinstance(gamelog, dict):
+            total += int(gamelog.get("games") or 0)
+    total += sum(int(r.get("games") or 0) for r in backfill)
+    for summary in (postseason_detail or {}).values():
+        for row in (summary.get("gamelog") or []) if isinstance(summary, dict) else []:
+            total += 1 if int(row.get("games") or 0) > 0 else 0
+    return total
+
+
 def main() -> None:
+    if "--plan" in sys.argv[1:]:
+        # #364 (b)：只印日型與步驟清單，不 migrate、不爬、不寫 refresh_log（交給 daily_gate 的唯讀 plan）。
+        from cpbl.ingest.daily_gate import main as gate_main
+
+        sys.exit(gate_main(["plan", *[a for a in sys.argv[1:] if a != "--plan"]]))
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s | %(message)s")
     skip_detail = len(sys.argv) > 1 and sys.argv[1] == "fast"
+    # #364 日型（PLAN-r5 §3.2、§3.2.3）：⛔ 不依日型直接略過衍生步驟。乙型（light）與甲型只同步
+    # （sync_only）的衍生步驟一律依「來源變動訊號」決定；sync_only 另不爬（只做衍生＋交給同步）。
+    from cpbl.ingest import daily_gate as gate
+
+    day_type = gate.FULL if gate.force_full() else (os.environ.get(gate.DAY_TYPE_ENV) or gate.FULL)
+    if day_type not in (gate.FULL, gate.LIGHT, gate.SYNC_ONLY):
+        log.error("DAILY_DAY_TYPE 只接受 full／light／sync_only：%s", day_type)
+        sys.exit(64)
+    gated = day_type in (gate.LIGHT, gate.SYNC_ONLY)
+    derive_only = day_type == gate.SYNC_ONLY
+    log.info("日型＝%s（gated=%s，derive_only=%s）", day_type, gated, derive_only)
     _GAMELOG_GAPS.clear()   # 一次執行一份帳（模組級累積器，同程序內重複呼叫不得互相污染）
     reset_standings_failures()   # 同上；官方戰績的失敗帳
     standings: dict = {}
@@ -990,66 +1041,107 @@ def main() -> None:
     pitch_type_result: dict[str, Any] = {"skipped": True, "errors": []}
     derived_result: dict[str, Any] = {"skipped": True, "errors": []}
     postseason_result: dict[str, Any] = {"games": {}, "errors": []}
+    derived_gate: dict[str, Any] = {"gated": False}
     try:
-        games = scrape_games(year, year)              # 一軍例行賽賽程/結果
-        games_farm = scrape_games(year, year, "D")    # 二軍賽程/結果（供二軍成績卡/逐球/戰績）
-        # 2026+ 季後 E／C 賽程/結果（明確設定才開；fail-closed）
-        postseason_result = _postseason_games_step(year, postseason_kinds)
-        stats = scrape_all(year, year, year)          # 投打/團隊 + 守備一軍(A)+二軍(D)
-        # 官方球隊戰績（含和局/勝差/上下半季），輕量每次更新。
-        # ⚠️ 對帳失敗（拿到別的球季／空表）刻意**不外拋**：外拋會讓底下 transactions／
-        # championships／PA build／splits 重算／改名同步全部不跑，只是把靜默失敗換成
-        # 生產靜默落後（DATA-STANDINGS-YEAR-IGNORED1 岔路 1 裁定，與 #131 Q3 同判準）。
-        # 但它也**不得只留一行 log**——落進 refresh_log 的 detail 與 ok、並反映在退出碼。
-        standings = scrape_standings(year)
-        standings_failed = standings_failures()
-        trans = scrape_transactions([year])  # 升降一/二軍事件（輕量；供一/二軍選手判定）
-        build_championships()  # 由更新後 games 重建年度總冠軍成員（純 SQL、賽季末才會變）
-        detail_inc = {} if skip_detail else _incremental_detail(year, [yesterday, today])
-        # 補齊任何完成卻無 gamelog 的場（延賽補賽/漏跑）；本季 gap 通常少，故廉價
-        for kc in ("A", "D"):
-            miss = _missing_gamelog_snos(year, kc)
-            if miss:
-                log.info("補齊缺 gamelog 場 kind=%s：%s", kc, miss)
-                # allow_partial=True 的理由：補缺迴圈是「順手收斂歷史缺口」，它抓不到
-                # 的場次下次執行仍會被同一支查詢挑出來重試；就地拋出只會讓當天其餘
-                # 步驟一起停。⚠️ 這裡原本完全丟棄回傳值——本卡要修的正是它：現在落差
-                # 必須經 `_tolerate_gamelog_gap` 進帳，才會出現在退出碼與 refresh_log。
-                _tolerate_gamelog_gap(
-                    scrape_gamelogs(year, miss, kc, allow_partial=True),
-                    f"補齊缺 gamelog 場 kind={kc}",
+        backfill: list[dict] = []
+        if derive_only:
+            # 甲型只同步（PLAN-r5 §3.2 甲型＋未同步列）：不爬，只依 §3.2.3 跑衍生，再交給同步。
+            games = games_farm = stats = {"skipped": "甲型只同步：不爬"}
+            trans = 0
+            detail_inc: dict = {}
+        else:
+            games = scrape_games(year, year)              # 一軍例行賽賽程/結果
+            games_farm = scrape_games(year, year, "D")    # 二軍賽程/結果（供二軍成績卡/逐球/戰績）
+            # 2026+ 季後 E／C 賽程/結果（明確設定才開；fail-closed）
+            postseason_result = _postseason_games_step(year, postseason_kinds)
+            stats = scrape_all(year, year, year)          # 投打/團隊 + 守備一軍(A)+二軍(D)
+            # 官方球隊戰績（含和局/勝差/上下半季），輕量每次更新。
+            # ⚠️ 對帳失敗（拿到別的球季／空表）刻意**不外拋**：外拋會讓底下 transactions／
+            # championships／PA build／splits 重算／改名同步全部不跑，只是把靜默失敗換成
+            # 生產靜默落後（DATA-STANDINGS-YEAR-IGNORED1 岔路 1 裁定，與 #131 Q3 同判準）。
+            # 但它也**不得只留一行 log**——落進 refresh_log 的 detail 與 ok、並反映在退出碼。
+            standings = scrape_standings(year)
+            standings_failed = standings_failures()
+            trans = scrape_transactions([year])  # 升降一/二軍事件（輕量；供一/二軍選手判定）
+            build_championships()  # 由更新後 games 重建年度總冠軍成員（純 SQL、賽季末才會變）
+            detail_inc = {} if skip_detail else _incremental_detail(year, [yesterday, today])
+            # 補齊任何完成卻無 gamelog 的場（延賽補賽/漏跑）；本季 gap 通常少，故廉價
+            for kc in ("A", "D"):
+                miss = _missing_gamelog_snos(year, kc)
+                if miss:
+                    log.info("補齊缺 gamelog 場 kind=%s：%s", kc, miss)
+                    # allow_partial=True 的理由：補缺迴圈是「順手收斂歷史缺口」，它抓不到
+                    # 的場次下次執行仍會被同一支查詢挑出來重試；就地拋出只會讓當天其餘
+                    # 步驟一起停。⚠️ 這裡原本完全丟棄回傳值——本卡要修的正是它：現在落差
+                    # 必須經 `_tolerate_gamelog_gap` 進帳，才會出現在退出碼與 refresh_log。
+                    backfill.append(_tolerate_gamelog_gap(
+                        scrape_gamelogs(year, miss, kc, allow_partial=True),
+                        f"補齊缺 gamelog 場 kind={kc}",
+                    ))
+                    scrape_game_details(year, miss, kc)
+            # #237：季後 E／C 明細（旗標空＝不查不抓，A／D 上方流程不變）。必須在 PA build 之前，
+            # 新寫入的季後 gamelog 才會被同一次 _pa_build_step 涵蓋；失敗與抓完仍缺的核心表
+            # 併入 postseason_result 既有 errors 帳，於下方結清成 ok=false＋69。
+            if postseason_kinds:
+                postseason_detail = _postseason_detail_step(
+                    year, postseason_kinds, [yesterday, today], full=not skip_detail,
                 )
-                scrape_game_details(year, miss, kc)
-        # #237：季後 E／C 明細（旗標空＝不查不抓，A／D 上方流程不變）。必須在 PA build 之前，
-        # 新寫入的季後 gamelog 才會被同一次 _pa_build_step 涵蓋；失敗與抓完仍缺的核心表
-        # 併入 postseason_result 既有 errors 帳，於下方結清成 ok=false＋69。
-        if postseason_kinds:
-            postseason_detail = _postseason_detail_step(
-                year, postseason_kinds, [yesterday, today], full=not skip_detail,
-            )
-            postseason_result["detail"] = postseason_detail["games"]
-            postseason_result["errors"].extend(postseason_detail["errors"])
+                postseason_result["detail"] = postseason_detail["games"]
+                postseason_result["errors"].extend(postseason_detail["errors"])
+        # #364 PLAN-r5 §3.2.3：衍生步驟依來源變動決定。完整鏈（full／DAILY_FORCE_FULL）照舊全跑；
+        # 乙型／甲型只同步：任一訊號（含判斷不了）→ 跑「與完整鏈同一組」衍生步驟，全為 0 → 全略過。
+        full_set = gate.full_chain_derived(skip_detail=skip_detail)
+        if gated:
+            signals = [
+                gate.DerivedSignal(
+                    "j1_games", _games_written(detail_inc, backfill, postseason_result.get("detail")) > 0,
+                    "本次 J1 增量明細／補缺／季後明細寫入場數"),
+                gate.DerivedSignal(
+                    "j1_pitches", _new_pitches_written(detail_inc, postseason_result.get("detail")) > 0,
+                    "本次 J1 逐球（當日窗＋落後自癒）寫入球數"),
+                *gate.weekly_signals(),
+            ]
+            run_steps, derived_gate = gate.derived_decision(signals, full_set)
+        else:
+            run_steps = set(full_set)
+            derived_gate = {"gated": False, "steps": sorted(run_steps)}
+        log.info("衍生步驟：%s", derived_gate)
+        skipped_note = {"skipped": "§3.2.3：無來源變動訊號"}
         # canonical PA build（INGEST-PA-DAILY1）：gamelog 寫入後對當日窗＋全域缺口逐場
         # build，使「完成場皆有 published build」恆成立。fail-closed：build 失敗（含
         # reconciliation_required）只記錄，不擋其餘 refresh 步驟（見 _pa_build_step）。
-        pa_build_result = _pa_build_step(year, [yesterday, today], include_farm=True)
+        if "pa_build" in run_steps:
+            pa_build_result = _pa_build_step(year, [yesterday, today], include_farm=True)
+        else:
+            pa_build_result = {**pa_build_result, **skipped_note}
         # 球種推算（fail-closed，見 _pitch_type_step）。放在逐球增量之後，才涵蓋今天補進的球。
         if not skip_detail:
-            pitch_type_result = _pitch_type_step(year)
+            if "pitch_type" in run_steps:
+                pitch_type_result = _pitch_type_step(year)
+            else:
+                pitch_type_result = {**skipped_note, "errors": []}
             # 當季衍生重建（fail-closed，見 _derived_step）：*_current 與 livelog 都寫完之後。
-            derived_result = _derived_step(year)
+            if "derived" in run_steps:
+                derived_result = _derived_step(year)
+            else:
+                derived_result = {**skipped_note, "errors": []}
         # 分項＋vs各隊全面重算寫回：本季=gamelog/livelog 重算、生涯=base+本季
         # （apart/vs-team 爬蟲全停，見 splits_calc / anchor_career）
-        splits_built = build_splits(year, ("A", "D"))
-        splits_built["career"] = build_career(year, ("A", "D"))
+        if "splits" in run_steps:
+            splits_built = build_splits(year, ("A", "D"))
+            splits_built["career"] = build_career(year, ("A", "D"))
+        else:
+            splits_built = dict(skipped_note)
         log.info("重算分項寫回：%s", splits_built)
-        renamed = _sync_player_names()  # 由最新 gamelog 名同步 players.name（改名自動修正）
-        if renamed:
-            log.info("更新 %d 位球員登錄名（改名同步）", renamed)
+        if "name_sync" in run_steps:
+            renamed = _sync_player_names()  # 由最新 gamelog 名同步 players.name（改名自動修正）
+            if renamed:
+                log.info("更新 %d 位球員登錄名（改名同步）", renamed)
     except Exception as e:  # noqa: BLE001 — 失敗也要留痕，避免無聲缺漏
         log.error("抓取失敗：%s", e)
         _log_refresh("recent-games", yesterday, today, 0, 0,
-                     {"error": str(e), "pa_build": pa_build_result}, ok=False, note=f"抓取失敗：{e}")
+                     {"error": str(e), "pa_build": pa_build_result, "day_type": day_type},
+                     ok=False, note=f"抓取失敗：{e}")
         sys.exit(1)
 
     recent = _recent_counts(year, [yesterday, today])
@@ -1105,6 +1197,7 @@ def main() -> None:
     total = sum(t for _, t, _ in recent)
     completed = sum(comp for _, _, comp in recent)
     detail = {
+        "day_type": day_type, "derived_gate": derived_gate,
         "games": games, "games_farm": games_farm, "games_postseason": postseason_result,
         "stats": stats, "transactions": trans,
         "standings": standings, "standings_failures": standings_failed,
