@@ -2,15 +2,15 @@
 
 這是進入 vNext 需求階段前的輕量清單，**不是 Project #10 的正式任務卡，也不代表已決定投入或進入需求階段**。原 Project #4 Issue 凍結保留供追溯；需求方確認現在要投入時，才核對現況並建立正式卡。是否開卡仍以 [CPBL 藍圖](ROADMAP.md) 的產品目標為準。
 
-- **賽前對戰資訊**：球迷在單場頁看比賽前，是否仍缺少有用的對戰重點？來源：[舊 #60](https://github.com/ruan6047/cpbl-analytics/issues/60)。
-- **外野守備洞察**：球迷是否需要能理解外野手守備表現的資訊，以及現有資料能否支持可信呈現？來源：[舊 #64](https://github.com/ruan6047/cpbl-analytics/issues/64)、[舊 #65](https://github.com/ruan6047/cpbl-analytics/issues/65)、[舊 #66](https://github.com/ruan6047/cpbl-analytics/issues/66)。
+- **賽前對戰資訊**：兩隊打者近況、官方先發與打線後才補對決，已列入 [2026-10-24／25 確認成果](PRODUCT_UX_BLUEPRINT.md#confirmed-product-20261025)；例行賽承接觀戰重點的實作與分析方法仍待規劃，不恢復舊卡或宣稱已交付。來源：[舊 #60](https://github.com/ruan6047/cpbl-analytics/issues/60)。
+- **外野守備洞察**：有依據地理解守備／跑壘事件如何改變局勢，已列入[確認成果](PRODUCT_UX_BLUEPRINT.md#confirmed-product-20261025)；完整外野指標、個人守備信用、接殺／長打機率與具體畫面仍未投入，不由此假定資料足夠或重開舊範圍。來源：[舊 #64](https://github.com/ruan6047/cpbl-analytics/issues/64)、[舊 #65](https://github.com/ruan6047/cpbl-analytics/issues/65)、[舊 #66](https://github.com/ruan6047/cpbl-analytics/issues/66)。
 - **更多打席模擬視角**：球迷是否需要比較不同比賽情境或對手球隊下的打席結果，而目前功能無法滿足？來源：[舊 #67](https://github.com/ruan6047/cpbl-analytics/issues/67)、[舊 #68](https://github.com/ruan6047/cpbl-analytics/issues/68)。
 - **球路品質理解**：球迷是否需要跨球種比較投手表現，且現有資料足以避免誤導？來源：[舊 #69](https://github.com/ruan6047/cpbl-analytics/issues/69)。
 - **全場情境推演**：球迷是否需要從特定局面理解後續比賽可能走向，與既有打席模擬有何不同價值？來源：[舊 #70](https://github.com/ruan6047/cpbl-analytics/issues/70)。
 - **勝率模型的近年資料假說**：只用較近年度資料，是否能改善場中勝率估計的校準？來源：[舊 #95](https://github.com/ruan6047/cpbl-analytics/issues/95)。
 - **賽中與正式逐球資料**：賽中暫態資料與賽後正式資料出現差異時，是否需要可追溯地辨識與收斂？來源：[舊 #54](https://github.com/ruan6047/cpbl-analytics/issues/54)。
-- **賽後資料時效**：球迷或後續資料使用者是否需要在當晚取得完整正式賽果，先確認目前空窗的影響與官方資料可用時間？來源：[舊 #57](https://github.com/ruan6047/cpbl-analytics/issues/57)、[舊 #73](https://github.com/ruan6047/cpbl-analytics/issues/73)。
-- **遠端資料取得備援**：本機長時間無法運作時，是否仍需要可靠取得每日資料的替代方式？來源：[舊 #74](https://github.com/ruan6047/cpbl-analytics/issues/74)、[舊 #75](https://github.com/ruan6047/cpbl-analytics/issues/75)、[舊 #76](https://github.com/ruan6047/cpbl-analytics/issues/76)、[舊 #77](https://github.com/ruan6047/cpbl-analytics/issues/77)。
+- **賽後資料時效**：單場可靠完賽後已齊先供、缺項待更新，10:10補漏校正與對帳已是[確認目標](ROADMAP.md#confirmed-direction-20261025)；各資料群可用時間、發布接線及跨場污染等價保護仍待規劃，不取消現行全晚門檻或原卡裁定。來源：[舊 #57](https://github.com/ruan6047/cpbl-analytics/issues/57)、[舊 #73](https://github.com/ruan6047/cpbl-analytics/issues/73)。
+- **遠端資料取得備援**：全鏈不依賴 Mac、優先集中現有正式主機且必要時擴容已是[確認目標](ROADMAP.md#confirmed-direction-20261025)；完整取源、容量與成本仍未知，外部非個人取源為條件式備選，具體接線未選。不解除只能本機政策、不恢復 #358、不授權付費／搬移或新增寫入。來源：[舊 #74](https://github.com/ruan6047/cpbl-analytics/issues/74)、[舊 #75](https://github.com/ruan6047/cpbl-analytics/issues/75)、[舊 #76](https://github.com/ruan6047/cpbl-analytics/issues/76)、[舊 #77](https://github.com/ruan6047/cpbl-analytics/issues/77)。
 - **備份可還原性**：現有備份在主要環境故障時能否實際還原，是否需要再次演練才能確認？來源：[舊 #71](https://github.com/ruan6047/cpbl-analytics/issues/71)。
 - **持續整合環境一致性**：不同檢查環境的日期與時區行為是否一致，是否存在尚未證實的誤判風險？來源：[舊 #129](https://github.com/ruan6047/cpbl-analytics/issues/129)。
 - **歷史守備位置**：球迷是否需要在球隊歷史賽季頁看見可信的球員守備位置，缺資料時如何理解？來源：[舊 #82](https://github.com/ruan6047/cpbl-analytics/issues/82)。

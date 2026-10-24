@@ -15,7 +15,9 @@
 - 新卡一律開在 GitHub Issues＋user Project #10「cpbl-analytics vNext 任務看板」（`.wf/config.json`）。
 - Project #4 已於 ai-workflow#417 結案時關閉；未結案舊卡依 #417 Q6 改照 vNext 繼續（各卡已留通知）。舊流程（T 級、舊狀態值、claim／lease、Ledger、`wfcli`）⛔ 不帶入任何卡；`docs/AI_WORKFLOW.md`、`docs/CONTROL_PLANE_CONTRACT.md`、`docs/TASKS.md` 只作歷史查閱，⛔ 不當活卡狀態讀寫。
 
-專案方向沿 `docs/ROADMAP.md` 有效 §0 四目標與原排序、§1 成果定義／投資取捨及其中原來源（需求方 2026-08-13／08-14、[#130 共同設計附錄](https://github.com/ruan6047/cpbl-analytics/issues/130#issuecomment-5284078990)），並沿各卡後續有效裁定承接；其中候選成果群只是內容示例，不是投入、排序或驗收。產品設計見 `docs/PRODUCT_UX_BLUEPRINT.md` §1、§2 與本次適用頁面段落，定案不代表已交付；未投入方向見 `docs/REQUIREMENT_IDEAS.md`。任務契約、狀態及最新裁定留在原 GitHub 正式來源；ROADMAP 的 Project #4 流程／排程與 PRODUCT_UX 的舊註冊／優先安排只作歷史，所有卡（含原舊卡）流程均依已安裝 `wfx` 的 vNext 規則。以上是方向短定位，不是「專案規範」宣告；只讀本次適用片段，不整本注入、不自動改鎖定卡。
+專案方向沿 `docs/ROADMAP.md` 有效 §0 四目標與原排序、§1 成果定義／投資取捨及其中原來源（需求方 2026-08-13／08-14、[#130 共同設計附錄](https://github.com/ruan6047/cpbl-analytics/issues/130#issuecomment-5284078990)），並沿各卡後續有效裁定承接；其中候選成果群只是內容示例，不是投入、排序或驗收。2026-10-24／25 本次對話確認的產品／架構目標及未落地界線見 ROADMAP §1「本輪確認的產品與架構目標」，文檔採納待本固定版本審核，未冒稱已有本次 GitHub 裁定。產品設計見 `docs/PRODUCT_UX_BLUEPRINT.md` §1、§2 與本次適用頁面段落，定案不代表已交付；未投入方向見 `docs/REQUIREMENT_IDEAS.md`。任務契約、狀態及最新裁定留在原 GitHub 正式來源；ROADMAP 的 Project #4 流程／排程與 PRODUCT_UX 的舊註冊／優先安排只作歷史，所有卡（含原舊卡）流程均依已安裝 `wfx` 的 vNext 規則。以上是方向短定位，不是「專案規範」宣告；只讀本次適用片段，不整本注入、不自動改鎖定卡。
+
+架構參考沿用既有原本體：`AGENTS.md`「核心定位與邊界」「專案結構」「賽果預測 — 現役模型與舊互動探索器」及「子專案契約」定位元件、現役／保留模型與主站介面；`docs/AI_RUNBOOK.md` §3「資料流與本機爬 → 同步生產」的架構參考段定位已核版本的執行位置／資料流、必要依賴、目標責任與保存缺口，§7.3「部署」保留操作交界；DB 技術與寫入責任依本檔已引用的 `docs/DATABASE_CONTRACT.md` §1，不宣稱其已有新的發布契約。這是架構短定位，不新增專案規範、不重建本體或改變藍圖／各卡裁定；只查本次相關段落及有效來源，不以歷史描述證明現況。Runbook §1 的舊即時訓練描述、§7.1 舊控制平面與過時命令不因此成為現行指示；遇原文矛盾先停受影響判斷並回報，不自行選邊。
 
 ## 工作樹與共用資源
 
