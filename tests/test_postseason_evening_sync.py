@@ -246,19 +246,6 @@ def test_no_event_takes_no_lock_and_never_reaches_www(tmp_path: Path):
     assert not lock.exists()
 
 
-def test_quiet_plan_takes_no_lock_and_skips_boxpa_precheck(tmp_path: Path):
-    """#365 (b)：plan 回 quiet（今晚無排定場、無待辦）→ 連 boxpa-plan --dry（會連 DB）都不跑、不取鎖、exit 0。
-    對照上一條：idle 時仍會跑 boxpa-plan --dry（box／PA 預檢），所以 quiet 早退是可觀察的差異。"""
-    result, read, lock = _evening(tmp_path, plan="quiet")
-    assert result.returncode == 0, result.stderr
-    calls = read("uv.txt")
-    assert "postseason_evening plan" in calls
-    assert "boxpa-plan" not in calls and "finish" not in calls and "scrape" not in calls
-    assert not read("sync.txt") and not lock.exists()
-    idle, read_idle, _ = _evening(tmp_path / "idle", plan="idle")
-    assert idle.returncode == 0 and "boxpa-plan --dry" in read_idle("uv.txt"), "負控：idle 仍做 box／PA 預檢"
-
-
 def test_event_without_change_scrapes_once_and_does_not_sync(tmp_path: Path):
     result, read, lock = _evening(tmp_path, plan="scrape", scrape="unchanged")
     assert result.returncode == 0, result.stderr

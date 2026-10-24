@@ -245,7 +245,7 @@ def test_box_column_lists_are_shared_with_the_full_chain(boxpa_run, tmp_path):
     {"TEAM_COMPARISON_ONLY": "1"},
     {"POSTSEASON_BOXPA_ONLY": "yes"},
     {"POSTSEASON_BOXPA_GAMES": None},
-    {"POSTSEASON_BOXPA_GAMES": "2026-D-2"},   # #365：A 已是晚間賽別；D 仍拒（負控）
+    {"POSTSEASON_BOXPA_GAMES": "2026-A-2"},
     {"POSTSEASON_BOXPA_GAMES": "2026-C-2;DROP"},
     {"BOXPA_MANIFEST": None},
     {"BOXPA_MANIFEST": "relative/manifest.json"},
@@ -350,35 +350,3 @@ def test_o5_external_scope_variable_cannot_shrink_the_full_chain(tmp_path):
     assert "（目標場）" not in result.stdout
     payloads = [c["stdin"] for c in ssh_calls]
     assert any("TRUNCATE cpbl.game_recap_source_revisions" in p for p in payloads), "整鏈 PA 仍是 TRUNCATE 全量重灌"
-
-
-def test_a_game_key_is_accepted_and_defaults_to_box_and_pa(tmp_path):
-    """#365 (d)：晚間鏈涵蓋一軍 A——``POSTSEASON_BOXPA_GAMES=2026-A-355``（2026-09-27 真實場）不回 64，
-    未給 ``POSTSEASON_BOXPA_PARTS`` 時預設 box,pa：box 七表與 PA 五表同一次送（與 E／C 同一送達單位）。
-    D 的負控見 ``test_boxpa_mode_refuses_bad_parameters_without_touching_anything``（``2026-D-2`` 仍回 64）。"""
-    from cpbl.ingest import boxpa_sync
-
-    assert [(k.year, k.kind_code, k.game_sno) for k in boxpa_sync.parse_games("2026-A-355")] == [(2026, "A", 355)]
-    with pytest.raises(boxpa_sync.SyncError):
-        boxpa_sync.parse_games("2026-D-229")
-    a_sql = "(year, kind_code, game_sno) IN ((2026,'A',355))"
-    result, calls, backup_log = _run(tmp_path, POSTSEASON_BOXPA_GAMES="2026-A-355", POSTSEASON_BOXPA_PARTS=None,
-                                     STUB_KEYS_SQL=a_sql, STUB_PA_GAMES="2026-A-355")
-    assert result.returncode == 0, result.stdout + result.stderr
-    payloads = [c["stdin"] for c in calls("ssh") if c["stdin"]]
-    inserts = [m for p in payloads for m in re.findall(r"^INSERT INTO cpbl\.(\w+)", p, re.M)]
-    assert inserts == [*BOX_TABLES, *PA_TABLES], inserts
-    (pa,) = [p for p in payloads if "DELETE FROM" in p]
-    assert {w for _, w in re.findall(r"^DELETE FROM cpbl\.(\w+) WHERE (.*);$", pa, re.M)} == {a_sql}
-    precheck = [c["argv"] for c in calls("uv") if "precheck" in c["argv"]]
-    assert precheck and "2026-A-355" in precheck[0]
-    assert backup_log.exists()
-
-
-def test_shell_refuses_a_d_key_before_any_python_step(tmp_path):
-    """#365 (d) 負控（shell 層）：D 場鍵在 refresh-cpbl-prod.sh 的正規式就回 64，⛔ 不進任何 uv／Python 步驟。
-    上一條參數表的 2026-D-2 即使 shell 放行，也會被 Python ``parse_games`` 擋成 64——那條測不出 shell 這一層。"""
-    result, calls, backup_log = _run(tmp_path, POSTSEASON_BOXPA_GAMES="2026-D-229")
-    assert result.returncode == 64
-    assert "YYYY-A|E|C-SNO" in result.stderr
-    assert calls("uv") == [] and calls("ssh") == [] and not backup_log.exists()

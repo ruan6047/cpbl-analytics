@@ -67,10 +67,6 @@ scripts/refresh-cpbl-prod.sh — 把本機 CPBL 資料同步到 production（四
   ROSTER_ONLY   1＝搭配 SKIP_SCRAPE=1 與獨立 BACKUP_DIR，只做名單三表 insert-only 同步
                 （唯讀比對；無變更不備份不寫；有待插入才備份＋單交易插入＋事後對帳；
                  不 migrate、不爬、不訓練、不寫 refresh 標記、不碰其他表）
-  REUSE_VERIFIED_BACKUP／REUSE_VERIFIED_BACKUP_SHA256／BACKUP_RECORD
-                只用於 POSTSEASON_RESULTS_ONLY／POSTSEASON_BOXPA_ONLY（晚間鏈每晚首次同步前備份一次，#365）：
-                帶入當晚已驗證備份的路徑與 sha256；本行程重驗存在／位於 BACKUP_DIR／sha256 才略過備份，
-                不符即照常重備。BACKUP_RECORD＝寫入 `new|reuse <sha256> <path>` 的檔案（晚間狀態檔入帳）
   POSTSEASON_BOXPA_ONLY 1＝搭配 SKIP_SCRAPE=1、POSTSEASON_BOXPA_GAMES、獨立 BACKUP_DIR、BOXPA_MANIFEST：
                 只對目標場鍵 upsert box 七表、單交易替換 PA 五表，逐表逐場對帳；
                 POSTSEASON_BOXPA_PARTS＝box／pa／box,pa（預設 box,pa）限定這次送哪些來源
@@ -862,40 +858,6 @@ sync_postseason_results() {
   sync_table official_change_signals "year,kind_code,game_sno,field" official_value detected_at resolved_at
 }
 
-# #365 S4（P-EVENING-BACKUP）：晚間兩個早退模式（RESULTS_ONLY／BOXPA_ONLY）的「每晚首次同步前備份一次」。
-# 晚間鏈在同一晚已有已驗證備份時帶 REUSE_VERIFIED_BACKUP／REUSE_VERIFIED_BACKUP_SHA256；這裡在**同一行程**、
-# 緊接同步之前重新確認三件事——檔案存在、位於本次 BACKUP_DIR 下、sha256 相符——全成立才略過備份；任一不成立
-# 就照現行呼叫 backup-prod-db.sh（重備，不是失敗）。⛔ 不在無已驗證備份時放行同步。
-# 新備份（或沿用）成功後寫一行到 BACKUP_RECORD（`new|reuse <sha256> <path>`，晚間狀態檔入帳用）；寫不出來不擋同步，
-# 只是下一次會重備（方向安全）。sha256 用 sha256sum（CI ubuntu）或 shasum -a 256（macOS），⛔ 不用 python3
-# （測試 harness 把 python3 換成假樁）。⛔ 不影響完整鏈 2/4 的每日備份（7 份）。
-sha256_of() {
-  if command -v sha256sum >/dev/null 2>&1; then sha256sum "$1"; else shasum -a 256 "$1"; fi | awk '{print $1}'
-}
-real_dir() { (cd "$1" 2>/dev/null && pwd -P); }
-evening_backup() {  # $1＝本次 BACKUP_DIR；設 BACKUP_PATH
-  local dir="$1" reuse="${REUSE_VERIFIED_BACKUP:-}" want="${REUSE_VERIFIED_BACKUP_SHA256:-}" have="" mode="new"
-  if [ -n "$reuse" ] && [ -n "$want" ] && [ -f "$reuse" ] && [ -n "$(real_dir "$dir")" ] \
-     && [ "$(real_dir "$(dirname "$reuse")")" = "$(real_dir "$dir")" ] \
-     && [ "$(sha256_of "$reuse" 2>/dev/null || true)" = "$want" ]; then
-    BACKUP_PATH="$reuse"
-    mode="reuse"
-    echo "    ✓ 沿用 night_backup=${BACKUP_PATH}（同一行程重驗：存在、位於 BACKUP_DIR、sha256 相符）"
-  else
-    [ -n "$reuse" ] && echo "    ⓘ night_backup 不可沿用（檔案／目錄／sha256 不符）：照現行重新備份"
-    BACKUP_PATH="$(VPS="$VPS" DEPLOY_PATH="$DEPLOY_PATH" BACKUP_DIR="$dir" \
-      BACKUP_KEEP="${BACKUP_KEEP:-3}" "$REPO_DIR/scripts/backup-prod-db.sh")"
-    echo "    ✓ 已驗證備份：${BACKUP_PATH}"
-  fi
-  if [ -n "${BACKUP_RECORD:-}" ]; then
-    have="$(sha256_of "$BACKUP_PATH" 2>/dev/null || true)"
-    if [ -n "$have" ]; then
-      printf '%s %s %s\n' "$mode" "$have" "$BACKUP_PATH" > "$BACKUP_RECORD" 2>/dev/null \
-        || echo "    ⚠ BACKUP_RECORD 寫不出來（不擋同步；下一次同步會重備）"
-    fi
-  fi
-}
-
 # 季後晚間事件鏈（#268 WP3，scripts/postseason-evening.sh 呼叫）：比照 LINEUP_ONLY 早退。
 # 只做「獨立目錄的已驗證備份 → 三表＋異動訊號表同步 → /api/info data-only 對帳」（僅訊號變動時同一路徑）：
 #   ⛔ 不爬（必須 SKIP_SCRAPE=1）、不 build-features、不跑 migration、不訓練、
@@ -927,7 +889,9 @@ if [ -n "${POSTSEASON_RESULTS_ONLY:-}" ]; then
   echo '==> 季後晚間：獨立目錄備份 production（整庫）；驗證不過即中止'
   # 檔案 0600／目錄 0700 由 backup-prod-db.sh 自身的 umask 077 保證（producer 是唯一責任層，
   # #268 需求方裁定 6138860627）；這裡不重複設 umask，只指定晚間專用的 BACKUP_DIR／BACKUP_KEEP。
-  evening_backup "$BACKUP_DIR"
+  BACKUP_PATH="$(VPS="$VPS" DEPLOY_PATH="$DEPLOY_PATH" BACKUP_DIR="$BACKUP_DIR" \
+    BACKUP_KEEP="${BACKUP_KEEP:-3}" "$REPO_DIR/scripts/backup-prod-db.sh")"
+  echo "    ✓ 已驗證備份：${BACKUP_PATH}"
   echo '==> 季後晚間：三表＋異動訊號表非破壞性 upsert（games／官方狀態軌跡兩表／official_change_signals）'
   sync_postseason_results
   echo '==> 季後晚間：對帳 production 真實資料 freshness（data-only；不寫 refresh 標記）'
@@ -957,9 +921,8 @@ fi
 #        74 production psql 錯誤（不重送） · 其他＝備份或本機錯誤（不重送）
 if [ -n "${POSTSEASON_BOXPA_ONLY:-}" ]; then
   if [ -z "${POSTSEASON_BOXPA_GAMES:-}" ] \
-     || ! [[ "$POSTSEASON_BOXPA_GAMES" =~ ^[0-9]{4}-[AEC]-[0-9]{1,3}(,[0-9]{4}-[AEC]-[0-9]{1,3})*$ ]]; then
-    # #365：晚間鏈涵蓋一軍 A（⛔ 不收 D）；A 與 E／C 同一送達單位，PARTS 預設 box,pa 不另設。
-    echo 'FATAL: POSTSEASON_BOXPA_GAMES 需為目標場鍵清單（YYYY-A|E|C-SNO，逗號分隔）' >&2
+     || ! [[ "$POSTSEASON_BOXPA_GAMES" =~ ^[0-9]{4}-[EC]-[0-9]{1,3}(,[0-9]{4}-[EC]-[0-9]{1,3})*$ ]]; then
+    echo 'FATAL: POSTSEASON_BOXPA_GAMES 需為目標場鍵清單（YYYY-E|C-SNO，逗號分隔）' >&2
     exit 64
   fi
   # 這次要送的來源（#293 審核席 1 F3）：box＝box 七表、pa＝PA 五表；預設兩者。晚間鏈只傳仍有額度的來源。
@@ -1004,7 +967,9 @@ if [ -n "${POSTSEASON_BOXPA_ONLY:-}" ]; then
   uv run python -m cpbl.ingest.boxpa_sync pa-payload --games "$POSTSEASON_BOXPA_GAMES" \
     --pa-games "$BOXPA_PA_GAMES" --local-psql "$BOXPA_LOCAL_PSQL" --out "$BOXPA_PA_PAYLOAD"
   echo '==> 季後目標場 box／PA：獨立目錄備份 production（整庫）；驗證不過即中止'
-  evening_backup "$BOXPA_BACKUP_DIR"
+  BACKUP_PATH="$(VPS="$VPS" DEPLOY_PATH="$DEPLOY_PATH" BACKUP_DIR="$BOXPA_BACKUP_DIR" \
+    BACKUP_KEEP="${BACKUP_KEEP:-3}" "$REPO_DIR/scripts/backup-prod-db.sh")"
+  echo "    ✓ 已驗證備份：${BACKUP_PATH}"
   case ",${BOXPA_PARTS}," in
     *,box,*)
       echo '==> 季後目標場 box／PA：box 七表目標場 upsert（同完整鏈欄位清單；不 DELETE）'
