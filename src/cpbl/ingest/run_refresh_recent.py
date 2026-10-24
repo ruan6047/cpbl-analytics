@@ -339,6 +339,14 @@ def _postseason_detail_gaps(year: int, kind_code: str, snos: list[int],
     """
     if kind_code not in POSTSEASON_OFFICIAL_KINDS:
         raise ValueError(f"季後賽別只接受 E／C：{kind_code!r}")
+    return _detail_gaps(year, kind_code, snos, tables)
+
+
+def _detail_gaps(year: int, kind_code: str, snos: list[int],
+                 tables: tuple[str, ...]) -> dict[int, list[str]]:
+    """:func:`_postseason_detail_gaps` 去掉季後賽別守衛的同一段對帳 SQL。
+
+    只給晚間鏈（#365，A／E／C 的目標場）呼叫；每日鏈一律走 :func:`_postseason_detail_gaps`（守衛不變）。"""
     if not snos:
         return {}
     cols = ", ".join(

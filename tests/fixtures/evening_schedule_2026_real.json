@@ -1,0 +1,532 @@
+{
+ "_provenance": {
+  "extracted_at": "2026-10-23T17:45:35+08:00",
+  "source": "本機 cpbl（cpbl-analytics-db-1）唯讀查詢：BEGIN READ ONLY … ROLLBACK（docker exec psql）",
+  "sql_schedule": "SELECT g.year, g.kind_code, g.game_sno, g.game_date, (SELECT r.raw_payload->>'PreExeDate' FROM cpbl.game_schedule_status_revisions r WHERE r.year=g.year AND r.kind_code=g.kind_code AND r.game_sno=g.game_sno AND r.raw_present_status=1 AND r.raw_pre_exe_date=g.game_date ORDER BY r.last_seen_at DESC, r.fetched_at DESC LIMIT 1) AS starts_at FROM cpbl.games g WHERE g.year=2026 AND g.kind_code IN ('A','D','E','C') AND g.game_date IN ('2026-09-07','2026-09-23','2026-09-27','2026-10-04','2026-10-12','2026-10-15','2026-10-21','2026-10-22') ORDER BY 4,2,3",
+  "sql_revisions": "SELECT kind_code, game_sno, raw_present_status, raw_game_result, raw_game_date, raw_pre_exe_date, raw_payload->>'PreExeDate', raw_payload->>'HomeScore', raw_payload->>'VisitingScore', game_season_code, fetched_at, last_seen_at, seen_count, payload_hash FROM cpbl.game_schedule_status_revisions WHERE year=2026 AND (kind,sno) ∈ {A304,A306,E4,…} ORDER BY 1,2,fetched_at（SET LOCAL TIME ZONE 'Asia/Taipei'）；cpbl.game_completion_evidence 三場皆 0 列",
+  "shell_note": "schedule_files 依 #364 今日賽程檔介面（~/.wf-evidence/cpbl-analytics/365/inputs/364-daily-schedule-interface.md，exec-1 交付、未經審核）的形狀合成：schema_version／timezone／generated_at／source／stage／day_type／kinds／counts 是外殼；games[] 的場次、日期、球場、隊碼、present_status 是本機 cpbl.games 真實值。#365 只讀 schema_version、stage、date 與 games[] 的 kind_code／game_sno／game_date。",
+  "a_partial_note": "A304／A306 的 in_progress_1950 是 2026-09-07 19:50:53（台北）www 在賽中回的真實修訂列（GameResult=''、PresentStatus=1、部分比分）；final_0908 是隔日 10:10 每日鏈抓到的官方 final 列。cpbl.games 現值是終場比分，(h) 必須用 in_progress_1950 的比分重建賽中狀態。",
+  "extracted_at_rev2": "2026-10-23T21:05:38+08:00（規劃 4：補 2026-10-01 A277／A326 與 venue／隊碼／present_status）"
+ },
+ "schedule_files": {
+  "2026-09-07": {
+   "schema_version": 1,
+   "date": "2026-09-07",
+   "timezone": "Asia/Taipei",
+   "generated_at": "2026-09-07T10:12:00+08:00",
+   "source": "fixture（#364 介面形狀）",
+   "stage": "after_scrape",
+   "day_type": "fixture",
+   "kinds": [
+    "A"
+   ],
+   "counts": {
+    "A": 2
+   },
+   "games": [
+    {
+     "key": "2026-A-304",
+     "year": 2026,
+     "kind_code": "A",
+     "game_sno": 304,
+     "game_date": "2026-09-07",
+     "venue": "澄清湖",
+     "away_team_code": "ACN011",
+     "home_team_code": "AKP011",
+     "present_status": 1
+    },
+    {
+     "key": "2026-A-306",
+     "year": 2026,
+     "kind_code": "A",
+     "game_sno": 306,
+     "game_date": "2026-09-07",
+     "venue": "樂天桃園",
+     "away_team_code": "AAA011",
+     "home_team_code": "AJL011",
+     "present_status": 1
+    }
+   ]
+  },
+  "2026-09-23": {
+   "schema_version": 1,
+   "date": "2026-09-23",
+   "timezone": "Asia/Taipei",
+   "generated_at": "2026-09-23T10:12:00+08:00",
+   "source": "fixture（#364 介面形狀）",
+   "stage": "after_scrape",
+   "day_type": "fixture",
+   "kinds": [
+    "D"
+   ],
+   "counts": {
+    "D": 1
+   },
+   "games": [
+    {
+     "key": "2026-D-215",
+     "year": 2026,
+     "kind_code": "D",
+     "game_sno": 215,
+     "game_date": "2026-09-23",
+     "venue": "園區",
+     "away_team_code": "ACN022",
+     "home_team_code": "ADD022",
+     "present_status": 1
+    }
+   ]
+  },
+  "2026-09-27": {
+   "schema_version": 1,
+   "date": "2026-09-27",
+   "timezone": "Asia/Taipei",
+   "generated_at": "2026-09-27T10:12:00+08:00",
+   "source": "fixture（#364 介面形狀）",
+   "stage": "after_scrape",
+   "day_type": "fixture",
+   "kinds": [
+    "A",
+    "D"
+   ],
+   "counts": {
+    "A": 3,
+    "D": 1
+   },
+   "games": [
+    {
+     "key": "2026-A-355",
+     "year": 2026,
+     "kind_code": "A",
+     "game_sno": 355,
+     "game_date": "2026-09-27",
+     "venue": "大巨蛋",
+     "away_team_code": "ADD011",
+     "home_team_code": "AKP011",
+     "present_status": 1
+    },
+    {
+     "key": "2026-A-356",
+     "year": 2026,
+     "kind_code": "A",
+     "game_sno": 356,
+     "game_date": "2026-09-27",
+     "venue": "天母",
+     "away_team_code": "AJL011",
+     "home_team_code": "AAA011",
+     "present_status": 1
+    },
+    {
+     "key": "2026-A-357",
+     "year": 2026,
+     "kind_code": "A",
+     "game_sno": 357,
+     "game_date": "2026-09-27",
+     "venue": "新莊",
+     "away_team_code": "ACN011",
+     "home_team_code": "AEO011",
+     "present_status": 1
+    },
+    {
+     "key": "2026-D-229",
+     "year": 2026,
+     "kind_code": "D",
+     "game_sno": 229,
+     "game_date": "2026-09-27",
+     "venue": "園區",
+     "away_team_code": "ADD022",
+     "home_team_code": "ACN022",
+     "present_status": 1
+    }
+   ]
+  },
+  "2026-10-01": {
+   "schema_version": 1,
+   "date": "2026-10-01",
+   "timezone": "Asia/Taipei",
+   "generated_at": "2026-10-01T10:12:00+08:00",
+   "source": "fixture（#364 介面形狀）",
+   "stage": "after_scrape",
+   "day_type": "fixture",
+   "kinds": [
+    "A"
+   ],
+   "counts": {
+    "A": 2
+   },
+   "games": [
+    {
+     "key": "2026-A-277",
+     "year": 2026,
+     "kind_code": "A",
+     "game_sno": 277,
+     "game_date": "2026-10-01",
+     "venue": "澄清湖",
+     "away_team_code": "AJL011",
+     "home_team_code": "AKP011",
+     "present_status": 1
+    },
+    {
+     "key": "2026-A-326",
+     "year": 2026,
+     "kind_code": "A",
+     "game_sno": 326,
+     "game_date": "2026-10-01",
+     "venue": "天母",
+     "away_team_code": "ADD011",
+     "home_team_code": "AAA011",
+     "present_status": 1
+    }
+   ]
+  },
+  "2026-10-04": {
+   "schema_version": 1,
+   "date": "2026-10-04",
+   "timezone": "Asia/Taipei",
+   "generated_at": "2026-10-04T10:12:00+08:00",
+   "source": "fixture（#364 介面形狀）",
+   "stage": "after_scrape",
+   "day_type": "fixture",
+   "kinds": [
+    "A"
+   ],
+   "counts": {
+    "A": 3
+   },
+   "games": [
+    {
+     "key": "2026-A-251",
+     "year": 2026,
+     "kind_code": "A",
+     "game_sno": 251,
+     "game_date": "2026-10-04",
+     "venue": "樂天桃園",
+     "away_team_code": "AAA011",
+     "home_team_code": "AJL011",
+     "present_status": 1
+    },
+    {
+     "key": "2026-A-252",
+     "year": 2026,
+     "kind_code": "A",
+     "game_sno": 252,
+     "game_date": "2026-10-04",
+     "venue": "新莊",
+     "away_team_code": "ADD011",
+     "home_team_code": "AEO011",
+     "present_status": 1
+    },
+    {
+     "key": "2026-A-270",
+     "year": 2026,
+     "kind_code": "A",
+     "game_sno": 270,
+     "game_date": "2026-10-04",
+     "venue": "洲際",
+     "away_team_code": "AKP011",
+     "home_team_code": "ACN011",
+     "present_status": 1
+    }
+   ]
+  },
+  "2026-10-12": {
+   "schema_version": 1,
+   "date": "2026-10-12",
+   "timezone": "Asia/Taipei",
+   "generated_at": "2026-10-12T10:12:00+08:00",
+   "source": "fixture（#364 介面形狀）",
+   "stage": "after_scrape",
+   "day_type": "fixture",
+   "kinds": [
+    "E"
+   ],
+   "counts": {
+    "E": 1
+   },
+   "games": [
+    {
+     "key": "2026-E-4",
+     "year": 2026,
+     "kind_code": "E",
+     "game_sno": 4,
+     "game_date": "2026-10-12",
+     "venue": "洲際",
+     "away_team_code": "ADD011",
+     "home_team_code": "ACN011",
+     "present_status": 1
+    }
+   ]
+  },
+  "2026-10-15": {
+   "schema_version": 1,
+   "date": "2026-10-15",
+   "timezone": "Asia/Taipei",
+   "generated_at": "2026-10-15T10:12:00+08:00",
+   "source": "fixture（#364 介面形狀）",
+   "stage": "decide",
+   "day_type": "fixture",
+   "kinds": [],
+   "counts": {},
+   "games": []
+  },
+  "2026-10-21": {
+   "schema_version": 1,
+   "date": "2026-10-21",
+   "timezone": "Asia/Taipei",
+   "generated_at": "2026-10-21T10:12:00+08:00",
+   "source": "fixture（#364 介面形狀）",
+   "stage": "after_scrape",
+   "day_type": "fixture",
+   "kinds": [
+    "C"
+   ],
+   "counts": {
+    "C": 1
+   },
+   "games": [
+    {
+     "key": "2026-C-4",
+     "year": 2026,
+     "kind_code": "C",
+     "game_sno": 4,
+     "game_date": "2026-10-21",
+     "venue": "大巨蛋",
+     "away_team_code": "AAA011",
+     "home_team_code": "ACN011",
+     "present_status": 1
+    }
+   ]
+  },
+  "2026-10-22": {
+   "schema_version": 1,
+   "date": "2026-10-22",
+   "timezone": "Asia/Taipei",
+   "generated_at": "2026-10-22T10:12:00+08:00",
+   "source": "fixture（#364 介面形狀）",
+   "stage": "decide",
+   "day_type": "fixture",
+   "kinds": [],
+   "counts": {},
+   "games": []
+  }
+ },
+ "a_partial_2026_09_07": {
+  "games": {
+   "2026-A-304": {
+    "year": 2026,
+    "kind_code": "A",
+    "game_season_code": "2",
+    "game_sno": 304,
+    "game_date": "2026-09-07",
+    "away_team_code": "ACN011",
+    "home_team_code": "AKP011",
+    "venue": "澄清湖",
+    "home_score_final": 4,
+    "away_score_final": 6
+   },
+   "2026-A-306": {
+    "year": 2026,
+    "kind_code": "A",
+    "game_season_code": "2",
+    "game_sno": 306,
+    "game_date": "2026-09-07",
+    "away_team_code": "AAA011",
+    "home_team_code": "AJL011",
+    "venue": "樂天桃園",
+    "home_score_final": 0,
+    "away_score_final": 2
+   },
+   "2026-E-4": {
+    "year": 2026,
+    "kind_code": "E",
+    "game_season_code": "",
+    "game_sno": 4,
+    "game_date": "2026-10-12",
+    "away_team_code": "ADD011",
+    "home_team_code": "ACN011",
+    "venue": "洲際",
+    "home_score_final": 8,
+    "away_score_final": 2
+   },
+   "2026-A-326": {
+    "year": 2026,
+    "kind_code": "A",
+    "game_season_code": "2",
+    "game_sno": 326,
+    "game_date": "2026-10-01",
+    "away_team_code": "ADD011",
+    "home_team_code": "AAA011",
+    "venue": "天母",
+    "home_score_final": 3,
+    "away_score_final": 4
+   },
+   "2026-A-277": {
+    "year": 2026,
+    "kind_code": "A",
+    "game_season_code": "2",
+    "game_sno": 277,
+    "game_date": "2026-10-01",
+    "away_team_code": "AJL011",
+    "home_team_code": "AKP011",
+    "venue": "澄清湖",
+    "home_score_final": 1,
+    "away_score_final": 2
+   }
+  },
+  "revisions": {
+   "2026-A-304": {
+    "in_progress_1950": {
+     "year": 2026,
+     "kind_code": "A",
+     "game_season_code": "2",
+     "game_sno": 304,
+     "raw_present_status": 1,
+     "raw_game_result": "",
+     "raw_game_date": "2026-09-07",
+     "raw_pre_exe_date": "2026-09-07",
+     "pre_exe": "2026-09-07T18:35:00",
+     "home_score": 3,
+     "visiting_score": 2,
+     "fetched_at": "2026-09-07T19:50:53.602694+08:00",
+     "last_seen_at": "2026-09-07T19:50:53.602694+08:00",
+     "seen_count": 1,
+     "payload_hash": "9c60e0979392e1fec01635c9a8731e53752dc0cb2969d98c7e2a02004953de51"
+    },
+    "final_0908": {
+     "year": 2026,
+     "kind_code": "A",
+     "game_season_code": "2",
+     "game_sno": 304,
+     "raw_present_status": 1,
+     "raw_game_result": "0",
+     "raw_game_date": "2026-09-07",
+     "raw_pre_exe_date": "2026-09-07",
+     "pre_exe": "2026-09-07T18:35:00",
+     "home_score": 4,
+     "visiting_score": 6,
+     "fetched_at": "2026-09-08T10:10:07.685612+08:00",
+     "last_seen_at": "2026-10-23T10:10:10.214611+08:00",
+     "seen_count": 42,
+     "payload_hash": "9408ce94a0f57ac5c11bef361a45cb92754178e15c2493c3a43396b3038d860f"
+    }
+   },
+   "2026-A-306": {
+    "in_progress_1950": {
+     "year": 2026,
+     "kind_code": "A",
+     "game_season_code": "2",
+     "game_sno": 306,
+     "raw_present_status": 1,
+     "raw_game_result": "",
+     "raw_game_date": "2026-09-07",
+     "raw_pre_exe_date": "2026-09-07",
+     "pre_exe": "2026-09-07T18:35:00",
+     "home_score": 0,
+     "visiting_score": 2,
+     "fetched_at": "2026-09-07T19:50:53.602694+08:00",
+     "last_seen_at": "2026-09-07T19:50:53.602694+08:00",
+     "seen_count": 1,
+     "payload_hash": "ef01777b90e7b6b8fa79686108d45f27c7117e9abe32e62ee508d8919fe63b71"
+    },
+    "final_0908": {
+     "year": 2026,
+     "kind_code": "A",
+     "game_season_code": "2",
+     "game_sno": 306,
+     "raw_present_status": 1,
+     "raw_game_result": "0",
+     "raw_game_date": "2026-09-07",
+     "raw_pre_exe_date": "2026-09-07",
+     "pre_exe": "2026-09-07T18:35:00",
+     "home_score": 0,
+     "visiting_score": 2,
+     "fetched_at": "2026-09-08T10:10:07.685612+08:00",
+     "last_seen_at": "2026-10-23T10:10:10.214611+08:00",
+     "seen_count": 42,
+     "payload_hash": "60e8f8e672e6f7875a1d0116fc7b084c6e92b4b0a38a54237935ac64a0d6059d"
+    }
+   },
+   "2026-E-4": {
+    "pregame_1010": {
+     "year": 2026,
+     "kind_code": "E",
+     "game_season_code": "",
+     "game_sno": 4,
+     "raw_present_status": 1,
+     "raw_game_result": "",
+     "raw_game_date": "2026-10-12",
+     "raw_pre_exe_date": "2026-10-12",
+     "pre_exe": "2026-10-12T18:35:00",
+     "home_score": 0,
+     "visiting_score": 0,
+     "fetched_at": "2026-10-10T10:10:15.446508+08:00",
+     "last_seen_at": "2026-10-12T10:10:27.04175+08:00",
+     "seen_count": 3,
+     "payload_hash": "ba9eb0b9cd28dabcffb3e14a38ff48f7f53ad6a891f16182d02eff8e21a6ec73"
+    },
+    "final_1013": {
+     "year": 2026,
+     "kind_code": "E",
+     "game_season_code": "",
+     "game_sno": 4,
+     "raw_present_status": 1,
+     "raw_game_result": "0",
+     "raw_game_date": "2026-10-12",
+     "raw_pre_exe_date": "2026-10-12",
+     "pre_exe": "2026-10-12T18:35:00",
+     "home_score": 8,
+     "visiting_score": 2,
+     "fetched_at": "2026-10-13T10:10:11.463834+08:00",
+     "last_seen_at": "2026-10-23T10:10:12.882461+08:00",
+     "seen_count": 12,
+     "payload_hash": "7eec85a03d3c7238d0aed1fa577dde1bbbd9f3a1ed86e84696cbf769f9860b18"
+    }
+   },
+   "2026-A-326": {
+    "reserved_0919": {
+     "year": 2026,
+     "kind_code": "A",
+     "game_season_code": "2",
+     "game_sno": 326,
+     "raw_present_status": 1,
+     "raw_game_result": "2",
+     "raw_game_date": "2026-10-01",
+     "raw_pre_exe_date": "2026-10-01",
+     "pre_exe": "2026-10-01T18:35:00",
+     "home_score": 0,
+     "visiting_score": 0,
+     "fetched_at": "2026-09-19T13:54:28.676294+08:00",
+     "last_seen_at": "2026-10-01T10:10:13.355708+08:00",
+     "seen_count": 15,
+     "payload_hash": "c65d2b0edb17b1319195fd0a5980b468e313ed857ab67ebf9dd074676bfa28fe"
+    }
+   },
+   "2026-A-277": {
+    "pregame_1001": {
+     "year": 2026,
+     "kind_code": "A",
+     "game_season_code": "2",
+     "game_sno": 277,
+     "raw_present_status": 1,
+     "raw_game_result": "",
+     "raw_game_date": "2026-10-01",
+     "raw_pre_exe_date": "2026-10-01",
+     "pre_exe": "2026-10-01T18:35:00",
+     "home_score": 0,
+     "visiting_score": 0,
+     "fetched_at": "2026-10-01T10:10:13.355708+08:00",
+     "last_seen_at": "2026-10-01T10:10:13.355708+08:00",
+     "seen_count": 1,
+     "payload_hash": "cad81664855901e994952bfb4d632eec53bd7f4c714af846fe6ff33c134735f8"
+    }
+   }
+  },
+  "completion_evidence": {
+   "2026-A-304": 0,
+   "2026-A-306": 0,
+   "2026-E-4": 0,
+   "2026-A-326": 0,
+   "2026-A-277": 0
+  },
+  "reserved_note": "A326 reserved_0919 是 2026-09-19 13:54:28（台北）www 回的真實保留列（PresentStatus=1、GameResult='2'、改期至 10-01）。⚠️ 該列 payload 比分 0：0；(h)④b／⑥ 灌入 cpbl.games 的非零比分（主 2：客 1）是**情境構造**，代表『保留賽帶非零比分』（#343 第 1 輪審核 F1）。A277 是同晚另一場（10-01 18:35），stats 狀態 FINISHED 為構造。"
+ }
+}

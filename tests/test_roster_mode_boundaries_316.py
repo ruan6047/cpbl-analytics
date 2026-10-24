@@ -53,9 +53,14 @@ def _outside_roster(data):
 # （#364 issuecomment-6367215710）。
 # #364 exec-4（第 2 輪審核 F1：完成場集合含和局）：區塊之後的正式站唯讀查詢改為一次取 model_versions
 # 與 game_features 各季完成數（66596 → 66905 bytes）；區塊之前未變。ROSTER_ONLY 區塊未動。待需求方裁定。
+# #365（#343 WP2；需求方核定規劃 4 S3／S4，只改基準、保護不減）：區塊之前（usage 新增 REUSE_VERIFIED_BACKUP 等說明）
+# 與區塊之後（evening_backup 函式、兩個晚間早退模式改呼叫它、BOXPA 場鍵正規式收 A）都改了；無沿用時兩個晚間
+# 模式的命令、payload、順序、退出碼與輸出仍與 BASE 逐項相同（下方 test_existing_modes_… 未改、仍綠）。
+# 舊值：區塊之前 8bb65a65…ae90（16517 bytes）、區塊之後 fd65aafa…2f94（62063 bytes）。
+# #364＋#365 合併（兩卡各自更新基準後依本檔規則以合併後的 refresh-cpbl-prod.sh 重算；保護不減）。
 OUTSIDE_ROSTER_SHA256 = (
-    "2bf595299fa54505dad0bce3fb1c6226958c99cd75c0535c7b951d264ddc561c",   # 區塊之前（17312 bytes）
-    "01578f19f5185a6eb824b7a407625255cd0cb75641f9b9bbb9363ccaeb74e505",   # 區塊之後（66905 bytes）
+    "938409e16a102c64cf5ea61ff394c0aee664d4b970767e1b52f16fb40b77f1dd",   # 區塊之前（17778 bytes）
+    "b0995b12bcedd64044e47247f7ca78ae6292dd9468df1d6e220ef8c32199b7aa",   # 區塊之後（69032 bytes）
 )
 # #316 的成果（ROSTER_ONLY 區塊本身）以 main 上合併後的版本為準：#293 不得改動它。
 ROSTER_RESULT = "a473695dfca536e365b08c44aa2e85374e8f3e69"

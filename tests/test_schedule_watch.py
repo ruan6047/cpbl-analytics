@@ -1329,3 +1329,42 @@ def test_unauthorised_or_half_flips_are_caught(overrides: dict) -> None:
 def test_dormant_registration_must_not_carry_an_effective_date() -> None:
     assert _evening_registration_problems({**_shipped_evening_job(), "expected_installed": False,
                                            "effective_from": "2026-10-16"})
+
+
+# —— #365 S6：晚間鏈常設化（registry 長期 expected_installed=true；休賽季靠動作條件靜默）——
+
+STANDING_RULING = "6361271444"   # #365 需求完成卡：晚間鏈常設化、合併時即安裝
+
+
+def test_shipped_evening_registration_is_standing() -> None:
+    """常設化後登記表只剩「已授權啟用」一種形狀，且不再寫「系列結束 bootout 後改回 false」的例行步驟。"""
+    job = _shipped_evening_job()
+    assert job["expected_installed"] is True and _evening_registration_problems(job) == []
+    assert f"issuecomment-{STANDING_RULING}" in job["expected_installed_reason"]
+    assert "系列結束 bootout 後改回 false" not in job["expected_installed_reason"]
+
+
+@pytest.mark.parametrize("overrides", [
+    {"expected_installed_reason": f"常設，依 issuecomment-{MAKING_RULING}"},   # 只引製作裁定
+    {"effective_from": None},                                                # 生效日留空
+    {"effective_from": ""},
+])
+def test_standing_registration_without_authorisation_or_date_is_caught(overrides: dict) -> None:
+    assert _evening_registration_problems({**_shipped_evening_job(), **overrides})
+
+
+def test_standing_evening_job_with_no_status_file_is_silent(tmp_path: Path) -> None:
+    """休賽季：job 常設安裝、plan 一直回 quiet（不寫狀態檔）→ 狀態檔從未寫過，或停在很久以前的最後一晚。
+    兩種都必須安靜（不是 MISSING、不是 FAILED）。"""
+    repo, registry = _interval_repo(tmp_path, expected_installed=True)
+    never = _evaluate(repo, registry, NOW, installed=_installed("com.cpbl.daily", EVENING),
+                      listing=["com.cpbl.daily", EVENING])
+    assert never["exit_code"] == 0, never["message"]
+    status = repo / "logs" / "last-postseason-evening.json"
+    status.parent.mkdir(parents=True, exist_ok=True)
+    status.write_text(json.dumps({"finished_at": "2026-10-01T15:00:00+00:00", "halted": None}), encoding="utf-8")
+    stale = _evaluate(repo, registry, NOW, installed=_installed("com.cpbl.daily", EVENING),
+                      listing=["com.cpbl.daily", EVENING])
+    assert stale["exit_code"] == 0, stale["message"]
+    evening = next(j for j in stale["jobs"] if j["label"] == EVENING)
+    assert evening["findings"] == [] and evening["cycles"] == []

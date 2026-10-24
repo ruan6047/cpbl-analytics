@@ -1,0 +1,890 @@
+{
+  "boxpa": {
+    "2026-C-3": {
+      "detail_attempts": [
+        "2026-10-20T13:47:27.606400+00:00"
+      ],
+      "final_prod_at": "2026-10-20T13:49:54.020499+00:00",
+      "game_date": "2026-10-20",
+      "key": "2026-C-3",
+      "manifest": {
+        "at": "2026-10-20T13:49:53.923371+00:00",
+        "box": {
+          "batting_gamelog": {
+            "local": 22,
+            "prod": 22
+          },
+          "game_detail": {
+            "local": 1,
+            "prod": 1
+          },
+          "game_livelog": {
+            "local": 311,
+            "prod": 311
+          },
+          "game_scoreboard": {
+            "local": 18,
+            "prod": 18
+          },
+          "pitch_tracking": {
+            "local": 0,
+            "prod": 0
+          },
+          "pitching_game_flags": {
+            "local": 9,
+            "prod": 9
+          },
+          "pitching_gamelog": {
+            "local": 9,
+            "prod": 9
+          }
+        },
+        "box_at": "2026-10-20T13:49:53.923371+00:00",
+        "box_ok": true,
+        "pa": {
+          "game_pa_events": {
+            "local": 311,
+            "prod": 311
+          },
+          "game_pa_pitch_mappings": {
+            "local": 0,
+            "prod": 0
+          },
+          "game_plate_appearances": {
+            "local": 68,
+            "prod": 68
+          },
+          "game_recap_builds": {
+            "local": 1,
+            "prod": 1
+          },
+          "game_recap_source_revisions": {
+            "local": 1,
+            "prod": 1
+          }
+        },
+        "pa_at": "2026-10-20T13:49:53.923371+00:00",
+        "pa_ok": true,
+        "pa_sent": true,
+        "published_build_local": "1bffba2b-9d38-4238-8e7c-f803a74fc881",
+        "published_build_prod": "1bffba2b-9d38-4238-8e7c-f803a74fc881"
+      },
+      "reason": null,
+      "sends": [
+        {
+          "at": "2026-10-20T13:49:54.020499+00:00",
+          "code": 0,
+          "elapsed": 133.0,
+          "sources": [
+            "box",
+            "pa"
+          ]
+        }
+      ],
+      "sources": {
+        "box": {
+          "local_at": "2026-10-20T21:47:40.344561+08:00",
+          "prod_at": "2026-10-20T13:49:53.923371+00:00",
+          "reason": null,
+          "same_night": true,
+          "status": "delivered"
+        },
+        "final": {
+          "local_at": "2026-10-20T21:25:14.179171+08:00",
+          "prod_at": "2026-10-20T13:27:19.794904+00:00",
+          "reason": null,
+          "same_night": true,
+          "status": "delivered"
+        },
+        "pa": {
+          "local_at": "2026-10-20T21:47:40.715501+08:00",
+          "prod_at": "2026-10-20T13:49:53.923371+00:00",
+          "reason": null,
+          "same_night": true,
+          "status": "delivered"
+        }
+      },
+      "state": "delivered"
+    },
+    "2026-C-4": {
+      "detail_attempts": [
+        "2026-10-21T14:42:14.904516+00:00"
+      ],
+      "final_prod_at": "2026-10-21T14:44:36.604146+00:00",
+      "game_date": "2026-10-21",
+      "key": "2026-C-4",
+      "manifest": {
+        "at": "2026-10-21T14:44:36.496673+00:00",
+        "box": {
+          "batting_gamelog": {
+            "local": 21,
+            "prod": 21
+          },
+          "game_detail": {
+            "local": 1,
+            "prod": 1
+          },
+          "game_livelog": {
+            "local": 378,
+            "prod": 378
+          },
+          "game_scoreboard": {
+            "local": 22,
+            "prod": 22
+          },
+          "pitch_tracking": {
+            "local": 349,
+            "prod": 349
+          },
+          "pitching_game_flags": {
+            "local": 11,
+            "prod": 11
+          },
+          "pitching_gamelog": {
+            "local": 11,
+            "prod": 11
+          }
+        },
+        "box_at": "2026-10-21T14:44:36.496673+00:00",
+        "box_ok": true,
+        "pa": {
+          "game_pa_events": {
+            "local": 378,
+            "prod": 378
+          },
+          "game_pa_pitch_mappings": {
+            "local": 349,
+            "prod": 349
+          },
+          "game_plate_appearances": {
+            "local": 88,
+            "prod": 88
+          },
+          "game_recap_builds": {
+            "local": 1,
+            "prod": 1
+          },
+          "game_recap_source_revisions": {
+            "local": 2,
+            "prod": 2
+          }
+        },
+        "pa_at": "2026-10-21T14:44:36.496673+00:00",
+        "pa_ok": true,
+        "pa_sent": true,
+        "published_build_local": "ae6ae20b-a031-494d-97fb-9e2f1903923a",
+        "published_build_prod": "ae6ae20b-a031-494d-97fb-9e2f1903923a"
+      },
+      "reason": null,
+      "sends": [
+        {
+          "at": "2026-10-21T14:44:36.604146+00:00",
+          "code": 0,
+          "elapsed": 131.0,
+          "sources": [
+            "box",
+            "pa"
+          ]
+        }
+      ],
+      "sources": {
+        "box": {
+          "local_at": "2026-10-21T22:42:24.947872+08:00",
+          "prod_at": "2026-10-21T14:44:36.496673+00:00",
+          "reason": null,
+          "same_night": true,
+          "status": "delivered"
+        },
+        "final": {
+          "local_at": "2026-10-21T22:19:38.680248+08:00",
+          "prod_at": "2026-10-21T14:22:00.728898+00:00",
+          "reason": null,
+          "same_night": true,
+          "status": "delivered"
+        },
+        "pa": {
+          "local_at": "2026-10-21T22:42:25.383780+08:00",
+          "prod_at": "2026-10-21T14:44:36.496673+00:00",
+          "reason": null,
+          "same_night": true,
+          "status": "delivered"
+        }
+      },
+      "state": "delivered",
+      "tracking_attempts": []
+    }
+  },
+  "boxpa_last": {
+    "action": "idle",
+    "at": "2026-10-23T12:49:39.635584+00:00",
+    "games": [],
+    "parts": []
+  },
+  "challenge_failures": [],
+  "detected_changes": [],
+  "events": {
+    "final_not_ingested:2026-C-1": {
+      "attempts": [
+        "2026-10-17T11:29:44.655430+00:00"
+      ],
+      "detail": [],
+      "game_date": "2026-10-17",
+      "key": "2026-C-1",
+      "official": {},
+      "reason": null,
+      "state": "synced",
+      "t1_stats_first_seen": "2026-10-17T11:29:43.395889+00:00",
+      "t2_local_first_seen": "2026-10-17T11:29:48.704465+00:00",
+      "t3_synced": "2026-10-17T11:32:01.097127+00:00",
+      "type": "final_not_ingested"
+    },
+    "final_not_ingested:2026-C-2": {
+      "attempts": [
+        "2026-10-18T15:36:51.478964+00:00"
+      ],
+      "detail": [],
+      "game_date": "2026-10-18",
+      "key": "2026-C-2",
+      "official": {},
+      "reason": null,
+      "state": "synced",
+      "t1_stats_first_seen": "2026-10-18T15:36:50.769146+00:00",
+      "t2_local_first_seen": "2026-10-18T15:36:55.698826+00:00",
+      "t3_synced": "2026-10-18T15:38:58.618626+00:00",
+      "type": "final_not_ingested"
+    },
+    "final_not_ingested:2026-C-3": {
+      "attempts": [
+        "2026-10-20T13:25:10.044164+00:00"
+      ],
+      "detail": [],
+      "game_date": "2026-10-20",
+      "key": "2026-C-3",
+      "official": {},
+      "reason": null,
+      "state": "synced",
+      "t1_stats_first_seen": "2026-10-20T13:24:58.177196+00:00",
+      "t2_local_first_seen": "2026-10-20T13:25:14.179171+00:00",
+      "t3_synced": "2026-10-20T13:27:19.794904+00:00",
+      "type": "final_not_ingested"
+    },
+    "final_not_ingested:2026-C-4": {
+      "attempts": [
+        "2026-10-21T14:19:32.499869+00:00"
+      ],
+      "detail": [],
+      "game_date": "2026-10-21",
+      "key": "2026-C-4",
+      "official": {},
+      "reason": null,
+      "state": "synced",
+      "t1_stats_first_seen": "2026-10-21T14:19:21.026446+00:00",
+      "t2_local_first_seen": "2026-10-21T14:19:38.680248+00:00",
+      "t3_synced": "2026-10-21T14:22:00.728898+00:00",
+      "type": "final_not_ingested"
+    },
+    "schedule_changed:2026-C-5": {
+      "attempts": [
+        "2026-10-23T12:39:11.217380+00:00"
+      ],
+      "detail": [
+        "date"
+      ],
+      "game_date": "2026-10-25",
+      "key": "2026-C-5",
+      "official": {
+        "date": "2026-10-25"
+      },
+      "reason": null,
+      "state": "synced",
+      "t1_stats_first_seen": "2026-10-23T12:39:10.268618+00:00",
+      "t2_local_first_seen": "2026-10-13T02:10:12.653764+00:00",
+      "t3_synced": "2026-10-23T12:42:39.325704+00:00",
+      "type": "schedule_changed"
+    },
+    "schedule_changed:2026-C-6": {
+      "attempts": [
+        "2026-10-23T12:39:11.217380+00:00"
+      ],
+      "detail": [
+        "date"
+      ],
+      "game_date": "2026-10-26",
+      "key": "2026-C-6",
+      "official": {
+        "date": "2026-10-26"
+      },
+      "reason": null,
+      "state": "synced",
+      "t1_stats_first_seen": "2026-10-23T12:39:10.268618+00:00",
+      "t2_local_first_seen": "2026-10-13T02:10:12.653764+00:00",
+      "t3_synced": "2026-10-23T12:42:39.325704+00:00",
+      "type": "schedule_changed"
+    },
+    "schedule_changed:2026-C-7": {
+      "attempts": [
+        "2026-10-23T12:39:11.217380+00:00"
+      ],
+      "detail": [
+        "date",
+        "venue"
+      ],
+      "game_date": "2026-10-27",
+      "key": "2026-C-7",
+      "official": {
+        "date": "2026-10-27",
+        "venue": "場地未定"
+      },
+      "reason": null,
+      "state": "synced",
+      "t1_stats_first_seen": "2026-10-23T12:39:10.268618+00:00",
+      "t2_local_first_seen": "2026-10-13T02:10:12.653764+00:00",
+      "t3_synced": "2026-10-23T12:42:39.325704+00:00",
+      "type": "schedule_changed"
+    }
+  },
+  "finished_first_seen": {
+    "2026-C-1": {
+      "finished_at": "2026-10-17T11:29:43.395889+00:00",
+      "last_unfinished_at": "2026-10-17T11:24:41.011481+00:00"
+    },
+    "2026-C-2": {
+      "finished_at": "2026-10-18T15:36:50.769146+00:00",
+      "last_unfinished_at": "2026-10-18T09:22:20.774896+00:00"
+    },
+    "2026-C-3": {
+      "finished_at": "2026-10-20T13:24:58.177196+00:00",
+      "last_unfinished_at": "2026-10-20T13:19:38.701788+00:00"
+    },
+    "2026-C-4": {
+      "finished_at": "2026-10-21T14:19:21.026446+00:00",
+      "last_unfinished_at": "2026-10-21T13:42:00.744815+00:00"
+    },
+    "2026-C-5": {
+      "finished_at": null,
+      "last_unfinished_at": "2026-10-23T12:54:40.125141+00:00"
+    },
+    "2026-C-6": {
+      "finished_at": null,
+      "last_unfinished_at": "2026-10-23T12:54:40.125141+00:00"
+    },
+    "2026-C-7": {
+      "finished_at": null,
+      "last_unfinished_at": "2026-10-23T12:54:40.125141+00:00"
+    },
+    "2026-E-1": "2026-10-15T10:25:28.793144+00:00",
+    "2026-E-2": "2026-10-15T10:25:28.793144+00:00",
+    "2026-E-3": "2026-10-15T10:25:28.793144+00:00",
+    "2026-E-4": "2026-10-15T10:25:28.793144+00:00"
+  },
+  "halted": null,
+  "last_probe_at": "2026-10-23T12:54:40.125141+00:00",
+  "last_run": {
+    "action": "idle",
+    "at": "2026-10-23T13:04:42.304553+00:00",
+    "reason": "idle"
+  },
+  "needs_owner_decision": null,
+  "pending_sync": false,
+  "probe_failures": 0,
+  "probe_status": "ok",
+  "schedule": [
+    {
+      "away_code": "ADD011",
+      "game_date": "2026-10-09",
+      "game_sno": 1,
+      "home_code": "ACN011",
+      "kind_code": "E",
+      "starts_at": "2026-10-09T17:05:00",
+      "status": "FINISHED",
+      "venue": "洲際",
+      "year": 2026
+    },
+    {
+      "away_code": "ACN011",
+      "game_date": "2026-10-10",
+      "game_sno": 2,
+      "home_code": "ADD011",
+      "kind_code": "E",
+      "starts_at": "2026-10-10T17:05:00",
+      "status": "FINISHED",
+      "venue": "亞太主",
+      "year": 2026
+    },
+    {
+      "away_code": "ADD011",
+      "game_date": "2026-10-11",
+      "game_sno": 3,
+      "home_code": "ACN011",
+      "kind_code": "E",
+      "starts_at": "2026-10-11T17:05:00",
+      "status": "FINISHED",
+      "venue": "洲際",
+      "year": 2026
+    },
+    {
+      "away_code": "ADD011",
+      "game_date": "2026-10-12",
+      "game_sno": 4,
+      "home_code": "ACN011",
+      "kind_code": "E",
+      "starts_at": "2026-10-12T18:35:00",
+      "status": "FINISHED",
+      "venue": "洲際",
+      "year": 2026
+    },
+    {
+      "away_code": "ACN011",
+      "game_date": "2026-10-17",
+      "game_sno": 1,
+      "home_code": "AAA011",
+      "kind_code": "C",
+      "starts_at": "2026-10-17T17:05:00",
+      "status": "FINISHED",
+      "venue": "大巨蛋",
+      "year": 2026
+    },
+    {
+      "away_code": "ACN011",
+      "game_date": "2026-10-18",
+      "game_sno": 2,
+      "home_code": "AAA011",
+      "kind_code": "C",
+      "starts_at": "2026-10-18T17:05:00",
+      "status": "FINISHED",
+      "venue": "大巨蛋",
+      "year": 2026
+    },
+    {
+      "away_code": "AAA011",
+      "game_date": "2026-10-20",
+      "game_sno": 3,
+      "home_code": "ACN011",
+      "kind_code": "C",
+      "starts_at": "2026-10-20T18:35:00",
+      "status": "FINISHED",
+      "venue": "大巨蛋",
+      "year": 2026
+    },
+    {
+      "away_code": "AAA011",
+      "game_date": "2026-10-21",
+      "game_sno": 4,
+      "home_code": "ACN011",
+      "kind_code": "C",
+      "starts_at": "2026-10-21T18:35:00",
+      "status": "FINISHED",
+      "venue": "大巨蛋",
+      "year": 2026
+    },
+    {
+      "away_code": "ACN011",
+      "game_date": "2026-10-25",
+      "game_sno": 5,
+      "home_code": "AAA011",
+      "kind_code": "C",
+      "starts_at": "2026-10-25T17:05:00",
+      "status": "SCHEDULED",
+      "venue": "大巨蛋",
+      "year": 2026
+    },
+    {
+      "away_code": "ACN011",
+      "game_date": "2026-10-26",
+      "game_sno": 6,
+      "home_code": "AAA011",
+      "kind_code": "C",
+      "starts_at": "2026-10-26T15:05:00",
+      "status": "SCHEDULED",
+      "venue": "大巨蛋",
+      "year": 2026
+    },
+    {
+      "away_code": "ACN011",
+      "game_date": "2026-10-27",
+      "game_sno": 7,
+      "home_code": "AAA011",
+      "kind_code": "C",
+      "starts_at": "2026-10-27T18:35:00",
+      "status": "SCHEDULED",
+      "venue": "場地未定",
+      "year": 2026
+    }
+  ],
+  "scrape_kinds": [
+    "C"
+  ],
+  "signals_dirty": false,
+  "signals_error": null,
+  "signals_unsynced": false,
+  "starter_checkpoints": {
+    "2026-C-1|F+60|2026-10-17T11:29:43.395889+00:00": {
+      "anchor": "final",
+      "anchor_at": "2026-10-17T11:29:43.395889+00:00",
+      "attempts": [
+        {
+          "at": "2026-10-17T12:32:09.679414+00:00",
+          "challenge": false,
+          "outcome": "changed",
+          "sync_code": 0
+        }
+      ],
+      "deadline_at": "2026-10-17T12:59:43.395889+00:00",
+      "deadline_inclusive": true,
+      "done": true,
+      "due_at": "2026-10-17T12:29:43.395889+00:00",
+      "fired_at": "2026-10-17T12:32:09.679414+00:00",
+      "key": "2026-C-1",
+      "kinds": [
+        "C"
+      ],
+      "outcome": "changed",
+      "phase": "postgame",
+      "point": "F+60",
+      "reason": null,
+      "start_mismatch": true,
+      "stats_starts_at": "2026-10-17T17:05:00",
+      "sync_code": 0,
+      "wait_reason": null,
+      "www_start_raw": "2026-10-17T17:06:00"
+    },
+    "2026-C-1|S-30|2026-10-17T09:05:00+00:00": {
+      "anchor": "start",
+      "anchor_at": "2026-10-17T09:05:00+00:00",
+      "attempts": [
+        {
+          "at": "2026-10-17T08:39:04.772542+00:00",
+          "challenge": false,
+          "outcome": "unchanged",
+          "sync_code": null
+        }
+      ],
+      "deadline_at": "2026-10-17T09:05:00+00:00",
+      "deadline_inclusive": false,
+      "done": true,
+      "due_at": "2026-10-17T08:35:00+00:00",
+      "fired_at": "2026-10-17T08:39:04.772542+00:00",
+      "key": "2026-C-1",
+      "kinds": [
+        "C"
+      ],
+      "outcome": "unchanged",
+      "phase": "pregame",
+      "point": "S-30",
+      "reason": null,
+      "start_mismatch": false,
+      "stats_starts_at": "2026-10-17T17:05:00",
+      "sync_code": null,
+      "wait_reason": null,
+      "www_start_raw": "2026-10-17T17:05:00"
+    },
+    "2026-C-1|S-60|2026-10-17T09:05:00+00:00": {
+      "anchor": "start",
+      "anchor_at": "2026-10-17T09:05:00+00:00",
+      "attempts": [
+        {
+          "at": "2026-10-17T08:08:54.949023+00:00",
+          "challenge": false,
+          "outcome": "unchanged",
+          "sync_code": null
+        }
+      ],
+      "deadline_at": "2026-10-17T08:25:00+00:00",
+      "deadline_inclusive": true,
+      "done": true,
+      "due_at": "2026-10-17T08:05:00+00:00",
+      "fired_at": "2026-10-17T08:08:54.949023+00:00",
+      "key": "2026-C-1",
+      "kinds": [
+        "C"
+      ],
+      "outcome": "unchanged",
+      "phase": "pregame",
+      "point": "S-60",
+      "reason": null,
+      "start_mismatch": false,
+      "stats_starts_at": "2026-10-17T17:05:00",
+      "sync_code": null,
+      "wait_reason": null,
+      "www_start_raw": "2026-10-17T17:05:00"
+    },
+    "2026-C-2|F+60|2026-10-18T15:36:50.769146+00:00": {
+      "anchor": "final",
+      "anchor_at": "2026-10-18T15:36:50.769146+00:00",
+      "attempts": [
+        {
+          "at": "2026-10-18T16:39:09.138521+00:00",
+          "challenge": false,
+          "outcome": "unchanged",
+          "sync_code": null
+        }
+      ],
+      "deadline_at": "2026-10-18T17:06:50.769146+00:00",
+      "deadline_inclusive": true,
+      "done": true,
+      "due_at": "2026-10-18T16:36:50.769146+00:00",
+      "fired_at": "2026-10-18T16:39:09.138521+00:00",
+      "key": "2026-C-2",
+      "kinds": [
+        "C"
+      ],
+      "outcome": "unchanged",
+      "phase": "postgame",
+      "point": "F+60",
+      "reason": null,
+      "start_mismatch": false,
+      "stats_starts_at": "2026-10-18T17:05:00",
+      "sync_code": null,
+      "wait_reason": null,
+      "www_start_raw": "2026-10-18T17:05:00"
+    },
+    "2026-C-2|S-30|2026-10-18T09:05:00+00:00": {
+      "anchor": "start",
+      "anchor_at": "2026-10-18T09:05:00+00:00",
+      "attempts": [
+        {
+          "at": "2026-10-18T08:37:10.379559+00:00",
+          "challenge": false,
+          "outcome": "unchanged",
+          "sync_code": null
+        }
+      ],
+      "deadline_at": "2026-10-18T09:05:00+00:00",
+      "deadline_inclusive": false,
+      "done": true,
+      "due_at": "2026-10-18T08:35:00+00:00",
+      "fired_at": "2026-10-18T08:37:10.379559+00:00",
+      "key": "2026-C-2",
+      "kinds": [
+        "C"
+      ],
+      "outcome": "unchanged",
+      "phase": "pregame",
+      "point": "S-30",
+      "reason": null,
+      "start_mismatch": false,
+      "stats_starts_at": "2026-10-18T17:05:00",
+      "sync_code": null,
+      "wait_reason": null,
+      "www_start_raw": "2026-10-18T17:05:00"
+    },
+    "2026-C-2|S-60|2026-10-18T09:05:00+00:00": {
+      "anchor": "start",
+      "anchor_at": "2026-10-18T09:05:00+00:00",
+      "attempts": [
+        {
+          "at": "2026-10-18T08:06:58.812295+00:00",
+          "challenge": false,
+          "outcome": "unchanged",
+          "sync_code": null
+        }
+      ],
+      "deadline_at": "2026-10-18T08:25:00+00:00",
+      "deadline_inclusive": true,
+      "done": true,
+      "due_at": "2026-10-18T08:05:00+00:00",
+      "fired_at": "2026-10-18T08:06:58.812295+00:00",
+      "key": "2026-C-2",
+      "kinds": [
+        "C"
+      ],
+      "outcome": "unchanged",
+      "phase": "pregame",
+      "point": "S-60",
+      "reason": null,
+      "start_mismatch": false,
+      "stats_starts_at": "2026-10-18T17:05:00",
+      "sync_code": null,
+      "wait_reason": null,
+      "www_start_raw": "2026-10-18T17:05:00"
+    },
+    "2026-C-3|F+60|2026-10-20T13:24:58.177196+00:00": {
+      "anchor": "final",
+      "anchor_at": "2026-10-20T13:24:58.177196+00:00",
+      "attempts": [
+        {
+          "at": "2026-10-20T14:25:11.356834+00:00",
+          "challenge": false,
+          "outcome": "changed",
+          "sync_code": 0
+        }
+      ],
+      "deadline_at": "2026-10-20T14:54:58.177196+00:00",
+      "deadline_inclusive": true,
+      "done": true,
+      "due_at": "2026-10-20T14:24:58.177196+00:00",
+      "fired_at": "2026-10-20T14:25:11.356834+00:00",
+      "key": "2026-C-3",
+      "kinds": [
+        "C"
+      ],
+      "outcome": "changed",
+      "phase": "postgame",
+      "point": "F+60",
+      "reason": null,
+      "start_mismatch": false,
+      "stats_starts_at": "2026-10-20T18:35:00",
+      "sync_code": 0,
+      "wait_reason": null,
+      "www_start_raw": "2026-10-20T18:35:00"
+    },
+    "2026-C-3|S-30|2026-10-20T10:35:00+00:00": {
+      "anchor": "start",
+      "anchor_at": "2026-10-20T10:35:00+00:00",
+      "attempts": [
+        {
+          "at": "2026-10-20T10:06:50.178850+00:00",
+          "challenge": false,
+          "outcome": "unchanged",
+          "sync_code": null
+        }
+      ],
+      "deadline_at": "2026-10-20T10:35:00+00:00",
+      "deadline_inclusive": false,
+      "done": true,
+      "due_at": "2026-10-20T10:05:00+00:00",
+      "fired_at": "2026-10-20T10:06:50.178850+00:00",
+      "key": "2026-C-3",
+      "kinds": [
+        "C"
+      ],
+      "outcome": "unchanged",
+      "phase": "pregame",
+      "point": "S-30",
+      "reason": null,
+      "start_mismatch": false,
+      "stats_starts_at": "2026-10-20T18:35:00",
+      "sync_code": null,
+      "wait_reason": null,
+      "www_start_raw": "2026-10-20T18:35:00"
+    },
+    "2026-C-3|S-60|2026-10-20T10:35:00+00:00": {
+      "anchor": "start",
+      "anchor_at": "2026-10-20T10:35:00+00:00",
+      "attempts": [
+        {
+          "at": "2026-10-20T09:36:38.290372+00:00",
+          "challenge": false,
+          "outcome": "unchanged",
+          "sync_code": null
+        }
+      ],
+      "deadline_at": "2026-10-20T09:55:00+00:00",
+      "deadline_inclusive": true,
+      "done": true,
+      "due_at": "2026-10-20T09:35:00+00:00",
+      "fired_at": "2026-10-20T09:36:38.290372+00:00",
+      "key": "2026-C-3",
+      "kinds": [
+        "C"
+      ],
+      "outcome": "unchanged",
+      "phase": "pregame",
+      "point": "S-60",
+      "reason": null,
+      "start_mismatch": false,
+      "stats_starts_at": "2026-10-20T18:35:00",
+      "sync_code": null,
+      "wait_reason": null,
+      "www_start_raw": "2026-10-20T18:35:00"
+    },
+    "2026-C-4|F+60|2026-10-21T14:19:21.026446+00:00": {
+      "anchor": "final",
+      "anchor_at": "2026-10-21T14:19:21.026446+00:00",
+      "attempts": [
+        {
+          "at": "2026-10-21T15:19:43.580384+00:00",
+          "challenge": false,
+          "outcome": "changed",
+          "sync_code": 0
+        }
+      ],
+      "deadline_at": "2026-10-21T15:49:21.026446+00:00",
+      "deadline_inclusive": true,
+      "done": true,
+      "due_at": "2026-10-21T15:19:21.026446+00:00",
+      "fired_at": "2026-10-21T15:19:43.580384+00:00",
+      "key": "2026-C-4",
+      "kinds": [
+        "C"
+      ],
+      "outcome": "changed",
+      "phase": "postgame",
+      "point": "F+60",
+      "reason": null,
+      "start_mismatch": false,
+      "stats_starts_at": "2026-10-21T18:35:00",
+      "sync_code": 0,
+      "wait_reason": null,
+      "www_start_raw": "2026-10-21T18:35:00"
+    },
+    "2026-C-4|S-30|2026-10-21T10:35:00+00:00": {
+      "anchor": "start",
+      "anchor_at": "2026-10-21T10:35:00+00:00",
+      "attempts": [
+        {
+          "at": "2026-10-21T10:06:23.991959+00:00",
+          "challenge": false,
+          "outcome": "unchanged",
+          "sync_code": null
+        }
+      ],
+      "deadline_at": "2026-10-21T10:35:00+00:00",
+      "deadline_inclusive": false,
+      "done": true,
+      "due_at": "2026-10-21T10:05:00+00:00",
+      "fired_at": "2026-10-21T10:06:23.991959+00:00",
+      "key": "2026-C-4",
+      "kinds": [
+        "C"
+      ],
+      "outcome": "unchanged",
+      "phase": "pregame",
+      "point": "S-30",
+      "reason": null,
+      "start_mismatch": false,
+      "stats_starts_at": "2026-10-21T18:35:00",
+      "sync_code": null,
+      "wait_reason": null,
+      "www_start_raw": "2026-10-21T18:35:00"
+    },
+    "2026-C-4|S-60|2026-10-21T10:35:00+00:00": {
+      "anchor": "start",
+      "anchor_at": "2026-10-21T10:35:00+00:00",
+      "attempts": [
+        {
+          "at": "2026-10-21T09:36:11.833311+00:00",
+          "challenge": false,
+          "outcome": "unchanged",
+          "sync_code": null
+        }
+      ],
+      "deadline_at": "2026-10-21T09:55:00+00:00",
+      "deadline_inclusive": true,
+      "done": true,
+      "due_at": "2026-10-21T09:35:00+00:00",
+      "fired_at": "2026-10-21T09:36:11.833311+00:00",
+      "key": "2026-C-4",
+      "kinds": [
+        "C"
+      ],
+      "outcome": "unchanged",
+      "phase": "pregame",
+      "point": "S-60",
+      "reason": null,
+      "start_mismatch": false,
+      "stats_starts_at": "2026-10-21T18:35:00",
+      "sync_code": null,
+      "wait_reason": null,
+      "www_start_raw": "2026-10-21T18:35:00"
+    }
+  },
+  "starter_enabled_since": "2026-10-15T10:50:58.051234+00:00",
+  "starter_inflight": [],
+  "sync_blocked_at": null,
+  "version": 1,
+  "www_blocked_at": null,
+  "www_requests": {
+    "C": "2026-10-23T12:39:11.217380+00:00"
+  }
+}
