@@ -4,5 +4,8 @@
   "project": {
     "owner": "ruan6047",
     "number": 10
-  }
+  },
+  "modules": [
+    "tdd"
+  ]
 }

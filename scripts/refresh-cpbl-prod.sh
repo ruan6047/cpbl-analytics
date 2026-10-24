@@ -78,6 +78,15 @@ scripts/refresh-cpbl-prod.sh — 把本機 CPBL 資料同步到 production（四
   TEAM_COMPARISON_ONLY
                 1＝搭配 SKIP_SCRAPE=1 與獨立 BACKUP_DIR，只做隊伍比較摘要三表 insert-only 同步
                 （與 ROSTER_ONLY 同形：唯讀比對；無變更不備份不寫；有待寫才備份＋單交易寫入＋事後對帳）
+  DAILY_DAY_TYPE
+                每日鏈（scrape-daily.sh）帶入的日型（#364）；未設定＝手動直呼，行為同現況（不套閘門）。
+                full：§3.5 訓練閘門——本機一軍完成場自正式站上次 model_versions(task='outcome') 後
+                      有新增，才跑 cpbl-build-features、game_features 全鏡像、cpbl-train-outcome；
+                      正式站 artifact 訓練上界季 < 今年−1 才跑 cpbl-train-outcome-simple。
+                      正式站讀不到（ssh／psql 失敗、無列）一律照跑。
+                light／sync_only：上述四步一律略過（乙型／甲型只同步）。同步與備份路徑不變。
+  DAILY_FORCE_FULL
+                1＝不套 §3.5 閘門，四步照跑（逃生閥）
 
 離開碼
   0 成功 · 64 參數錯 · 65 取不到本機 freshness 基準 · 67 同步 payload 驗證失敗
@@ -1035,6 +1044,52 @@ if [ -n "${POSTSEASON_BOXPA_ONLY:-}" ]; then
 fi
 
 cd "$REPO_DIR"
+
+# —— #364 §3.5 VPS 訓練閘門（只決定跑不跑；單次尖峰與記憶體屬 #353）——
+# 只在每日鏈帶 DAILY_DAY_TYPE 時生效；手動直呼（未設定）＝現況四步照跑。
+# RUN_OUTCOME 管三件同條件的事：本機 cpbl-build-features、3/4 的 game_features 清空＋全鏡像、
+# 4/4 的 cpbl-train-outcome（無新完賽場時三者內容都不變，PLAN-r2 §3.5）。
+# RUN_SIMPLE＝auto 時於 4/4 讀正式站 artifact 的 trained_through 再決定。
+#
+# 正式站兩個量（一次唯讀 psql，印一行 JSON）：最新 model_versions(task='outcome') 的 cv_metrics（trainer
+# 自己寫的 test_seasons／n_train／n_test），與 game_features 各季 completed 列數（含和局，#364 第 2 輪 F1）。
+# 讀不到一律印空字串 → daily_gate train-gate 判照跑（fail open）。不依賴新碼部署。
+remote_outcome_model_metrics() {
+  ssh -o BatchMode=yes "$VPS" \
+    "cd ${DEPLOY_PATH} && set -a && . ./.env && docker exec prod_pg psql -At -U \"\$DB_USER\" -d \"\$DB_NAME\" -c \"SELECT json_build_object('model', (SELECT cv_metrics FROM cpbl.model_versions WHERE task = 'outcome' ORDER BY trained_at DESC LIMIT 1), 'features_completed', (SELECT json_object_agg(season, n) FROM (SELECT season, count(*) AS n FROM cpbl.game_features WHERE completed GROUP BY season) s))::text\"" \
+    2>/dev/null | tail -n 1 || true
+}
+RUN_OUTCOME=1
+RUN_SIMPLE=1
+OUTCOME_REASON="未套閘門（手動直呼或 DAILY_FORCE_FULL=1）"
+if [ -n "${DAILY_DAY_TYPE:-}" ] && [ "${DAILY_FORCE_FULL:-0}" != "1" ]; then
+  case "$DAILY_DAY_TYPE" in
+    full)
+      # §3.5：本機完成場（唯讀）對照正式站上次回測的訓練資料規模；任何失敗 → 照跑（fail open）。
+      if GATE_OUT="$(remote_outcome_model_metrics \
+           | uv run python -m cpbl.ingest.daily_gate train-gate --prod-metrics - 2>&1)" \
+         && printf '%s\n' "$GATE_OUT" | grep -q '^RUN_OUTCOME=[01]$'; then
+        RUN_OUTCOME="$(printf '%s\n' "$GATE_OUT" | sed -n 's/^RUN_OUTCOME=//p' | tail -n 1)"
+        OUTCOME_REASON="$(printf '%s\n' "$GATE_OUT" | sed -n 's/^OUTCOME_REASON=//p' | tail -n 1)"
+      else
+        RUN_OUTCOME=1
+        OUTCOME_REASON="訓練閘門判定失敗 → 照跑（fail open）：$(printf '%s' "${GATE_OUT:-}" | tail -n 1)"
+      fi
+      RUN_SIMPLE=auto
+      ;;
+    light|sync_only)
+      RUN_OUTCOME=0
+      RUN_SIMPLE=0
+      OUTCOME_REASON="日型 ${DAILY_DAY_TYPE}：不訓練（PLAN-r2 §3.2）"
+      ;;
+    *)
+      echo "FATAL: DAILY_DAY_TYPE 只接受 full／light／sync_only：${DAILY_DAY_TYPE}" >&2
+      exit 64
+      ;;
+  esac
+  echo "==> 訓練閘門（§3.5，日型 ${DAILY_DAY_TYPE}）：RUN_OUTCOME=${RUN_OUTCOME} — ${OUTCOME_REASON}"
+fi
+
 # SKIP_SCRAPE=1：本機 DB 已是最新時，跳過重爬、直接把現有資料同步到 prod。
 if [ -n "${SKIP_SCRAPE:-}" ]; then
   echo "==> 1/4 略過爬取（SKIP_SCRAPE），直接同步本機現有資料"
@@ -1055,8 +1110,12 @@ fi
 
 # 本機重建賽事預測特徵（全史 kind A；leakage-safe）。game_features 是「派生」資料，
 # 由本機完整 games 計算後直接鏡像到 prod，省去同步 1990+ 原始逐場（歷史不可變）。
-echo "    + 重建 game_features（賽事預測特徵，全史 kind A）"
-uv run cpbl-build-features 2>&1 | tail -1
+if [ "$RUN_OUTCOME" = 1 ]; then
+  echo "    + 重建 game_features（賽事預測特徵，全史 kind A）"
+  uv run cpbl-build-features 2>&1 | tail -1
+else
+  echo "    ⏭ 略過 cpbl-build-features（§3.5 訓練閘門：${OUTCOME_REASON}）"
+fi
 
 # 記住本機真實賽事 freshness；同步後 API 必須回報相同值，不能只靠腳本自寫 marker。
 # 由 Python contract 產生 SQL，避免同步 gate 與 API 各自複製 completed 語意。
@@ -1168,6 +1227,8 @@ mirror_table championship_members
 
 # 賽事預測特徵：完整鏡像（先 TRUNCATE 清掉 prod 舊版＝早期未過濾 kind 混入的二軍/季後列），
 # 再把本機全史 kind A 特徵灌入。derived 資料，安全可重建。
+# #364 §3.5：本機特徵沒重建（RUN_OUTCOME=0）時不重灌——內容不變，清空＋全鏡像只是白做。
+if [ "$RUN_OUTCOME" = 1 ]; then
 ssh -o BatchMode=yes "$VPS" \
   "cd ${DEPLOY_PATH} && set -a && . ./.env && docker exec -i prod_pg psql -q -U \"\$DB_USER\" -d \"\$DB_NAME\" -c 'TRUNCATE cpbl.game_features'"
 sync_table game_features "year,kind_code,game_season_code,game_sno" \
@@ -1176,6 +1237,9 @@ sync_table game_features "year,kind_code,game_season_code,game_sno" \
   h2h_home home_field starter_era_diff starter_whip_diff starter_k9_diff \
   prior_team_ops_diff prior_team_slg_diff prior_team_era_diff prior_team_whip_diff \
   team_ops_now_diff team_avg_now_diff team_sb_now_diff team_wp_now_diff team_err_now_diff run_diff_diff
+else
+  echo "    ⏭ 略過 game_features 清空＋全鏡像（§3.5 訓練閘門：${OUTCOME_REASON}）"
+fi
 
 if [ -n "${WITH_DETAIL:-}" ]; then
   sync_table batter_pitcher_matchups "year,kind_code,hitter_acnt,pitcher_acnt" \
@@ -1262,17 +1326,51 @@ fetch_api_info() {
   curl -fsS --retry 3 --retry-delay 15 --max-time 20 "$API_INFO_URL"
 }
 
+# 正式站 serving artifact 的訓練上界季（#364 §3.5）。用現行部署映像既有的函式讀，不依賴新碼部署；
+# 讀不到（無 artifact、舊格式、ssh／python 失敗）一律印空字串 → 呼叫端照跑（fail open）。
+remote_simple_trained_through() {
+  ssh -o BatchMode=yes "$VPS" \
+    "docker exec prod_cpbl_api python -c 'from cpbl.api.pregame_serving import artifact_path
+from cpbl.models.outcome_simple import load_artifact
+p = artifact_path()
+print(load_artifact(p).get(\"trained_through\", \"\") if p.exists() else \"\")' 2>/dev/null" 2>/dev/null \
+    | tail -n 1 || true
+}
+
 echo "==> 4/4 VPS 跑賽事預測回測（LightGBM 需 libgomp；prod_cpbl_api 容器內有）"
 # game_features 已由本機鏡像（全史），VPS 不需再 build-features；直接以鏡像資料跑
 # 走查回測並把 model_versions(task='outcome') 持久化，供 /api/info 與 /predict 面板展示。
-remote_train "docker exec prod_cpbl_api cpbl-train-outcome" 4
+if [ "$RUN_OUTCOME" = 1 ]; then
+  # 基準就是 trainer 寫進正式站的 model_versions 本身，不另記本機狀態（#364 審核 F1）。
+  remote_train "docker exec prod_cpbl_api cpbl-train-outcome" 4
+else
+  echo "    ⏭ 略過 cpbl-train-outcome（§3.5 訓練閘門：${OUTCOME_REASON}；model_versions 不新增）"
+fi
 
 # 上線 serving 模型（首頁 pregame 點機率／/methodology#pregame）也吃 game_features。
 # 少了這一步，鏡像進來的新特徵分布會被餵給用舊分布 fit 的 outcome_simple.joblib，
 # 屬 serving 端分布錯配（ML-OUTCOME-SIMPLE-LEAK2）。閘門未過時它不更新 artifact 而是
 # 沿用上一版，API 會回報 serving_previous，首頁與方法頁據此如實揭露降級。
-echo "    + 重訓 outcome_simple（賽前勝率 serving 模型；閘門未過則保留舊 artifact）"
-remote_train "docker exec prod_cpbl_api cpbl-train-outcome-simple" 7
+# #364 §3.5：trainer 只訓練到去年（trained_through=今年−1），季內每天重訓沒有新輸入；
+# 只在正式站 artifact 的訓練上界季 < 今年−1（每年第一次）才跑。以資料判斷，不寫死日曆。
+if [ "$RUN_SIMPLE" = auto ]; then
+  SIMPLE_THROUGH="$(remote_simple_trained_through)"
+  if [[ "$SIMPLE_THROUGH" =~ ^[0-9]{4}$ ]] && [ "$SIMPLE_THROUGH" -ge "$PREV" ]; then
+    RUN_SIMPLE=0
+    SIMPLE_REASON="正式站 artifact trained_through=${SIMPLE_THROUGH} ≥ 今年−1=${PREV}"
+  else
+    RUN_SIMPLE=1
+    SIMPLE_REASON="正式站 artifact trained_through=${SIMPLE_THROUGH:-讀不到} → 照跑"
+  fi
+else
+  SIMPLE_REASON="${OUTCOME_REASON}"
+fi
+if [ "$RUN_SIMPLE" = 1 ]; then
+  echo "    + 重訓 outcome_simple（賽前勝率 serving 模型；閘門未過則保留舊 artifact）"
+  remote_train "docker exec prod_cpbl_api cpbl-train-outcome-simple" 7
+else
+  echo "    ⏭ 略過 cpbl-train-outcome-simple（§3.5 訓練閘門：${SIMPLE_REASON}）"
+fi
 
 echo "    + 對帳 production 真實資料 freshness"
 fetch_api_info \

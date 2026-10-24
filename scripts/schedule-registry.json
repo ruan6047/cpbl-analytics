@@ -49,7 +49,7 @@
       "effective_from": "2026-07-19",
       "effective_from_evidence": "~/Library/LaunchAgents/com.cpbl.scrape-daily.plist symlink mtime 2026-07-18 18:42（實測），故第一次排程觸發為隔日 10:10；logs 執行時刻分布自 2026-07-19 10:10:05 起穩定落在 10:10±（#132 Discovery §1）。plist 的 Hour 由 3 改 10 在 a90bdeb（07-04），但 launchd 要重新 bootstrap 才吃到。",
       "expected_installed": true,
-      "expected_installed_reason": "OPS-REFRESH1 已部署，是每日爬取＋生產同步鏈的唯一觸發器",
+      "expected_installed_reason": "OPS-REFRESH1 已部署，是每日爬取＋生產同步鏈的唯一觸發器。#364 起鏈開頭判日型（src/cpbl/ingest/daily_gate.py）：甲型日刻意不爬不同步，但仍寫「state=succeeded＋skipped=true＋reason」並 append 歷史，故本 job 每天仍應有終態紀錄——沒有紀錄照樣是 MISSING，不是刻意略過。",
       "status_path": "logs/last-launchd-status.json",
       "history_path": "logs/schedule-history/com.cpbl.scrape-daily.jsonl",
       "history_from": "2026-08-15",

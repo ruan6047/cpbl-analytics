@@ -152,20 +152,23 @@ def _write_status(args: argparse.Namespace, payload: dict[str, Any]) -> None:
     _write_atomic(args.status, payload)
     if args.trigger == "launchd":
         _write_atomic(args.scheduled_status, payload)
-    append_history(
-        args.history_dir,
+    record = _history_record(
         args.history_label,
-        _history_record(
-            args.history_label,
-            payload["state"],
-            payload["trigger"],
-            payload["started_at"],
-            finished_at=payload["finished_at"],
-            exit_code=payload["exit_code"],
-            failed_phase=payload["failed_phase"],
-            log=payload["log"],
-        ),
+        payload["state"],
+        payload["trigger"],
+        payload["started_at"],
+        finished_at=payload["finished_at"],
+        exit_code=payload["exit_code"],
+        failed_phase=payload["failed_phase"],
+        log=payload["log"],
+        note=(f"skipped day_type={payload.get('day_type')} reason={payload.get('skip_reason')}"
+              if payload.get("skipped") else None),
     )
+    if payload.get("skipped"):
+        # #364 §3.2.2：甲型略過是「成功類」——state 仍是 succeeded（schedule_watch 判 OK，
+        # 不是 SKIPPED／MISSING），另加 skipped 欄讓讀者分得出「刻意不跑」與「跑了」。
+        record["skipped"] = True
+    append_history(args.history_dir, args.history_label, record)
 
 
 def _base_payload(args: argparse.Namespace) -> dict[str, Any]:
@@ -186,6 +189,10 @@ def _base_payload(args: argparse.Namespace) -> dict[str, Any]:
         "sync_attempted": False,
         "sync_ok": None,
         "sync_exit_code": None,
+        # #364 日型閘門：day_type＝full／light／sync_only／skip（start 時尚未判定＝None）。
+        "day_type": getattr(args, "day_type", None),
+        "skipped": False,
+        "skip_reason": None,
         "tail": _tail(args.log),
     }
 
@@ -220,6 +227,9 @@ def command_finish(args: argparse.Namespace) -> int:
             "sync_attempted": args.sync_attempted,
             "sync_ok": sync_ok,
             "sync_exit_code": args.sync_code if args.sync_attempted else None,
+            # 甲型略過＝成功（state succeeded、ok true）＋skipped=true＋reason（§3.2.2）。
+            "skipped": bool(args.skipped) and failed_phase is None,
+            "skip_reason": args.skip_reason if args.skipped and failed_phase is None else None,
             "tail": _tail(args.log),
         }
     )
@@ -351,6 +361,9 @@ def build_parser() -> argparse.ArgumentParser:
     finish.add_argument("--scrape-code", type=int, required=True)
     finish.add_argument("--sync-attempted", type=_bool, required=True)
     finish.add_argument("--sync-code", type=int)
+    finish.add_argument("--day-type", choices=("full", "light", "sync_only", "skip"))
+    finish.add_argument("--skipped", type=_bool, default=False)
+    finish.add_argument("--skip-reason")
     finish.set_defaults(handler=command_finish)
 
     check = subparsers.add_parser("check")
