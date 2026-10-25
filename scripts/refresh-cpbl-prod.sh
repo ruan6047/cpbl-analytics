@@ -131,6 +131,26 @@ REPO_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 YEAR="$(date +%Y)"
 PREV="$((YEAR - 1))"
 
+# #353 WP3：/api/info 改為 TTL 60 秒的行程內快取（api/routers/info.py）。下方 freshness 檢查必須讀到
+# 「同步（或 marker）之後才算出」的快取，否則比到的是舊值、資料明明對卻判失敗。這裡只**等快取換代**
+# （讀回應標頭 X-Cpbl-Info-Computed-At，epoch 秒），⛔ 不重試內容比對：換代後的快取仍不符，照樣讓
+# 同步失敗（同 fetch_api_info 的紅線）。標頭不存在（API 尚未部署 WP3、或取不到）＝沒有快取可等，
+# 直接往下。最長約 12×10 秒。
+# ⚠️ 比的是 Mac 的 `date +%s` 與 VPS 的 time.time()：兩邊都走 NTP，若 VPS 慢 N 秒只會多等一輪；
+# 若快 N 秒，最壞讀到同步結束前 N 秒內算出的快取（未量測時鐘差）。
+wait_api_info_cache_since() {  # $1＝epoch 秒
+  local since="$1" at="" i
+  for i in 1 2 3 4 5 6 7 8 9 10 11 12; do
+    at="$(curl -sS -o /dev/null -D - --max-time 20 "$API_INFO_URL" 2>/dev/null \
+      | awk 'tolower($1) == "x-cpbl-info-computed-at:" { gsub(/\r/, "", $2); print $2 }' \
+      | tail -n 1 || true)"
+    [[ "$at" =~ ^[0-9]+$ ]] || return 0
+    [ "$at" -ge "$since" ] && return 0
+    sleep 10
+  done
+  echo "    ⚠ /api/info 快取 ${i} 輪內未換代（computed_at=${at} < ${since}）；照常比對，不符即失敗" >&2
+}
+
 # 原有限投影與自然鍵guard共用於正常/full及LINEUP_ONLY。
 prepare_lineup_copy() {
   LINEUP_TMP="$(mktemp -d)"
@@ -931,6 +951,7 @@ if [ -n "${POSTSEASON_RESULTS_ONLY:-}" ]; then
   echo '==> 季後晚間：三表＋異動訊號表非破壞性 upsert（games／官方狀態軌跡兩表／official_change_signals）'
   sync_postseason_results
   echo '==> 季後晚間：對帳 production 真實資料 freshness（data-only；不寫 refresh 標記）'
+  wait_api_info_cache_since "$(date +%s)"
   # 對帳不等（或取不到 /api/info）回專屬的 68：核定規劃對它的處置是「記失敗並停止當晚」，
   # 與 64–67／psql 錯誤的「立即停、bootout、交人工」不同，故不得與其他非零碼混用。
   if ! curl -fsS --retry 3 --retry-delay 15 --max-time 20 "$API_INFO_URL" \
@@ -1299,6 +1320,7 @@ if [ -n "${WITH_DETAIL:-}" ]; then
   # 同一寫入者（cpbl-backfill-season）的守備表；#344 前只同步了打／投兩表。
   sync_table fielding_seasons "player_id,year,team_id,pos" team_name g tc po a e dp tp pb cs sb
 fi
+SYNC_DONE_AT="$(date +%s)"   # 3/4 寫入全部結束；freshness 檢查等 /api/info 快取在此之後換代
 
 # 遠端跑訓練並**保留 trainer 的 exit code**。ssh 回傳的是遠端命令串最後一個指令的碼，
 # 遠端 shell（登入 shell 可能是 sh／dash）沒有 pipefail，所以
@@ -1373,6 +1395,7 @@ else
 fi
 
 echo "    + 對帳 production 真實資料 freshness"
+wait_api_info_cache_since "$SYNC_DONE_AT"
 fetch_api_info \
   | python3 "$REPO_DIR/scripts/verify_refresh_info.py" --data-only \
       --expected-last-game-date "$EXPECTED_LAST_GAME_DATE" \
@@ -1386,7 +1409,10 @@ ssh -o BatchMode=yes "$VPS" \
     ('prod-sync', CURRENT_DATE, CURRENT_DATE, jsonb_build_object('source', 'local-refresh'), true, \
     'local-to-production sync completed')\""
 
+MARKER_AT="$(date +%s)"
+
 echo "    + 驗證 production API freshness"
+wait_api_info_cache_since "$MARKER_AT"
 fetch_api_info \
   | python3 "$REPO_DIR/scripts/verify_refresh_info.py" --max-age-minutes 15 \
       --expected-last-game-date "$EXPECTED_LAST_GAME_DATE" \
