@@ -44,6 +44,13 @@ class Settings(BaseSettings):
     live_game_postseason_kinds: str = ""
     refresh_postseason_kinds: str = ""
 
+    # #353 WP2：只在 API 行程（uvicorn lifespan）套用的讀端逾時；migrate／訓練／ingest 不受影響。
+    # ⚠️ 預設值是規劃 r2 §3 的推論值（lock 2s、statement 4s、借池 3s），尚未依 VPS nginx
+    # request_time 分布（P3）校正；可經環境變數調高或設 0 關閉 session 逾時（調整需重新部署）。
+    api_db_pool_timeout_seconds: float = 3.0
+    api_db_statement_timeout_ms: int = 4000
+    api_db_lock_timeout_ms: int = 2000
+
     port: int = 4001
     app_version: str = "0.1.0"
 
