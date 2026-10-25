@@ -6,6 +6,8 @@ DB 失效情境在 `cpbl.db._pool` 邊界模擬：換成一個未開啟的連線
 
 from __future__ import annotations
 
+from contextlib import contextmanager
+
 import pytest
 from fastapi.testclient import TestClient
 from psycopg_pool import ConnectionPool
@@ -67,7 +69,11 @@ def test_info_freshness_metrics_use_completed_game_contract(monkeypatch):
             return None
         return 0
 
-    monkeypatch.setattr(info, "_scalar", scalar)
+    @contextmanager
+    def open_scalar():  # #353 WP3：整輪 metrics 共用一條連線，注入點改成借連線的那一層
+        yield scalar
+
+    monkeypatch.setattr(info, "_open_scalar", open_scalar)
 
     body = info.info()
 

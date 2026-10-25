@@ -6,6 +6,7 @@ API 唯讀契約：只提供 GET（tests/test_route_snapshot.py 守門）。
 
 from __future__ import annotations
 
+import asyncio
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
@@ -47,13 +48,18 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
 
     1. WP2：讀端逾時。⛔ 不放在 import 時：migrate／訓練／ingest CLI 也會 import cpbl 套件，
        它們合法地跑超過 statement_timeout（``tests/test_api_db_timeouts_353.py`` 守門）。
+    2. WP3：``/api/info`` 快取預熱＋背景重算。預熱受 1 的逾時約束，不會無限期擋住 startup。
     """
     db.configure_api_timeouts(
         pool_timeout_s=settings.api_db_pool_timeout_seconds,
         statement_timeout_ms=settings.api_db_statement_timeout_ms,
         lock_timeout_ms=settings.api_db_lock_timeout_ms,
     )
-    yield
+    await asyncio.to_thread(info.start_cache)
+    try:
+        yield
+    finally:
+        await asyncio.to_thread(info.stop_cache)
 
 
 app = FastAPI(title="Ruan's CPBL Lab API", version=__version__, lifespan=lifespan)
