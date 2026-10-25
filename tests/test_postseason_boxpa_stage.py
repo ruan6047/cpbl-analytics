@@ -484,3 +484,124 @@ def test_precheck_build_takes_lock_and_runs_pa_build_without_syncing(tmp_path):
     assert uv.rstrip().endswith("finish") and not lock.exists()
     all_mode, read2, _ = _evening(tmp_path / "all", boxpa="build 2026-C-2")
     assert all_mode.returncode == 0 and any(x.endswith("boxpa-prepare") for x in read2("uv.txt").splitlines())
+
+
+# ------------------------------------------------------------------ #355 WP-S：E4／E5（來源觀測紀錄隨 box 同步）
+
+class _FactsDb:
+    """``boxpa_sync.reconcile`` 的假 Psql：box／PA 列數與 published 取自真實 E4 事實；來源觀測紀錄當前列由 ``revs`` 決定。"""
+
+    def __init__(self, facts: ps.LocalFacts, revs: dict):
+        self.facts, self.revs = facts, revs
+
+    def read(self, sql):
+        from cpbl.ingest import boxpa_sync as bs
+        if "build_id::text" in sql:
+            return [[KEY, self.facts.published_build]] if self.facts.published_build else []
+        if "game_source_revisions" in sql:
+            return [[KEY, s, *v] for s, v in self.revs.items()]
+        counts = {**self.facts.box_counts, **self.facts.pa_counts}
+        return [[t, KEY, str(counts.get(t, 0))] for t in (*bs.BOX_TABLES, *bs.PA_TABLES)]
+
+
+_REVS = {"livelog": ("v-live", "available", "1792911762.0"), "scoreboard": ("v-sb", "available", "1792911760.0")}
+
+
+def _real_reconcile_manifest(f: ps.LocalFacts, prod_revs: dict, at: str) -> dict:
+    """走**真** ``boxpa_sync.reconcile``（不是手寫 manifest），讓「revision 未到 → box_ok=False」由產生器本身決定。"""
+    from cpbl.ingest import boxpa_sync as bs
+    m = bs.reconcile(_FactsDb(f, _REVS), _FactsDb(f, prod_revs), bs.parse_games(KEY), [KEY], ["box", "pa"])
+    return {**m, "at": at}
+
+
+def _outcome(state) -> tuple:
+    rec = state["boxpa"][KEY]
+    return rec["state"], rec.get("reason"), rec["sources"]["box"]["status"], rec["sources"]["box"]["reason"]
+
+
+def test_e4_revision_mismatch_first_failure_then_resend_exhausted_then_conflict():
+    """E4（68 路徑）：box／PA 列數都對、但 production 缺目標場 livelog 來源觀測紀錄（G4 窗口形狀）
+    → 真 reconcile 判 box_ok=False → 首次失敗＝待重送（不記送達）；重送一次仍缺＝額度用完 → conflict。
+    沿既有額度（每場 2 次），不新增重試、狀態或退出碼。輸出逐列辨識首次失敗／重送耗盡（F1 承接）。"""
+    state, f = pe.empty_state(), real_e4()
+    missing_live = {"scoreboard": _REVS["scoreboard"]}
+    t0 = tpe(10, 12, 22, 0)
+    assert step(state, t0, f) == ("sync", [KEY])
+    first = _real_reconcile_manifest(f, missing_live, "2026-10-12T22:01:00+08:00")
+    assert first["ok"] is False and first["games"][KEY]["box_ok"] is False
+    assert record_sync(state, t0, f, 68, first) == "retry"
+    o1 = _outcome(state)
+    assert o1[2:] == ("pending_update", "reconcile_mismatch_retrying"), "首次失敗：不記送達、待重送"
+    t1 = tpe(10, 12, 22, 5)
+    assert step(state, t1, f) == ("sync", [KEY]), "還有一次重送"
+    assert record_sync(state, t1, f, 68, _real_reconcile_manifest(f, missing_live, "2026-10-12T22:06:00+08:00")) == "retry"
+    assert step(state, tpe(10, 12, 22, 10), f) == ("idle", [])
+    o2 = _outcome(state)
+    assert o2[0] == "conflict" and o2[2] == "delivered_conflict", "重送耗盡：conflict，不再送"
+    assert not state.get("halted")
+    print(f"E4 68 首次失敗 → {o1}")
+    print(f"E4 68 重送耗盡 → {o2}")
+
+
+def test_e4_revision_resend_succeeds_and_is_delivered():
+    """E4 正控：首次 revision 未到（68），重送時 production 已有相同紀錄 → 真 reconcile 判 box_ok=True → delivered。"""
+    state, f = pe.empty_state(), real_e4()
+    t0 = tpe(10, 12, 22, 0)
+    step(state, t0, f)
+    record_sync(state, t0, f, 68, _real_reconcile_manifest(f, {}, "2026-10-12T22:01:00+08:00"))
+    t1 = tpe(10, 12, 22, 5)
+    assert step(state, t1, f) == ("sync", [KEY])
+    good = _real_reconcile_manifest(f, dict(_REVS), "2026-10-12T22:06:00+08:00")
+    assert good["ok"] is True
+    assert record_sync(state, t1, f, 0, good) == "ok"
+    assert state["boxpa"][KEY]["sources"]["box"]["status"] == "delivered"
+
+
+def test_e4_revision_ssh_failure_first_retry_then_unreached_and_psql_error_halts():
+    """E4（72／74 路徑）：revision 那步 ssh 失敗（refresh 回 72，沒有 manifest）→ 首次＝待重送、不記送達；
+    第二次仍 72 → 重送耗盡（unreached）；production psql 錯誤（74）→ 停止（halted，交人工）。"""
+    state, f = pe.empty_state(), real_e4()
+    t0 = tpe(10, 12, 22, 0)
+    assert step(state, t0, f) == ("sync", [KEY])
+    assert record_sync(state, t0, f, 72, None) == "retry"
+    o1 = _outcome(state)
+    assert o1[2] != "delivered", "72 沒有對帳證據：不得記送達"
+    t1 = tpe(10, 12, 22, 5)
+    assert step(state, t1, f) == ("sync", [KEY])
+    record_sync(state, t1, f, 72, None)
+    o2 = _outcome(state)
+    assert o2[:2] == ("unreached", "sync_transient_failure_after_resend")
+    state3 = pe.empty_state()
+    step(state3, t0, f)
+    assert record_sync(state3, t0, f, 74, None) == "halted"
+    o3 = state3["halted"]["reason"]
+    assert o3 == "boxpa_sync_exit_74"
+    print(f"E4 72 首次失敗 → {o1}")
+    print(f"E4 72 重送耗盡 → {o2}")
+    print(f"E4 74 停止 → halted {o3}")
+
+
+def test_e5_f60_unchanged_night_the_only_refresh_is_boxpa_and_it_carries_source_revisions(tmp_path):
+    """E5：box／PA 同步那一晚 F+60 結果鏈回 unchanged（plan=scrape → scrape unchanged、sync-due no）
+    → 晚間鏈**不**呼叫 RESULTS_ONLY，唯一一次 refresh 是 BOXPA_ONLY；把那次 refresh 收到的參數原樣交給
+    **真** refresh-cpbl-prod.sh（假 ssh／docker），其 payload 已含該場 game_source_revisions。"""
+    result, read, _ = _evening(tmp_path / "evening", plan="scrape", boxpa="sync 2026-C-4 box,pa")
+    assert result.returncode == 0, result.stderr
+    uv = read("uv.txt")
+    assert re.search(r" scrape$", uv, re.M) and "sync-due" in uv, "F+60 那輪 scrape 回 unchanged、sync-due no"
+    calls_ = [dict(line.split("=", 1) for line in block.strip().splitlines())
+              for block in re.split(r"(?=^POSTSEASON_RESULTS_ONLY=)", read("refresh.txt"), flags=re.M) if block.strip()]
+    assert len(calls_) == 1, calls_
+    (only,) = calls_
+    assert only["POSTSEASON_RESULTS_ONLY"] == "" and only["POSTSEASON_BOXPA_ONLY"] == "1"
+
+    from tests.test_boxpa_sync_mode import _run as run_refresh
+    real, calls, _ = run_refresh(tmp_path / "refresh", POSTSEASON_BOXPA_GAMES=only["POSTSEASON_BOXPA_GAMES"],
+                                 POSTSEASON_BOXPA_PARTS=only["POSTSEASON_BOXPA_PARTS"],
+                                 STUB_KEYS_SQL="(year, kind_code, game_sno) IN ((2026,'C',4))",
+                                 STUB_PA_GAMES=only["POSTSEASON_BOXPA_GAMES"])
+    assert real.returncode == 0, real.stdout + real.stderr
+    rev = [c["stdin"] for c in calls("ssh") if "INSERT INTO cpbl.game_source_revisions " in c["stdin"]]
+    assert len(rev) == 1
+    (read_sql,) = [c["stdin"] for c in calls("docker") if "FROM cpbl.game_source_revisions " in c["stdin"]]
+    assert "(year, kind_code, game_sno) IN ((2026,'C',4))" in read_sql

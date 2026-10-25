@@ -962,6 +962,69 @@ sync_postseason_results() {
   sync_table official_change_signals "year,kind_code,game_sno,field" official_value detected_at resolved_at
 }
 
+# #355 WP-S：POSTSEASON_BOXPA_ONLY 送了 box 的那一次，在同一支程序內送目標場的來源觀測紀錄
+# （game_source_revisions 的 livelog／scoreboard 兩個來源、該場全部版本列）。
+# 為什麼：`/api/v1/games/{sno}/status` 的 play_by_play_availability 讀的是這張表；它原本只由結果同步
+# （sync_postseason_results）送，box／PA 已上正式站後要等 F+60 那輪結果同步才轉 available
+# （G3／G4 實測約 36 分鐘；F+60 回 unchanged 時會拖到隔日每日鏈）。欄位語意不變，只改送達時點。
+# 與 sync_revision_table 同一套語意（不搬 id、矯正 setval 設到 prod 自己的 max(id)、payload 先落地斷言才送、
+# 內容唯一鍵衝突時整欄鏡像），差別只有資料取法：目標鍵 `COPY (SELECT …) TO STDOUT`（⛔ 不 pg_dump 整表）。
+#   ⛔ 不改 sync_revision_table／sync_postseason_results（完整鏈與 RESULTS_ONLY 的 payload 逐位元不變）。
+#   ⛔ 只送 livelog／scoreboard；schedule／advanced 照舊由結果同步與每日鏈送（不搶先於 games／狀態軌跡表）。
+# 欄位清單與 sync_postseason_results 的 game_source_revisions 逐字相同（tests/test_boxpa_sync_mode.py 釘住）。
+# 不印 _revision_telemetry：那要另開一條 ssh 唯讀查詢，失敗碼不是 72／74；矯正 setval 本身是構造保證。
+# 離開碼（與 BOXPA 既有碼表一致）：67 守衛不過（未送） · 72 ssh 連線失敗 · 74 production psql 錯誤。
+# 這一步失敗時，前面已各自提交的 box／PA 不撤回：該次程序結束時仍是「box 已到、紀錄未到」的窗口，
+# 由晚間鏈既有重送一次／conflict／halted 語意處理（不新增重試額度；#355 審核 F1）。
+sync_box_source_revisions() {
+  local t=game_source_revisions
+  local pk="year,kind_code,game_sno,source,source_version"
+  local cols="year,kind_code,game_sno,source,source_version,outcome,row_count,error_code,detail,fetched_at,last_seen_at,seen_count"
+  local payload why rc
+  payload="$(mktemp "${TMPDIR:-/tmp}/cpbl-boxpa-${t}.XXXXXX")"
+  {
+    # 暫存表含 id 欄（LIKE 帶 NOT NULL、不帶 identity）：本機 id 只進暫存，INSERT 只選顯式欄、不搬 id。
+    echo "CREATE TEMP TABLE _rev_stg (LIKE cpbl.${t} INCLUDING DEFAULTS) ON COMMIT DROP;"
+    echo "COPY _rev_stg FROM stdin;"
+    printf '%s\n' "\\set QUIET on" "\\set ON_ERROR_STOP on" \
+      "COPY (SELECT * FROM cpbl.${t} WHERE source IN ('livelog','scoreboard') AND ${SYNC_SCOPE_KEYS_SQL}) TO STDOUT;" \
+      | docker exec -i "$LOCAL_DB" psql -U cpbl -d cpbl -X
+    echo '\.'
+    echo "SELECT setval(pg_get_serial_sequence('cpbl.${t}', 'id'), \
+GREATEST(COALESCE((SELECT max(id) FROM cpbl.${t}), 0), 1), \
+(SELECT count(*) FROM cpbl.${t}) > 0);"
+    echo "INSERT INTO cpbl.${t} (${cols}) SELECT ${cols} FROM _rev_stg \
+ON CONFLICT (${pk}) DO UPDATE SET $(_excl ${cols//,/ });"
+  } > "$payload"
+  # 守衛兩層、皆先落地再斷言：(1) 既有 _assert_revision_payload（恰一行矯正 setval、無原生 setval、位置在
+  # COPY 結束與 INSERT 之間）；(2) 形狀：COPY 資料段以外恰 1 個 COPY＋1 個 INSERT（對象只限本表）、
+  # setval 那行逐字等於矯正形式、無 DELETE／TRUNCATE／DROP／ALTER／CASCADE。
+  _assert_revision_payload "$payload" "$t" || exit 67
+  why="$(awk -v t="$t" '
+    in_copy { if ($0 == "\\.") in_copy = 0; next }
+    $0 == "COPY _rev_stg FROM stdin;" { copies++; in_copy = 1; next }
+    /^INSERT INTO / { inserts++; if (index($0, "INSERT INTO cpbl." t " (") != 1) print "INSERT 對象不符：" substr($0, 1, 80) }
+    tolower($0) ~ /setval/ { setvals++; if ($0 != "SELECT setval(pg_get_serial_sequence(\047cpbl." t "\047, \047id\047), GREATEST(COALESCE((SELECT max(id) FROM cpbl." t "), 0), 1), (SELECT count(*) FROM cpbl." t ") > 0);") print "setval 不是矯正形式：" substr($0, 1, 80) }
+    toupper($0) ~ /^(DELETE|TRUNCATE|DROP|ALTER)([^A-Z_]|$)|(^|[^A-Z_])CASCADE([^A-Z_]|$)/ { print "禁止語句：" substr($0, 1, 80) }
+    END { if (copies != 1 || inserts != 1 || setvals != 1 || in_copy) print "形狀不符：COPY=" copies+0 " INSERT=" inserts+0 " setval=" setvals+0 " 未結束=" in_copy+0 }
+  ' "$payload")"
+  if [ -n "$why" ]; then
+    echo "FATAL: ${t} 的目標場 payload 未通過送出前守衛（未送出；payload 保留於 ${payload}）：${why}" >&2
+    exit 67
+  fi
+  rc=0
+  ssh -o BatchMode=yes "$VPS" \
+      "cd ${DEPLOY_PATH} && set -a && . ./.env && docker exec -i prod_pg psql \
+        -v ON_ERROR_STOP=1 -q --single-transaction -U \"\$DB_USER\" -d \"\$DB_NAME\"" < "$payload" || rc=$?
+  if [ "$rc" -ne 0 ]; then
+    echo "FATAL: ${t} 目標場 upsert 失敗 rc=${rc}（box／PA 已寫入的列保留；payload 保留於 ${payload}）" >&2
+    [ "$rc" -eq 255 ] && exit 72
+    exit 74
+  fi
+  rm -f "$payload"
+  echo "    ✓ ${t}（目標場 livelog／scoreboard）"
+}
+
 # #365 S4（P-EVENING-BACKUP）：晚間兩個早退模式（RESULTS_ONLY／BOXPA_ONLY）的「每晚首次同步前備份一次」。
 # 晚間鏈在同一晚已有已驗證備份時帶 REUSE_VERIFIED_BACKUP／REUSE_VERIFIED_BACKUP_SHA256；這裡在**同一行程**、
 # 緊接同步之前重新確認三件事——檔案存在、位於本次 BACKUP_DIR 下、sha256 相符——全成立才略過備份；任一不成立
@@ -1049,8 +1112,9 @@ fi
 # 只做：唯讀自檢（production 已完賽、本機 FK 閉包、可送 PA 的場）→ 獨立目錄已驗證備份 →
 #       box 七表只對目標場鍵 upsert（sync_box_tables，與完整鏈同一份欄位清單；不 DELETE）→
 #       PA 五表在單一交易內只替換目標場鍵（子→父 DELETE＋父→子 OVERRIDING SYSTEM VALUE 插入）→
+#       送了 box 時：目標場 game_source_revisions（livelog／scoreboard）upsert（#355，sync_box_source_revisions）→
 #       逐表逐場對帳，manifest 寫到 BOXPA_MANIFEST。
-#   ⛔ 不爬、不 build-features、不跑 migration、不訓練、⛔ 不寫 refresh 標記、不同步其他表、
+#   ⛔ 不爬、不 build-features、不跑 migration、不訓練、⛔ 不寫 refresh 標記、不同步上列以外的表、
 #   ⛔ 不 TRUNCATE、不 CASCADE、⛔ 不呼叫 prod_cpbl_api（新碼只在本機跑；VPS 只收 SQL 文字，PLAN r2 §9.1；
 #   tests/test_boxpa_sync_mode.py 釘住）。
 # 離開碼：0 成功 · 64 參數錯 · 67 本機自檢／payload 守衛不過（未送） · 68 對帳不等
@@ -1130,6 +1194,14 @@ if [ -n "${POSTSEASON_BOXPA_ONLY:-}" ]; then
     echo '    · PA：本次沒有可送的場（POSTSEASON_BOXPA_PARTS 不含 pa，或本機尚無 published build；production PA 未動）'
   fi
   rm -f "$BOXPA_PA_PAYLOAD"
+  # #355 WP-S：送了 box 的那次，同一支程序內送目標場來源觀測紀錄（在 box／PA 之後、reconcile 之前；
+  # reconcile 一併核對，未到即 box_ok=False → 既有 68 重送一次）。只送 PA 的那次不送（box 未在本次送達）。
+  case ",${BOXPA_PARTS}," in
+    *,box,*)
+      echo '==> 季後目標場 box／PA：來源觀測紀錄目標場 upsert（game_source_revisions：livelog／scoreboard）'
+      sync_box_source_revisions
+      ;;
+  esac
   echo '==> 季後目標場 box／PA：逐表逐場對帳（本機 vs production）'
   BOXPA_RC=0
   uv run python -m cpbl.ingest.boxpa_sync reconcile --games "$POSTSEASON_BOXPA_GAMES" \
@@ -1140,7 +1212,7 @@ if [ -n "${POSTSEASON_BOXPA_ONLY:-}" ]; then
     echo "FATAL: 季後目標場對帳未通過 rc=${BOXPA_RC}（已寫入的列保留；見 manifest）" >&2
     exit "$BOXPA_RC"
   fi
-  echo '==> 季後目標場 box／PA：完成（只代表目標場 box 七表＋PA 五表同步與對帳，不代表整鏈刷新）'
+  echo '==> 季後目標場 box／PA：完成（只代表目標場 box 七表＋PA 五表＋來源觀測紀錄同步與對帳，不代表整鏈刷新）'
   exit 0
 fi
 
