@@ -349,7 +349,13 @@ def test_o5_external_scope_variable_cannot_shrink_the_full_chain(tmp_path):
         assert f"cpbl.{t}" in dumped, f"{t} 必須整表 pg_dump"
     assert "（目標場）" not in result.stdout
     payloads = [c["stdin"] for c in ssh_calls]
-    assert any("TRUNCATE cpbl.game_recap_source_revisions" in p for p in payloads), "整鏈 PA 仍是 TRUNCATE 全量重灌"
+    # #353 WP1：整鏈 PA 改逐場增量（鍵由簽章比對產生），外部 SYNC_SCOPE_KEYS_SQL 同樣不得滲入；
+    # 且不論哪條路徑都不再 TRUNCATE PA 五表。
+    assert not any("TRUNCATE cpbl.game_recap" in p for p in payloads)
+    uv = [json.loads(p.read_text(encoding="utf-8")) for p in sorted((tmp_path / "calls" / "uv").glob("*.json"))] \
+        if (tmp_path / "calls" / "uv").is_dir() else []
+    assert not any(TARGET_SQL in " ".join(c["argv"]) for c in uv)
+    assert "PA 同步開始" in result.stdout, "整鏈仍須執行 sync_pa_build"
 
 
 def test_a_game_key_is_accepted_and_defaults_to_box_and_pa(tmp_path):
