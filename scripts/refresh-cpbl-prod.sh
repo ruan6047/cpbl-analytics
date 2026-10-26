@@ -41,6 +41,8 @@ scripts/refresh-cpbl-prod.sh — 把本機 CPBL 資料同步到 production（四
   · production PostgreSQL：逐表 upsert；game_features 為整表重建；PA build 家族逐場替換＋全族對帳
   · production 主機檔案系統：資料庫備份檔、模型 artifact
   · 本機 PostgreSQL：cpbl-scrape-* 與 cpbl-build-features 的寫入
+  · 完整鏈另起可用性哨兵（#353）：logs/availability-sentinel-*.tsv；正式站任一筆 000／≥5s 或 0 樣本
+    即對 .env 的 CPBL_AVAILABILITY_PING_URL 送告警。哨兵結果不影響本腳本成敗
   不要拿這一支來「跑跑看會發生什麼」——它沒有唯讀模式。
 
 怎麼呼叫（不接受位置參數，設定一律走環境變數）
@@ -155,10 +157,43 @@ wait_api_info_cache_since() {  # $1＝epoch 秒
   echo "    ⚠ /api/info 快取 ${i} 輪內未換代（computed_at=${at} < ${since}）；照常比對，不符即失敗" >&2
 }
 
+# —— #353 WP4a 每日鏈可用性哨兵（scripts/prod_availability.py sentinel）——
+# 完整鏈在開始碰 production（2/4 備份）前啟動，第 4 步結束後再量 120 秒才判定；任一筆 http=000 或
+# ≥5s、或 0 樣本 ⇒ 告警（#358 同一收件處）。⛔ 哨兵的任何結果都不改變本腳本的成敗：背景執行、
+# 輸出只進 log，wait 的退出碼被丟棄；EXIT trap 保留本腳本原本的退出碼。
+# 停用＝移除下方 start_availability_sentinel 那一行呼叫（規劃 r2 §8 回復方式）。
+SENTINEL_PID=""
+SENTINEL_STOP=""
+start_availability_sentinel() {
+  SENTINEL_STOP="${TMPDIR:-/tmp}/cpbl-sentinel-stop.$$"
+  rm -f "$SENTINEL_STOP"
+  mkdir -p "$REPO_DIR/logs"
+  uv run python "$REPO_DIR/scripts/prod_availability.py" sentinel --stop-file "$SENTINEL_STOP" \
+    --base-url "${API_INFO_URL%/api/info}" --env-file "$REPO_DIR/.env" \
+    --out "$REPO_DIR/logs/availability-sentinel-$(date +%Y%m%d-%H%M%S).tsv" </dev/null &
+  SENTINEL_PID=$!
+  echo "    ⓘ 可用性哨兵已啟動（每 15 秒；結束後再量 120 秒）"
+}
+stop_availability_sentinel() {
+  [ -n "$SENTINEL_PID" ] || return 0
+  echo "    ⓘ 可用性哨兵：收尾量測 120 秒後判定"
+  touch "$SENTINEL_STOP" 2>/dev/null || true
+  wait "$SENTINEL_PID" 2>/dev/null || true
+  SENTINEL_PID=""
+  rm -f "$SENTINEL_STOP"
+}
+# 單一 EXIT trap（bash 一個訊號只有一個 trap，後設的會蓋掉先設的）：公告暫存清理＋哨兵收尾。
+_on_exit() {
+  local rc=$?
+  rm -rf "${LINEUP_TMP:-}"
+  stop_availability_sentinel || true
+  exit "$rc"
+}
+
 # 原有限投影與自然鍵guard共用於正常/full及LINEUP_ONLY。
 prepare_lineup_copy() {
   LINEUP_TMP="$(mktemp -d)"
-  trap 'rm -rf "$LINEUP_TMP"' EXIT
+  trap _on_exit EXIT
   docker exec "$LOCAL_DB" pg_dump -U cpbl -d cpbl --data-only \
     -t cpbl.game_lineup_announcement_revisions > "$LINEUP_TMP/input.sql"
   # pg_dump 的控制指令不得隨 COPY 資料進 production；只放行固定欄位的單一 COPY。
@@ -1213,6 +1248,9 @@ if [ -z "$EXPECTED_LAST_GAME_DATE" ] || ! [[ "$EXPECTED_COMPLETED" =~ ^[0-9]+$ ]
   echo "FATAL: 無法取得本機 freshness 基準：${LOCAL_FRESHNESS}" >&2
   exit 65
 fi
+
+trap _on_exit EXIT
+start_availability_sentinel
 
 echo "==> 2/4 備份 production 資料庫（整庫：cpbl ＋ 主站 public）"
 BACKUP_PATH="$(VPS="$VPS" DEPLOY_PATH="$DEPLOY_PATH" "$REPO_DIR/scripts/backup-prod-db.sh")"

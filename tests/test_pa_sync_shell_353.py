@@ -13,6 +13,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 from tests.test_prod_sync_revision_seq import (
     FAKE_LOCAL_SEQ,
     FAKE_PROD_MAX,
@@ -41,6 +43,16 @@ elif "cpbl.ingest.pa_incremental" in argv and "payload" in argv:
     if rc:
         Path(out).write_text("", encoding="utf-8")
     raise SystemExit(rc)
+elif any(a.endswith("prod_availability.py") for a in argv):
+    # #353 WP4a 哨兵樁：等到停止檔出現（≤10s）才結束，記下是否被 EXIT trap 正常停下。
+    import time
+    stop = Path(argv[argv.index("--stop-file") + 1])
+    for _ in range(100):
+        if stop.exists():
+            break
+        time.sleep(0.1)
+    (Path(os.environ["STUB_LOG_DIR"]) / "sentinel-stopped").write_text(
+        "stopped" if stop.exists() else "timeout", encoding="utf-8")
 elif "cpbl.ingest.pa_incremental" in argv and "reconcile" in argv:
     print('PA_RECONCILE={"ok": true}')
     raise SystemExit(int(os.environ.get("STUB_PA_RECONCILE_RC", "0")))
@@ -164,3 +176,41 @@ def test_pa_incremental_module_never_parses_with_the_evening_guard() -> None:
     src = (Path(SCRIPT).parents[1] / "src" / "cpbl" / "ingest" / "pa_incremental.py").read_text(encoding="utf-8")
     assert "parse_games" not in src.split('"""', 2)[2]
     assert os.path.exists(SCRIPT)
+
+
+# --------------------------------------------------------------------------- WP4a 哨兵接線
+
+
+def _sentinel_calls(uv: list[list[str]]) -> list[list[str]]:
+    return [a for a in uv if any(x.endswith("prod_availability.py") for x in a)]
+
+
+def test_sentinel_runs_once_per_full_chain_and_is_stopped_by_the_exit_trap(tmp_path: Path) -> None:
+    result, _, uv = _run(tmp_path)
+    assert result.returncode == 0, result.stderr
+    calls = _sentinel_calls(uv)
+    assert len(calls) == 1
+    argv = calls[0]
+    assert argv[argv.index("--base-url") + 1] == "http://127.0.0.1:1", "base 由 API_INFO_URL 去掉 /api/info"
+    assert argv[argv.index("--env-file") + 1].endswith("/.env")
+    assert "/logs/availability-sentinel-" in argv[argv.index("--out") + 1]
+    assert (tmp_path / "calls" / "sentinel-stopped").read_text() == "stopped"
+
+
+@pytest.mark.parametrize(("extra", "rc"), [({"STUB_PA_RECONCILE_RC": "68"}, 68), ({"STUB_PA_PAYLOAD_RC": "67"}, 67)])
+def test_sentinel_never_changes_the_chain_exit_code(tmp_path: Path, extra, rc) -> None:
+    result, _, uv = _run(tmp_path, **extra)
+    assert result.returncode == rc
+    assert len(_sentinel_calls(uv)) == 1
+    assert (tmp_path / "calls" / "sentinel-stopped").read_text() == "stopped"
+
+
+def test_sentinel_starts_before_the_first_production_touch() -> None:
+    source = SCRIPT.read_text(encoding="utf-8")
+    start = source.index("\nstart_availability_sentinel\n")
+    assert source.index("trap _on_exit EXIT\nstart_availability_sentinel") < start
+    assert start < source.index('echo "==> 2/4 備份 production 資料庫')
+    assert source.count("\nstart_availability_sentinel\n") == 1, "只在完整鏈啟動"
+    for mode in ("LINEUP_ONLY", "ROSTER_ONLY", "POSTSEASON_RESULTS_ONLY", "POSTSEASON_BOXPA_ONLY",
+                 "TEAM_COMPARISON_ONLY"):
+        assert source.index(f'if [ -n "${{{mode}:-}}" ]') < start or mode not in source

@@ -7,7 +7,7 @@
     python -m cpbl.ingest.pa_incremental reconcile --local-psql CMD --target-psql CMD
 
 為什麼（研究 2 直接量到）：舊做法在單一交易內 ``TRUNCATE`` 五表再重灌，ACCESS EXCLUSIVE 一路持有到
-commit（正式站約 7 分 20 秒）；期間讀 PA 表的請求全部排隊，API 連線池 8 條被占滿，連 ``/api/info``
+commit（正式站約 7 分 20 秒）；期間讀 PA 表的請求全部排隊，API 連線池 8 條被占滿，連 info 端點
 都等不到連線。改成 DELETE 只取 ROW EXCLUSIVE，讀者走 MVCC 看到交易前的快照，不被擋。
 
 設計（核定規劃 r2 §3 WP1）：
