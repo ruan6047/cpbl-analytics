@@ -148,6 +148,7 @@ def test_gamelog_records_box_pitching_revisions_alongside_upsert(
     monkeypatch.setattr("cpbl.ingest._browser.session", lambda: _BrowserSession())
     monkeypatch.setattr(cpbl_gamelog.time, "sleep", lambda _delay: None)
     monkeypatch.setattr(cpbl_gamelog, "_upsert", lambda _table, _cols, _pk, rows: len(rows))
+    monkeypatch.setattr(cpbl_gamelog, "_replace_livelog_extra", lambda *_a: 0)
     monkeypatch.setattr(cpbl_gamelog, "record_source_revision", lambda **kwargs: None, raising=False)
     monkeypatch.setattr(
         cpbl_gamelog,

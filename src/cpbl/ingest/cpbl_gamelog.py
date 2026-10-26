@@ -37,6 +37,10 @@ _HIDDEN_RE = re.compile(r'name="__RequestVerificationToken"[^>]*value="([^"]+)"'
 # 兩邊一致由 `tests/test_gamelog_reconcile.py` 機械比對，不靠人記得同步改。
 EXIT_INCOMPLETE_SCRAPE = 69
 
+# #357 WP2-c：本程序內 livelog 寫入成功的場次 → 原文帶事件號的列數。每日鏈開頭清空、
+# 收尾時用 `livelog_checks` 對這些場次讀回 DB 驗兩支檢查（寫入端自己的帳，不靠時間窗猜）。
+LIVELOG_WRITTEN: dict[tuple[int, str, int], int] = {}
+
 
 class GamelogScrapeIncomplete(RuntimeError):
     """`scrape_gamelogs` 有逐場失敗且呼叫端未明示容忍時拋出。
@@ -105,9 +109,10 @@ def _primary_indices(data: list[dict]) -> set[int]:
     `_upsert` 逐列 ON CONFLICT DO UPDATE、後到者勝，同號多筆照原文順序送進去時，
     每場最後事件的 content 會被尾隨的結束標記覆蓋（#357；2026 全 608 場皆此形狀）。
 
-    ⚠️ 刻意行為（#357 今日切片）：結束標記列**暫不入庫**；附加表於 #357 賽後上線。
-    ⛔ 不得從 `game_livelog` 沒有標記列推出「該場原文沒有結束標記」——原文仍有，
-    且 `record_source_revision` 收的 payload 是未經篩選的原文。
+    其餘同號列（結束標記等）不丟：由 :func:`_livelog_extra_rows` 寫進附加表
+    `game_livelog_extra`（#357 B1，migration 079）。
+    ⛔ 不得從 `game_livelog` 沒有標記列推出「該場原文沒有結束標記」——標記在附加表；
+    要「該場全部原文列」須合併兩表（`/live` 的 `merge_livelog_rows`）。
     """
     chosen: dict[str, int] = {}
     for i, r in enumerate(data):
@@ -121,24 +126,68 @@ def _primary_indices(data: list[dict]) -> set[int]:
     return set(chosen.values())
 
 
+def _livelog_fields(r: dict) -> tuple:
+    """主表與附加表共用的事件欄位（`_LL_COLS` 去掉前 4 個鍵欄的順序）。"""
+    return (
+        _i(r.get("InningSeq")), r.get("VisitingHomeType"),
+        _i(r.get("BattingOrder")), _i(r.get("OutCnt")), _i(r.get("BallCnt")), _i(r.get("StrikeCnt")),
+        _i(r.get("PitchCnt")), r.get("Content"), r.get("ActionName"), r.get("BattingActionName"),
+        r.get("DefendStationCode"), r.get("HitterAcnt"), r.get("HitterName"),
+        r.get("PitcherAcnt"), r.get("PitcherName"), r.get("CatcherAcnt"), r.get("CatcherName"),
+        r.get("FirstBase") or None, r.get("SecondBase") or None, r.get("ThirdBase") or None,
+        _b(r.get("IsStrike")), _b(r.get("IsBall")), _b(r.get("IsScoreCnt")),
+        _b(r.get("IsChangePlayer")), _b(r.get("IsSpecialEvent")),
+        _i(r.get("VisitingScore")), _i(r.get("HomeScore")),
+    )
+
+
 def _livelog_rows(year: int, kind: str, sno: int, data: list[dict]) -> list[tuple]:
-    out = []
     keep = _primary_indices(data)
+    return [(year, kind, sno, r.get("MainEventNo"), *_livelog_fields(r))
+            for i, r in enumerate(data) if i in keep]
+
+
+def _livelog_extra_rows(year: int, kind: str, sno: int, data: list[dict]) -> list[tuple]:
+    """主列以外的同號列 → `game_livelog_extra`（`_LL_EXTRA_COLS` 順序）。
+
+    `dup_seq`＝該列在原文同號組中的位置（0 起算，依原文陣列順序）；主列佔用的位置不出現
+    在本表。主表列數＋本表列數＝原文帶事件號的列數（同號守恆，`livelog_checks` 機械檢查）。
+    """
+    keep = _primary_indices(data)
+    seen: dict[str, int] = {}
+    out = []
     for i, r in enumerate(data):
-        if i not in keep:
+        no = r.get("MainEventNo")
+        if not no:
             continue
-        out.append((
-            year, kind, sno, r.get("MainEventNo"), _i(r.get("InningSeq")), r.get("VisitingHomeType"),
-            _i(r.get("BattingOrder")), _i(r.get("OutCnt")), _i(r.get("BallCnt")), _i(r.get("StrikeCnt")),
-            _i(r.get("PitchCnt")), r.get("Content"), r.get("ActionName"), r.get("BattingActionName"),
-            r.get("DefendStationCode"), r.get("HitterAcnt"), r.get("HitterName"),
-            r.get("PitcherAcnt"), r.get("PitcherName"), r.get("CatcherAcnt"), r.get("CatcherName"),
-            r.get("FirstBase") or None, r.get("SecondBase") or None, r.get("ThirdBase") or None,
-            _b(r.get("IsStrike")), _b(r.get("IsBall")), _b(r.get("IsScoreCnt")),
-            _b(r.get("IsChangePlayer")), _b(r.get("IsSpecialEvent")),
-            _i(r.get("VisitingScore")), _i(r.get("HomeScore")),
-        ))
+        seq = seen.get(no, 0)
+        seen[no] = seq + 1
+        if i not in keep:
+            out.append((year, kind, sno, no, seq, r.get("Pkno"), *_livelog_fields(r)))
     return out
+
+
+def _replace_livelog_extra(year: int, kind: str, sno: int, rows: list[tuple]) -> int:
+    """該場附加列先刪後寫，同一交易（#357 B1）。
+
+    為什麼整場先刪：附加列的鍵含 `dup_seq`，原文同號組若變小（官方事後刪列），只 UPSERT
+    會留下殘列，同號守恆就不再成立。只在原文 LiveLogJson 解析成功時呼叫——壞 JSON 時
+    不碰既有附加列（與主表「解析失敗寫 0 列、不清空」同語意）。
+    """
+    cols = [c.strip() for c in _LL_EXTRA_COLS.split(",")]
+    with conn() as c:
+        cur = c.cursor()
+        cur.execute(
+            "DELETE FROM cpbl.game_livelog_extra WHERE year=%s AND kind_code=%s AND game_sno=%s",
+            (year, kind, sno),
+        )
+        if rows:
+            cur.executemany(
+                f"INSERT INTO cpbl.game_livelog_extra ({_LL_EXTRA_COLS}) "
+                f"VALUES ({','.join(['%s'] * len(cols))})",
+                rows,
+            )
+    return len(rows)
 
 
 def _bbox_rows(year: int, kind: str, sno: int, data: list[dict]) -> list[tuple]:
@@ -197,6 +246,9 @@ _LL_COLS = ("year,kind_code,game_sno,main_event_no,inning_seq,visiting_home_type
             "defend_station_code,hitter_acnt,hitter_name,pitcher_acnt,pitcher_name,catcher_acnt,"
             "catcher_name,first_base,second_base,third_base,is_strike,is_ball,is_score,"
             "is_change_player,is_special_event,visiting_score,home_score")
+# 附加表＝主表欄位＋同號內序號 dup_seq＋原文 Pkno（migration 079）。
+_LL_EXTRA_COLS = ("year,kind_code,game_sno,main_event_no,dup_seq,pkno,"
+                  + _LL_COLS.split(",", 4)[4])
 
 
 _GD_COLS = ("year,kind_code,game_sno,attendance,game_time,"
@@ -318,7 +370,8 @@ def scrape_gamelogs(year: int, snos: list[int], kind_code: str = KIND_REGULAR,
     """
     out: dict = {"kind_code": kind_code, "target": len(snos), "games": 0,
                  "failed": [], "failures": [],
-                 "scoreboard": 0, "livelog": 0, "batting_box": 0, "pitching_box": 0}
+                 "scoreboard": 0, "livelog": 0, "livelog_extra": 0,
+                 "batting_box": 0, "pitching_box": 0}
     if not snos:
         return out
     from cpbl.ingest._browser import session
@@ -435,6 +488,10 @@ def scrape_gamelogs(year: int, snos: list[int], kind_code: str = KIND_REGULAR,
                                      _scoreboard_rows(year, kind_code, sno, sb))
         out["livelog"] += _upsert("game_livelog", _LL_COLS, 4,
                                   _livelog_rows(year, kind_code, sno, ll))
+        if not ll_error and ll:
+            out["livelog_extra"] += _replace_livelog_extra(
+                year, kind_code, sno, _livelog_extra_rows(year, kind_code, sno, ll))
+            LIVELOG_WRITTEN[(year, kind_code, sno)] = sum(1 for r in ll if r.get("MainEventNo"))
         if not sb_error:
             record_source_revision(
                 year=year, kind_code=kind_code, game_sno=sno, source="scoreboard",
@@ -445,7 +502,10 @@ def scrape_gamelogs(year: int, snos: list[int], kind_code: str = KIND_REGULAR,
             record_source_revision(
                 year=year, kind_code=kind_code, game_sno=sno, source="livelog",
                 outcome="available" if ll else "missing", row_count=len(ll), payload=ll,
-                detail={"phase": "getlive"},
+                # event_rows：帶事件號的原文列數＝同號守恆檢查的母體（#357）。row_count 含
+                # 無事件號列，不能直接拿來比主表＋附加表。
+                detail={"phase": "getlive",
+                        "event_rows": sum(1 for r in ll if r.get("MainEventNo"))},
             )
         out["batting_box"] += _upsert("batting_gamelog", _BBOX_COLS, 4,
                                       _bbox_rows(year, kind_code, sno, bb))
