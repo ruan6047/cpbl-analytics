@@ -137,3 +137,19 @@ def test_started_or_reserved_rows_are_untouched(db, sno):
             # 值相同的覆寫在終態看不出來，所以直接看寫入器有沒有動手（變異檢驗要能紅）
             assert out == {"games_updated": 0, "revisions": 0, "with_starters": []}, (sno, i, out)
     assert _row(db, "A", sno) == before and _revs(db, "A", sno) == revs
+
+
+def test_gate_fallback_sql_counts_games_that_already_have_starters(db):
+    """review-2：外層退路 ``local_watch_kinds`` 的真 SQL。本機場次兩隊先發都已有值，前一天 23:30 仍要回該賽別。"""
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+
+    from cpbl.ingest import postseason_evening as pe
+    from cpbl.ingest.cpbl_site import upsert_games
+
+    pub = [p for p in payloads("C", 6) if p["GameResult"] == "" and p["HomePitcherAcnt"]][0]
+    upsert_games([pub])
+    assert all(_row(db, "C", 6)[:2])
+    day = datetime.fromisoformat(pub["GameDate"]).date()
+    before = datetime(day.year, day.month, day.day, 0, 30, tzinfo=ZoneInfo("Asia/Taipei"))   # 比賽日 00:30
+    assert pe.local_watch_kinds(before, ("C",)) == {"C"}

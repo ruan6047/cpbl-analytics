@@ -398,3 +398,64 @@ def test_pending_record_superseded_by_reschedule_during_cooldown_or_lock(monkeyp
     pe.plan(state, later, probe=lambda: gone, load_local=lambda: local_for(gone), watch_enabled=True)
     assert state["starter_watch"]["games"]["2026-C-7"]["state"] == "superseded"
     assert state["starter_watch"]["inflight"] == []
+
+
+def test_main_plan_wakes_on_rest_day_even_if_local_has_both_starters(tmp_path, monkeypatch, capsys):
+    """review-2：真的 ``main(['plan'])`` 喚醒路徑。今晚休兵、狀態檔沒有明日賽程（從未 probe 到），本機 games 明日 A 場
+    兩隊先發都已有值（可能是改期前的舊先發）⇒ 外層退路仍要醒、進內層、23:00 照抓一次（⛔ 不得因已有先發回 quiet）。
+
+    本機 DB 以記憶體替身代：只有一場 2026-A-302（game_date 2026-09-30、兩隊先發皆非空）。替身照 SQL 的 WHERE 回答：
+    查詢若要求「先發有空值」就沒有列（這場兩隊都有）。stats 回明日 A-302 SCHEDULED。"""
+    from contextlib import contextmanager
+
+    from cpbl import db as cdb
+
+    now = tpe(9, 29, 23, 2)
+    queries: list[str] = []
+
+    class Cur:
+        def __init__(self, rows):
+            self.rows = rows
+
+        def fetchall(self):
+            return self.rows
+
+    class Conn:
+        def execute(self, sql, params=()):
+            queries.append(sql)
+            if "FROM cpbl.games" in sql and "game_date = %s" in sql:
+                kinds, day = params[0], params[1]
+                has_null_filter = "home_starter_id IS NULL OR away_starter_id IS NULL" in sql
+                hit = "A" in kinds and str(day) == "2026-09-30" and not has_null_filter
+                return Cur([("A",)] if hit else [])
+            return Cur([])
+
+    @contextmanager
+    def fake_conn():
+        yield Conn()
+
+    stats = pe.parse_stats_games([raw_game("A", 302, "SCHEDULED", "2026-09-30T18:35:00")], 2026)
+    monkeypatch.setattr(cdb, "conn", fake_conn)
+    monkeypatch.setattr(pe, "_now", lambda: now)
+    monkeypatch.setattr(pe, "stats_probe", lambda year, months, kinds=pe.EVENING_KINDS, **kw: stats)
+    monkeypatch.setattr(pe, "load_local_games", lambda year, now, kinds=None: local_for(stats))
+    monkeypatch.setattr(pe, "local_first_seen", lambda year, kinds=None: {})
+    monkeypatch.setattr(pe, "local_www_starts", lambda year, kinds=None: {})
+    monkeypatch.setattr(pe, "local_scheduled_kinds", lambda night, kinds=None: set())
+    monkeypatch.setattr(pe, "publish_signals", lambda state, year, now: None)
+    monkeypatch.setattr(sw, "_schedule_watch_notify", lambda title, msg: {"attempted": True})
+    flag = tmp_path / "starter-watch.enabled"
+    flag.write_text("", encoding="utf-8")
+    for k, v in {"POSTSEASON_STATE": tmp_path / "state.json", "POSTSEASON_STATUS": tmp_path / "status.json",
+                 "POSTSEASON_STARTER_WATCH_FLAG": flag, "POSTSEASON_STARTER_WATCH_ALERT": tmp_path / "a.json",
+                 "POSTSEASON_STARTER_FLAG": tmp_path / "no.enabled",
+                 "POSTSEASON_TODAY_SCHEDULE": tmp_path / "no-today.json", "POSTSEASON_YEAR": "2026"}.items():
+        monkeypatch.setenv(k, str(v))
+    monkeypatch.setenv(pe.EVENING_KINDS_ENV, "")
+    assert pe.main(["plan"]) == 0
+    out = capsys.readouterr().out.strip().splitlines()[-1]
+    assert any("FROM cpbl.games" in q and "game_date = %s" in q for q in queries), "外層退路有查本機 games"
+    assert out == "scrape", "休兵日＋本機已有先發：仍要進內層並排 23:00 抓取"
+    state = pe.load_state(tmp_path / "state.json")
+    assert state["starter_watch"]["games"]["2026-A-302"]["state"] == "due"
+    assert state["starter_watch"]["inflight"] == ["A"]

@@ -1809,15 +1809,15 @@ def local_scheduled_kinds(night: date, kinds: Iterable[str] | None = None) -> se
 
 
 def local_watch_kinds(now: datetime, kinds: Iterable[str] | None = None) -> set[str]:
-    """#342 動作條件的退路：此刻（23:00～01:00）對應的比賽日，本機 games 有排定、仍缺先發的晚間賽別（唯讀；
-    只在旗標開啟、狀態檔賽程不知道時呼叫）。"""
+    """#342 動作條件的退路：此刻（23:00～01:00）對應的比賽日，本機 games 有排定場的晚間賽別（唯讀；只在旗標開啟、
+    狀態檔賽程不知道時呼叫）。⛔ 不以「本機已有先發」排除：那可能是改期前舊日期的先發，每場 F 都要抓一次
+    （審核 review-2；內層同理，見 :func:`refresh_starter_watch`）。"""
     from cpbl.db import conn
 
     with conn() as c:
         rows = c.execute(
             """SELECT DISTINCT kind_code FROM cpbl.games
-               WHERE kind_code = ANY(%s) AND game_date = %s
-                 AND (home_starter_id IS NULL OR away_starter_id IS NULL)""",
+               WHERE kind_code = ANY(%s) AND game_date = %s""",
             (_kinds_list(kinds), sw.fire_game_date(now))).fetchall()
     return {r[0] for r in rows}
 
