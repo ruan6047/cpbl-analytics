@@ -45,8 +45,10 @@ class Settings(BaseSettings):
     refresh_postseason_kinds: str = ""
 
     # #353 WP2：只在 API 行程（uvicorn lifespan）套用的讀端逾時；migrate／訓練／ingest 不受影響。
-    # 上限：單一請求最壞＝借池等待＋單一語句（lock 等待含在語句內）＝1.0＋3.5＝4.5s ＜ 驗收 5s。
-    #   規劃 r2 的例值（借池 3s＋statement 4s）最壞 7s，超過門檻，故 2026-10-26 改小。
+    # 上限：一個請求花在 DB 的時間（每次借池＋每條語句，含 lock 等待）合計不超過
+    #   api_db_request_budget_ms＝4.5s（db.request_budget；審核 1 第 4 項：語句逾時是逐條計時，
+    #   多條查詢會累加）。單一語句另受 statement 3.5s、借池 1.0s 限制。規劃 r2 例值最壞 7s，已改小。
+    #   ⚠️ 預算只管 DB 時間；Python 計算、序列化與網路不在內。
     # 下限依據（不是 P3）：正式站 nginx 格式沒有 $request_time（2026-10-26 唯讀確認），P3 無從量；
     #   改用研究 2 的正式站實測——每日鏈 CPU／換頁最重的非 PA 段，/api/info 依序 14 個查詢合計最慢
     #   4.626181s，單一語句不超過此值的一部分。⚠️ 其他端點平常的單一語句耗時未量；可經環境變數
@@ -54,6 +56,7 @@ class Settings(BaseSettings):
     api_db_pool_timeout_seconds: float = 1.0
     api_db_statement_timeout_ms: int = 3500
     api_db_lock_timeout_ms: int = 2000
+    api_db_request_budget_ms: int = 4500
 
     port: int = 4001
     app_version: str = "0.1.0"

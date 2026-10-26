@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import os
+import time
 from collections.abc import Iterator
 from contextlib import contextmanager
+from contextvars import ContextVar
 from pathlib import Path
 
 import psycopg
@@ -19,6 +21,14 @@ DEFAULT_POOL_TIMEOUT_SECONDS = 30.0
 _pool_timeout: float = DEFAULT_POOL_TIMEOUT_SECONDS
 # API 行程專用的 session 逾時（statement_timeout_ms, lock_timeout_ms）；None＝不設（#353 WP2）。
 _api_session: tuple[int, int] | None = None
+# API 行程專用的「每個請求的 DB 時間預算」（秒）；None＝不設。由 configure_api_timeouts 設定，
+# 經 request_budget()（API 的 ASGI middleware）在每個請求開始時換算成截止時刻。
+_request_budget_s: float | None = None
+_request_deadline: ContextVar[float | None] = ContextVar("cpbl_db_request_deadline", default=None)
+
+
+class RequestBudgetExceeded(RuntimeError):
+    """這個請求的 DB 時間預算已用完（#353 WP2）：不再借連線、不再送查詢。"""
 
 # 業務日期一律台北。中職**不可能在其他時區比賽**（全史 1990–2026 共 28 個球場全在台灣），
 # 所以「今天」只有一個意思。在此之前 session timezone 是 UTC——那不是有人選的，是預設值
@@ -86,7 +96,8 @@ def _migrations_dir() -> Path:
 
 
 def configure_api_timeouts(
-    *, pool_timeout_s: float, statement_timeout_ms: int, lock_timeout_ms: int
+    *, pool_timeout_s: float, statement_timeout_ms: int, lock_timeout_ms: int,
+    request_budget_ms: int = 0,
 ) -> None:
     """只給 API 行程（``cpbl.api.main`` 的 lifespan）呼叫：借池逾時＋session 逾時（#353 WP2）。
 
@@ -101,12 +112,18 @@ def configure_api_timeouts(
     ⚠️ 只對**之後建立**的連線生效（``_configure`` 只在建立連線時跑）：若池已存在就先關掉，
     下一次 :func:`pool` 以新設定重建。仍遵守 :data:`SESSION_TIMEZONE` 的不變量——這裡只加
     逾時，不動時區。
+
+    ``request_budget_ms``（0＝不設）：session 逾時是**每條語句**各自計時，一個請求依序跑多條查詢
+    時總耗時沒有上限（#353 審核 1 第 4 項：兩條各 2.6 秒的查詢＝5.213 秒）。預算讓同一請求內
+    每次 :func:`conn` 借連線時，以剩餘預算收緊借池等待與該次交易的 ``SET LOCAL`` 逾時，整個請求
+    花在 DB 上的時間（借池＋查詢）不超過預算。
     """
-    global _pool, _pool_timeout, _api_session
+    global _pool, _pool_timeout, _api_session, _request_budget_s
     if not pool_timeout_s > 0:
         raise ValueError(f"pool_timeout_s 必須 > 0：{pool_timeout_s!r}")
     for name, value in (("statement_timeout_ms", statement_timeout_ms),
-                        ("lock_timeout_ms", lock_timeout_ms)):
+                        ("lock_timeout_ms", lock_timeout_ms),
+                        ("request_budget_ms", request_budget_ms)):
         if not isinstance(value, int) or value < 0:
             raise ValueError(f"{name} 必須是非負整數（毫秒）：{value!r}")
     if _pool is not None:
@@ -114,6 +131,28 @@ def configure_api_timeouts(
         _pool = None
     _pool_timeout = float(pool_timeout_s)
     _api_session = (statement_timeout_ms, lock_timeout_ms)
+    _request_budget_s = request_budget_ms / 1000 if request_budget_ms else None
+
+
+@contextmanager
+def request_budget(seconds: float | None = None) -> Iterator[None]:
+    """在這個 context（一個 API 請求）內啟用 DB 時間預算；未設定預算時什麼都不做。
+
+    截止時刻存在 ContextVar：FastAPI 把同步端點丟進 threadpool 時會複製 context，所以端點內的
+    :func:`conn` 讀得到；背景執行緒（例如 ``/api/info`` 快取重算）沒有這個值，不受預算限制。"""
+    budget = _request_budget_s if seconds is None else seconds
+    if not budget:
+        yield
+        return
+    token = _request_deadline.set(time.monotonic() + budget)
+    try:
+        yield
+    finally:
+        _request_deadline.reset(token)
+
+
+def _cap_ms(configured_ms: int, left_ms: int) -> int:
+    return left_ms if configured_ms == 0 else min(configured_ms, left_ms)
 
 
 def pool() -> ConnectionPool:
@@ -129,8 +168,26 @@ def pool() -> ConnectionPool:
 
 @contextmanager
 def conn() -> Iterator[psycopg.Connection]:
-    """從池取一條連線；離開時自動 commit / rollback。"""
-    with pool().connection() as c:
+    """從池取一條連線；離開時自動 commit / rollback。
+
+    在 :func:`request_budget` 內（API 請求）：借池等待與這次交易的 statement／lock timeout 都不超過
+    剩餘預算（``SET LOCAL``，交易結束即還原，不污染連線）；預算用完就拋 :class:`RequestBudgetExceeded`。
+    """
+    deadline = _request_deadline.get()
+    if deadline is None:
+        with pool().connection() as c:
+            yield c
+        return
+    remaining = deadline - time.monotonic()
+    if remaining <= 0:
+        raise RequestBudgetExceeded("本請求的 DB 時間預算已用完（借連線前）")
+    with pool().connection(timeout=min(_pool_timeout, remaining)) as c:
+        left_ms = round((deadline - time.monotonic()) * 1000)
+        if left_ms <= 0:
+            raise RequestBudgetExceeded("本請求的 DB 時間預算已用完（借到連線時）")
+        statement_ms, lock_ms = _api_session or (0, 0)
+        c.execute(f"SET LOCAL statement_timeout = {_cap_ms(statement_ms, left_ms):d}")
+        c.execute(f"SET LOCAL lock_timeout = {_cap_ms(lock_ms, left_ms):d}")
         yield c
 
 
