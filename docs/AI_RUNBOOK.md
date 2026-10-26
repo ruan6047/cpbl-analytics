@@ -923,6 +923,17 @@ GitHub 會自動標記。判斷是否經 PR 合併要看 `gh api repos/.../commi
 - 常設前提：Mac 晚間保持喚醒且登入（不改個人電源設定，只記錄）、登記表 `expected_installed=true` 且主 checkout 在含它的 main；
   因停止條件停用前先處置本機未解決的 `official_change_signals`（否則每日鏈會持續把它鏡像成公站「賽程待更新」）。
 
+### 先發觀察窗（#342；旗標預設關，啟用另需授權）
+
+官網公布一軍先發後 1 小時內送到正式站（需求方裁定 #342 6405294357 Q1–Q6、6405338318 最小改動）。邏輯在 `src/cpbl/ingest/starter_watch.py`，接線在 `postseason_evening`（plan／scrape／record-sync），⛔ 不新增 launchd job。
+
+- 觀察窗：每場 `[S−33h, S−30m)`（S＝狀態檔 stats `PreExeDate`，改期後新 S 自動成為新窗口），窗內每 30 分抓一次該賽別 getgamedatas；只對 stats `SCHEDULED`、本機兩隊先發未齊的 A／E／C 場（⛔ 不含 D）。台北 01:00–09:45 暫停 www、09:45–10:15 照 `DAILY_GUARD` 讓位；共用賽別冷卻 20 分、挑戰停、`halted`、68 停當晚。休兵日也會醒（狀態檔賽程或本機 `games` 33 小時內有缺先發的場）。
+- 只寫先發：只更新目標場 `games.home_starter_id`／`away_starter_id`（只補不清；本機已有比分或 `delay_kind='保留'` 的列不動、不新增列），修訂表只記目標場賽前 entry（同組有終局／保留／非零比分整組不碰）。因此觀察抓取不受 `P-A-FETCH-GATE` 約束（閘門判定未改）；有變化才走既有 `POSTSEASON_RESULTS_ONLY` 同步。
+- 超時通知：窗內距該賽別上次成功觀察抓取（或開窗）超過 45 分（`detect_gap`，含夜間暫停、挑戰停、鎖、睡眠），或本機已有先發而 15 分仍未同步成功（`sync_late`）⇒ 本機通知（重用 `scripts/schedule_watch.py` 的 `notify`；⚠️ osascript rc=0 不是送達證據）＋持久檔 `logs/starter-watch-alert.json`；解除（事後補上／恢復偵測）時再通知一次並刪檔。關窗仍無先發不告警。紀錄在狀態檔 `starter_watch`。
+- 旗標：`logs/starter-watch.enabled`（`POSTSEASON_STARTER_WATCH_FLAG` 改路徑；告警檔 `POSTSEASON_STARTER_WATCH_ALERT`）。存在＝開，`touch`／`rm` 下次喚醒生效。`plan --dry` 另印 `starter_watch`（`enabled`、窗內目標，不查 DB）。
+- 已知缺口：關窗前最後一個 30 分間隔內公布者，觀察窗內偵測不到（交 #292 A1 S−30；A 被閘門擋時也沒有，交隔日 J1），且不告警。重播證據：`uv run python tests/starter_watch_replay_harness.py --out <報告.json>`（#342 exec-1 REPLAY）。
+- 回復：`rm logs/starter-watch.enabled`（行為回到 #365 基準）；撤碼以 revert 合併 commit。
+
 ### 先發查核時點（#292 S11 A1；旗標預設關，啟用另需授權）
 
 官方先發投手（www getgamedatas `HomePitcherAcnt`／`VisitingPitcherAcnt` → `games.home_starter_id`／`away_starter_id`，原始 payload 進 `game_schedule_status_revisions`）
