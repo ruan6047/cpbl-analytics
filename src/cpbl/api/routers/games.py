@@ -233,6 +233,37 @@ def games_recent(
         return {"season": season, "items": _dicts(cur)}
 
 
+def _event_order(no: Any) -> tuple[int, int | str]:
+    """`main_event_no::bigint` 全序；非數字排最後、以字串 tie-break（同 pa_build.event_sort_key）。"""
+    raw = str(no or "")
+    return (0, int(raw)) if raw.isdigit() else (1, raw)
+
+
+def merge_livelog_rows(main: list[dict], extra: list[dict]) -> list[dict]:
+    """主表＋附加表合併成原文順序：排序鍵 (main_event_no::bigint, 同號內序號)。
+
+    附加列帶 `dup_seq`（原文同號組位置）；主列的位置＝該號 0..n-1 中附加列沒佔用的最小值
+    （常態是 0；「標記在 PLAY 之前」的非預期形狀則是 1）。附加列輸出時去掉 `dup_seq`／`pkno`，
+    只保留主表欄位——回應形狀不變，只是同號多一列（與快照路徑相同）。
+    """
+    if not extra:
+        return main
+    taken: dict[str, set[int]] = {}
+    for r in extra:
+        taken.setdefault(str(r["main_event_no"]), set()).add(int(r["dup_seq"]))
+    cols = list(main[0]) if main else [k for k in extra[0] if k not in ("dup_seq", "pkno")]
+    keyed: list[tuple[tuple, dict]] = []
+    for r in main:
+        used = taken.get(str(r["main_event_no"]), set())
+        seq = next(i for i in range(len(used) + 1) if i not in used)
+        keyed.append(((_event_order(r["main_event_no"]), seq), r))
+    for r in extra:
+        keyed.append(((_event_order(r["main_event_no"]), int(r["dup_seq"])),
+                      {k: r.get(k) for k in cols}))
+    keyed.sort(key=lambda kv: kv[0])
+    return [r for _, r in keyed]
+
+
 @router.get("/api/v1/games/{game_sno}/live")
 def game_live(
     game_sno: int,
@@ -270,6 +301,12 @@ def game_live(
             (season, kind_code, game_sno),
         )
         livelog = _dicts(cur)
+        # #357 B1：同號非主列（結束標記等）在附加表，合併回來才與原文／48 小時快照同形。
+        cur.execute(
+            "SELECT * FROM cpbl.game_livelog_extra WHERE year=%s AND kind_code=%s AND game_sno=%s",
+            (season, kind_code, game_sno),
+        )
+        livelog = merge_livelog_rows(livelog, _dicts(cur))
         cur.execute(
             "SELECT * FROM cpbl.batting_gamelog WHERE year=%s AND kind_code=%s AND game_sno=%s "
             "ORDER BY visiting_home_type, plate_appearances DESC NULLS LAST, at_bats DESC NULLS LAST",
