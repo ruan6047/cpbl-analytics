@@ -130,3 +130,10 @@ def test_migrate_and_cli_entrypoints_never_call_api_timeouts() -> None:
         if "configure_api_timeouts(" in p.read_text(encoding="utf-8") and p.name != "db.py"
     )
     assert callers == ["api/main.py"], callers
+
+
+def test_default_worst_case_stays_under_the_5s_acceptance_bound() -> None:
+    """單一請求最壞＝借池等待＋單一語句（lock 等待含在語句內）；必須 < 5s（#353 驗收）。"""
+    worst = settings.api_db_pool_timeout_seconds + settings.api_db_statement_timeout_ms / 1000
+    assert worst < 5.0, worst
+    assert 0 < settings.api_db_lock_timeout_ms <= settings.api_db_statement_timeout_ms

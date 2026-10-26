@@ -45,10 +45,14 @@ class Settings(BaseSettings):
     refresh_postseason_kinds: str = ""
 
     # #353 WP2：只在 API 行程（uvicorn lifespan）套用的讀端逾時；migrate／訓練／ingest 不受影響。
-    # ⚠️ 預設值是規劃 r2 §3 的推論值（lock 2s、statement 4s、借池 3s），尚未依 VPS nginx
-    # request_time 分布（P3）校正；可經環境變數調高或設 0 關閉 session 逾時（調整需重新部署）。
-    api_db_pool_timeout_seconds: float = 3.0
-    api_db_statement_timeout_ms: int = 4000
+    # 上限：單一請求最壞＝借池等待＋單一語句（lock 等待含在語句內）＝1.0＋3.5＝4.5s ＜ 驗收 5s。
+    #   規劃 r2 的例值（借池 3s＋statement 4s）最壞 7s，超過門檻，故 2026-10-26 改小。
+    # 下限依據（不是 P3）：正式站 nginx 格式沒有 $request_time（2026-10-26 唯讀確認），P3 無從量；
+    #   改用研究 2 的正式站實測——每日鏈 CPU／換頁最重的非 PA 段，/api/info 依序 14 個查詢合計最慢
+    #   4.626181s，單一語句不超過此值的一部分。⚠️ 其他端點平常的單一語句耗時未量；可經環境變數
+    #   調高或設 0 關閉 session 逾時（調整需重新部署）。
+    api_db_pool_timeout_seconds: float = 1.0
+    api_db_statement_timeout_ms: int = 3500
     api_db_lock_timeout_ms: int = 2000
 
     port: int = 4001
