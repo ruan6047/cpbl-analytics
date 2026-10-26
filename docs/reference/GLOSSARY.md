@@ -54,6 +54,17 @@ DB 實證（2026-07-26，本機 `cpbl.games` 全史 GROUP BY；場次數／起�
 
 ## 逐打席（livelog / canonical PA）
 
+### 同號多筆／結束標記（`game_livelog_extra`，#357）
+
+www `getlive` 的 `LiveLogJson` **同一 `MainEventNo` 可以有多列**：每場最後一個事件號下，實際打席／事件之後會再跟一筆「比賽結束」或「主審裁定比賽結束」標記（2026 全 608 場皆此形狀；2018–2025 待 #357 WP1 比對）。兩列只差 `Content`、`Pkno`、`IsSpecialEvent`（＋少數 `Rowstamp`）。
+
+- **主列**＝同號組中原文第一筆**非結束標記**列（全組都是標記時取第一筆），寫 `game_livelog`（鍵不變、一號一列）。
+- **其餘同號列**寫 `game_livelog_extra`，鍵多一個 `dup_seq`（原文同號組內位置，0 起算）＋可追溯欄 `pkno`。
+- 結束標記判定：`Content` 去空白、去句末「。」後等於「比賽結束」或「主審裁定比賽結束」（SSoT：`cpbl_gamelog._is_end_marker`）。
+- ⛔ 不得從 `game_livelog` 沒有標記列推出「原文沒有結束標記」；要全部原文列須合併兩表（`/live` 依 `(main_event_no::bigint, dup_seq)`）。
+- 機械檢查：`cpbl-check-livelog`（最後事件非標記、主表＋附加表＝原文帶事件號列數）；每日鏈對當次寫入的場次跑同一檢查，未過亮 69。
+- 2026-10-23 前寫入的場次最後一列是標記（後到者勝）；回補見 `cpbl-replay-livelog-extra`。
+
 ### island
 
 livelog 逐事件切候選 PA 的分組單位：**連續同 `(game, inning, half, hitter)` 的事件島**；換人公告列（`is_change_player`）與空 hitter 列不 seed／不切界，附掛於當前 island。
