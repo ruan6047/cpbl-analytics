@@ -962,3 +962,34 @@ GitHub 會自動標記。判斷是否經 PR 合併要看 `gh api repos/.../commi
 - 停止與恢復（晚間鏈被時點連坐停止時）：① 先 `rm` 旗標；② 讀 `logs/postseason-evening-YYYYMMDD.log` 與同步 log 判斷失敗類別，production 狀態未明先停、交 PM，⛔ 盲目重跑；
   ③ 依上方〈錯誤即停〉把兩份狀態檔的 `halted` 改回 `null`；④ 若已 bootout：`launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.cpbl.postseason-evening.plist`（避開 09:30–10:30、21:00–21:15）；
   ⑤ 確認下一次喚醒 log `plan → idle`／`scrape`、`launchctl list | grep postseason-evening` 有載入、`last-postseason-evening.json` 的 halted 為 null、schedule-watchdog 未報 FAILED；⑥ 68（停當晚）不需人工，隔日 12:00 後自動重試，不調時段補洞。各步由具名本機角色在需求方授權下執行。
+
+## 11. 外部告警（#358；healthchecks.io，信件推播到手機）
+
+每日鏈、晚間鏈與本機服務（DB／redis 容器）出事時，要有 **Mac 以外、Mac 睡著時也收得到**的訊號（#358 驗收 1、5）。
+做法是「沉默就告警」：Mac 端只送 ping，告警由外部服務在**期限到還沒收到成功**時發出（需求方裁定 6348735853 第 1、2 項），
+通知目的地與 #353 共用同一個信箱（同裁定第 3 項；偵測器不共用）。模組：`scripts/alert_ping.py`（stdlib、相容系統 Python 3.9）。
+
+- **金鑰**：只放主 checkout 的 `.env`（已在 `.gitignore`），由需求方親自填（裁定第 8 項；⛔ AI 不經手）：
+  `CPBL_HC_PING_KEY`（專案 ping key，網址形狀 `<ping-base>/<ping-key>/<check 名>`）、`CPBL_HC_API_KEY`（Management API，可寫；晚間鏈武裝用）。
+  選填：`CPBL_HC_PING_BASE`、`CPBL_HC_API_BASE`、`CPBL_HC_TIMEOUT_SECONDS`（預設 10 秒，最多 3 次）。⛔ 不從行程環境讀金鑰。
+- **檢查設定**（只印 set／missing，不印值、不連網）：`python3 scripts/alert_ping.py status`
+- **fail-open**（驗收 6，6429229525）：ping 逾時、斷網、服務錯誤、金鑰缺席都只在 stderr 留一行遮罩過的摘要，⛔ 不改呼叫端的退出碼與狀態寫入。
+  ping 遺失只會變成稍晚的期限告警，不會變成假成功。只送狀態與 exit code，⛔ 不送 log 內容。
+- **check 名**：`daily`、`evening`、`services`、`test`（故障注入專用）。故障注入時以行程環境 `CPBL_ALERT_SLUG_OVERRIDE=test`
+  把所有 ping／API 改道到 `test`，⛔ 不碰正式 check。
+
+### 11.1 每日鏈（check `daily`）
+
+尚未接線。
+
+### 11.2 本機服務（check `services`）與晚間鏈（check `evening`）
+
+尚未接線。
+
+### 11.3 輪換、止血與回復
+
+- 輪換：在 healthchecks 重新產生 key，需求方改主 checkout `.env` 的值即可；每次執行都重讀 `.env`，不需重新 bootstrap。
+- 立即止血：需求方清空 `.env` 的兩個金鑰 → 所有 hook 不再動作，排程照舊執行。
+- 服務端：需求方在 healthchecks 暫停或刪除 check。
+- 殘餘風險（規劃 1 §8）：第三方服務中斷時沒有告警；服務端排程設定與 `scripts/schedule-registry.json` 的 `alert` 段可能漂移（本機核對不到 SaaS 端）；
+  「服務端通知送不出去」不在沉默告警涵蓋內。
