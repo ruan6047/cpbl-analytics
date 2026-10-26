@@ -110,5 +110,9 @@ def test_started_or_reserved_rows_are_untouched(db, sno):
     upsert_games(group)
     before, revs = _row(db, "A", sno), _revs(db, "A", sno)
     for i in range(1, len(group) + 1):
-        sw.write_starters(group[:i], {f"2026-A-{sno}"})
+        out = sw.write_starters(group[:i], {f"2026-A-{sno}"})
+        seen = group[:i]
+        if any(str(p["GameResult"]) in ("0", "2") or p["HomeScore"] or p["VisitingScore"] for p in seen):
+            # 值相同的覆寫在終態看不出來，所以直接看寫入器有沒有動手（變異檢驗要能紅）
+            assert out == {"games_updated": 0, "revisions": 0}, (sno, i, out)
     assert _row(db, "A", sno) == before and _revs(db, "A", sno) == revs
