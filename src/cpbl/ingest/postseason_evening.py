@@ -330,7 +330,7 @@ def empty_state() -> dict[str, Any]:
             # revert 後舊碼載入時原樣保留不讀）。每場 box／PA 的 tm_recheck 在紀錄內，缺＝尚未排。
             "gate": None, "a_fetch_gate": None, "night_backup": None, "backup_uses": [],
             "a_stats_rows": None,
-            # #342：先發觀察窗（旗標 logs/starter-watch.enabled；見 starter_watch 模組）。舊碼載入時原樣保留不讀。
+            # #342：先發 23:00 時點（旗標 logs/starter-watch.enabled；見 starter_watch 模組）。舊碼載入時原樣保留不讀。
             "starter_watch": {}}
 
 
@@ -614,8 +614,8 @@ def plan(state: dict, now: datetime, *, probe: Callable[[], list[StatsGame]],
     原本會閒置、但本機異動訊號表待同步時回 ``("sync", "signals_only")``（B1；不連 www）。
     唯一例外是 #292 A1 先發查核時點（``starter_enabled``，旗標檔）：到點即以同一個 scrape 動作
     抓該賽別，受同一組閘門約束（見 :func:`starter_kinds`）。
-    #342 先發觀察窗（``watch_enabled``，旗標檔）同理：窗內每 30 分抓一次（:func:`watch_kinds`），寫入只走只寫先發的
-    寫入器，所以⛔ 不受 P-A-FETCH-GATE 約束，其餘閘門相同。
+    #342 先發 23:00 時點（``watch_enabled``，旗標檔）同理：每場前一天 23:00 起抓一次（:func:`watch_kinds`），寫入只走
+    只寫先發的寫入器，所以⛔ 不受 P-A-FETCH-GATE 約束，其餘閘門相同。
     """
     if state.get("halted"):
         return "halted", state["halted"].get("reason", "halted")
@@ -673,7 +673,7 @@ def plan(state: dict, now: datetime, *, probe: Callable[[], list[StatsGame]],
         state["scrape_kinds"] = [k for k in EVENING_KINDS if k in kinds]   # scrape 只抓這些賽別（F2）
         state["starter_inflight"] = [i for i in starter_due if sc.kind_of(i) in kinds]
         if watch:
-            # #342：觀察抓取的賽別；不在事件／時點裡的（watch_only）由 scrape 走只寫先發的寫入器。
+            # #342：23:00 抓取的賽別；不在事件／時點裡的（watch_only）由 scrape 走只寫先發的寫入器。
             state["starter_watch"]["inflight"] = sorted(watch)
             state["starter_watch"]["watch_only"] = sorted(watch - event_kinds - starter)
         return "scrape", reason if ok else "starter_checkpoint" if starter else "starter_watch"
@@ -708,30 +708,38 @@ def refresh_starter_checkpoints(state: dict, now: datetime, enabled: bool,
 
 def refresh_starter_watch(state: dict, now: datetime, enabled: bool,
                           local_starters: Callable[[Iterable[str]], set[str]]) -> set[str]:
-    """#342：旗標開啟時把狀態檔賽程的窗內目標併進紀錄（本機先發唯讀查詢），回此刻到期的賽別（未過閘門）。"""
+    """#342：旗標開啟時把狀態檔賽程中已到 23:00 的目標併進紀錄（本機先發唯讀查詢），回此刻該抓的賽別（未過閘門）。"""
     rec = state.get("starter_watch")
     if isinstance(rec, dict) and (rec.get("inflight") or rec.get("watch_only")):
-        rec["inflight"], rec["watch_only"] = [], []   # 上一次的觀察抓取不得被這次 scrape 誤用
+        rec["inflight"], rec["watch_only"] = [], []   # 上一次的 23:00 抓取不得被這次 scrape 誤用
     if not enabled:
         return set()
     cands = sw.candidates(state.get("schedule") or [], now, configured_evening_kinds())
+    if not cands and not sw.pending_keys(state):
+        sw.refresh(state, now, {}, ())
+        return set()
     try:
         have = local_starters(list(cands))
-    except Exception:  # noqa: BLE001 — 讀不到本機先發 ⇒ 這次不抓（fail closed），偵測中斷告警照算
-        log.exception("讀本機先發失敗（先發觀察窗這次不抓）")
-        sw.refresh(state, now, cands, ())
+    except Exception as exc:  # noqa: BLE001 — 讀不到本機先發 ⇒ 這次不抓（下一次喚醒再判；01:00 前沒抓成記 missed）
+        sw.say(f"local_starters_error {type(exc).__name__}")
+        sw.refresh(state, now, {}, ())
         return set()
     sw.refresh(state, now, cands, have)
-    return sw.due_kinds(state, now)
+    return sw.due_kinds(state)
 
 
 def watch_kinds(state: dict, now: datetime, due: Iterable[str]) -> set[str]:
-    """#342 觀察抓取的閘門：讓位 10:10、挑戰停（隔日 12:00）、賽別冷卻 20 分（共用帳本）。擋下不計次。
+    """#342 23:00 抓取的閘門：讓位 10:10、挑戰停（隔日 12:00）、賽別冷卻 20 分（共用帳本）。擋下只記原因、不計次。
     ⛔ 不看 P-A-FETCH-GATE：寫入器只寫先發與賽前修訂（:func:`starter_watch.write_starters`）。"""
     due = set(due)
-    if not due or in_daily_guard(now) or www_blocked(state, now):
+    if not due:
         return set()
-    return {k for k in due if kind_cooled(state, k, now)}
+    if in_daily_guard(now) or www_blocked(state, now):
+        sw.note_wait(state, due, "yield_to_daily" if in_daily_guard(now) else "www_blocked")
+        return set()
+    cooled = {k for k in due if kind_cooled(state, k, now)}
+    sw.note_wait(state, due - cooled, "cooldown")
+    return cooled
 
 
 def starter_kinds(state: dict, now: datetime, due_ids: list[str],
@@ -1809,16 +1817,16 @@ def local_scheduled_kinds(night: date, kinds: Iterable[str] | None = None) -> se
 
 
 def local_watch_kinds(now: datetime, kinds: Iterable[str] | None = None) -> set[str]:
-    """#342 動作條件的退路：本機 games 在 33 小時內有排定、仍缺先發的晚間賽別（唯讀；只在旗標開啟時呼叫）。"""
+    """#342 動作條件的退路：此刻（23:00～01:00）對應的比賽日，本機 games 有排定、仍缺先發的晚間賽別（唯讀；
+    只在旗標開啟、狀態檔賽程不知道時呼叫）。"""
     from cpbl.db import conn
 
-    today = taipei(now).date()
     with conn() as c:
         rows = c.execute(
             """SELECT DISTINCT kind_code FROM cpbl.games
-               WHERE kind_code = ANY(%s) AND game_date BETWEEN %s AND %s
+               WHERE kind_code = ANY(%s) AND game_date = %s
                  AND (home_starter_id IS NULL OR away_starter_id IS NULL)""",
-            (_kinds_list(kinds), today, taipei(now + sw.OPEN_BEFORE).date())).fetchall()
+            (_kinds_list(kinds), sw.fire_game_date(now))).fetchall()
     return {r[0] for r in rows}
 
 
@@ -2033,7 +2041,7 @@ def main(argv: list[str] | None = None) -> int:
                                                state.get("finished_first_seen") or {}, at),
                           "gate": {"decision": decision, "reason": why}, "kinds": list(gate_kinds),
                           "targets": gate_targets(today, at, evening_kinds),
-                          # #342：只增鍵；窗內目標＝狀態檔賽程推算（不查 DB，本機已有先發者也列出）。
+                          # #342：只增鍵；此刻 23:00 目標＝狀態檔賽程推算（不查 DB，本機已有先發者也列出）。
                           "starter_watch": {"enabled": sw.flag_path().exists(),
                                             "targets": sorted(sw.candidates(state.get("schedule") or [], at,
                                                                             evening_kinds))}},
@@ -2046,15 +2054,14 @@ def main(argv: list[str] | None = None) -> int:
             state, now, today, problem=problem, kinds=evening_kinds,
             db_lookup=lambda night: local_scheduled_kinds(night, evening_kinds))
         watch_enabled = sw.flag_path().exists()
-        # #342：窗內有尚未看到先發的場 ⇒ 該賽別今晚要醒（休兵日但隔日有場）；stats 一併查這些賽別。
-        # 狀態檔賽程不知道（休兵日沒有 probe、或從未查過該賽別）時才唯讀查本機 DB（PLAN 1 §6.1 退路）。夜間暫停
-        # 也查：暫停只停 www，偵測中斷告警照算（窗口在暫停中開啟的場也要在 45 分後看得到）。
+        # #342：23:00～01:00 有尚未處理的目標 ⇒ 該賽別今晚要醒（休兵日但隔日有場）；stats 一併查這些賽別。
+        # 狀態檔賽程不知道（休兵日沒有 probe、或從未查過該賽別）時才唯讀查本機 DB（PLAN 1 §6.1 退路；只在這兩小時）。
         wk = sw.gate_kinds(state, now, evening_kinds) if watch_enabled else set()
-        if watch_enabled and not wk:
+        if watch_enabled and not wk and sw.in_fire_hours(now):
             try:
                 wk = local_watch_kinds(now, evening_kinds)
             except Exception:  # noqa: BLE001 — 退路讀不到 DB 不得讓整條晚間鏈 exit 70；照原動作條件
-                log.exception("先發觀察窗退路查本機 DB 失敗（這次不擴充動作條件）")
+                sw.say("gate_db_error（這次不擴充動作條件）")
                 wk = set()
         if wk:
             if decision == "quiet":
@@ -2077,7 +2084,10 @@ def main(argv: list[str] | None = None) -> int:
             local_starters=lambda keys: sw.local_starters(year, keys),
         )
         if watch_enabled:
-            sw.apply_alerts(state, now)
+            if (state.get("starter_watch") or {}).get("inflight"):
+                sw.say(f"plan {action} inflight={','.join(state['starter_watch']['inflight'])} "
+                       f"watch_only={','.join(state['starter_watch'].get('watch_only') or []) or '-'}")
+            sw.notify_problems(state, now)
         publish_signals(state, year, now)
         # 本次偵測剛改動本機訊號表、而這次本來只會閒置（www 不能連）→ 同一次喚醒就送出（B1）。
         action, reason = with_signal_sync(state, now, action, reason)
@@ -2108,7 +2118,7 @@ def main(argv: list[str] | None = None) -> int:
             save_json(path, state)
             print("unchanged")
             return 0
-        # #342：觀察抓取但不在事件／時點裡的賽別（watch_only）只走只寫先發的寫入器；其餘照既有抓取。
+        # #342：23:00 抓取但不在事件／時點裡的賽別（watch_only）只走只寫先發的寫入器；其餘照既有抓取。
         watch = state.get("starter_watch") or {}
         watch_only = tuple(k for k in kinds if k in (watch.get("watch_only") or ()))
         regular = tuple(k for k in kinds if k not in watch_only)
@@ -2120,7 +2130,7 @@ def main(argv: list[str] | None = None) -> int:
             with marking_scrape_games(state, year):
                 result = evening_games_step(year, regular)
         if watch_only:
-            targets = [k for k in sw.pending_keys(state, now) if sw.kind_of(k) in watch_only]
+            targets = [k for k in sw.pending_keys(state) if sw.kind_of(k) in watch_only]
             extra = sw.fetch_step(year, watch_only, targets)
             result["games"].update({f"starter_watch:{k}": v for k, v in extra["games"].items()})
             result["errors"] = (result.get("errors") or []) + extra["errors"]
@@ -2131,15 +2141,15 @@ def main(argv: list[str] | None = None) -> int:
         outcome = record_scrape(state, now, errors=errors,
                                 changed=before != after, stats_has_c=stats_has_c,
                                 local_c_rows=local_c, kinds=regular)
-        for kind in watch_only:   # 共用賽別冷卻帳本（未結事件不計嘗試：觀察抓取不處理事件）
+        for kind in watch_only:   # 共用賽別冷卻帳本（未結事件不計嘗試：23:00 抓取不處理事件）
             state.setdefault("www_requests", {})[kind] = _iso(now)
         # #292 A1：本次抓取併入的先發時點入帳。
         failed, challenged = scrape_failures(errors, kinds)
         sc.record_attempt(cps, [i for i in inflight if sc.kind_of(i) in regular], now,
                           changed=before != after, failed_kinds=failed, challenge_kinds=challenged)
         if watch.get("inflight"):
-            sw.record_fetch(state, now, watch["inflight"], failed)
-            sw.note_local(state, now, sw.local_starters(year, list(watch.get("games") or {})))
+            pending = [k for k in sw.pending_keys(state) if sw.kind_of(k) in watch["inflight"]]
+            sw.record_fetch(state, now, watch["inflight"], failed, sw.local_starters(year, pending))
         schedule = [StatsGame(**g) for g in state.get("schedule") or []]
         apply_detection(state, detect_events(schedule, load_local_games(year, now)),
                         now, local_first_seen(year), resolved_by_chain=True,
@@ -2236,7 +2246,7 @@ def main(argv: list[str] | None = None) -> int:
                        state.get("starter_inflight") or [], args.code)   # #292 A1
         sw.record_sync(state, now, args.code)                             # #342：先發送達時刻
         if sw.flag_path().exists():
-            sw.apply_alerts(state, now)
+            sw.notify_problems(state, now)
         state["last_run"] = {"at": _iso(now), "action": "sync", "outcome": outcome, "code": args.code}
         publish_signals(state, year, now)
         save_json(path, state)

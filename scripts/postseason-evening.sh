@@ -74,8 +74,8 @@ scripts/postseason-evening.sh — 常設事件觸發晚間鏈（#268／#365；la
   POSTSEASON_LAUNCHD_LABEL bootout 用的 label（預設 com.cpbl.postseason-evening）
   POSTSEASON_STARTER_FLAG  #292 先發查核時點旗標檔（預設 logs/postseason-starter-checkpoints.enabled；
                            存在＝開，touch／rm 下次喚醒生效；預覽：uv run python -m cpbl.ingest.postseason_evening plan --dry）
-  POSTSEASON_STARTER_WATCH_FLAG #342 先發觀察窗旗標檔（預設 logs/starter-watch.enabled；存在＝開；
-                           超時告警檔 POSTSEASON_STARTER_WATCH_ALERT，預設 logs/starter-watch-alert.json）
+  POSTSEASON_STARTER_WATCH_FLAG #342 先發 23:00 時點旗標檔（預設 logs/starter-watch.enabled；存在＝開；
+                           失敗通知持久檔 POSTSEASON_STARTER_WATCH_ALERT，預設 logs/starter-watch-alert.json）
   POSTSEASON_EVENING_STAGE all（預設：結果鏈＋box／PA 階段）或 boxpa（只跑 box／PA 階段）；其他值 exit 64
   POSTSEASON_EVENING_KINDS 晚間賽別（預設 A,E,C；只收不重複的 A／E／C，含 D 或其他值 exit 64）
   POSTSEASON_TODAY_SCHEDULE 今日賽程檔（預設 logs/daily-schedule-today.json，#364 J1 寫出；缺／壞／非該晚退回連本機 DB）

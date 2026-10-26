@@ -1,22 +1,26 @@
-"""#342：官網公布一軍先發後 1 小時內送到正式站——晚間鏈的「先發觀察窗」（規劃 1 路徑 ②，最小改動）。
+"""#342：每場比賽前一天 23:00 固定抓官網一次、只更新先發投手並同步正式站（晚間鏈的「先發 23:00 時點」）。
 
-需求方裁定（#342 6405294357 Q1–Q6、6405338318 最小改動、6405379650 今天上線）只做三件事：
+需求方裁定（#342 6405571814 退回需求、6405678916／6405698649 第 3 次確認：依中職「官網於比賽前一天公布」
+慣例，前一天 23:00 固定時點；最小改動）：
 
-1. **定時看官網**：每場依開賽時刻 S 推算觀察窗 ``[S−33h, S−30m)``，窗內每 30 分抓一次該賽別 www
-   getgamedatas（整年一次）；台北 01:00–09:45 暫停（反爬紅線：深夜加嚴），09:45–10:15 照既有
-   ``DAILY_GUARD`` 讓位。S 取狀態檔賽程（stats ``PreExeDate``，每次 probe 更新）⇒ 延賽改期後新 S 自動成為新窗口。
-   範圍 A／E／C（晚間鏈設定的賽別），⛔ 不含 D。與既有事件／#292 時點共用 www 帳本：賽別冷卻 20 分、
-   挑戰兩次停到隔日 12:00、halted、對帳不等停當晚。
-2. **只寫先發**：:func:`write_starters` 只更新目標場的 ``games.home_starter_id``／``away_starter_id``
-   （只補不清），並把該場賽前 entry 寫進 ``game_schedule_status_revisions``；⛔ 不寫比分、勝敗投、救援、MVP、
-   日期、場地。寫入後走既有 ``POSTSEASON_RESULTS_ONLY`` 同步（晚間鏈 scrape → changed → sync）。
-   因為寫入器保證不寫比分，觀察抓取**不受** ``P-A-FETCH-GATE`` 約束（閘門判定本身一字不改）。
-3. **超時通知**：本站在窗內超過 45 分沒有成功看過官網（偵測中斷），或本機已有先發而 15 分內沒送到正式站
-   （送達失敗）⇒ 本機通知需求方（重用 ``scripts/schedule_watch.py`` 的 ``notify``）＋持久告警檔；
-   條件解除（事後補上／恢復偵測）時再通知一次並刪告警檔。
+1. **固定時點**：每場依開賽時刻 S 推算 ``F＝S 前一天 23:00``（台北）。F 起第一次喚醒抓該賽別 www getgamedatas
+   一次（整年一次；同一晚多場同賽別合併）。S 取狀態檔賽程（stats ``PreExeDate``，每次 probe 更新）⇒ 延賽改期後
+   新 S 的 F 自動成為新時點。範圍 A／E／C（晚間鏈設定的賽別），⛔ 不含 D。共用既有 www 帳本：賽別冷卻 20 分、
+   挑戰兩次停到隔日 12:00、halted、對帳不等停當晚；被擋只延後、不計次，最遲到 01:00（深夜加嚴，
+   ``docs/CPBL_SITE_MAP.md`` §2），過了記 ``missed``。本機已有兩隊先發的場不抓。
+2. **只寫先發**：:func:`write_starters` 只更新目標場的 ``games.home_starter_id``／``away_starter_id``（只補不清），
+   並把該場賽前 entry 寫進 ``game_schedule_status_revisions``；⛔ 不寫比分、勝敗投、救援、MVP、日期、場地。
+   寫入後走既有 ``POSTSEASON_RESULTS_ONLY`` 同步（晚間鏈 scrape → changed → sync）。
+   為什麼不用既有抓取（``evening_games_step``）：(a) A 在 23:00 仍可能被 ``P-A-FETCH-GATE`` 擋（延長賽、保留賽
+   整晚不放行）；(b) 既有 A 晚間抓取經 ``marking_scrape_games`` 的 ``www_marker`` 只收 E／C，對 A 會 raise
+   （#365 既有行為，本卡不改）；(c) 新路徑的 www 記帳要分得出是 #342（``WWW_REQ card=342``）。
+   寫入器保證不寫比分，所以本路徑不受 ``P-A-FETCH-GATE`` 約束（閘門判定本身一字不改）。
+3. **失敗通知**：抓取失敗、抓完先發仍空、到 01:00 都沒抓成（``missed``）、或寫入後同步失敗 ⇒ 本機通知需求方
+   （重用 ``scripts/schedule_watch.py`` 的 ``notify``；⚠️ rc=0 不是送達證據）＋持久檔；由隔日 10:10 每日鏈補上。
 
-⚠️ 時間語意：本模組記的每個時刻都是**本機**觀測時刻，⛔ 不是官方公布時刻；本站只有「自己去看了」才知道
-官網已公布，所以告警條件只能是「本站沒能按時看／沒能送達」，⛔ 不能是「官網已公布但本站未更新」。
+log：本路徑寫進晚間鏈 log 的每一行都以 ``starter-watch`` 開頭（:func:`say`）；www 導頁記 ``WWW_REQ card=342``。
+
+⚠️ 時間語意：本模組記的每個時刻都是**本機**觀測時刻，⛔ 不是官方公布時刻。
 
 旗標檔 ``logs/starter-watch.enabled``（存在＝開，下次喚醒生效）；不存在時本模組完全不被呼叫，晚間鏈行為
 與 #365 基準相同。本模組不連網；DB 只在 :func:`write_starters`／:func:`local_starters` 碰。
@@ -26,31 +30,26 @@ from __future__ import annotations
 
 import importlib.util
 import json
-import logging
 import os
+import sys
 from collections.abc import Callable, Iterable, Mapping
 from datetime import UTC, datetime, time, timedelta
 from pathlib import Path
 from typing import Any
 from zoneinfo import ZoneInfo
 
-log = logging.getLogger("cpbl.starter_watch")
-
 TAIPEI = ZoneInfo("Asia/Taipei")
 FLAG_ENV = "POSTSEASON_STARTER_WATCH_FLAG"
 ALERT_ENV = "POSTSEASON_STARTER_WATCH_ALERT"
 
-# —— 技術參數（PLAN 1 §2.2／§3.1 預設值；Q4 裁定 A）——
-OPEN_BEFORE = timedelta(hours=33)        # P-SW-OPEN：S−33h 起（18:35 的場前一天 09:35 開窗）
-CLOSE_BEFORE = timedelta(minutes=30)     # P-SW-CLOSE：S−30 分止（之後交 #292 A1 與隔日 J1）
-INTERVAL = timedelta(minutes=30)         # P-SW-INTERVAL
-INTERVAL_SLACK = timedelta(seconds=30)   # launchd 喚醒抖動（同 PROBE_SLACK）
-NIGHT_PAUSE = (time(1, 0), time(9, 45))  # P-SW-NIGHT-PAUSE（之後的 09:45–10:15 由 DAILY_GUARD 讓位）
-ALERT_GAP = timedelta(minutes=45)        # P-SW-ALERT-GAP：距上次成功觀察抓取（或開窗）
-ALERT_SYNC = timedelta(minutes=15)       # P-SW-ALERT-SYNC：本機已有先發、仍未同步成功
-KEEP_AFTER_CLOSE = timedelta(days=1)     # 紀錄保留：關窗後一天（已送達或無先發者才刪）
-# 只有 stats 的「未開賽」才是觀察目標；START／FINISHED／POSTPONED／RESERVED／未知字串都不是。
+FIRE_AT = time(23, 0)                  # 前一天 23:00（6405678916；研究 1 觀察最晚公布 22:41＋延遲）
+FIRE_UNTIL = timedelta(hours=2)        # 被擋最遲延到 01:00（深夜加嚴，不往後排）
+FIRE_END = time(1, 0)
+KEEP_AFTER_START = timedelta(days=1)   # 紀錄保留到開賽後一天
+# 只有 stats 的「未開賽」才是目標；START／FINISHED／POSTPONED／RESERVED／未知字串都不是。
 WATCH_STATUSES = frozenset({"SCHEDULED"})
+# 需要通知的結局（隔日 10:10 每日鏈補上）
+PROBLEMS = ("failed", "empty", "missed", "sync_failed")
 
 
 def flag_path() -> Path:
@@ -59,6 +58,11 @@ def flag_path() -> Path:
 
 def alert_path() -> Path:
     return Path(os.environ.get(ALERT_ENV) or "logs/starter-watch-alert.json")
+
+
+def say(message: str) -> None:
+    """寫一行到 stderr（晚間鏈 shell 把 stderr 接到 logs/postseason-evening-*.log）；固定 ``starter-watch`` 開頭。"""
+    print(f"starter-watch {message}", file=sys.stderr, flush=True)
 
 
 def _iso(at: datetime | None) -> str | None:
@@ -83,13 +87,22 @@ def _starts(raw: object) -> datetime | None:
     return at.replace(tzinfo=TAIPEI) if at.tzinfo is None else at
 
 
-def in_pause(now: datetime) -> bool:
+def fire_point(starts: datetime) -> datetime:
+    """F＝開賽前一天 23:00（台北）。"""
+    day = starts.astimezone(TAIPEI).date() - timedelta(days=1)
+    return datetime.combine(day, FIRE_AT, tzinfo=TAIPEI)
+
+
+def in_fire_hours(now: datetime) -> bool:
+    """此刻是否在某個 F 的可抓區間（23:00～次日 01:00）。"""
     t = now.astimezone(TAIPEI).time()
-    return NIGHT_PAUSE[0] <= t < NIGHT_PAUSE[1]
+    return t >= FIRE_AT or t < FIRE_END
 
 
-def window(starts: datetime) -> tuple[datetime, datetime]:
-    return starts - OPEN_BEFORE, starts - CLOSE_BEFORE
+def fire_game_date(now: datetime):
+    """此刻（23:00～01:00）對應的比賽日（台北日期）：23:00 後是明天，00:00 後是今天。"""
+    local = now.astimezone(TAIPEI)
+    return local.date() + timedelta(days=1) if local.time() >= FIRE_AT else local.date()
 
 
 def _key(g: Mapping) -> str:
@@ -101,7 +114,7 @@ def kind_of(key: str) -> str:
 
 
 def candidates(schedule: Iterable[Mapping], now: datetime, kinds: Iterable[str]) -> dict[str, datetime]:
-    """狀態檔賽程中此刻在觀察窗內的未開賽場：``{key: S}``（純函式）。"""
+    """狀態檔賽程中此刻在 ``[F, F+2h)`` 的未開賽場：``{key: S}``（純函式）。"""
     kinds = set(kinds)
     out: dict[str, datetime] = {}
     for g in schedule or []:
@@ -110,8 +123,8 @@ def candidates(schedule: Iterable[Mapping], now: datetime, kinds: Iterable[str])
         starts = _starts(g.get("starts_at"))
         if starts is None:
             continue
-        opens, closes = window(starts)
-        if opens <= now < closes:
+        fire = fire_point(starts)
+        if fire <= now < fire + FIRE_UNTIL:
             out[_key(g)] = starts
     return out
 
@@ -120,125 +133,95 @@ def _sw(state: dict) -> dict:
     sw = state.get("starter_watch")
     if not isinstance(sw, dict):
         sw = state["starter_watch"] = {}
-    for k in ("games", "fetches", "ok"):
-        sw.setdefault(k, {})
+    sw.setdefault("games", {})
     sw.setdefault("inflight", [])
+    sw.setdefault("watch_only", [])
     return sw
 
 
 def gate_kinds(state: Mapping, now: datetime, kinds: Iterable[str]) -> set[str]:
-    """#365 動作條件的擴充（只讀狀態檔，不連 DB）：窗內有尚未在本機看到先發的場 ⇒ 該賽別今晚要醒。"""
+    """#365 動作條件的擴充（只讀狀態檔，不連 DB）：此刻有尚未處理的 23:00 目標 ⇒ 該賽別今晚要醒。"""
     games = ((state.get("starter_watch") or {}).get("games") or {})
-    return {kind_of(k) for k in candidates(state.get("schedule") or [], now, kinds)
-            if not (games.get(k) or {}).get("local_at")}
+    # 還沒抓的（過 01:00 要記 missed）與還沒通知的問題場也要醒一次，否則休兵日 quiet 會吞掉通知。
+    out = {kind_of(k) for k, r in games.items()
+           if r.get("state") == "due" or (r.get("state") in PROBLEMS and not r.get("notified_at"))}
+    for key, starts in candidates(state.get("schedule") or [], now, kinds).items():
+        rec = games.get(key) or {}
+        if rec.get("fire_at") != _iso(fire_point(starts)) or rec.get("state") == "due":
+            out.add(kind_of(key))
+    return out
 
 
 def refresh(state: dict, now: datetime, cands: Mapping[str, datetime], have: Iterable[str]) -> None:
-    """把此刻的窗內目標併進紀錄（改期 ⇒ 以新 S 重算窗口），標記本機已有先發者；過期紀錄清掉。
-
-    第一次看到就已有先發的場（J1 或既有路徑已寫入）記 ``via=preexisting`` 並視為已送達——那條路徑自己同步，
-    本卡不重複告警。"""
+    """把此刻的目標併進紀錄（改期 ⇒ 新 F 另起一筆）、本機已有先發者不抓、過 01:00 仍未抓記 ``missed``、清舊紀錄。"""
     sw = _sw(state)
     have = set(have)
     for key, starts in cands.items():
-        opens, closes = window(starts)
+        fire = fire_point(starts)
         rec = sw["games"].get(key)
-        if rec is None:
-            rec = sw["games"][key] = {"key": key, "first_target_at": _iso(now), "local_at": None,
-                                      "synced_at": None, "via": None, "alert": None, "alerts": []}
+        if rec is None or rec.get("fire_at") != _iso(fire):
+            rec = sw["games"][key] = {"key": key, "starts_at": _iso(starts), "fire_at": _iso(fire),
+                                      "state": "due", "attempted_at": None, "local_at": None,
+                                      "synced_at": None, "wait": None, "notified_at": None}
             if key in have:
-                rec.update(local_at=_iso(now), synced_at=_iso(now), via="preexisting")
-        rec.update(starts_at=_iso(starts), open_at=_iso(opens), close_at=_iso(closes))
-    note_local(state, now, have)
-    for key in list(sw["games"]):
-        rec = sw["games"][key]
-        closes = _parse(rec.get("close_at"))
-        done = rec.get("synced_at") or not rec.get("local_at")
-        if closes is not None and now >= closes + KEEP_AFTER_CLOSE and done and not rec.get("alert"):
+                rec.update(state="already", local_at=_iso(now))
+                say(f"{key} already_has_starters fire_at={rec['fire_at']}")
+            else:
+                say(f"{key} due fire_at={rec['fire_at']} starts_at={rec['starts_at']}")
+    for key, rec in list(sw["games"].items()):
+        fire, starts = _parse(rec.get("fire_at")), _parse(rec.get("starts_at"))
+        if rec.get("state") == "due" and fire is not None and now >= fire + FIRE_UNTIL:
+            rec["state"] = "missed"
+            say(f"{key} missed wait={rec.get('wait')}")
+        if starts is not None and now >= starts + KEEP_AFTER_START:
             del sw["games"][key]
 
 
-def note_local(state: dict, now: datetime, have: Iterable[str]) -> None:
-    """本機首見兩隊先發的時刻（``local_at``；本機觀測，不是官方公布時刻）。"""
-    for key in have:
-        rec = _sw(state)["games"].get(key)
-        if rec is not None and not rec.get("local_at"):
-            rec["local_at"] = _iso(now)
-            rec["via"] = rec.get("via") or "starter_watch"
+def pending_keys(state: Mapping, kind: str | None = None) -> list[str]:
+    """還沒抓的 23:00 目標場。"""
+    return sorted(k for k, r in ((state.get("starter_watch") or {}).get("games") or {}).items()
+                  if r.get("state") == "due" and (kind is None or kind_of(k) == kind))
 
 
-def pending_keys(state: Mapping, now: datetime, kind: str | None = None) -> list[str]:
-    """窗內、本機還沒有先發的目標場（觀察抓取要找的場）。"""
-    out = []
-    for key, rec in ((state.get("starter_watch") or {}).get("games") or {}).items():
-        if kind is not None and kind_of(key) != kind:
-            continue
-        opens, closes = _parse(rec.get("open_at")), _parse(rec.get("close_at"))
-        if rec.get("local_at") or opens is None or closes is None or not (opens <= now < closes):
-            continue
-        out.append(key)
-    return sorted(out)
+def due_kinds(state: Mapping) -> set[str]:
+    return {kind_of(k) for k in pending_keys(state)}
 
 
-def due_kinds(state: Mapping, now: datetime) -> set[str]:
-    """此刻該抓的賽別：有待找先發的目標、不在夜間暫停、距該賽別上次觀察抓取已滿 30 分。
-
-    其餘閘門（讓位 10:10、挑戰停、賽別冷卻 20 分、halted、對帳不等）由晚間鏈判斷（同 #292 時點）。"""
-    if in_pause(now):
-        return set()
-    fetches = (state.get("starter_watch") or {}).get("fetches") or {}
-    out = set()
-    for kind in {kind_of(k) for k in pending_keys(state, now)}:
-        last = _parse(fetches.get(kind))
-        if last is None or now - last >= INTERVAL - INTERVAL_SLACK:
-            out.add(kind)
-    return out
-
-
-def record_fetch(state: dict, now: datetime, kinds: Iterable[str], failed: Iterable[str] = ()) -> None:
-    """一次觀察抓取入帳：``fetches``＝最後嘗試（決定 30 分間隔），``ok``＝最後成功（決定偵測中斷告警）。"""
-    sw = _sw(state)
-    failed = set(failed)
+def note_wait(state: dict, kinds: Iterable[str], reason: str) -> None:
+    """被閘門擋下（讓位、挑戰停、冷卻、鎖…）：只記原因、不計次。"""
     for kind in kinds:
-        sw["fetches"][kind] = _iso(now)
-        if kind not in failed:
-            sw["ok"][kind] = _iso(now)
+        for key in pending_keys(state, kind):
+            _sw(state)["games"][key]["wait"] = reason
+
+
+def record_fetch(state: dict, now: datetime, kinds: Iterable[str], failed: Iterable[str],
+                 have: Iterable[str]) -> None:
+    """一次抓取入帳：失敗 ``failed``；抓到且本機有兩隊先發 ``fetched``；抓到但仍空 ``empty``。每場只抓這一次。"""
+    failed, have = set(failed), set(have)
+    for kind in kinds:
+        for key in pending_keys(state, kind):
+            rec = _sw(state)["games"][key]
+            rec["attempted_at"] = _iso(now)
+            if kind in failed:
+                rec["state"] = "failed"
+            elif key in have:
+                rec.update(state="fetched", local_at=_iso(now))
+            else:
+                rec["state"] = "empty"
+            say(f"{key} {rec['state']} kind={kind}")
 
 
 def record_sync(state: dict, now: datetime, code: int) -> None:
-    """``POSTSEASON_RESULTS_ONLY`` 回 0 ⇒ 本機已有先發的目標場此刻已送到正式站（``synced_at``）。"""
-    if code != 0:
-        return
-    for rec in _sw(state)["games"].values():
-        if rec.get("local_at") and not rec.get("synced_at"):
+    """``POSTSEASON_RESULTS_ONLY`` 結果：0 ⇒ 已送到正式站；非 0 ⇒ ``sync_failed``（通知、隔日補上）。"""
+    for key, rec in _sw(state)["games"].items():
+        if rec.get("state") not in ("fetched", "sync_failed") or rec.get("synced_at"):
+            continue
+        if code == 0:
             rec["synced_at"] = _iso(now)
-
-
-def alert_reasons(state: Mapping, now: datetime) -> dict[str, str]:
-    """此刻成立的超時條件（純函式）：``{key: detect_gap|sync_late}``。
-
-    * ``sync_late``：本機已有先發、超過 15 分仍未同步成功（含 68、64–67、備份失敗、鎖被占）。
-    * ``detect_gap``：窗內、本機無先發、距該賽別上次**成功**觀察抓取（或開窗時刻，取較晚）超過 45 分——原因可能是
-      夜間暫停、挑戰停、鎖、抓取失敗、Mac 睡眠；本站在這段時間不知道官網有沒有公布。
-    * 關窗時仍無先發：⛔ 不告警（官網可能真的沒公布，交 #292 A1 與隔日 J1）。"""
-    sw = state.get("starter_watch") or {}
-    ok = sw.get("ok") or {}
-    out: dict[str, str] = {}
-    for key, rec in (sw.get("games") or {}).items():
-        if rec.get("synced_at"):
-            continue
-        local_at = _parse(rec.get("local_at"))
-        if local_at is not None:
-            if now - local_at > ALERT_SYNC:
-                out[key] = "sync_late"
-            continue
-        opens, closes = _parse(rec.get("open_at")), _parse(rec.get("close_at"))
-        if opens is None or closes is None or not (opens <= now < closes):
-            continue
-        ref = max([t for t in (_parse(ok.get(kind_of(key))), opens) if t is not None])
-        if now - ref > ALERT_GAP:
-            out[key] = "detect_gap"
-    return out
+            say(f"{key} synced")
+        elif rec["state"] == "fetched":
+            rec["state"] = "sync_failed"
+            say(f"{key} sync_failed code={code}")
 
 
 Notifier = Callable[[str, str], Mapping]
@@ -255,75 +238,48 @@ def _schedule_watch_notify(title: str, message: str) -> Mapping:
     return module.notify(title, message)
 
 
-def _describe(state: Mapping, keys: Iterable[str]) -> str:
-    games = (state.get("starter_watch") or {}).get("games") or {}
-    parts = []
-    for key in sorted(keys):
-        starts = _parse((games.get(key) or {}).get("starts_at"))
-        parts.append(f"{key}（開賽 {starts.astimezone(TAIPEI):%m/%d %H:%M}）" if starts else key)
-    return "、".join(parts)
+_REASON_TEXT = {"failed": "抓取失敗", "empty": "官網先發仍空", "missed": "23:00–01:00 沒抓成",
+                "sync_failed": "正式站同步失敗"}
 
 
-def apply_alerts(state: dict, now: datetime, *, notify: Notifier | None = None,
-                 path: Path | None = None) -> dict[str, Any]:
-    """依 :func:`alert_reasons` 更新各場告警、在**轉變時**通知（新增超時／解除），並維持持久告警檔。
+def notify_problems(state: dict, now: datetime, *, notify: Notifier | None = None,
+                    path: Path | None = None) -> list[str]:
+    """尚未通知過的問題場合併成一則本機通知；持久檔列出開賽前仍未解決的問題場（沒有就刪檔）。
 
-    解除原因：``delivered``（事後補上：已送到正式站）／``detection_resumed``（恢復偵測、仍未公布）／
-    ``window_closed``。通知失敗只記在 ``starter_watch.notify_error``，不影響晚間鏈。"""
+    通知失敗只記在 ``starter_watch.notify_error``，不影響晚間鏈（不重送：持久檔仍在）。"""
     sw = _sw(state)
     notify = notify or _schedule_watch_notify
     path = path or alert_path()
-    current = alert_reasons(state, now)
-    raised, resolved = [], []
-    for key, rec in sw["games"].items():
-        active = rec.get("alert")
-        reason = current.get(key)
-        if reason and not active:
-            rec["alert"] = {"reason": reason, "since": _iso(now)}
-            raised.append(key)
-        elif reason and active and active.get("reason") != reason:
-            active["reason"] = reason
-        elif not reason and active:
-            how = ("delivered" if rec.get("synced_at") else
-                   "window_closed" if now >= (_parse(rec.get("close_at")) or now) else "detection_resumed")
-            rec.setdefault("alerts", []).append({**active, "until": _iso(now), "resolution": how})
-            rec["alert"] = None
-            resolved.append((key, how))
-    messages = []
-    if raised:
-        messages.append(("CPBL 先發超時", f"官網先發觀察超時：{_describe(state, raised)}（詳見 {path}）"))
-    if resolved:
-        filled = [k for k, how in resolved if how == "delivered"]
-        other = [k for k, how in resolved if how != "delivered"]
-        text = "；".join(x for x in (f"已補上 {_describe(state, filled)}" if filled else "",
-                                     f"已恢復偵測 {_describe(state, other)}" if other else "") if x)
-        messages.append(("CPBL 先發告警解除", text))
-    deliveries = []
-    for title, text in messages:
+    new = sorted(k for k, r in sw["games"].items() if r.get("state") in PROBLEMS and not r.get("notified_at"))
+    if new:
+        text = "；".join(f"{k}（開賽 {_parse(sw['games'][k]['starts_at']).astimezone(TAIPEI):%m/%d %H:%M}，"
+                        f"{_REASON_TEXT[sw['games'][k]['state']]}）" for k in new)
+        message = f"先發未於前一天 23:00 更新：{text}；隔日 10:10 每日鏈補上（詳見 {path}）"
         try:
-            deliveries.append({"title": title, "message": text, "verdict": dict(notify(title, text))})
+            verdict = dict(notify("CPBL 先發未更新", message))
             sw["notify_error"] = None
-        except Exception as exc:  # noqa: BLE001 — 通知失敗不得連坐晚間鏈；照實留在狀態檔與告警檔
-            log.exception("先發超時通知失敗")
+        except Exception as exc:  # noqa: BLE001 — 通知失敗不得連坐晚間鏈；照實留在狀態檔與持久檔
+            verdict = {}
             sw["notify_error"] = {"at": _iso(now), "error": f"{type(exc).__name__}: {exc}"[:300]}
-            deliveries.append({"title": title, "message": text, "error": sw["notify_error"]})
-    if deliveries:
-        sw.setdefault("notifications", []).extend({"at": _iso(now), **d} for d in deliveries)
-        sw["notifications"] = sw["notifications"][-20:]
-    active = {k: r["alert"] for k, r in sw["games"].items() if r.get("alert")}
+        for k in new:
+            sw["games"][k]["notified_at"] = _iso(now)
+        sw["last_notification"] = {"at": _iso(now), "message": message, "verdict": verdict,
+                                   "error": sw.get("notify_error")}
+        say(f"notify games={','.join(new)} error={bool(sw.get('notify_error'))}")
+    open_problems = {k: r for k, r in sw["games"].items()
+                     if r.get("state") in PROBLEMS and (_parse(r.get("starts_at")) or now) > now}
     try:
-        if active:
+        if open_problems:
             path.parent.mkdir(parents=True, exist_ok=True)
-            path.write_text(json.dumps({"observed_at": _iso(now), "alerts": active,
-                                        "games": {k: sw["games"][k] for k in active},
-                                        "last_notifications": sw.get("notifications", [])[-3:],
-                                        "notify_error": sw.get("notify_error")},
-                                       ensure_ascii=False, indent=2), encoding="utf-8")
+            path.write_text(json.dumps({"observed_at": _iso(now), "games": open_problems,
+                                        "last_notification": sw.get("last_notification"),
+                                        "fill_by": "隔日 10:10 每日鏈"}, ensure_ascii=False, indent=2),
+                            encoding="utf-8")
         elif path.exists():
             path.unlink()
-    except OSError:
-        log.exception("先發告警檔寫入失敗：%s", path)
-    return {"raised": raised, "resolved": resolved, "active": sorted(active)}
+    except OSError as exc:
+        say(f"alert_file_error {type(exc).__name__}: {exc}")
+    return new
 
 
 # =========================================================================== 只寫先發寫入器（WP-A）
@@ -421,17 +377,21 @@ def local_starters(year: int, keys: Iterable[str]) -> set[str]:
 
 def fetch_step(year: int, kinds: Iterable[str], keys: Iterable[str],
                fetch: Callable[[int, str], list[dict]] | None = None) -> dict[str, Any]:
-    """觀察抓取：每賽別 getgamedatas 一次（既有 ``cpbl_site.fetch_year``），只交 :func:`write_starters` 寫目標場。
-    錯誤形狀同 ``_postseason_games_step``（``{"kind", "error"}``；單一賽別失敗不連坐）。"""
+    """23:00 抓取：每賽別 getgamedatas 一次（既有 ``cpbl_site.fetch_year``），只交 :func:`write_starters` 寫目標場。
+    www 導頁記 ``WWW_REQ card=342``。錯誤形狀同 ``_postseason_games_step``（``{"kind", "error"}``；單一賽別失敗不連坐）。"""
+    from cpbl.ingest._browser import www_marker
+
     if fetch is None:
         from cpbl.ingest.cpbl_site import fetch_year as fetch
     keys = list(keys)
     out: dict[str, Any] = {"games": {}, "errors": []}
     for kind in kinds:
         try:
-            games = fetch(year, kind)
-            out["games"][kind] = write_starters(games, [k for k in keys if kind_of(k) == kind])
+            with www_marker("other", "342", f"{year}/{kind}/-", card="342"):
+                games = fetch(year, kind)
+            out["games"][kind] = result = write_starters(games, [k for k in keys if kind_of(k) == kind])
+            say(f"fetch kind={kind} games_updated={result['games_updated']} revisions={result['revisions']}")
         except Exception as exc:  # noqa: BLE001 — 單一賽別失敗不連坐
-            log.exception("先發觀察抓取失敗 kind=%s", kind)
+            say(f"fetch kind={kind} error={type(exc).__name__}: {str(exc)[:200]}")
             out["errors"].append({"kind": kind, "error": str(exc)})
     return out

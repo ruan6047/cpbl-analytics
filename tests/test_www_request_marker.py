@@ -418,4 +418,8 @@ def test_daily_chain_never_enables_the_marker():
     root = Path(__file__).resolve().parents[1] / "src" / "cpbl"
     users = sorted(str(p.relative_to(root)) for p in root.rglob("*.py")
                    if "www_marker(" in p.read_text(encoding="utf-8") and p.name != "_browser.py")
-    assert users == ["ingest/postseason_evening.py"]
+    # #342：starter_watch（先發 23:00 時點，card=342）只由晚間鏈呼叫——下一段確認沒有其他模組 import 它。
+    assert users == ["ingest/postseason_evening.py", "ingest/starter_watch.py"]
+    importers = sorted(str(p.relative_to(root)) for p in root.rglob("*.py")
+                       if "starter_watch" in p.read_text(encoding="utf-8") and p.name != "starter_watch.py")
+    assert importers == ["ingest/postseason_evening.py"]

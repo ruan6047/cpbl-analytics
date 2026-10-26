@@ -1,4 +1,4 @@
-"""#342 先發觀察窗：純函式、只寫先發寫入器的不變量（真實 payload）、告警、與晚間鏈 plan 的接線。
+"""#342 先發 23:00 時點：純函式、只寫先發寫入器的不變量（真實 payload）、失敗通知、與晚間鏈 plan 的接線。
 
 payload 一律取自 ``tests/fixtures/starter_watch_replay/revisions-2026.json``（本機修訂表唯讀匯出）；stats 列沿用
 ``tests/test_postseason_starter_checkpoints.py`` 的 SYNTHETIC 形狀。不連網、不碰 DB。
@@ -32,49 +32,6 @@ def payloads(kind: str, sno: int) -> list[dict]:
 def sched(kind: str, sno: int, status: str, starts: str) -> dict:
     return {"year": 2026, "kind_code": kind, "game_sno": sno, "status": status, "starts_at": starts,
             "game_date": starts[:10], "away_code": "ACN011", "home_code": "AAA011", "venue": "大巨蛋"}
-
-
-# =========================================================================== 觀察窗
-
-def test_window_is_s_minus_33h_to_s_minus_30m_and_follows_reschedule():
-    s = tpe(10, 27, 18, 35)
-    assert sw.window(s) == (tpe(10, 26, 9, 35), tpe(10, 27, 18, 5))
-    rows = [sched("C", 7, "SCHEDULED", "2026-10-27T18:35:00")]
-    assert sw.candidates(rows, tpe(10, 26, 9, 34), "AEC") == {}
-    assert sw.candidates(rows, tpe(10, 26, 9, 35), "AEC") == {"2026-C-7": s}
-    assert sw.candidates(rows, tpe(10, 27, 18, 5), "AEC") == {}, "S−30 起交 #292 A1"
-    moved = [sched("C", 7, "SCHEDULED", "2026-10-28T18:35:00")]   # 延賽改期：新 S 自動成為新窗口
-    assert sw.candidates(moved, tpe(10, 26, 10, 0), "AEC") == {}
-    assert sw.candidates(moved, tpe(10, 27, 10, 0), "AEC") == {"2026-C-7": tpe(10, 28, 18, 35)}
-
-
-def test_only_scheduled_aec_games_are_targets():
-    at = tpe(10, 26, 12, 0)
-    rows = [sched("D", 1, "SCHEDULED", "2026-10-27T13:05:00"),
-            sched("A", 2, "POSTPONED", "2026-10-27T18:35:00"),
-            sched("A", 3, "START", "2026-10-26T17:05:00"),
-            sched("A", 4, "", "2026-10-27T18:35:00"),
-            sched("E", 5, "SCHEDULED", "not-a-date"),
-            sched("E", 6, "SCHEDULED", "2026-10-27T18:35:00")]
-    assert sw.candidates(rows, at, pe.EVENING_KINDS) == {"2026-E-6": tpe(10, 27, 18, 35)}
-
-
-@pytest.mark.parametrize("hh,mm,paused", [(0, 59, False), (1, 0, True), (9, 44, True), (9, 45, False)])
-def test_night_pause(hh, mm, paused):
-    assert sw.in_pause(tpe(10, 26, hh, mm)) is paused
-
-
-def test_due_every_30_minutes_outside_pause_until_local_has_starters():
-    state: dict = {"schedule": [sched("C", 7, "SCHEDULED", "2026-10-27T18:35:00")]}
-    now = tpe(10, 26, 12, 0)
-    sw.refresh(state, now, sw.candidates(state["schedule"], now, "AEC"), set())
-    assert sw.due_kinds(state, now) == {"C"}
-    sw.record_fetch(state, now, ["C"])
-    assert sw.due_kinds(state, now + timedelta(minutes=29)) == set()
-    assert sw.due_kinds(state, now + timedelta(minutes=30)) == {"C"}
-    assert sw.due_kinds(state, tpe(10, 27, 2, 0)) == set(), "夜間暫停"
-    sw.note_local(state, now + timedelta(minutes=31), {"2026-C-7"})
-    assert sw.due_kinds(state, now + timedelta(hours=2)) == set(), "本機已有先發就停"
 
 
 # =========================================================================== 只寫先發寫入器（真實 payload）
@@ -166,71 +123,130 @@ def test_invariant_mutations_are_caught(monkeypatch):
         assert _violations(sw.starter_rows)
 
 
-# =========================================================================== 告警
 
-def _armed(now: datetime) -> dict:
+# =========================================================================== 前一天 23:00 時點
+
+def test_fire_point_is_day_before_2300_and_follows_reschedule():
+    assert sw.fire_point(tpe(10, 27, 18, 35)) == tpe(10, 26, 23, 0)
+    assert sw.fire_point(tpe(10, 26, 15, 5)) == tpe(10, 25, 23, 0)
+    rows = [sched("C", 7, "SCHEDULED", "2026-10-27T18:35:00")]
+    assert sw.candidates(rows, tpe(10, 26, 22, 59), "AEC") == {}
+    assert sw.candidates(rows, tpe(10, 26, 23, 0), "AEC") == {"2026-C-7": tpe(10, 27, 18, 35)}
+    assert sw.candidates(rows, tpe(10, 27, 0, 59), "AEC") == {"2026-C-7": tpe(10, 27, 18, 35)}
+    assert sw.candidates(rows, tpe(10, 27, 1, 0), "AEC") == {}, "最遲 01:00（深夜加嚴）"
+    moved = [sched("C", 7, "SCHEDULED", "2026-10-28T18:35:00")]   # 延賽改期：新 S 的 F 自動成為新時點
+    assert sw.candidates(moved, tpe(10, 26, 23, 5), "AEC") == {}
+    assert sw.candidates(moved, tpe(10, 27, 23, 5), "AEC") == {"2026-C-7": tpe(10, 28, 18, 35)}
+
+
+def test_only_scheduled_aec_games_are_targets():
+    at = tpe(10, 26, 23, 10)
+    rows = [sched("D", 1, "SCHEDULED", "2026-10-27T13:05:00"),
+            sched("A", 2, "POSTPONED", "2026-10-27T18:35:00"),
+            sched("A", 3, "START", "2026-10-27T17:05:00"),
+            sched("A", 4, "", "2026-10-27T18:35:00"),
+            sched("E", 5, "SCHEDULED", "not-a-date"),
+            sched("E", 6, "SCHEDULED", "2026-10-27T18:35:00")]
+    assert sw.candidates(rows, at, pe.EVENING_KINDS) == {"2026-E-6": tpe(10, 27, 18, 35)}
+
+
+@pytest.mark.parametrize("hh,mm,inside", [(22, 59, False), (23, 0, True), (0, 59, True), (1, 0, False)])
+def test_fire_hours(hh, mm, inside):
+    assert sw.in_fire_hours(tpe(10, 26, hh, mm)) is inside
+
+
+def test_fire_game_date():
+    assert str(sw.fire_game_date(tpe(10, 26, 23, 30))) == "2026-10-27"
+    assert str(sw.fire_game_date(tpe(10, 27, 0, 30))) == "2026-10-27"
+
+
+def _armed(now: datetime, have=()) -> dict:
     state: dict = {"schedule": [sched("C", 7, "SCHEDULED", "2026-10-27T18:35:00")]}
-    sw.refresh(state, now, sw.candidates(state["schedule"], now, "AEC"), set())
+    sw.refresh(state, now, sw.candidates(state["schedule"], now, "AEC"), have)
     return state
 
 
-def test_detect_gap_raises_once_and_resolves_on_delivery(tmp_path):
+def test_one_fetch_per_game_and_outcomes():
+    t = tpe(10, 26, 23, 5)
+    state = _armed(t)
+    assert sw.due_kinds(state) == {"C"}
+    sw.record_fetch(state, t, ["C"], (), {"2026-C-7"})
+    rec = state["starter_watch"]["games"]["2026-C-7"]
+    assert rec["state"] == "fetched" and sw.due_kinds(state) == set(), "每場只抓一次"
+    sw.refresh(state, t + timedelta(minutes=30), sw.candidates(state["schedule"], t + timedelta(minutes=30), "AEC"), ())
+    assert sw.due_kinds(state) == set()
+    sw.record_sync(state, t + timedelta(minutes=4), 0)
+    assert rec["synced_at"]
+
+    empty = _armed(t)
+    sw.record_fetch(empty, t, ["C"], (), set())
+    assert empty["starter_watch"]["games"]["2026-C-7"]["state"] == "empty"
+    failed = _armed(t)
+    sw.record_fetch(failed, t, ["C"], {"C"}, set())
+    assert failed["starter_watch"]["games"]["2026-C-7"]["state"] == "failed"
+    already = _armed(t, have={"2026-C-7"})
+    assert already["starter_watch"]["games"]["2026-C-7"]["state"] == "already" and sw.due_kinds(already) == set()
+
+
+def test_missed_after_0100_and_sync_failure():
+    t = tpe(10, 26, 23, 5)
+    state = _armed(t)
+    sw.note_wait(state, ["C"], "www_blocked")
+    sw.refresh(state, tpe(10, 27, 1, 0), {}, ())
+    rec = state["starter_watch"]["games"]["2026-C-7"]
+    assert rec["state"] == "missed" and rec["wait"] == "www_blocked"
+    s2 = _armed(t)
+    sw.record_fetch(s2, t, ["C"], (), {"2026-C-7"})
+    sw.record_sync(s2, t + timedelta(minutes=4), 68)
+    assert s2["starter_watch"]["games"]["2026-C-7"]["state"] == "sync_failed"
+    sw.record_sync(s2, t + timedelta(days=1), 0)
+    assert s2["starter_watch"]["games"]["2026-C-7"]["synced_at"], "之後成功的同步照實記送達"
+
+
+def test_notify_problems_once_with_file(tmp_path):
     sent = []
     notify = lambda t, m: sent.append((t, m)) or {"attempted": True}  # noqa: E731
     path = tmp_path / "alert.json"
-    t0 = tpe(10, 26, 12, 0)
-    state = _armed(t0)
-    sw.record_fetch(state, t0, ["C"])
-    assert sw.apply_alerts(state, t0 + timedelta(minutes=45), notify=notify, path=path)["raised"] == []
-    out = sw.apply_alerts(state, t0 + timedelta(minutes=46), notify=notify, path=path)
-    assert out["raised"] == ["2026-C-7"] and path.exists() and len(sent) == 1
-    assert sw.apply_alerts(state, t0 + timedelta(minutes=50), notify=notify, path=path)["raised"] == []
-    assert len(sent) == 1, "只在轉變時通知"
-    sw.note_local(state, t0 + timedelta(minutes=55), {"2026-C-7"})
-    sw.record_sync(state, t0 + timedelta(minutes=58), 0)
-    out = sw.apply_alerts(state, t0 + timedelta(minutes=58), notify=notify, path=path)
-    assert out["resolved"] == [("2026-C-7", "delivered")] and not path.exists()
-    assert "已補上" in sent[-1][1]
-    assert state["starter_watch"]["games"]["2026-C-7"]["alerts"][0]["resolution"] == "delivered"
-
-
-def test_sync_late_after_15_minutes_and_failed_sync_does_not_count(tmp_path):
-    t0 = tpe(10, 26, 12, 0)
-    state = _armed(t0)
-    sw.record_fetch(state, t0, ["C"])
-    sw.note_local(state, t0, {"2026-C-7"})
-    sw.record_sync(state, t0 + timedelta(minutes=4), 68)
-    assert sw.alert_reasons(state, t0 + timedelta(minutes=15)) == {}
-    assert sw.alert_reasons(state, t0 + timedelta(minutes=16)) == {"2026-C-7": "sync_late"}
-    sw.record_sync(state, t0 + timedelta(minutes=40), 0)
-    assert sw.alert_reasons(state, t0 + timedelta(minutes=41)) == {}
-
-
-def test_no_alert_when_window_closes_without_publication():
-    t0 = tpe(10, 27, 17, 0)
-    state = _armed(t0)
-    sw.record_fetch(state, t0, ["C"])
-    assert sw.alert_reasons(state, tpe(10, 27, 18, 5)) == {}, "關窗仍無先發：官網可能真的沒公布"
+    t = tpe(10, 26, 23, 5)
+    state = _armed(t)
+    assert sw.notify_problems(state, t, notify=notify, path=path) == [] and not path.exists()
+    sw.record_fetch(state, t, ["C"], (), set())
+    assert sw.notify_problems(state, t, notify=notify, path=path) == ["2026-C-7"]
+    assert len(sent) == 1 and "官網先發仍空" in sent[0][1] and "10:10" in sent[0][1]
+    assert json.loads(path.read_text())["games"]["2026-C-7"]["state"] == "empty"
+    assert sw.notify_problems(state, t + timedelta(minutes=5), notify=notify, path=path) == []
+    assert len(sent) == 1, "同一場只通知一次"
+    sw.notify_problems(state, tpe(10, 27, 18, 36), notify=notify, path=path)
+    assert not path.exists(), "開賽後不再列"
 
 
 def test_notify_failure_is_recorded_not_raised(tmp_path):
     def boom(title, msg):
         raise OSError("osascript missing")
-    t0 = tpe(10, 26, 12, 0)
-    state = _armed(t0)
-    out = sw.apply_alerts(state, t0 + timedelta(hours=1), notify=boom, path=tmp_path / "a.json")
-    assert out["raised"] == ["2026-C-7"]
+    t = tpe(10, 26, 23, 5)
+    state = _armed(t)
+    sw.record_fetch(state, t, ["C"], {"C"}, set())
+    assert sw.notify_problems(state, t, notify=boom, path=tmp_path / "a.json") == ["2026-C-7"]
     assert "osascript missing" in state["starter_watch"]["notify_error"]["error"]
-    assert json.loads((tmp_path / "a.json").read_text())["notify_error"]
+    assert json.loads((tmp_path / "a.json").read_text())["last_notification"]["error"]
 
 
-def test_preexisting_starters_are_not_alerted():
-    t0 = tpe(10, 26, 12, 0)
-    state: dict = {"schedule": [sched("C", 7, "SCHEDULED", "2026-10-27T18:35:00")]}
-    sw.refresh(state, t0, sw.candidates(state["schedule"], t0, "AEC"), {"2026-C-7"})
-    rec = state["starter_watch"]["games"]["2026-C-7"]
-    assert rec["via"] == "preexisting" and rec["synced_at"]
-    assert sw.alert_reasons(state, t0 + timedelta(hours=3)) == {}
+def test_say_prefix(capsys):
+    sw.say("x y")
+    assert capsys.readouterr().err == "starter-watch x y\n"
+
+
+def test_www_marker_card_342(caplog):
+    from cpbl.ingest import _browser as b
+
+    caplog.set_level("INFO", logger="cpbl.browser.www")
+    with b.www_marker("other", "342", "2026/A/-", card="342"):
+        b._note_goto(200, "2026-10-26T23:00:05+08:00")
+    assert "WWW_REQ card=342 kind=other src=342 at=2026-10-26T23:00:05+08:00 game=2026/A/- status=200" in caplog.text
+    with pytest.raises(ValueError):
+        b.www_marker("other", "342", "2026/A/-").__enter__()   # 預設 card=293 仍只收 E／C、src 292／293
+    with pytest.raises(ValueError):
+        b.www_marker("other", "292", "2026/A/-", card="342").__enter__()
 
 
 # =========================================================================== 晚間鏈接線
@@ -249,45 +265,45 @@ def local_for(games):
 def test_flag_off_keeps_baseline():
     games = pe.parse_stats_games([raw_game("C", 7, "SCHEDULED", "2026-10-27T18:35:00")], 2026)
     state = pe.empty_state()
-    out = pe.plan(state, tpe(10, 26, 12, 0), probe=lambda: games, load_local=lambda: local_for(games))
+    out = pe.plan(state, tpe(10, 26, 23, 5), probe=lambda: games, load_local=lambda: local_for(games))
     assert out == ("idle", "no_events") and state["starter_watch"] == {}
 
 
-def test_watch_fetch_ignores_a_gate_but_respects_daily_guard_and_challenge_stop(monkeypatch):
-    """A 今晚有未終局場（P-A-FETCH-GATE 擋既有 A 抓取）時，明天 A 場的觀察抓取仍照發，且只走只寫先發路徑。"""
+def test_2300_fetch_ignores_a_gate_but_respects_challenge_stop(monkeypatch):
+    """23:00 時今晚 A 仍有未終局場（P-A-FETCH-GATE 擋既有 A 抓取）：明天 A 場照抓，且只走只寫先發路徑。"""
     monkeypatch.setenv(pe.EVENING_KINDS_ENV, "")
-    games = pe.parse_stats_games([raw_game("A", 10, "START", "2026-10-26T17:05:00"),
+    games = pe.parse_stats_games([raw_game("A", 10, "START", "2026-10-26T18:35:00"),
                                   raw_game("A", 11, "SCHEDULED", "2026-10-27T18:35:00")], 2026)
     state = pe.empty_state()
-    now = tpe(10, 26, 19, 0)
+    now = tpe(10, 26, 23, 2)
     out = pe.plan(state, now, probe=lambda: games, load_local=lambda: local_for(games),
                   watch_enabled=True, local_starters=lambda keys: set())
     assert out == ("scrape", "starter_watch")
     assert state["a_fetch_gate"]["reason"].startswith("a_in_progress_or_pending")
     assert state["scrape_kinds"] == ["A"] and state["starter_watch"]["watch_only"] == ["A"]
-    assert sw.pending_keys(state, now) == ["2026-A-11"], "今晚開打中的 A-10 不是目標"
+    assert sw.pending_keys(state) == ["2026-A-11"]
 
-    guard = pe.empty_state()
-    assert pe.plan(guard, tpe(10, 26, 10, 0), probe=lambda: games, load_local=lambda: local_for(games),
-                   watch_enabled=True, local_starters=lambda keys: set())[0] == "idle"
     blocked = pe.empty_state() | {"www_blocked_at": pe._iso(now - timedelta(hours=1))}
     assert pe.plan(blocked, now, probe=lambda: games, load_local=lambda: local_for(games),
                    watch_enabled=True, local_starters=lambda keys: set())[0] == "idle"
+    assert blocked["starter_watch"]["games"]["2026-A-11"]["wait"] == "www_blocked"
 
 
-def test_watch_shares_kind_cooldown_with_event_fetches(monkeypatch):
+def test_2300_shares_kind_cooldown(monkeypatch):
     monkeypatch.setenv(pe.EVENING_KINDS_ENV, "")
     games = pe.parse_stats_games([raw_game("C", 7, "SCHEDULED", "2026-10-27T18:35:00")], 2026)
-    now = tpe(10, 26, 19, 0)
+    now = tpe(10, 26, 23, 0)
     state = pe.empty_state() | {"www_requests": {"C": pe._iso(now - timedelta(minutes=10))}}
     assert pe.plan(state, now, probe=lambda: games, load_local=lambda: local_for(games),
                    watch_enabled=True, local_starters=lambda keys: set())[0] == "idle"
+    assert state["starter_watch"]["games"]["2026-C-7"]["wait"] == "cooldown"
     assert pe.plan(state, now + timedelta(minutes=10), probe=lambda: games, load_local=lambda: local_for(games),
                    watch_enabled=True, local_starters=lambda keys: set()) == ("scrape", "starter_watch")
 
 
 def test_gate_wakes_on_rest_day_for_tomorrows_game():
     state = pe.empty_state() | {"schedule": [sched("C", 7, "SCHEDULED", "2026-10-27T18:35:00")]}
-    now = tpe(10, 26, 21, 0)
+    now = tpe(10, 26, 23, 0)
     assert pe.evening_gate(state, now, None, db_lookup=lambda night: set())[0] == "quiet", "基準：休兵日 quiet"
     assert sw.gate_kinds(state, now, pe.EVENING_KINDS) == {"C"}
+    assert sw.gate_kinds(state, tpe(10, 26, 22, 55), pe.EVENING_KINDS) == set()

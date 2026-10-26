@@ -94,14 +94,20 @@ WWW_REQ_RE = re.compile(
 _MARKER: dict | None = None
 
 
+# #342 先發 23:00 時點：同一套標記另記 ``card=342``（src 固定 342、賽別含 A），與 #293 的行分得開；
+# ⛔ 不改 card=293 的任何字樣（``WWW_REQ_RE`` 與既有對帳照舊）。
+WWW_CARDS = {"293": (WWW_SRCS, r"\d{4}/[EC]/(\d+|-)"), "342": (("342",), r"\d{4}/[AEC]/(\d+|-)")}
+
+
 @contextmanager
-def www_marker(kind: str, src: str, game: str) -> Iterator[None]:
+def www_marker(kind: str, src: str, game: str, card: str = "293") -> Iterator[None]:
     """在區塊內啟用 www 導頁標記。``game``＝``<year>/<kind>/<sno 或 ->``（取自呼叫參數，不解析 URL）。"""
     global _MARKER
-    if kind not in WWW_KINDS or src not in WWW_SRCS or not re.fullmatch(r"\d{4}/[EC]/(\d+|-)", game):
-        raise ValueError(f"www_marker 參數不合法：kind={kind!r} src={src!r} game={game!r}")
+    srcs, game_re = WWW_CARDS.get(card, ((), r"(?!)"))
+    if kind not in WWW_KINDS or src not in srcs or not re.fullmatch(game_re, game):
+        raise ValueError(f"www_marker 參數不合法：kind={kind!r} src={src!r} game={game!r} card={card!r}")
     prev = _MARKER
-    _MARKER = {"kind": kind, "src": src, "game": game, "navigations": 0, "pending": []}
+    _MARKER = {"kind": kind, "src": src, "game": game, "navigations": 0, "pending": [], "card": card}
     try:
         yield
     finally:
@@ -132,8 +138,8 @@ def _flush_marks(challenged: bool | None) -> None:
         status = rec["status"]
         if challenged and i == len(pending) - 1 and status != "error":
             status = "challenge"
-        www_log.info("WWW_REQ card=293 kind=%s src=%s at=%s game=%s status=%s",
-                     rec["kind"], m["src"], rec["at"], m["game"], status)
+        www_log.info("WWW_REQ card=%s kind=%s src=%s at=%s game=%s status=%s",
+                     m.get("card", "293"), rec["kind"], m["src"], rec["at"], m["game"], status)
 
 
 def _on_request(request) -> None:  # noqa: ANN001 — Playwright Request
@@ -149,7 +155,7 @@ def _on_request(request) -> None:  # noqa: ANN001 — Playwright Request
     except Exception:  # noqa: BLE001 — 計數監聽不得影響爬蟲
         return
     if host == urlsplit(BASE).hostname:
-        www_log.info("WWW_NAV card=293 src=%s at=%s game=%s", m["src"], _now_tpe(), m["game"])
+        www_log.info("WWW_NAV card=%s src=%s at=%s game=%s", m.get("card", "293"), m["src"], _now_tpe(), m["game"])
 
 
 def check_circuit(consec_fail: int, what: str = "選手") -> None:
