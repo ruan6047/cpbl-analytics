@@ -73,6 +73,48 @@ test("關鍵打席：最後打席是單一事件、首事件號即重複號（20
     "多一列結束標記不改變任何關鍵打席");
 });
 
+// 2026-D-118：最後打席多事件（暴投上二壘 → 盜壘刺第三出局），標記＝「主審裁定比賽結束」。
+const D118 = JSON.parse(readFileSync(
+  new URL("../lib/__fixtures__/live-db-livelog_357_2026-D-118.json", import.meta.url), "utf8",
+)) as { livelog: StatRow[]; snapshot_livelog: Record<string, unknown>[] };
+const D118_PLAY = "壞球。 二壘跑者黃鈞麟出局-盜壘刺 3人出局。";
+const d118Wp = (log: StatRow[]) => {
+  let s = log.length - 1;
+  while (s > 0 && log[s - 1].hitter_acnt === log[log.length - 1].hitter_acnt) s--;
+  return [{ evt: String(log[s].main_event_no), inning: 7, half: "2", wp: 0.4 },
+          { evt: null, inning: 7, half: "2", wp: 0 }];
+};
+
+test("關鍵打席（DB 路徑，2026-D-118 多事件最後打席）：結果文是盜壘刺，不是主審裁定比賽結束", () => {
+  const log = D118.livelog;
+  assert.equal(log[log.length - 1].content, "主審裁定比賽結束", "前提：DB 路徑最後一列是標記");
+  assert.equal(buildMoments(d118Wp(log) as never, log)[0]?.desc, D118_PLAY);
+});
+
+test("關鍵打席（快照路徑，同一份 D-118 原文經 applyLiveSnapshot）：同樣不取結束標記", () => {
+  const raw: LiveApiResponse = {
+    game: { year: 2026, kind_code: "D", game_sno: 118 },
+    scoreboard: [], livelog: [], batting: [], pitching: [], people: {}, records: {}, batter_avg: {},
+    detail: null, decisions: {}, decision_counts: null, has_tracking: false, tracking: [], spray: [],
+    live_snapshot: {
+      game_id: "2026-D-118", game_sno: 118, kind_code: "D", phase: "final", raw_status: "FINISHED",
+      inning: 7, half: "bottom", event_count: D118.snapshot_livelog.length, tracking_count: 0,
+      tracking_availability: "pending", poll_after_seconds: 12, freshness: "fresh", source_status: "ok",
+      stale_after_seconds: 45, source: { fetched_at: "2026-09-22T11:00:00+00:00", version: "357" },
+      away: { team: { code: "AAA", name: "客" }, score: 0, inning_score: [],
+              lineup: { availability: "announced", items: [], first_observed_at: null },
+              hitters: [], pitchers: [], probable_pitcher: { availability: "not_announced" } },
+      home: { team: { code: "BBB", name: "主" }, score: 0, inning_score: [],
+              lineup: { availability: "announced", items: [], first_observed_at: null },
+              hitters: [], pitchers: [], probable_pitcher: { availability: "not_announced" } },
+      livelog: D118.snapshot_livelog,
+    } as never,
+  };
+  const log = applyLiveSnapshot(raw).livelog as StatRow[];
+  assert.equal(log[log.length - 1].content, "主審裁定比賽結束", "前提：快照路徑同號兩列都在");
+  assert.equal(buildMoments(d118Wp(log) as never, log)[0]?.desc, D118_PLAY);
+});
+
 test("關鍵打席：多事件最後打席（向後掃描路徑）也不取結束標記；兩種標記字面都認", () => {
   const row = (no: string, content: string, extra: Partial<StatRow> = {}): StatRow => ({
     main_event_no: no, hitter_acnt: "H1", hitter_name: "打者", pitcher_name: "投手",
