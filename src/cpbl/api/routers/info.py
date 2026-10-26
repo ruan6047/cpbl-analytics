@@ -51,6 +51,8 @@ CACHE_TTL_SECONDS = 60.0
 # 陳舊上限：背景重算連續失敗、最後一份成功值已超過一個 InfoPoller 週期 ⇒ 不再宣稱 running，
 # 退回 maintenance（metrics 照帶）。等於舊版「DB 失敗就 maintenance」的語意，只是晚 5 分鐘生效。
 CACHE_MAX_STALE_SECONDS = 300.0
+# 還沒有任何成功快照時（例如部署當下預熱逾時）改用短間隔重試，避免 maintenance 掛滿一個 TTL。
+CACHE_RETRY_SECONDS = 5.0
 # 快取算出的時刻（epoch 秒）放在回應標頭，不放進 JSON（契約只有三鍵）。
 # 讀者：scripts/refresh-cpbl-prod.sh 的 freshness 檢查，用它確認讀到的是同步之後才算的快取。
 COMPUTED_AT_HEADER = "X-Cpbl-Info-Computed-At"
@@ -235,8 +237,12 @@ class _InfoCache:
         self.offer(_compute())  # 預熱：startup 先算一次
         stop = self._stop
 
+        def next_wait() -> float:
+            snap = self._snapshot
+            return ttl if snap is not None and snap.ok else min(ttl, CACHE_RETRY_SECONDS)
+
         def loop() -> None:
-            while not stop.wait(ttl):
+            while not stop.wait(next_wait()):
                 _refresh()
 
         self._thread = threading.Thread(target=loop, name=_THREAD_NAME, daemon=True)

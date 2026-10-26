@@ -159,3 +159,21 @@ def test_games_zero_is_maintenance_but_cached_as_ok(fake_db) -> None:
     info.start_cache()
     assert info.info()["status"] == "maintenance"
     assert info._CACHE.get().ok
+
+
+def test_failed_warmup_retries_quickly_until_the_first_success(fake_db, monkeypatch) -> None:
+    """部署當下預熱失敗：不得讓 maintenance 掛滿一個 TTL；有成功值後才回到 TTL 間隔。"""
+    import time
+
+    monkeypatch.setattr(info, "CACHE_RETRY_SECONDS", 0.05)
+    fake_db.fail = True
+    info._CACHE.start(ttl=60.0)
+    assert info._CACHE.get() is not None and not info._CACHE.get().ok
+    fake_db.fail = False
+    deadline = time.monotonic() + 3
+    while time.monotonic() < deadline and not info._CACHE.get().ok:
+        time.sleep(0.02)
+    assert info._CACHE.get().ok, "沒有成功快照時應以短間隔重試"
+    opens = fake_db.opens
+    time.sleep(0.3)
+    assert fake_db.opens == opens, "有成功快照後回到 TTL 間隔，不再頻繁重算"
