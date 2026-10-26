@@ -2097,7 +2097,7 @@ PURPOSE_VERIFIED: dict[str, str] = {
     "scripts/refresh-cpbl-prod.sh": "本機爬完同步生產的主鏈；ROSTER_ONLY 的 v2 角色以 ROSTER_SCOPES 明示兩隊，schema不足在備份前拒絕；完整鏈呼叫 backup-prod-db.sh 與 verify_refresh_info.py",
     "scripts/scrape-daily.sh": "launchd 每日 10:10 觸發，呼叫 refresh-cpbl-prod.sh 並用 refresh_status.py 記狀態",
     "scripts/backup-prod-db.sh": "備整庫並驗內容門檻（OPS-BACKUP-EMPTY1 的產物，已是常設）",
-    "scripts/refresh_status.py": "每日鏈的狀態記錄輔助，唯讀 JSON 檔",
+    "scripts/refresh_status.py": "每日鏈的狀態記錄輔助（寫狀態／歷史 JSON）；launchd 觸發時另經 alert_ping.py 送 daily 心跳（#358，fail-open）",
     "scripts/verify_refresh_info.py": "同步後打 /api/info 驗證，唯讀",
     "scripts/workflow_ledger.py": "⚠️ 已於 33c7c3f 加拒絕執行守衛——TASKS.md 已封存，--write 會覆寫封存產物",
     "scripts/review_prompt.py": "查核提示詞產生器；AI_RUNBOOK:433 逐字給指令，18 commits",
