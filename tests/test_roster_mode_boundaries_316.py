@@ -63,9 +63,11 @@ def _outside_roster(data):
 # （17778 → 21346 bytes）；區塊之後 sync_pa_build 改逐場增量＋全族對帳、PA_FULL_RESYNC 前置守衛、
 # 完整鏈哨兵啟動、三道 freshness 比對前等快取換代（69032 → 71058 bytes）。ROSTER_ONLY 區塊未動。
 # 舊值：區塊之前 938409e1…f1dd（17778 bytes）、區塊之後 b0995b12…b7aa（69032 bytes）。
+# #353 審核 1 修正（同卡；只改基準、保護不減）：哨兵啟動錯誤隔離與有界等待（區塊之前 21346 → 22468 bytes）、
+# 啟動呼叫加 `|| …` 兜底（區塊之後 71058 → 71135 bytes）。ROSTER_ONLY 區塊未動。
 OUTSIDE_ROSTER_SHA256 = (
-    "a4ef2ad61d59679b9eff6417759d97fbd0687d9860bbd8c49386d87f6af4e3e7",   # 區塊之前（21346 bytes）
-    "18d6b879d105f3d35567a85dfe911e7ef3926e0761a86f60d0a61793934ac3a6",   # 區塊之後（71058 bytes）
+    "2e54518d330e9d3b804dd61e76b837a149172676547a1898bde2021d952ab92f",   # 區塊之前（22468 bytes）
+    "07984ad1aa597332677d4d0bb0b93af6481a92b6274b5c9d3575a42a67db37d4",   # 區塊之後（71135 bytes）
 )
 # #316 的成果（ROSTER_ONLY 區塊本身）以 main 上合併後的版本為準：#293 不得改動它。
 ROSTER_RESULT = "a473695dfca536e365b08c44aa2e85374e8f3e69"

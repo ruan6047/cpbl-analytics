@@ -61,8 +61,11 @@ else:
 '''
 
 
-def _run(tmp_path: Path, **env_extra: str | None) -> tuple[subprocess.CompletedProcess, list[dict], list[list[str]]]:
+def _run(tmp_path: Path, *, logs_is_file: bool = False,
+         **env_extra: str | None) -> tuple[subprocess.CompletedProcess, list[dict], list[list[str]]]:
     harness = _build_harness(tmp_path)
+    if logs_is_file:  # 讓 mkdir -p "$REPO_DIR/logs" 失敗（審核 1 第 3 項的情境）
+        (harness["repo"] / "logs").write_text("not a directory", encoding="utf-8")
     _write_exec(harness["bin"] / "uv", f"#!{sys.executable}\n{_UV_STUB}")
     (tmp_path / "tmp").mkdir(exist_ok=True)
     env = {
@@ -207,10 +210,20 @@ def test_sentinel_never_changes_the_chain_exit_code(tmp_path: Path, extra, rc) -
 
 def test_sentinel_starts_before_the_first_production_touch() -> None:
     source = SCRIPT.read_text(encoding="utf-8")
-    start = source.index("\nstart_availability_sentinel\n")
-    assert source.index("trap _on_exit EXIT\nstart_availability_sentinel") < start
+    start = source.index("\nstart_availability_sentinel || ")
+    assert source.index("trap _on_exit EXIT\nstart_availability_sentinel || ") < start
     assert start < source.index('echo "==> 2/4 備份 production 資料庫')
-    assert source.count("\nstart_availability_sentinel\n") == 1, "只在完整鏈啟動"
+    assert source.count("\nstart_availability_sentinel || ") == 1, "只在完整鏈啟動"
     for mode in ("LINEUP_ONLY", "ROSTER_ONLY", "POSTSEASON_RESULTS_ONLY", "POSTSEASON_BOXPA_ONLY",
                  "TEAM_COMPARISON_ONLY"):
         assert source.index(f'if [ -n "${{{mode}:-}}" ]') < start or mode not in source
+
+
+def test_sentinel_setup_failure_never_changes_the_chain_result(tmp_path: Path) -> None:
+    """審核 1 第 3 項：哨兵啟動準備（mkdir）失敗時，每日鏈照跑完、退出碼不變。"""
+    result, ssh, uv = _run(tmp_path, logs_is_file=True)
+    assert result.returncode == 0, result.stderr
+    assert "logs 目錄建立失敗" in result.stderr
+    assert any(PA_MARKER in c["stdin"] for c in ssh), "後續同步必須照常執行"
+    argv = _sentinel_calls(uv)[0]
+    assert argv[argv.index("--out") + 1].startswith(str(tmp_path / "tmp")), "紀錄改寫 TMPDIR"

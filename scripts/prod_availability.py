@@ -8,7 +8,7 @@
   python3 scripts/prod_availability.py probe [--base-url URL] [--env-file .env]
 
 只量正式站 HTTP（``curl -m 10``），不讀 DB、不在 VPS 加常駐行程。判準與 #353 驗收同一條：任一筆
-http=000 或耗時 ≥5s 即不合格；**樣本數 0 也是不合格**（fail-closed：量不到不能讀成沒事）。
+http=000 或耗時 ≥5s 即不合格；**樣本數 0 也是不合格**；4xx＝探測打錯也不合格（fail-closed：量不到不能讀成沒事）。
 不合格 ⇒ 送告警到 #358 的同一個收件處（healthchecks 類 check 的 ``/fail``，email 推手機）；合格 ⇒ 送
 一次成功 ping，讓 check 從 down 恢復、下一次事故才會再通知。
 
@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import signal
 import subprocess
 import sys
 import time
@@ -47,9 +48,11 @@ PROBE_REPEATS = 5
 PROBE_SPACING_SECONDS = 10.0
 
 # D1 A：端點代號 → 路徑。recap-wp 取一場固定已完賽場：全年都會讀 PA 表（季後賽結束後 watch 可能不再讀）。
+# watch 的 series 是必填（缺了直接 422、根本不碰 DB——#353 審核 1 第 2 項）；C＝台灣大賽。
+# tests/test_prod_availability_353.py 以受審 app 驗每條路徑都通過參數驗證並真的呼叫到讀取函式。
 SENTINEL_ENDPOINTS: tuple[tuple[str, str], ...] = (
     ("info", "/api/info"),
-    ("watch", "/api/v1/playoffs/watch"),
+    ("watch", "/api/v1/playoffs/watch?season=2026&series=C"),
     ("recap-wp", "/api/v1/games/1/recap-wp?season=2026&kind_code=A"),
 )
 PROBE_FIRST: tuple[tuple[str, str], ...] = (
@@ -89,10 +92,13 @@ def judge(samples: Sequence[Sample], labels: set[str] | None = None) -> dict:
     n000 = sum(1 for s in pool if s.code == "000")
     slow = sum(1 for s in pool if s.code != "000" and s.seconds >= THRESHOLD_SECONDS)
     non2xx = sum(1 for s in pool if s.code != "000" and not s.code.startswith("2"))
+    # 4xx＝探測本身打錯（路徑或參數），請求根本沒走到要量的讀取路徑；判不合格，否則一個快速
+    # 422 會被讀成「可用」（#353 審核 1 第 2 項）。5xx（例如 WP2 逾時）照規劃 §6 只列筆數、不判失敗。
+    n4xx = sum(1 for s in pool if s.code.startswith("4"))
     worst = max(pool, key=lambda s: s.seconds, default=None)
     return {
-        "ok": bool(pool) and n000 == 0 and slow == 0,
-        "samples": len(pool), "n000": n000, "slow": slow, "non2xx": non2xx,
+        "ok": bool(pool) and n000 == 0 and slow == 0 and n4xx == 0,
+        "samples": len(pool), "n000": n000, "slow": slow, "non2xx": non2xx, "n4xx": n4xx,
         "slowest_seconds": round(worst.seconds, 3) if worst else None,
         "slowest_label": worst.label if worst else None,
         "first": _hm(pool[0].at) if pool else None, "last": _hm(pool[-1].at) if pool else None,
@@ -107,7 +113,7 @@ def summary_text(kind: str, verdict: dict) -> str:
     state = "OK" if verdict["ok"] else "FAIL"
     return (f"cpbl prod availability {kind} {state}: samples={verdict['samples']} "
             f"http000={verdict['n000']} ge{THRESHOLD_SECONDS:g}s={verdict['slow']} "
-            f"non2xx={verdict['non2xx']} slowest={verdict['slowest_seconds']}s({verdict['slowest_label']}) "
+            f"non2xx={verdict['non2xx']} http4xx={verdict['n4xx']} slowest={verdict['slowest_seconds']}s({verdict['slowest_label']}) "
             f"window={verdict['first']}-{verdict['last']}")
 
 
@@ -152,24 +158,35 @@ def run_sentinel(*, base_url: str, stop_file: Path, interval: float = SENTINEL_I
                  sample: Callable[[str, str, str], Sample] = curl_sample,
                  now: Callable[[], float] = time.monotonic, sleep: Callable[[float], None] = time.sleep,
                  parent_alive: Callable[[], bool] = lambda: True) -> list[Sample]:
-    """每 ``interval`` 秒對 D1 端點各打一次，直到停止訊號後再 ``tail`` 秒。"""
+    """每 ``interval`` 秒對 D1 端點各打一次，直到停止訊號後再 ``tail`` 秒。
+
+    停止條件（停止檔、父程序消失、``max_seconds`` 保險絲）在**每一筆取樣之後**都檢查，不只在
+    等待下一輪時檢查：一輪三個端點各可能卡滿 curl -m 10，整輪就超過 15 秒間隔，若只在剩餘等待
+    時間內檢查，慢請求會讓迴圈永遠跳過停止判斷（#353 審核 1 第 1 項）。停止後的最長執行時間
+    ＝``tail``＋一輪取樣（3×(CURL_MAX_TIME＋5)）。
+    """
     interval = max(float(interval), MIN_INTERVAL_SECONDS)
     started = now()
     stop_at: float | None = None
     samples: list[Sample] = []
+
+    def stopped() -> bool:
+        nonlocal stop_at
+        if stop_at is None and (stop_file.exists() or not parent_alive()
+                                or now() - started >= max_seconds):
+            stop_at = now()
+        return stop_at is not None and now() - stop_at >= tail
+
     while True:
         tick = now()
         for label, path in SENTINEL_ENDPOINTS:
             samples.append(sample(base_url, label, path))
+            if stopped():
+                return samples
         while now() - tick < interval:
-            if stop_at is None and (stop_file.exists() or not parent_alive()
-                                    or now() - started >= max_seconds):
-                stop_at = now()
-            if stop_at is not None and now() - stop_at >= tail:
+            if stopped():
                 return samples
             sleep(0.5)
-        if stop_at is not None and now() - stop_at >= tail:
-            return samples
 
 
 def run_probe(*, base_url: str, sample: Callable[[str, str, str], Sample] = curl_sample,
@@ -198,6 +215,11 @@ def _parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> int:
     args = _parser().parse_args(argv)
     base = args.base_url.rstrip("/")
+
+    def _terminated(signum, _frame):  # 呼叫端等待逾時而結束本程序：走下方「偵測器自身失敗」照樣告警
+        raise RuntimeError(f"terminated by signal {signum}")
+
+    signal.signal(signal.SIGTERM, _terminated)
     try:
         if args.command == "sentinel":
             parent = os.getppid()

@@ -189,5 +189,96 @@ def test_main_sentinel_writes_tsv_and_alerts_on_failure(monkeypatch, tmp_path: P
 
 def test_recap_wp_endpoint_is_a_fixed_completed_game_path() -> None:
     paths = dict(pa.SENTINEL_ENDPOINTS)
-    assert paths["info"] == "/api/info" and paths["watch"] == "/api/v1/playoffs/watch"
+    assert paths["info"] == "/api/info" and paths["watch"].startswith("/api/v1/playoffs/watch?") and "series=" in paths["watch"]
     assert paths["recap-wp"].startswith("/api/v1/games/") and "season=2026" in paths["recap-wp"]
+
+
+# --------------------------------------------------------------------------- 審核 1 回歸
+
+
+
+
+def _slow_sampler(clock: FakeClock, calls: list, seconds: float = 10.0):
+    """每筆取樣耗時 ``seconds``（curl -m 10 卡滿）：一輪三筆就超過 15 秒間隔。"""
+    def sample(base, label, path):
+        clock.t += seconds
+        calls.append((clock.t, label))
+        return pa.Sample(clock.t, label, "000", seconds)
+    return sample
+
+
+@pytest.mark.parametrize("trigger", ["stop_file", "parent_gone", "max_seconds"])
+def test_slow_requests_cannot_keep_the_sentinel_from_stopping(tmp_path: Path, trigger) -> None:
+    """審核 1 第 1 項：三個請求各 10 秒時，停止條件仍須在每筆取樣後生效。"""
+    clock, calls = FakeClock(), []
+    stop = tmp_path / "stop"
+    if trigger == "stop_file":
+        stop.touch()
+    pa.run_sentinel(base_url="http://x", stop_file=stop, tail=0,
+                    max_seconds=1 if trigger == "max_seconds" else pa.SENTINEL_MAX_SECONDS,
+                    sample=_slow_sampler(clock, calls), now=clock.now, sleep=clock.sleep,
+                    parent_alive=(lambda: False) if trigger == "parent_gone" else (lambda: True))
+    assert len(calls) == 1 and clock.t == 10.0, calls
+
+
+def test_slow_requests_stop_within_tail_plus_one_round(tmp_path: Path) -> None:
+    clock, calls = FakeClock(), []
+    stop = tmp_path / "stop"
+    stop.touch()
+    pa.run_sentinel(base_url="http://x", stop_file=stop, tail=120, sample=_slow_sampler(clock, calls),
+                    now=clock.now, sleep=clock.sleep)
+    assert 120 <= clock.t <= 120 + 3 * (pa.CURL_MAX_TIME + 5)
+
+
+def test_shell_wait_bound_covers_tail_plus_one_round() -> None:
+    source = (ROOT / "scripts" / "refresh-cpbl-prod.sh").read_text(encoding="utf-8")
+    bound = int(source.split("SENTINEL_WAIT_MAX=", 1)[1].split("\n", 1)[0])
+    assert bound >= pa.SENTINEL_TAIL_SECONDS + 3 * (pa.CURL_MAX_TIME + 5)
+    body = source.split("stop_availability_sentinel() {", 1)[1].split("\n}\n", 1)[0]
+    assert 'kill "$SENTINEL_PID"' in body, "逾時須結束哨兵，不得無限等待"
+
+
+def test_sigterm_turns_into_a_detector_failure_alert(monkeypatch, tmp_path: Path) -> None:
+    import signal
+
+    sent = []
+
+    def fake_sentinel(**kw):
+        signal.raise_signal(signal.SIGTERM)
+        return []
+
+    monkeypatch.setattr(pa, "run_sentinel", fake_sentinel)
+    monkeypatch.setattr(pa, "send", lambda url, ok, body, **kw: sent.append((ok, body)) or "logged")
+    previous = signal.getsignal(signal.SIGTERM)
+    try:
+        assert pa.main(["sentinel", "--stop-file", str(tmp_path / "s"), "--out", str(tmp_path / "o.tsv")]) == 0
+    finally:
+        signal.signal(signal.SIGTERM, previous)
+    assert sent and sent[0][0] is False and "detector error" in sent[0][1]
+
+
+def test_4xx_is_a_failure_but_5xx_under_5s_is_only_reported() -> None:
+    assert pa.judge([S("watch", "422", 0.01)])["ok"] is False
+    v = pa.judge([S("recap-wp", "503", 0.2)])
+    assert v["ok"] is True and v["non2xx"] == 1 and v["n4xx"] == 0
+
+
+def test_every_probe_path_passes_validation_and_reaches_its_reader(monkeypatch) -> None:
+    """審核 1 第 2 項：以受審 app 驗每條探測路徑不是 422、且真的呼叫到讀取函式。"""
+    from fastapi.testclient import TestClient
+
+    from cpbl.api.main import app
+    from cpbl.api.routers import info, recap
+    from cpbl.playoffs import watch_reader
+
+    hits: list[str] = []
+    monkeypatch.setattr(watch_reader, "playoffs_watch", lambda *a, **k: hits.append("watch") or {})
+    monkeypatch.setattr(recap, "_load_game_row", lambda *a: hits.append("recap-wp") or None)
+    monkeypatch.setattr(recap, "_load_pa_rows", lambda *a: [])
+    monkeypatch.setattr(info, "_compute", lambda: hits.append("info") or info._Snapshot(0.0, True, "running", {}))
+    client = TestClient(app)
+    for label, path in (*pa.SENTINEL_ENDPOINTS, ("info", "/api/info")):
+        hits.clear()
+        res = client.get(path)
+        assert res.status_code != 422, (label, path, res.text)
+        assert hits == [label], (label, path, hits)

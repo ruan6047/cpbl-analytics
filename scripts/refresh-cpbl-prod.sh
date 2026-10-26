@@ -164,23 +164,41 @@ wait_api_info_cache_since() {  # $1＝epoch 秒
 # 停用＝移除下方 start_availability_sentinel 那一行呼叫（規劃 r2 §8 回復方式）。
 SENTINEL_PID=""
 SENTINEL_STOP=""
+# 啟動準備的每一步都隔離錯誤（#353 審核 1 第 3 項）：本函式在 set -e 下同步執行，任何一步失敗
+# 若外洩，就會讓每日鏈以該碼結束。log 目錄建不起來就改寫 TMPDIR；呼叫端再以 `|| …` 兜底。
 start_availability_sentinel() {
+  local out_dir="$REPO_DIR/logs"
   SENTINEL_STOP="${TMPDIR:-/tmp}/cpbl-sentinel-stop.$$"
-  rm -f "$SENTINEL_STOP"
-  mkdir -p "$REPO_DIR/logs"
+  rm -f "$SENTINEL_STOP" 2>/dev/null || true
+  if ! mkdir -p "$out_dir" 2>/dev/null; then
+    out_dir="${TMPDIR:-/tmp}"
+    echo "    ⚠ 可用性哨兵：logs 目錄建立失敗，紀錄改寫到 ${out_dir}" >&2
+  fi
   uv run python "$REPO_DIR/scripts/prod_availability.py" sentinel --stop-file "$SENTINEL_STOP" \
     --base-url "${API_INFO_URL%/api/info}" --env-file "$REPO_DIR/.env" \
-    --out "$REPO_DIR/logs/availability-sentinel-$(date +%Y%m%d-%H%M%S).tsv" </dev/null &
+    --out "${out_dir}/availability-sentinel-$(date +%Y%m%d-%H%M%S).tsv" </dev/null &
   SENTINEL_PID=$!
   echo "    ⓘ 可用性哨兵已啟動（每 15 秒；結束後再量 120 秒）"
 }
+# 等待有上限（#353 審核 1 第 1 項）：哨兵停止後最長＝tail 120s＋一輪取樣 3×(10+5)s＝165s；
+# 給到 240s，逾時就送 SIGTERM（哨兵收到後以「偵測器自身失敗」告警），⛔ 每日鏈不得被哨兵卡住。
+SENTINEL_WAIT_MAX=240
 stop_availability_sentinel() {
   [ -n "$SENTINEL_PID" ] || return 0
+  local waited=0
   echo "    ⓘ 可用性哨兵：收尾量測 120 秒後判定"
   touch "$SENTINEL_STOP" 2>/dev/null || true
+  while kill -0 "$SENTINEL_PID" 2>/dev/null && [ "$waited" -lt "$SENTINEL_WAIT_MAX" ]; do
+    sleep 1
+    waited=$((waited + 1))
+  done
+  if kill -0 "$SENTINEL_PID" 2>/dev/null; then
+    echo "    ⚠ 可用性哨兵 ${SENTINEL_WAIT_MAX} 秒內未結束，已送 SIGTERM（哨兵以自身失敗告警）" >&2
+    kill "$SENTINEL_PID" 2>/dev/null || true
+  fi
   wait "$SENTINEL_PID" 2>/dev/null || true
   SENTINEL_PID=""
-  rm -f "$SENTINEL_STOP"
+  rm -f "$SENTINEL_STOP" 2>/dev/null || true
 }
 # 單一 EXIT trap（bash 一個訊號只有一個 trap，後設的會蓋掉先設的）：公告暫存清理＋哨兵收尾。
 _on_exit() {
@@ -1250,7 +1268,7 @@ if [ -z "$EXPECTED_LAST_GAME_DATE" ] || ! [[ "$EXPECTED_COMPLETED" =~ ^[0-9]+$ ]
 fi
 
 trap _on_exit EXIT
-start_availability_sentinel
+start_availability_sentinel || echo "    ⚠ 可用性哨兵啟動失敗（不影響本次同步）" >&2
 
 echo "==> 2/4 備份 production 資料庫（整庫：cpbl ＋ 主站 public）"
 BACKUP_PATH="$(VPS="$VPS" DEPLOY_PATH="$DEPLOY_PATH" "$REPO_DIR/scripts/backup-prod-db.sh")"
