@@ -57,8 +57,9 @@ def test_three_surfaces_are_enumerated_from_git_not_hand_listed() -> None:
         p for p in si._git_ls(si.SCRIPTS_GLOB) if Path(p).name not in si.NON_ENTRY_BASENAMES
     }
     assert by_surface["research"] == set(si._git_ls(si.RESEARCH_GLOB))
-    assert len(by_surface["cli"]) == 49, (
-        "pyproject [project.scripts] 應為 49 支（47＋#284 cpbl-roster＋#287 cpbl-build-team-comparison）")
+    assert len(by_surface["cli"]) == 51, (
+        "pyproject [project.scripts] 應為 51 支（47＋#284 cpbl-roster＋#287 cpbl-build-team-comparison"
+        "＋#357 cpbl-check-livelog／cpbl-replay-livelog-extra）")
     assert len(entries) == sum(len(v) for v in by_surface.values())
 
 
@@ -894,15 +895,17 @@ def test_counts_reconcile_across_three_surfaces() -> None:
         "＋ 1（#201：docs/research/ISSUE-201/collect_matchup_pre2018.py，"
         "≤2017 官方逐年對戰列的一次性收集與重建工具。住在自己卡的目錄裡，"
         "符合 oneshot 的位置規則）")
-    assert len(cli) == 49, (
+    assert len(cli) == 51, (
         "47 ＋ 1（#284 S03：cpbl-roster，季後 32 人資格名單的本機唯一會員 writer；"
         "放在 cpbl.ingest 底下以受 test_cli_help_guard 的 --help 零副作用探針涵蓋）"
         "＋ 1（#287 S06：cpbl-build-team-comparison，隊伍比較背景摘要的本機離線 builder；"
-        "入口同樣放在 cpbl.ingest 底下以受 --help 零副作用探針涵蓋）")
-    assert len(scripts) + len(research) + len(cli) == 125, (
+        "入口同樣放在 cpbl.ingest 底下以受 --help 零副作用探針涵蓋）"
+        "＋ 2（#357 WP2：cpbl-check-livelog 唯讀檢查、cpbl-replay-livelog-extra 預設 dry-run 的"
+        "回補工具；同樣放在 cpbl.ingest 底下受 --help 探針涵蓋）")
+    assert len(scripts) + len(research) + len(cli) == 127, (
         "119＋1（#132 的量測工具）＋1（#100 的重測工具）＋1（#201 的收集工具）"
         "＋1（#268 的 postseason-evening.sh）＋1（#284 的 cpbl-roster CLI）"
-        "＋1（#287 的 cpbl-build-team-comparison CLI）")
+        "＋1（#287 的 cpbl-build-team-comparison CLI）＋2（#357 的兩支 CLI）")
 
 
 def test_invariant_proof_enumerates_every_entry(capsys: pytest.CaptureFixture) -> None:
