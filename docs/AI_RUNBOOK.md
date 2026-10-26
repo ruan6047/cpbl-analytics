@@ -1008,6 +1008,8 @@ GitHub 會自動標記。判斷是否經 PR 合併要看 `gh api repos/.../commi
 - **故障注入**（規劃 2 §7；只打 `test`、不停正式容器）：
   `CPBL_ALERT_SLUG_OVERRIDE=test /usr/bin/python3 scripts/alert_watch.py --only services --containers cpbl358-fi-redis --state <暫存檔>`
   （容器以 `docker create` 建、不啟動；daemon 無回應以只對該行程設 `DOCKER_HOST=unix:///nonexistent` 模擬）。
+- **watchdog**：`scripts/schedule_watch.py` 對登記了 `alert`／`evening_alert` 段的 job 做兩件事——段落與 cadence 不一致報 `REGISTRY_INVALID`；
+  主 checkout `.env` 缺金鑰報 `ALERT_NOT_CONFIGURED`（退出碼 10；「沒設定」不當成健康）。watchdog 核對不到 healthchecks 端的設定（殘餘風險）。
 - 殘餘風險：watcher 沒裝或壞掉時沒有遠端訊號（本機 schedule-watchdog 報 `JOB_NOT_INSTALLED`；Mac 整天沒醒則由 `daily` 的沉默告警涵蓋）；
   `pmset` 判準在 DarkWake 當下的輸出尚未取樣（FI-S4 驗證前屬推論）。
 

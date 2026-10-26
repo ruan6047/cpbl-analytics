@@ -76,6 +76,9 @@ EXIT_B_STALLED = 8
 # Plan §5 的表沒有替「RunAtLoad 未兌現」配碼（Plan §7 只要求它「直接進告警」）。
 # 本實作補配 9，並在此明載是實作追加而非裁定原文。
 EXIT_RUNATLOAD = 9
+# #358 WP4：登記表宣告了外部告警（`alert`／`evening_alert` 段），主 checkout `.env` 卻缺金鑰。
+# 規劃 1 §3.3：金鑰缺席時 hook 不動作，偵測器⛔ 不得把「沒設定」當健康。實作追加的碼。
+EXIT_ALERT_NOT_CONFIGURED = 10
 
 # 嚴重度排序（大者優先）。刻意**不**用退出碼數值排序：B 側取不到訊號（7）不該蓋過
 # 本機真實失敗（3）。通知一律帶上全部 finding，故退出碼只是給 launchctl 看的純量。
@@ -91,6 +94,7 @@ SEVERITY = {
     "RUNATLOAD_NOT_HONORED": 60,
     "SKIPPED_CONSECUTIVE": 50,
     "B_STALLED": 40,
+    "ALERT_NOT_CONFIGURED": 30,
     "B_UNREACHABLE": 20,
     "B_UNAVAILABLE": 20,
 }
@@ -106,6 +110,7 @@ EXIT_BY_VERDICT = {
     "RUNATLOAD_NOT_HONORED": EXIT_RUNATLOAD,
     "SKIPPED_CONSECUTIVE": EXIT_SKIPPED_CONSECUTIVE,
     "B_STALLED": EXIT_B_STALLED,
+    "ALERT_NOT_CONFIGURED": EXIT_ALERT_NOT_CONFIGURED,
     "B_UNREACHABLE": EXIT_B_UNREACHABLE,
     "B_UNAVAILABLE": EXIT_B_UNREACHABLE,
 }
@@ -561,6 +566,81 @@ def check_registry(registry: dict, repo: Path, today: date, installed_probe=None
     return findings
 
 
+# ----------------------------------------------- #358：外部告警的登記與設定
+
+def check_alert_segments(registry: dict) -> list[dict]:
+    """登記了 `alert`／`evening_alert` 段的 job，段落要與自己的 cadence 一致。
+
+    漂移＝服務端期限算在錯的時點上（#343 改節奏時最容易漏）。只核對登記表內部一致；
+    healthchecks 端的實際設定本機核對不到（殘餘風險，Runbook §11.3）。
+    """
+    findings: list[dict] = []
+    jobs = registry.get("jobs") or []
+    labels = {job.get("label") for job in jobs}
+    for job in jobs:
+        label = job.get("label", "<no label>")
+        for key in ("alert", "evening_alert"):
+            alert = job.get(key)
+            if alert is None:
+                continue
+            if not isinstance(alert, dict) or not isinstance(alert.get("check"), str) or not alert["check"]:
+                findings.append({"verdict": "REGISTRY_INVALID", "detail": f"{label} 的 {key} 段缺 check 名"})
+                continue
+            if key == "evening_alert" and alert.get("for") not in labels:
+                findings.append({"verdict": "REGISTRY_INVALID",
+                                 "detail": f"{label} 的 evening_alert.for={alert.get('for')} 不在登記表"})
+        alert = job.get("alert")
+        if not isinstance(alert, dict):
+            continue
+        cadence = job.get("cadence") or {}
+        if cadence.get("kind") == "daily" and "schedule" in alert:
+            expected = f"{cadence.get('minute')} {cadence.get('hour')} * * *"
+            try:
+                total = int(cadence["hour"]) * 60 + int(cadence["minute"]) + int(alert["grace_minutes"])
+                deadline = f"{total // 60:02d}:{total % 60:02d}" if 0 <= total < 24 * 60 else None
+            except (KeyError, TypeError, ValueError):
+                deadline = None
+            if alert["schedule"] != expected or deadline is None or alert.get("deadline") != deadline:
+                findings.append({"verdict": "REGISTRY_INVALID",
+                                 "detail": f"{label} 的 alert 段與 cadence 不符：schedule={alert['schedule']}"
+                                           f"（預期 {expected}）、deadline={alert.get('deadline')}（預期 {deadline}）"})
+        if cadence.get("kind") == "interval" and "interval_seconds" in alert \
+                and alert["interval_seconds"] != cadence.get("seconds"):
+            findings.append({"verdict": "REGISTRY_INVALID",
+                             "detail": f"{label} 的 alert.interval_seconds 與 cadence 不符"})
+    return findings
+
+
+def alert_settings_missing(repo: Path, need_api: bool) -> list[str]:
+    """讀 `repo/.env` 判告警金鑰在不在（只回鍵名、⛔ 不回值、不連網）。
+
+    ping 模組 `alert_ping.py` 與本檔同目錄；載入失敗本身就是「告警送不出去」，照缺金鑰回報。
+    """
+    import importlib.util
+
+    try:
+        spec = importlib.util.spec_from_file_location("_cpbl_alert_ping", Path(__file__).resolve().parent / "alert_ping.py")
+        module = importlib.util.module_from_spec(spec)
+        sys.modules[spec.name] = module
+        spec.loader.exec_module(module)
+        return module.missing_settings(module.load_config(repo / ".env", environ={}), need_api=need_api)
+    except Exception as error:  # noqa: BLE001 — 偵測器自己不得因此掛掉
+        return [f"alert_ping.py 載入失敗（{type(error).__name__}）"]
+
+
+def alert_findings(registry: dict, repo: Path, probe=None) -> list[dict]:
+    jobs = registry.get("jobs") or []
+    if not any("alert" in job or "evening_alert" in job for job in jobs):
+        return []  # 沒宣告告警就不檢查（不把未採用的機制報成故障）
+    need_api = any("evening_alert" in job for job in jobs)
+    missing = (probe or alert_settings_missing)(repo, need_api)
+    if not missing:
+        return []
+    return [{"verdict": "ALERT_NOT_CONFIGURED",
+             "detail": f"登記表宣告了外部告警（#358），但 {repo / '.env'} 缺 {'、'.join(missing)}——"
+                       "目前排程出事不會送到手機（不是健康）。由需求方填入，見 Runbook §11"}]
+
+
 # ------------------------------------------------------------- 偵測器 B（生產側）
 
 def probe_production(api_url: str, timeout: float) -> dict:
@@ -672,6 +752,7 @@ _VERDICT_TEXT = {
     "B_STALLED": "生產同步停擺",
     "B_UNREACHABLE": "取不到生產訊號",
     "B_UNAVAILABLE": "生產訊號欄位缺失",
+    "ALERT_NOT_CONFIGURED": "外部告警未設定",
 }
 _JOB_TEXT = {
     "com.cpbl.scrape-daily": "每日鏈",
@@ -679,6 +760,7 @@ _JOB_TEXT = {
     "com.cpbl.weekly-game-pitches": "週跑逐球",
     "com.cpbl.schedule-watchdog": "排程偵測器",
     "com.cpbl.postseason-evening": "季後晚間鏈",
+    "com.cpbl.alert-watch": "告警 watcher",
 }
 
 
@@ -1011,10 +1093,11 @@ def notify(title: str, message: str, *, verify: bool = True) -> dict:
 
 def evaluate(registry: dict, repo: Path, now: datetime, api_url: str, api_timeout: float,
              lookback: int, installed_probe=None, listing_probe=None,
-             boot_probe=None) -> dict:
+             boot_probe=None, alert_probe=None) -> dict:
     registry_findings = check_registry(registry, repo, now.date(),
                                        installed_probe=installed_probe,
                                        listing_probe=listing_probe)
+    registry_findings += check_alert_segments(registry)
     blocking = [f for f in registry_findings if f["verdict"].startswith("REGISTRY_")]
     report: dict[str, Any] = {
         "now": now.isoformat(),
@@ -1045,6 +1128,7 @@ def evaluate(registry: dict, repo: Path, now: datetime, api_url: str, api_timeou
 
     report["global_findings"].extend(
         runatload_findings(repo, watchdog_job, now, boot_probe=boot_probe, anchor=anchor))
+    report["global_findings"].extend(alert_findings(registry, repo, probe=alert_probe))
 
     production = probe_production(api_url, api_timeout)
     report["production"] = production
@@ -1190,8 +1274,11 @@ READER_CONTRACT = {
            "故『檔案在』本身就是訊號。header 會把訊息與『這次推播到底有沒有出現』一起印。",
     "push_channel": "macOS 通知（osascript → Script Editor）。2026-08-16 需求方關閉非刻意"
                     "開啟的專注模式後復活。⚠️ 它靠使用者設定，可被無聲撤銷，故每次執行"
-                    "都會重新量一次而不是假設它還活著。要引入 email／Slack／webhook 等"
-                    "其他推播管道會改變本專案的告警模型，屬需求方裁量。",
+                    "都會重新量一次而不是假設它還活著。Mac 睡著時本通道與本偵測器一起停擺；"
+                    "需求方已於 #358 裁定另設外部心跳服務＋信件（6348735853），那條通道由 "
+                    "refresh_status.py 與 com.cpbl.alert-watch 直接送、不經本偵測器（Runbook §11）。"
+                    "本偵測器只多報兩件事：登記表的 alert 段與 cadence 不符（REGISTRY_INVALID）、"
+                    "宣告了告警卻缺金鑰（ALERT_NOT_CONFIGURED）。",
     "what_code_can_never_prove": "『這一則有人看到了』。系統紀錄可以證明管道被擋（壞了），但無法證明某一則通知被呈現給人看——通知 id 沒有被寫進裁決行。"
                                  "2026-08-16 那次是需求方口述的**人證**，不可重跑、"
                                  "不在任何日誌裡、也不可能被測試涵蓋。",
