@@ -54,7 +54,6 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
         pool_timeout_s=settings.api_db_pool_timeout_seconds,
         statement_timeout_ms=settings.api_db_statement_timeout_ms,
         lock_timeout_ms=settings.api_db_lock_timeout_ms,
-        request_budget_ms=settings.api_db_request_budget_ms,
     )
     await asyncio.to_thread(info.start_cache)
     try:
@@ -64,23 +63,6 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
 
 
 app = FastAPI(title="Ruan's CPBL Lab API", version=__version__, lifespan=lifespan)
-
-
-class _DbRequestBudget:
-    """每個 HTTP 請求啟用 DB 時間預算（#353 WP2；預算由 lifespan 設定，未設定時 no-op）。"""
-
-    def __init__(self, app) -> None:
-        self.app = app
-
-    async def __call__(self, scope, receive, send) -> None:
-        if scope["type"] != "http":
-            await self.app(scope, receive, send)
-            return
-        with db.request_budget():
-            await self.app(scope, receive, send)
-
-
-app.add_middleware(_DbRequestBudget)
 
 # 公開唯讀 API；dev 時前端跨埠(:3000→:4001)需 CORS。prod 同源(經 nginx)不受影響。
 app.add_middleware(

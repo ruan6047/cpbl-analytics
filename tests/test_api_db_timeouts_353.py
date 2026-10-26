@@ -13,8 +13,6 @@
 
 from __future__ import annotations
 
-import time
-
 import pytest
 from fastapi.testclient import TestClient
 
@@ -40,7 +38,6 @@ def isolated_db_state(monkeypatch):
     monkeypatch.setattr(db, "_pool", None)
     monkeypatch.setattr(db, "_api_session", None)
     monkeypatch.setattr(db, "_pool_timeout", db.DEFAULT_POOL_TIMEOUT_SECONDS)
-    monkeypatch.setattr(db, "_request_budget_s", None)
 
 
 def test_default_session_has_only_timezone(isolated_db_state) -> None:
@@ -120,7 +117,6 @@ def test_api_lifespan_applies_settings_and_cli_import_does_not(monkeypatch) -> N
         "pool_timeout_s": settings.api_db_pool_timeout_seconds,
         "statement_timeout_ms": settings.api_db_statement_timeout_ms,
         "lock_timeout_ms": settings.api_db_lock_timeout_ms,
-        "request_budget_ms": settings.api_db_request_budget_ms,
     }]
 
 
@@ -136,161 +132,120 @@ def test_migrate_and_cli_entrypoints_never_call_api_timeouts() -> None:
     assert callers == ["api/main.py"], callers
 
 
-def test_default_request_budget_is_under_the_5s_acceptance_bound() -> None:
-    """整個請求的 DB 時間由預算封頂（不是「借池＋一條語句」——審核 1 第 4 項）。"""
-    assert 0 < settings.api_db_request_budget_ms < 5000
-    assert settings.api_db_pool_timeout_seconds * 1000 < settings.api_db_request_budget_ms
-    assert 0 < settings.api_db_lock_timeout_ms <= settings.api_db_statement_timeout_ms
+def test_default_values_are_the_ratified_insurance_values() -> None:
+    """三個值依需求方裁定 6407182217；性質是保險，⛔ 不由此推導任何請求總耗時上界（規劃 r3）。"""
+    assert settings.api_db_pool_timeout_seconds == 1.0
+    assert settings.api_db_statement_timeout_ms == 3500
+    assert settings.api_db_lock_timeout_ms == 2000
 
 
-# --------------------------------------------------------------------------- 請求預算（零 DB）
+# --------------------------------------------------------------------------- 審核 2 回歸（規劃 r3 §3 第 5 項）
+#
+# 審核 2 第 2 項：aed693be 在 db.conn() 借出前送 SET LOCAL，非 autocommit 下隱式開交易，呼叫者的
+# c.transaction() 變成 savepoint，SET TRANSACTION ISOLATION LEVEL REPEATABLE READ（watch_reader、
+# report.py）因不是交易第一條語句而失敗。兩層都經**真的 API 請求路徑**（lifespan＋middleware＋路由），
+# 所以任何「在 API 請求內、借出前送語句」的實作都會紅——不論它掛在哪一層。
 
 
-class _Clock:
+class _RecordingConn:
     def __init__(self) -> None:
-        self.t = 1000.0
+        self.executed: list[str] = []
 
-    def __call__(self) -> float:
-        return self.t
+    def execute(self, sql, *a, **k):
+        self.executed.append(str(sql))
 
 
-class _BudgetConn:
+class _RecordingPool:
     def __init__(self) -> None:
-        self.sql: list[str] = []
-
-    def execute(self, sql: str) -> None:
-        self.sql.append(sql)
-
-
-class _BudgetPool:
-    def __init__(self, clock: _Clock, wait: float = 0.0) -> None:
-        self.clock, self.wait, self.timeouts, self.conns = clock, wait, [], []
+        self.handed_out: list[_RecordingConn] = []
 
     def connection(self, timeout=None):
         from contextlib import contextmanager
 
         @contextmanager
         def cm():
-            self.timeouts.append(timeout)
-            self.clock.t += self.wait
-            c = _BudgetConn()
-            self.conns.append(c)
+            c = _RecordingConn()
+            self.handed_out.append(c)
             yield c
         return cm()
 
 
-@pytest.fixture
-def budget_env(isolated_db_state, monkeypatch):
-    clock = _Clock()
-    monkeypatch.setattr(db.time, "monotonic", clock)
-    db.configure_api_timeouts(pool_timeout_s=1.0, statement_timeout_ms=3500, lock_timeout_ms=2000,
-                              request_budget_ms=4500)
-    pool = _BudgetPool(clock)
-    monkeypatch.setattr(db, "pool", lambda: pool)
-    return clock, pool
-
-
-def test_each_borrow_is_capped_by_the_remaining_request_budget(budget_env) -> None:
-    """審核 1 第 4 項的形狀：兩條查詢各 2.6s——第二次借用只剩 1.9s 可用。"""
-    clock, pool = budget_env
-    with db.request_budget():
-        with db.conn() as c:
-            assert c.sql == ["SET LOCAL statement_timeout = 3500", "SET LOCAL lock_timeout = 2000"]
-            clock.t += 2.6
-        with db.conn() as c:
-            assert c.sql == ["SET LOCAL statement_timeout = 1900", "SET LOCAL lock_timeout = 1900"]
-            clock.t += 1.9
-        with pytest.raises(db.RequestBudgetExceeded):
-            with db.conn():
-                pass
-    assert pool.timeouts == [1.0, 1.0], "借池等待仍受 1.0s 上限"
-    with db.request_budget():
-        clock.t += 3.8
-        with db.conn():
-            pass
-    assert pool.timeouts[-1] == pytest.approx(0.7), "剩餘預算小於借池上限時，借池等待跟著縮短"
-
-
-def test_pool_wait_counts_against_the_budget(budget_env) -> None:
-    clock, pool = budget_env
-    pool.wait = 4.6
-    with db.request_budget():
-        with pytest.raises(db.RequestBudgetExceeded):
-            with db.conn():
-                pass
-
-
-def test_without_a_request_context_conn_is_unchanged(budget_env) -> None:
-    """背景執行緒（/api/info 快取重算）與 CLI：沒有請求截止時刻，不加 SET LOCAL。"""
-    _, pool = budget_env
-    with db.conn() as c:
-        assert c.sql == []
-    assert pool.timeouts == [None]
-
-
-def test_budget_is_a_no_op_until_configured(isolated_db_state) -> None:
-    with db.request_budget():
-        assert db._request_deadline.get() is None
-
-
-def test_middleware_sets_the_deadline_inside_sync_endpoints(monkeypatch) -> None:
-    """同步端點在 threadpool 執行；截止時刻必須跟著 context 進去，且請求結束後清掉。"""
+def _api_client_with(monkeypatch):
     from cpbl.api import main
-    from cpbl.api.routers import info, recap
+    from cpbl.api.routers import info
 
-    monkeypatch.setattr(db, "_request_budget_s", 4.5)
-    seen: list = []
-    monkeypatch.setattr(recap, "_load_game_row", lambda *a: seen.append(db._request_deadline.get()) or None)
-    monkeypatch.setattr(recap, "_load_pa_rows", lambda *a: [])
     monkeypatch.setattr(info, "start_cache", lambda: None)
-    monkeypatch.setattr(db, "configure_api_timeouts", lambda **kw: None)
-    res = TestClient(main.app).get("/api/v1/games/1/recap-wp?season=2026&kind_code=A")
+    monkeypatch.setattr(info, "stop_cache", lambda: None)
+    return TestClient(main.app)
+
+
+def test_a_conn_hands_out_the_connection_without_running_any_statement(isolated_db_state, monkeypatch):
+    """(a) 零 DB：API 設定生效、在真實請求路徑內，進入 ``with conn() as c`` 時連線上沒有任何語句。"""
+    from cpbl.api.routers import recap
+
+    pool = _RecordingPool()
+    monkeypatch.setattr(db, "pool", lambda: pool)
+    seen: list[list[str]] = []
+
+    def load_game_row(*_a):
+        with db.conn() as c:
+            seen.append(list(c.executed))
+        return None
+
+    monkeypatch.setattr(recap, "_load_game_row", load_game_row)
+    monkeypatch.setattr(recap, "_load_pa_rows", lambda *a: [])
+    with _api_client_with(monkeypatch) as client:
+        assert db._api_session == (settings.api_db_statement_timeout_ms, settings.api_db_lock_timeout_ms)
+        res = client.get("/api/v1/games/1/recap-wp?season=2026&kind_code=A")
     assert res.status_code == 404
-    assert seen and seen[0] is not None
-    assert db._request_deadline.get() is None
+    assert seen == [[]], f"借出前不得對連線執行任何語句：{seen}"
 
 
-# --------------------------------------------------------------------------- 請求預算（拋棄式 DB）
-
-_BUDGET_DB_ENV = "CPBL353_BUDGET_TEST_DATABASE_URL"
+_TXSHAPE_DB_ENV = "CPBL353_TXSHAPE_TEST_DATABASE_URL"
 
 
-@pytest.mark.skipif(not __import__("os").getenv(_BUDGET_DB_ENV), reason=f"requires {_BUDGET_DB_ENV}")
-def test_real_postgres_two_slow_queries_stay_within_the_budget(monkeypatch) -> None:
-    """審核 1 第 4 項的反例在真 PostgreSQL 上重現：兩條各 2.6s，無預算＝>5.2s；有預算＝<5s。"""
+@pytest.mark.skipif(not __import__("os").getenv(_TXSHAPE_DB_ENV), reason=f"requires {_TXSHAPE_DB_ENV}")
+def test_b_real_postgres_transaction_shapes_and_insurance_timeouts(monkeypatch):
+    """(b) 拋棄式 PG：watch_reader 與 report.py 的交易形狀在 API 請求路徑上不變，逾時保險仍在。"""
     import os
 
-    import psycopg
+    from cpbl.api.routers import report
+    from cpbl.playoffs import watch_reader
 
-    url = os.environ[_BUDGET_DB_ENV]
-    assert url.rsplit("/", 1)[-1] == "cpbl353_budget", "只在拋棄式資料庫上跑"
+    url = os.environ[_TXSHAPE_DB_ENV]
+    assert url.rsplit("/", 1)[-1] == "cpbl353_txshape", "只在拋棄式資料庫上跑"
     monkeypatch.setattr(db, "_pool", None)
     monkeypatch.setattr(db, "_api_session", None)
+    monkeypatch.setattr(db, "_pool_timeout", db.DEFAULT_POOL_TIMEOUT_SECONDS)
     monkeypatch.setattr(db.settings, "database_url", url)
+    seen: dict[str, list] = {}
 
-    def two_queries() -> tuple[float, str]:
-        t0 = time.monotonic()
-        outcome = "ok"
-        try:
-            with db.request_budget():
-                for _ in range(2):
-                    with db.conn() as c:
-                        c.execute("SELECT pg_sleep(2.6)")
-        except (psycopg.errors.QueryCanceled, db.RequestBudgetExceeded) as exc:
-            outcome = type(exc).__name__
-        return time.monotonic() - t0, outcome
+    def show(cur, *names):
+        out = []
+        for name in names:
+            cur.execute(f"SHOW {name}")
+            out.append(cur.fetchone()[0])
+        return out
 
+    def read_watch_inputs(cur, *a, **k):  # ① 真的 playoffs_watch：c.transaction() → SET TRANSACTION → 這裡
+        seen["watch"] = show(cur, "transaction_isolation", "transaction_read_only")
+        return None
+
+    monkeypatch.setattr(watch_reader, "read_watch_inputs", read_watch_inputs)
+    monkeypatch.setattr(watch_reader, "compute_watch", lambda inputs, now: {"ok": True})
+
+    def report_anchor(cur, *a):  # ② 真的 report-anchor：c.execute(SET TRANSACTION) → 這裡；③ 逾時保險
+        seen["report"] = show(cur, "transaction_isolation", "statement_timeout", "lock_timeout")
+        return {}
+
+    monkeypatch.setattr(report, "report_anchor", report_anchor)
     try:
-        db.configure_api_timeouts(pool_timeout_s=1.0, statement_timeout_ms=3500, lock_timeout_ms=2000)
-        db.pool().wait()
-        control, control_outcome = two_queries()
-        db.configure_api_timeouts(pool_timeout_s=1.0, statement_timeout_ms=3500, lock_timeout_ms=2000,
-                                  request_budget_ms=4500)
-        db.pool().wait()
-        bounded, bounded_outcome = two_queries()
+        with _api_client_with(monkeypatch) as client:
+            watch = client.get("/api/v1/playoffs/watch?season=2026&series=C")
+            anchor = client.get("/api/v1/games/1/report-anchor?season=2026&kind_code=C")
     finally:
         if db._pool is not None:
             db._pool.close()
-    print(f"control={control:.3f}s({control_outcome}) bounded={bounded:.3f}s({bounded_outcome})")
-    assert control > 5.2 and control_outcome == "ok"
-    assert bounded < 5.0 and bounded_outcome == "QueryCanceled"
+    print(f"watch={watch.status_code} {seen.get('watch')} report-anchor={anchor.status_code} {seen.get('report')}")
+    assert watch.status_code == 200 and seen["watch"] == ["repeatable read", "on"]
+    assert anchor.status_code == 200 and seen["report"] == ["repeatable read", "3500ms", "2s"]
