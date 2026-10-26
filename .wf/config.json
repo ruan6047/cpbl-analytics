@@ -6,6 +6,8 @@
     "number": 10
   },
   "modules": [
-    "tdd"
+    "tdd",
+    "codegraph",
+    "architecture"
   ]
 }
