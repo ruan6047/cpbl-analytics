@@ -927,8 +927,8 @@ GitHub 會自動標記。判斷是否經 PR 合併要看 `gh api repos/.../commi
 
 依中職「官網於比賽前一天公布先發」慣例，每場前一天 23:00 固定抓官網一次、只更新先發投手並同步正式站（需求方裁定 #342 6405678916／6405698649）。邏輯在 `src/cpbl/ingest/starter_watch.py`，接線在 `postseason_evening`（plan／scrape／record-sync），⛔ 不新增 launchd job。
 
-- 時點：每場 `F＝開賽前一天 23:00`（S＝狀態檔 stats `PreExeDate`；改期後新 S 的 F 自動成為新時點）。F 起第一次喚醒抓該賽別 getgamedatas 一次（同晚同賽別合併）；只對 stats `SCHEDULED`、本機兩隊先發未齊的 A／E／C 場（⛔ 不含 D）。共用賽別冷卻 20 分、挑戰停、`halted`、68 停當晚；被擋只延後、不計次，最遲 01:00，過了記 `missed`。休兵日也會醒（狀態檔賽程，或 23:00–01:00 唯讀查本機 `games` 當場比賽日）。
-- 只寫先發：只更新目標場 `games.home_starter_id`／`away_starter_id`（只補不清；本機已有比分或 `delay_kind='保留'` 的列不動、不新增列），修訂表只記目標場賽前 entry（同組有終局／保留／非零比分整組不碰）。因此不受 `P-A-FETCH-GATE` 約束（閘門判定未改）；有變化才走既有 `POSTSEASON_RESULTS_ONLY` 同步。
+- 時點：每場 `F＝開賽前一天 23:00`（S＝狀態檔 stats `PreExeDate`；改期後新 S 的 F 自動成為新時點）。F 起第一次喚醒抓該賽別 getgamedatas 一次（同晚同賽別合併）；只對 stats `SCHEDULED` 的 A／E／C 場（⛔ 不含 D）；本機 games 已有先發**不算**已處理（可能是改期前舊日期的），每個 F 都抓一次、結局看這次抓到的目前賽前 entry。待抓期間最新賽程已改期或不再是 `SCHEDULED` ⇒ 記 `superseded`（不抓、不通知，新 S 的 F 另起一筆）。同晚 A 有事件／#292 時點時，A 也只走本路徑（既有晚間 A 抓取會在 `www_marker` 失敗，#365 既有行為）。共用賽別冷卻 20 分、挑戰停、`halted`、68 停當晚；被擋只延後、不計次，最遲 01:00，過了記 `missed`。休兵日也會醒（狀態檔賽程，或 23:00–01:00 唯讀查本機 `games` 當場比賽日）。
+- 只寫先發：目標場 `games.home_starter_id`／`away_starter_id` 設成目前賽前 entry 的值（與 `upsert_games` 對這兩欄同語意：官網空就寫空；本機已有比分或 `delay_kind='保留'` 的列不動、不新增列），修訂表只記目標場賽前 entry（同組有終局／保留／非零比分整組不碰）。因此不受 `P-A-FETCH-GATE` 約束（閘門判定未改）；有變化才走既有 `POSTSEASON_RESULTS_ONLY` 同步。
 - 失敗通知：抓取失敗（`failed`）、抓完先發仍空（`empty`）、01:00 前沒抓成（`missed`）、寫入後同步失敗（`sync_failed`）⇒ 本機通知（重用 `scripts/schedule_watch.py` 的 `notify`；⚠️ osascript rc=0 不是送達證據）＋持久檔 `logs/starter-watch-alert.json`（開賽後不再列）；由隔日 10:10 每日鏈補上。紀錄在狀態檔 `starter_watch`。
 - log 辨識：本路徑寫進 `logs/postseason-evening-*.log` 的行以 `starter-watch ` 開頭；www 導頁記 `WWW_REQ card=342`／`WWW_NAV card=342`（src=342）。shell 既有的 `plan → scrape`、`scrape → changed`、`sync exit=` 等行照舊，`plan` 的理由為 `starter_watch` 時由 `starter-watch plan …` 行標出。
 - 旗標：`logs/starter-watch.enabled`（`POSTSEASON_STARTER_WATCH_FLAG` 改路徑；持久檔 `POSTSEASON_STARTER_WATCH_ALERT`）。存在＝開，`touch`／`rm` 下次喚醒生效。`plan --dry` 另印 `starter_watch`（`enabled`、此刻的 23:00 目標，不查 DB）。

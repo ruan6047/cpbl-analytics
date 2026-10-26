@@ -606,8 +606,7 @@ def plan(state: dict, now: datetime, *, probe: Callable[[], list[StatsGame]],
          local_first_seen: Callable[[], dict[str, str | None]] = dict,
          starter_enabled: bool = False,
          www_starts: Callable[[], Mapping[str, str | None]] = dict,
-         watch_enabled: bool = False,
-         local_starters: Callable[[Iterable[str]], set[str]] = lambda keys: set()) -> tuple[str, str]:
+         watch_enabled: bool = False) -> tuple[str, str]:
     """一次喚醒的決策。回 (action, reason)；action ∈ idle／halted／scrape／sync。
 
     **沒有事件就不會回 scrape**（＝不連 www）；stats 讀不到時也不回 scrape（fail closed）。
@@ -642,7 +641,7 @@ def plan(state: dict, now: datetime, *, probe: Callable[[], list[StatsGame]],
                             observed_keys=[g.key for g in stats])
             sc.note_finished(state.setdefault("finished_first_seen", {}), state["schedule"], now)
     starter_due = refresh_starter_checkpoints(state, now, starter_enabled, www_starts)
-    watch = refresh_starter_watch(state, now, watch_enabled, local_starters)
+    watch = refresh_starter_watch(state, now, watch_enabled)
     cps = state.get("starter_checkpoints") or {}
     # 對帳不等已停止當晚：只記錄偵測（T1），不再連 www、不再同步。
     if sync_blocked(state, now):
@@ -673,9 +672,11 @@ def plan(state: dict, now: datetime, *, probe: Callable[[], list[StatsGame]],
         state["scrape_kinds"] = [k for k in EVENING_KINDS if k in kinds]   # scrape 只抓這些賽別（F2）
         state["starter_inflight"] = [i for i in starter_due if sc.kind_of(i) in kinds]
         if watch:
-            # #342：23:00 抓取的賽別；不在事件／時點裡的（watch_only）由 scrape 走只寫先發的寫入器。
+            # #342：23:00 抓取的賽別；不在事件／時點裡的（watch_only）由 scrape 走只寫先發的寫入器。A 一律走只寫先發
+            # （審核 review-1 #3）：同晚 A 有事件／#292 時點時，既有 A 抓取會在 www_marker 失敗（#365 既有行為，本卡不改），
+            # 所以這次喚醒的 A 只走 #342 路徑；A 的事件／時點這次不計次、照既有規則之後再抓。
             state["starter_watch"]["inflight"] = sorted(watch)
-            state["starter_watch"]["watch_only"] = sorted(watch - event_kinds - starter)
+            state["starter_watch"]["watch_only"] = sorted(watch - ((event_kinds | starter) - {"A"}))
         return "scrape", reason if ok else "starter_checkpoint" if starter else "starter_watch"
     if open_events(state):
         return with_signal_sync(state, now, "idle", reason)
@@ -706,25 +707,16 @@ def refresh_starter_checkpoints(state: dict, now: datetime, enabled: bool,
     return sc.due(cps, now)
 
 
-def refresh_starter_watch(state: dict, now: datetime, enabled: bool,
-                          local_starters: Callable[[Iterable[str]], set[str]]) -> set[str]:
-    """#342：旗標開啟時把狀態檔賽程中已到 23:00 的目標併進紀錄（本機先發唯讀查詢），回此刻該抓的賽別（未過閘門）。"""
+def refresh_starter_watch(state: dict, now: datetime, enabled: bool) -> set[str]:
+    """#342：旗標開啟時把狀態檔賽程中已到 23:00 的目標併進紀錄、依最新賽程結清失效待辦，回此刻該抓的賽別（未過閘門）。
+    不查本機 DB：本機已有先發不算已處理（可能是改期前的舊先發；審核 review-1 #1）。"""
     rec = state.get("starter_watch")
     if isinstance(rec, dict) and (rec.get("inflight") or rec.get("watch_only")):
         rec["inflight"], rec["watch_only"] = [], []   # 上一次的 23:00 抓取不得被這次 scrape 誤用
     if not enabled:
         return set()
-    cands = sw.candidates(state.get("schedule") or [], now, configured_evening_kinds())
-    if not cands and not sw.pending_keys(state):
-        sw.refresh(state, now, {}, ())
-        return set()
-    try:
-        have = local_starters(list(cands))
-    except Exception as exc:  # noqa: BLE001 — 讀不到本機先發 ⇒ 這次不抓（下一次喚醒再判；01:00 前沒抓成記 missed）
-        sw.say(f"local_starters_error {type(exc).__name__}")
-        sw.refresh(state, now, {}, ())
-        return set()
-    sw.refresh(state, now, cands, have)
+    schedule = state.get("schedule") or []
+    sw.refresh(state, now, sw.candidates(schedule, now, configured_evening_kinds()), schedule)
     return sw.due_kinds(state)
 
 
@@ -2081,7 +2073,6 @@ def main(argv: list[str] | None = None) -> int:
             starter_enabled=enabled,
             www_starts=lambda: local_www_starts(year),
             watch_enabled=watch_enabled,
-            local_starters=lambda keys: sw.local_starters(year, keys),
         )
         if watch_enabled:
             if (state.get("starter_watch") or {}).get("inflight"):
@@ -2129,9 +2120,11 @@ def main(argv: list[str] | None = None) -> int:
             # 呼叫介面不變，只在這次呼叫期間包住 run_refresh_recent.scrape_games。
             with marking_scrape_games(state, year):
                 result = evening_games_step(year, regular)
+        found: set[str] = set()
         if watch_only:
             targets = [k for k in sw.pending_keys(state) if sw.kind_of(k) in watch_only]
             extra = sw.fetch_step(year, watch_only, targets)
+            found |= {k for v in extra["games"].values() for k in v.get("with_starters") or ()}
             result["games"].update({f"starter_watch:{k}": v for k, v in extra["games"].items()})
             result["errors"] = (result.get("errors") or []) + extra["errors"]
         after = local_signature(year)
@@ -2148,8 +2141,11 @@ def main(argv: list[str] | None = None) -> int:
         sc.record_attempt(cps, [i for i in inflight if sc.kind_of(i) in regular], now,
                           changed=before != after, failed_kinds=failed, challenge_kinds=challenged)
         if watch.get("inflight"):
-            pending = [k for k in sw.pending_keys(state) if sw.kind_of(k) in watch["inflight"]]
-            sw.record_fetch(state, now, watch["inflight"], failed, sw.local_starters(year, pending))
+            # 既有抓取（E／C 與事件／時點同晚）走 upsert_games，兩隊先發照目前賽前 entry 覆寫，所以本機值＝這次抓到的值。
+            overlap = [k for k in sw.pending_keys(state) if sw.kind_of(k) in watch["inflight"]
+                       and sw.kind_of(k) in regular]
+            found |= sw.local_starters(year, overlap)
+            sw.record_fetch(state, now, watch["inflight"], failed, found)
         schedule = [StatsGame(**g) for g in state.get("schedule") or []]
         apply_detection(state, detect_events(schedule, load_local_games(year, now)),
                         now, local_first_seen(year), resolved_by_chain=True,

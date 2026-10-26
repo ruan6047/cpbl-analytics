@@ -87,7 +87,7 @@ def test_writes_only_starters_for_pregame_target(db):
     assert _revs(db, "C", 6) == 2 and _row(db, "C", 6) == after
 
 
-def test_never_creates_rows_or_clears_starters(db):
+def test_never_creates_rows_and_mirrors_current_pregame_entry(db):
     from cpbl.ingest import starter_watch as sw
     from cpbl.ingest.cpbl_site import upsert_games
 
@@ -96,8 +96,29 @@ def test_never_creates_rows_or_clears_starters(db):
     assert _row(db, "C", 6) is None
     upsert_games([pub])
     empty = [p for p in payloads("C", 6) if p["GameResult"] == "" and not p["HomePitcherAcnt"]][-1]
-    sw.write_starters([empty], {"2026-C-6"})
-    assert _row(db, "C", 6)[:2] == (pub["HomePitcherAcnt"], pub["VisitingPitcherAcnt"]), "只補不清"
+    out = sw.write_starters([empty], {"2026-C-6"})
+    assert _row(db, "C", 6)[:2] == (None, None) and out["with_starters"] == [], "同 upsert_games 兩欄語意：官網空就寫空"
+
+
+def test_reschedule_does_not_keep_old_date_starters(db):
+    """review-1 #1：2026-A-302 真實素材。本機先有 9/01 延賽 entry 的舊先發（7570／5151），改期 9/30 後只寫先發寫入器
+    依新日期賽前 entry 寫：未公布 ⇒ 清空、公布後 ⇒ 新先發（7836／5604）；比分等其他欄不動。"""
+    from cpbl.ingest import starter_watch as sw
+    from cpbl.ingest.cpbl_site import upsert_games
+
+    group = payloads("A", 302)
+    postponed = next(p for p in group if p["GameResult"] == "1" and p["HomePitcherAcnt"])
+    new_empty = next(p for p in group if p["GameResult"] == "" and p["GameDate"].startswith("2026-09-30")
+                     and not p["HomePitcherAcnt"])
+    new_pub = next(p for p in group if p["GameResult"] == "" and p["GameDate"].startswith("2026-09-30")
+                   and p["HomePitcherAcnt"])
+    upsert_games([postponed])
+    before = _row(db, "A", 302)
+    assert before[:2] == ("0000007570", "0000005151")
+    assert sw.write_starters([new_empty, postponed], {"2026-A-302"})["with_starters"] == []
+    assert _row(db, "A", 302)[:2] == (None, None) and _row(db, "A", 302)[2:] == before[2:]
+    assert sw.write_starters([new_pub, postponed], {"2026-A-302"})["with_starters"] == ["2026-A-302"]
+    assert _row(db, "A", 302)[:2] == ("0000007836", "0000005604")
 
 
 @pytest.mark.parametrize("sno", [304, 326])
@@ -114,5 +135,5 @@ def test_started_or_reserved_rows_are_untouched(db, sno):
         seen = group[:i]
         if any(str(p["GameResult"]) in ("0", "2") or p["HomeScore"] or p["VisitingScore"] for p in seen):
             # 值相同的覆寫在終態看不出來，所以直接看寫入器有沒有動手（變異檢驗要能紅）
-            assert out == {"games_updated": 0, "revisions": 0}, (sno, i, out)
+            assert out == {"games_updated": 0, "revisions": 0, "with_starters": []}, (sno, i, out)
     assert _row(db, "A", sno) == before and _revs(db, "A", sno) == revs

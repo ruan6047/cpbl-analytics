@@ -184,14 +184,12 @@ def patched(world: World, tmp: Path):
         rows, revs = sw.starter_rows(games, keys)
         updated = 0
         for home, away, y, kind, _season, sno in rows:
-            key = f"{y}-{kind}-{sno}"
-            cur = world.local.setdefault(key, [None, None])
-            new = [home or cur[0], away or cur[1]]     # 同 _STARTER_SQL 的 COALESCE（只補不清）
+            world.local[f"{y}-{kind}-{sno}"] = [home, away]     # 同 _STARTER_SQL：設成目前賽前 entry 的值
             updated += 1
-            world.local[key] = new
         for e in revs:
             world.revisions.add(canonical_source_version(e))
-        return {"games_updated": updated, "revisions": len(revs)}
+        found = sorted(f"{y}-{k}-{sno}" for home, away, y, k, _s, sno in rows if home and away)
+        return {"games_updated": updated, "revisions": len(revs), "with_starters": found}
 
     def evening_games_step(year, kinds):   # 既有路徑（事件／#292 時點）：比照 upsert_games 也會寫先發
         out: dict[str, Any] = {"games": {}, "errors": []}
@@ -331,9 +329,10 @@ def _rec(state: Mapping, key: str) -> dict:
     return ((state.get("starter_watch") or {}).get("games") or {}).get(key) or {}
 
 
-def normal(game: Game, noise: list[dict], *, seed: int = 0) -> dict:
-    """官網依慣例在前一天公布（23:00 前已是有先發的真實 payload）：23:00 抓一次、寫入、同步。"""
-    world, state = simulate(game, game.fire - timedelta(minutes=1), noise, seed=seed)
+def normal(game: Game, noise: list[dict], *, seed: int = 0, publish_at: datetime | None = None) -> dict:
+    """23:00 抓一次、寫入、同步。``publish_at``＝www 開始回「有先發」版的時刻；預設＝假設情境 F−1 分。"""
+    publish_at = publish_at or game.fire - timedelta(minutes=1)
+    world, state = simulate(game, publish_at, noise, seed=seed)
     rec = _rec(state, game.key)
     visible = world.prod_at + FRONT_CACHE if world.prod_at else None
     return {"key": game.key, "starts": game.starts.isoformat(), "fire": game.fire.isoformat(),
@@ -342,7 +341,7 @@ def normal(game: Game, noise: list[dict], *, seed: int = 0) -> dict:
             "prod_starters": world.prod.get(game.key),
             "expected": [game.published.get("HomePitcherAcnt"), game.published.get("VisitingPitcherAcnt")],
             "minutes_from_fire_to_visible": round((visible - game.fire).total_seconds() / 60, 2) if visible else None,
-            "notifications": len(world.notifications),
+            "notifications": len(world.notifications), "publish_at": publish_at.isoformat(),
             "real_first_seen_with_starters": game.published_seen,
             "real_first_seen_before_fire": _ts(game.published_seen) <= game.fire}
 
@@ -372,28 +371,40 @@ def main(argv: Iterable[str] | None = None) -> int:
     ap.add_argument("--out", required=True)
     args = ap.parse_args(list(argv) if argv is not None else None)
     games, noise, meta = load_games()
+
+    def section(rows: list[dict]) -> dict:
+        ok = [r for r in rows if r["state"] == "fetched" and r["synced_at"] and r["prod_starters"] == r["expected"]]
+        lat = [r["minutes_from_fire_to_visible"] for r in ok]
+        return {"games": len(rows), "fetched_written_synced": len(ok),
+                "not_ok": [r["key"] for r in rows if r not in ok],
+                "max_minutes_fire_to_visible": max(lat) if lat else None,
+                "min_minutes_fire_to_visible": min(lat) if lat else None,
+                "www_fetches_per_game": sorted({r["www_fetches"] for r in rows}),
+                "notifications": sum(r["notifications"] for r in rows),
+                "by_kind": {k: sum(1 for r in ok if r["key"].split("-")[1] == k) for k in "AEC"},
+                "keys": [r["key"] for r in rows]}
+
+    # 歷史可證子集（審核 review-1 重播判定）：本機首見「賽前、有先發」的真實時刻 ≤ F 的場——www 自那個真實時刻起
+    # 回有先發版（真實公布時刻只會更早，所以是保守情境）。其餘場次真實公布時刻未知。
+    proven = [g for g in games if _ts(g.published_seen) <= g.fire]
+    hist = [normal(g, noise, seed=i, publish_at=_ts(g.published_seen)) for i, g in enumerate(proven)]
+    # 假設情境：假設 F−1 分已公布（條件式行為，⛔ 不是 117 場歷史上都能在該時點抓到的證據）。
     rows = [normal(g, noise, seed=i) for i, g in enumerate(games)]
-    ok = [r for r in rows if r["state"] == "fetched" and r["synced_at"] and r["prod_starters"] == r["expected"]]
-    bad = [r for r in rows if r not in ok]
-    lat = [r["minutes_from_fire_to_visible"] for r in ok]
     fault_games = [next(g for g in games if g.kind == "A"), next(g for g in games if g.kind == "C")]
     report = {"generated_at": datetime.now(UTC).isoformat(), "fixture": meta,
               "params": {"wake_seconds": WAKE.total_seconds(), "wake_jitter_seconds": [0, 30],
                          "sync_seconds": SYNC_SECONDS, "front_cache_seconds": FRONT_CACHE.total_seconds()},
               "games": len(games),
-              "summary": {"fetched_written_synced": len(ok), "not_ok": [r["key"] for r in bad],
-                          "max_minutes_fire_to_visible": max(lat) if lat else None,
-                          "min_minutes_fire_to_visible": min(lat) if lat else None,
-                          "www_fetches_per_game": sorted({r["www_fetches"] for r in rows}),
-                          "notifications_in_normal_runs": sum(r["notifications"] for r in rows),
-                          "real_first_seen_before_fire": sum(1 for r in rows if r["real_first_seen_before_fire"]),
-                          "by_kind": {k: sum(1 for r in ok if r["key"].split("-")[1] == k) for k in "AEC"}},
+              "historical_provable": section(hist),
+              "hypothetical_published_at_f_minus_1": section(rows),
+              "unknown_publication_time": len(games) - len(proven),
               "faults": {g.key: run_faults(g, noise) for g in fault_games},
-              "rows": rows}
+              "rows_historical": hist, "rows_hypothetical": rows}
     out = Path(args.out).expanduser()
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(report, ensure_ascii=False, indent=1), encoding="utf-8")
-    print(json.dumps({"games": report["games"], "summary": report["summary"]}, ensure_ascii=False))
+    print(json.dumps({k: report[k] for k in ("games", "historical_provable", "hypothetical_published_at_f_minus_1",
+                                              "unknown_publication_time")}, ensure_ascii=False))
     return 0
 
 

@@ -7,8 +7,11 @@
    一次（整年一次；同一晚多場同賽別合併）。S 取狀態檔賽程（stats ``PreExeDate``，每次 probe 更新）⇒ 延賽改期後
    新 S 的 F 自動成為新時點。範圍 A／E／C（晚間鏈設定的賽別），⛔ 不含 D。共用既有 www 帳本：賽別冷卻 20 分、
    挑戰兩次停到隔日 12:00、halted、對帳不等停當晚；被擋只延後、不計次，最遲到 01:00（深夜加嚴，
-   ``docs/CPBL_SITE_MAP.md`` §2），過了記 ``missed``。本機已有兩隊先發的場不抓。
-2. **只寫先發**：:func:`write_starters` 只更新目標場的 ``games.home_starter_id``／``away_starter_id``（只補不清），
+   ``docs/CPBL_SITE_MAP.md`` §2），過了記 ``missed``。待抓期間最新賽程已改期或不再是未開賽 ⇒ ``superseded``（不抓、
+   不通知；新 S 的 F 另起一筆）。⚠️ 本機 games 已有先發**不算**已處理（審核 review-1 #1）：那可能是改期前舊日期的
+   先發，所以每個 F 都抓一次，結局看這次抓到的**目前賽前 entry** 有沒有兩隊先發。
+2. **只寫先發**：:func:`write_starters` 把目標場的 ``games.home_starter_id``／``away_starter_id`` 設成目前賽前 entry 的值
+   （與 ``upsert_games`` 對這兩欄的語意相同：官網空就寫空，舊日期的先發不殘留），
    並把該場賽前 entry 寫進 ``game_schedule_status_revisions``；⛔ 不寫比分、勝敗投、救援、MVP、日期、場地。
    寫入後走既有 ``POSTSEASON_RESULTS_ONLY`` 同步（晚間鏈 scrape → changed → sync）。
    為什麼不用既有抓取（``evening_games_step``）：(a) A 在 23:00 仍可能被 ``P-A-FETCH-GATE`` 擋（延長賽、保留賽
@@ -152,10 +155,13 @@ def gate_kinds(state: Mapping, now: datetime, kinds: Iterable[str]) -> set[str]:
     return out
 
 
-def refresh(state: dict, now: datetime, cands: Mapping[str, datetime], have: Iterable[str]) -> None:
-    """把此刻的目標併進紀錄（改期 ⇒ 新 F 另起一筆）、本機已有先發者不抓、過 01:00 仍未抓記 ``missed``、清舊紀錄。"""
+def refresh(state: dict, now: datetime, cands: Mapping[str, datetime],
+            schedule: Iterable[Mapping] = ()) -> None:
+    """把此刻的目標併進紀錄（改期 ⇒ 新 F 另起一筆）、依最新賽程結清失效待辦、過 01:00 仍未抓記 ``missed``、清舊紀錄。
+
+    ``schedule``＝最新狀態檔賽程：待抓紀錄的場若在其中、但狀態已不是未開賽或推算出的 F 不同（改期），記
+    ``superseded``——不抓、不通知（審核 review-1 #2）。賽程裡沒有這一場（stats 沒回到）⇒ 無從判斷，維持原狀。"""
     sw = _sw(state)
-    have = set(have)
     for key, starts in cands.items():
         fire = fire_point(starts)
         rec = sw["games"].get(key)
@@ -163,11 +169,18 @@ def refresh(state: dict, now: datetime, cands: Mapping[str, datetime], have: Ite
             rec = sw["games"][key] = {"key": key, "starts_at": _iso(starts), "fire_at": _iso(fire),
                                       "state": "due", "attempted_at": None, "local_at": None,
                                       "synced_at": None, "wait": None, "notified_at": None}
-            if key in have:
-                rec.update(state="already", local_at=_iso(now))
-                say(f"{key} already_has_starters fire_at={rec['fire_at']}")
-            else:
-                say(f"{key} due fire_at={rec['fire_at']} starts_at={rec['starts_at']}")
+            say(f"{key} due fire_at={rec['fire_at']} starts_at={rec['starts_at']}")
+    latest = {_key(g): g for g in schedule or []}
+    for key, rec in sw["games"].items():
+        g = latest.get(key)
+        if rec.get("state") != "due" or g is None:
+            continue
+        starts = _starts(g.get("starts_at"))
+        if str(g.get("status") or "") not in WATCH_STATUSES or starts is None \
+                or _iso(fire_point(starts)) != rec.get("fire_at"):
+            rec["state"] = "superseded"
+            rec["superseded_by"] = {"status": g.get("status"), "starts_at": g.get("starts_at")}
+            say(f"{key} superseded status={g.get('status')} starts_at={g.get('starts_at')}")
     for key, rec in list(sw["games"].items()):
         fire, starts = _parse(rec.get("fire_at")), _parse(rec.get("starts_at"))
         if rec.get("state") == "due" and fire is not None and now >= fire + FIRE_UNTIL:
@@ -195,9 +208,10 @@ def note_wait(state: dict, kinds: Iterable[str], reason: str) -> None:
 
 
 def record_fetch(state: dict, now: datetime, kinds: Iterable[str], failed: Iterable[str],
-                 have: Iterable[str]) -> None:
-    """一次抓取入帳：失敗 ``failed``；抓到且本機有兩隊先發 ``fetched``；抓到但仍空 ``empty``。每場只抓這一次。"""
-    failed, have = set(failed), set(have)
+                 found: Iterable[str]) -> None:
+    """一次抓取入帳：失敗 ``failed``；這次抓到的目前賽前 entry 有兩隊先發（``found``）⇒ ``fetched``；否則 ``empty``。
+    每場只抓這一次。``found`` 由這次抓取本身判定（:func:`starter_rows`），⛔ 不看本機 games 舊值。"""
+    failed, have = set(failed), set(found)
     for kind in kinds:
         for key in pending_keys(state, kind):
             rec = _sw(state)["games"][key]
@@ -305,7 +319,7 @@ def starter_rows(games: Iterable[Mapping], keys: Iterable[str]) -> tuple[list[tu
     只處理 ``keys``（窗內目標場）。同 sno 多筆 entry 整組判斷，任一筆是終局（``GameResult`` 0）、保留（2）或帶非零比分
     ⇒ 整組不碰（已開打的場一列都不寫、也不記修訂）。⚠️ ``PresentStatus``＝1 不代表已開打——實測賽前 entry 也是 1
     （本機修訂表 2026-C-6 10/26 賽前列），所以不用它判斷。主 entry＝``GameResult`` 空白者中 ``GameDate`` 最新的一筆
-    （改期後的新排程）；兩隊先發都空 ⇒ 不更新 games，但仍記修訂（「看過、尚未公布」的證據）。"""
+    （改期後的新排程）；兩隊先發照主 entry 原值（空就是 None），修訂表記整組 entry。"""
     from cpbl.ingest.cpbl_site import _parse_date
 
     keys = set(keys)
@@ -326,22 +340,21 @@ def starter_rows(games: Iterable[Mapping], keys: Iterable[str]) -> tuple[list[tu
         revisions.extend(entries)
         primary = max(pregame, key=lambda e: _parse_date(e.get("GameDate")) or datetime.min.date())
         home, away = primary.get("HomePitcherAcnt") or None, primary.get("VisitingPitcherAcnt") or None
-        if home or away:
-            rows.append((home, away, y, kind, season, sno))
+        rows.append((home, away, y, kind, season, sno))
     return rows, revisions
 
 
 _STARTER_SQL = """
-    UPDATE cpbl.games SET home_starter_id = COALESCE(%s, home_starter_id),
-                          away_starter_id = COALESCE(%s, away_starter_id)
+    UPDATE cpbl.games SET home_starter_id = %s, away_starter_id = %s
     WHERE year = %s AND kind_code = %s AND game_season_code = %s AND game_sno = %s
       AND COALESCE(home_score, 0) = 0 AND COALESCE(away_score, 0) = 0
       AND delay_kind IS DISTINCT FROM '保留'
 """
 
 
-def write_starters(games: Iterable[Mapping], keys: Iterable[str]) -> dict[str, int]:
-    """只寫先發：``games`` 只動兩隊先發欄（只補不清；本機已有比分或保留的列不動），修訂表只記目標場賽前 entry。
+def write_starters(games: Iterable[Mapping], keys: Iterable[str]) -> dict[str, Any]:
+    """只寫先發：``games`` 只動兩隊先發欄（設成目前賽前 entry 的值；本機已有比分或保留的列不動），修訂表只記目標場賽前
+    entry。回傳 ``with_starters``＝這次抓到兩隊先發都有的目標場（:func:`record_fetch` 的 ``found``）。
 
     ⛔ 不新增 games 列（新場次由既有事件路徑／J1 處理）、⛔ 不呼叫 ``upsert_games``。"""
     from cpbl.db import conn
@@ -349,14 +362,19 @@ def write_starters(games: Iterable[Mapping], keys: Iterable[str]) -> dict[str, i
 
     rows, revisions = starter_rows(games, keys)
     updated = 0
+    found: list[str] = []
     if rows:
         with conn() as c:
             cur = c.cursor()
-            for row in rows:
-                cur.execute(_STARTER_SQL, row)
-                updated += cur.rowcount or 0
+            for home, away, y, k, season, sno in rows:
+                cur.execute(_STARTER_SQL, (home, away, y, k, season, sno))
+                n = cur.rowcount or 0
+                updated += n
+                if n and home and away:          # 本機真的寫進去（列存在、未開打）才算抓到
+                    found.append(f"{y}-{k}-{sno}")
     recorded = record_schedule_revisions([dict(e) for e in revisions]) if revisions else 0
-    return {"games_updated": updated, "revisions": recorded}
+    found.sort()
+    return {"games_updated": updated, "revisions": recorded, "with_starters": found}
 
 
 def local_starters(year: int, keys: Iterable[str]) -> set[str]:
@@ -390,7 +408,8 @@ def fetch_step(year: int, kinds: Iterable[str], keys: Iterable[str],
             with www_marker("other", "342", f"{year}/{kind}/-", card="342"):
                 games = fetch(year, kind)
             out["games"][kind] = result = write_starters(games, [k for k in keys if kind_of(k) == kind])
-            say(f"fetch kind={kind} games_updated={result['games_updated']} revisions={result['revisions']}")
+            say(f"fetch kind={kind} games_updated={result['games_updated']} revisions={result['revisions']} "
+                f"with_starters={','.join(result['with_starters']) or '-'}")
         except Exception as exc:  # noqa: BLE001 — 單一賽別失敗不連坐
             say(f"fetch kind={kind} error={type(exc).__name__}: {str(exc)[:200]}")
             out["errors"].append({"kind": kind, "error": str(exc)})
