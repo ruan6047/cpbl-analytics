@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- 本機告警 watcher（#358 WP6＋WP3'）的 launchd 樣板：每 300 秒跑一次 scripts/alert_watch.py。
+     做兩件事：本機 DB／redis 容器停擺偵測（Mac 完全醒著且連兩次確認才送 /fail 到 check services），
+     以及晚間鏈的武裝／成功／halted（讀狀態檔，不改晚間鏈）。判準與裁定見該檔 docstring 與 Runbook §11.2。
+
+     走系統 /usr/bin/python3、不經 uv／venv（與 schedule-watchdog 同一個隔離決定）；PATH 含 /usr/local/bin
+     是為了 OrbStack 的 docker CLI。不取 refresh lock、不連 DB、不動容器。
+
+     登記：scripts/schedule-registry.json（cadence interval 300 秒）。放 ops/launchd/ 而不是 scripts/：
+     清冊把 scripts/ 下的 plist 視為已安裝排程的起點，本 job 的安裝狀態由登記表宣告（同晚間鏈的作法）。
+
+     安裝（D4，需求方裁定 #358 6429157634：合併後由需求方親自 bootstrap；⛔ AI 不動 launchd）：
+       ln -sf "$PWD/ops/launchd/com.cpbl.alert-watch.plist" ~/Library/LaunchAgents/com.cpbl.alert-watch.plist
+       launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.cpbl.alert-watch.plist
+     停用（回復）：
+       launchctl bootout gui/$(id -u)/com.cpbl.alert-watch -->
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>com.cpbl.alert-watch</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/usr/bin/python3</string>
+    <string>/Users/ruanruan/Dev/cpbl-analytics/scripts/alert_watch.py</string>
+    <string>--repo</string>
+    <string>/Users/ruanruan/Dev/cpbl-analytics</string>
+  </array>
+  <key>WorkingDirectory</key><string>/Users/ruanruan/Dev/cpbl-analytics</string>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key><string>/Users/ruanruan/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+  </dict>
+  <key>StartInterval</key><integer>300</integer>
+  <key>RunAtLoad</key><false/>
+  <key>StandardOutPath</key><string>/Users/ruanruan/Dev/cpbl-analytics/logs/launchd-alert-watch.out.log</string>
+  <key>StandardErrorPath</key><string>/Users/ruanruan/Dev/cpbl-analytics/logs/launchd-alert-watch.err.log</string>
+</dict>
+</plist>

@@ -984,7 +984,32 @@ GitHub 會自動標記。判斷是否經 PR 合併要看 `gh api repos/.../commi
 
 ### 11.2 本機服務（check `services`）與晚間鏈（check `evening`）
 
-尚未接線。
+兩者都由本機 watcher `scripts/alert_watch.py`（launchd job `com.cpbl.alert-watch`，`StartInterval` 300 秒，樣板 `ops/launchd/com.cpbl.alert-watch.plist`）處理；
+走系統 `/usr/bin/python3`，⛔ 不取 refresh lock、不連 DB、不動容器、⛔ 不改晚間鏈檔。本機狀態只寫 `logs/alert-watch/state.json`，ping／武裝結果一行一筆寫 `logs/launchd-alert-watch.out.log`（遮罩過）。
+
+- **安裝**（D4，6429157634：合併後由需求方親自 bootstrap；⛔ AI 不動 launchd）：
+  `ln -sf "$PWD/ops/launchd/com.cpbl.alert-watch.plist" ~/Library/LaunchAgents/com.cpbl.alert-watch.plist` 後 `launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.cpbl.alert-watch.plist`。
+  登記表 `expected_installed=true`：合併到安裝之間 schedule-watchdog 會報 `JOB_NOT_INSTALLED`，那是刻意的提醒。
+- **本機服務停擺**（驗收 5；6418264766、D1／D2）：每次觀測讀 `pmset -g systemstate`、`sysctl -n kern.sleeptime`、`docker inspect`（兩個容器各一次，逾時 15 秒）。
+  送 `/fail`（附「哪個容器什麼狀態」或「Docker 無回應」，不含 log）的條件：本次與上次都**完全喚醒**（能力清單含 `Graphics`）、`kern.sleeptime` 相同（中間沒睡）、間隔 4–15 分、兩次都停擺。
+  停擺＝不是 `running`（`exited`／`created`／`restarting`／`paused`／`dead`／查無此容器），以及 Docker daemon 無回應（D1）。仍停擺時每次都再送；服務端只在狀態轉換時寄信。
+  恢復或距上次成功滿 60 分時送成功 ping。睡眠、DarkWake、剛醒的第一次觀測都**不送**，所以 Mac 睡著不會誤報；最壞約 10 分鐘內響。
+  服務端（需求方設定）：`services` 的 period／grace 設到允許的上限，只認明確的 `/fail`（上限值未查證）。
+- **晚間鏈**（門檻＝今晚最晚開賽＋5h，6348735853 第 5 項；plan FATAL 不立即送，第 6 項）：
+  - 武裝：今日賽程檔（`logs/daily-schedule-today.json`；判法同 §10 動作條件，`date`＝今晚、排定場＝A／E／C 且 `game_date == date`，不看 `present_status`）有場，
+    就以 Management API 把 `evening` 設成只對今天生效的 cron `MM HH D M *`（`Asia/Taipei`，grace 5h）。晚間狀態檔 `schedule[].starts_at` 還沒有今晚每一場的開賽時刻時，
+    先以 **23:35** 為期限（D3），取得後改成開賽＋5h；每晚最多武裝一次、改正一次（API 失敗最多試 3 次）。「今晚」＝台北 09:45 起到次日 09:45 前。
+  - 成功：今晚每一場在狀態檔是 `FINISHED`／`POSTPONED`、`pending_sync` 為 `false`、沒有 `open` 事件、兩份狀態檔的 `halted` 都是空的，才送成功（每晚一次）。
+    欄位缺失一律不送（fail closed，結果是期限告警）。保留賽（`RESERVED`）不算終態，該晚會在期限告警。
+  - halted：`logs/postseason-evening-state.json` 或 `logs/last-postseason-evening.json` 有 `halted` 時立即送 `/69`（同一原因每晚一次）。
+  - 已知限制：系列已封王但官方仍列 `SCHEDULED` 的場（例：C-7 2026-10-27）分不出「不會進行」，會被武裝並在期限誤報；處置待需求方裁定。
+    每日鏈延後或失敗時今日賽程檔不會更新，晚間鏈就不會被武裝——這種情況由 `daily` 告警涵蓋（連帶盲區）。
+    晚間鏈完成後 Mac 隨即入睡時，成功 ping 會延到醒來才送，可能造成假的延後告警。
+- **故障注入**（規劃 2 §7；只打 `test`、不停正式容器）：
+  `CPBL_ALERT_SLUG_OVERRIDE=test /usr/bin/python3 scripts/alert_watch.py --only services --containers cpbl358-fi-redis --state <暫存檔>`
+  （容器以 `docker create` 建、不啟動；daemon 無回應以只對該行程設 `DOCKER_HOST=unix:///nonexistent` 模擬）。
+- 殘餘風險：watcher 沒裝或壞掉時沒有遠端訊號（本機 schedule-watchdog 報 `JOB_NOT_INSTALLED`；Mac 整天沒醒則由 `daily` 的沉默告警涵蓋）；
+  `pmset` 判準在 DarkWake 當下的輸出尚未取樣（FI-S4 驗證前屬推論）。
 
 ### 11.3 輪換、止血與回復
 

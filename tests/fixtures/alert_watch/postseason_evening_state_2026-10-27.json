@@ -1,0 +1,142 @@
+{
+  "version": 1,
+  "halted": null,
+  "pending_sync": false,
+  "signals_unsynced": false,
+  "probe_status": "ok",
+  "last_probe_at": "2026-10-26T23:16:25.885713+00:00",
+  "last_run": {
+    "action": "idle",
+    "at": "2026-10-26T23:16:25.885713+00:00",
+    "reason": "no_events"
+  },
+  "schedule": [
+    {
+      "away_code": "ACN011",
+      "game_date": "2026-10-17",
+      "game_sno": 1,
+      "home_code": "AAA011",
+      "kind_code": "C",
+      "starts_at": "2026-10-17T17:05:00",
+      "status": "FINISHED",
+      "venue": "大巨蛋",
+      "year": 2026
+    },
+    {
+      "away_code": "ACN011",
+      "game_date": "2026-10-18",
+      "game_sno": 2,
+      "home_code": "AAA011",
+      "kind_code": "C",
+      "starts_at": "2026-10-18T17:05:00",
+      "status": "FINISHED",
+      "venue": "大巨蛋",
+      "year": 2026
+    },
+    {
+      "away_code": "AAA011",
+      "game_date": "2026-10-20",
+      "game_sno": 3,
+      "home_code": "ACN011",
+      "kind_code": "C",
+      "starts_at": "2026-10-20T18:35:00",
+      "status": "FINISHED",
+      "venue": "大巨蛋",
+      "year": 2026
+    },
+    {
+      "away_code": "AAA011",
+      "game_date": "2026-10-21",
+      "game_sno": 4,
+      "home_code": "ACN011",
+      "kind_code": "C",
+      "starts_at": "2026-10-21T18:35:00",
+      "status": "FINISHED",
+      "venue": "大巨蛋",
+      "year": 2026
+    },
+    {
+      "away_code": "ACN011",
+      "game_date": "2026-10-25",
+      "game_sno": 5,
+      "home_code": "AAA011",
+      "kind_code": "C",
+      "starts_at": "2026-10-25T17:05:00",
+      "status": "FINISHED",
+      "venue": "大巨蛋",
+      "year": 2026
+    },
+    {
+      "away_code": "ACN011",
+      "game_date": "2026-10-26",
+      "game_sno": 6,
+      "home_code": "AAA011",
+      "kind_code": "C",
+      "starts_at": "2026-10-26T15:05:00",
+      "status": "FINISHED",
+      "venue": "大巨蛋",
+      "year": 2026
+    },
+    {
+      "away_code": "ACN011",
+      "game_date": "2026-10-27",
+      "game_sno": 7,
+      "home_code": "AAA011",
+      "kind_code": "C",
+      "starts_at": "2026-10-27T18:35:00",
+      "status": "SCHEDULED",
+      "venue": "樂天桃園",
+      "year": 2026
+    }
+  ],
+  "events": {
+    "final_not_ingested:2026-C-1": {
+      "state": "synced",
+      "type": "final_not_ingested",
+      "key": "2026-C-1",
+      "game_date": "2026-10-17"
+    },
+    "final_not_ingested:2026-C-2": {
+      "state": "synced",
+      "type": "final_not_ingested",
+      "key": "2026-C-2",
+      "game_date": "2026-10-18"
+    },
+    "final_not_ingested:2026-C-3": {
+      "state": "synced",
+      "type": "final_not_ingested",
+      "key": "2026-C-3",
+      "game_date": "2026-10-20"
+    },
+    "final_not_ingested:2026-C-4": {
+      "state": "synced",
+      "type": "final_not_ingested",
+      "key": "2026-C-4",
+      "game_date": "2026-10-21"
+    },
+    "final_not_ingested:2026-C-6": {
+      "state": "synced",
+      "type": "final_not_ingested",
+      "key": "2026-C-6",
+      "game_date": "2026-10-26"
+    },
+    "schedule_changed:2026-C-5": {
+      "state": "synced",
+      "type": "schedule_changed",
+      "key": "2026-C-5",
+      "game_date": "2026-10-25"
+    },
+    "schedule_changed:2026-C-6": {
+      "state": "synced",
+      "type": "schedule_changed",
+      "key": "2026-C-6",
+      "game_date": "2026-10-26"
+    },
+    "schedule_changed:2026-C-7": {
+      "state": "synced",
+      "type": "schedule_changed",
+      "key": "2026-C-7",
+      "game_date": "2026-10-27"
+    }
+  }
+}

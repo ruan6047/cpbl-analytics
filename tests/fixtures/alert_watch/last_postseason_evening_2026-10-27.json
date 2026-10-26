@@ -1,0 +1,14 @@
+{
+  "finished_at": "2026-10-26T15:04:48.724200+00:00",
+  "halted": null,
+  "pending_sync": false,
+  "probe_status": "ok",
+  "sync_blocked_at": null,
+  "needs_owner_decision": null,
+  "last_run": {
+    "action": "scrape",
+    "at": "2026-10-26T15:04:44.089639+00:00",
+    "errors": [],
+    "outcome": "unchanged"
+  }
+}
