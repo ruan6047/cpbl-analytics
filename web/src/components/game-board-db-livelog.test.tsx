@@ -7,13 +7,13 @@ import GameBoard, { type Live } from "./game-board.tsx";
 import type { StatRow } from "@/lib/client.ts";
 import { buildHighlights } from "@/lib/game-highlights.ts";
 import { applyLiveSnapshot, type LiveApiResponse } from "@/lib/live-game.ts";
+import { buildMoments } from "@/app/games/[sno]/overview.tsx";
 
 // #357 WP2-b：`/api/v1/games/{sno}/live` 的 **DB 路徑**合併附加表後，最後事件號有兩列
 // （實際打席＋結束標記），與 48 小時快照路徑同形。本檔驗「前端不需改碼」這個規劃預估。
 // fixture 由後端實際轉換＋合併函式產生（見 JSON 內 _source），不是手寫。
-// ⚠️ 預估**不完全成立**：`overview.tsx` `buildMoments`（關鍵打席結果文）在兩列同號時取到
-// 結束標記（快照路徑同病）。依派工停下回報、待裁定，本檔只釘住已成立的部分；
-// 重現紀錄見 ~/.wf-evidence/cpbl-analytics/357/exec-wp2/logs/probe-b-*。
+// 預估**不完全成立**：`overview.tsx` `buildMoments`（關鍵打席結果文）在兩列同號時取到
+// 結束標記（快照路徑同病）；需求方授權本卡小改（跳過結束標記列），檔尾兩支測試釘住。
 const FIXTURE = JSON.parse(readFileSync(
   new URL("../lib/__fixtures__/live-db-livelog_357_2026-C-4.json", import.meta.url), "utf8",
 )) as { livelog: StatRow[] };
@@ -58,4 +58,30 @@ test("本場焦點：再見安打判定與沒有結束列時相同", () => {
   const h = (log: StatRow[]) => buildHighlights(live(log) as never, true).map((x) => x.text);
   assert.ok(h(merged()).some((t) => t.includes("再見安打")), "前提：本場有再見安打焦點");
   assert.deepEqual(h(merged()), h(withoutMarker()));
+});
+
+// ── 關鍵打席（overview buildMoments）：結束標記列不得當成打席結果（需求方授權本卡修正）──
+test("關鍵打席：最後打席是單一事件、首事件號即重複號（2026-C-4 再見安打）時，結果文是實際敘述", () => {
+  const wp = [
+    { evt: "1120020000", inning: 11, half: "2", wp: 0.5 },
+    { evt: DUP, inning: 11, half: "2", wp: 0.45 },
+    { evt: null, inning: 11, half: "2", wp: 1 },
+  ];
+  const last = buildMoments(wp as never, merged()).find((m) => m.evt === DUP);
+  assert.equal(last?.desc, PLAY);
+  assert.deepEqual(buildMoments(wp as never, merged()), buildMoments(wp as never, withoutMarker()),
+    "多一列結束標記不改變任何關鍵打席");
+});
+
+test("關鍵打席：多事件最後打席（向後掃描路徑）也不取結束標記；兩種標記字面都認", () => {
+  const row = (no: string, content: string, extra: Partial<StatRow> = {}): StatRow => ({
+    main_event_no: no, hitter_acnt: "H1", hitter_name: "打者", pitcher_name: "投手",
+    is_change_player: null, is_score: null, content, ...extra,
+  });
+  for (const marker of ["比賽結束", "主審裁定比賽結束。"]) {
+    const log = [row("0001", "壞球。"), row("0002", "壞球。 二壘跑者出局-盜壘刺 3人出局。"),
+                 row("0002", marker)];
+    const wp = [{ evt: "0001", inning: 9, half: "2", wp: 0.4 }, { evt: null, inning: 9, half: "2", wp: 0 }];
+    assert.equal(buildMoments(wp as never, log)[0]?.desc, "壞球。 二壘跑者出局-盜壘刺 3人出局。", marker);
+  }
 });
