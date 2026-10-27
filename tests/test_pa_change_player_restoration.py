@@ -25,6 +25,7 @@ from cpbl.ingest import pa_build
 from cpbl.ingest.cpbl_gamelog import _LL_COLS, _livelog_rows
 from cpbl.ingest.pa_build import (
     ACCEPT_SHAPE_CHANGE_PLAYER,
+    controlled_restoration,
     end_marker_change_player_restoration,
     end_marker_restoration,
     half_inning_out_violations,
@@ -133,19 +134,87 @@ def test_negative_old_marker_without_change_player_flag(name):
     assert _decide(new, old, key)[1] is None
 
 
+def _with(d: dict, **kw) -> dict:
+    return {**d, **kw}
+
+
+@pytest.mark.parametrize(("name", "field", "patch"), [
+    ("2018-D-110", "changed_pa_old", {"end_event_no": "0720007000"}),   # B 型舊 end_event_no 不符
+    ("2018-D-110", "changed_pa_old", {"end_event_no": "0720009000"}),   # B 型當 A 型
+    ("2018-D-110", "changed_pa_new", {"end_event_no": "0720007000"}),   # B 型新 end_event_no 不符
+    ("2018-D-73", "changed_pa_old", {"end_event_no": "0820005000"}),    # A 型當 B 型
+    ("2019-D-22", "changed_pa_new", {"members": ["0520008000", "0520009000"]}),
+    ("2019-D-22", "new_final_event", {"is_change_player": True}),
+    ("2018-D-110", "old_final_event", {"is_special_event": False}),
+])
+def test_negative_golden_mismatch_is_rejected(monkeypatch, name, field, patch):
+    golden = {k: dict(v) for k, v in pa_build.change_player_golden().items()}
+    golden[name][field] = _with(golden[name][field], **patch)
+    monkeypatch.setattr(pa_build, "change_player_golden", lambda: golden)
+    new, old, key = _fixture(name)
+    assert _decide(new, old, key)[1] is None
+
+
 @pytest.mark.parametrize(("name", "field", "value"), [
-    ("2018-D-110", "changed_pa_old_fields", {"end_event_no": "0720007000"}),   # B 型 end_event_no 不符
-    ("2018-D-110", "changed_pa_old_fields", {}),                               # B 型當 A 型
-    ("2018-D-73", "changed_pa_old_fields", {"end_event_no": "0820005000"}),    # A 型當 B 型
-    ("2019-D-22", "added_pas", []),                                            # C 型少了新末打席
+    ("2019-D-22", "added_pas", []),                                     # C 型少了新末打席
     ("2018-D-110", "final_event_no", "0720008000"),
 ])
-def test_negative_golden_mismatch_is_rejected(monkeypatch, name, field, value):
+def test_negative_golden_top_level_mismatch_is_rejected(monkeypatch, name, field, value):
     golden = {k: dict(v) for k, v in pa_build.change_player_golden().items()}
     golden[name][field] = value
     monkeypatch.setattr(pa_build, "change_player_golden", lambda: golden)
     new, old, key = _fixture(name)
     assert _decide(new, old, key)[1] is None
+
+
+# ── 審核 1 項 2 的兩個構造負控（2018-D-110）──────────────────────────────────────────
+def test_review_negative_a_new_end_event_no_drift_is_rejected():
+    """(a) 新 PA 的 end_event_no 被改成 0720007000（核定新值 0720009000）→ 擋。"""
+    new, old, key = _fixture("2018-D-110")
+    pas = plate_appearances(*key, new, TAX)
+    for pa in pas:
+        if pa.end_event_no == "0720009000":
+            pa.end_event_no = "0720007000"
+    published = {str(p.pa_id): p.pa_fingerprint() for p in plate_appearances(*key, old, TAX)}
+    rec = reconcile(pas, published)
+    assert rec.action == "reconcile"
+    assert controlled_restoration(pas, published, new, rec) is None
+    assert end_marker_change_player_restoration(pas, published, new, rec) is None
+
+
+def test_review_negative_b_new_final_keeps_change_player_flag_is_rejected():
+    """(b) 新末事件保留 is_change_player=True：型態謂詞會接受，但清單內場次只走逐場判定 → 擋。"""
+    new, old, key = _fixture("2018-D-110")
+    fin = _final_no(new)
+    new = [{**e, "is_change_player": True} if e["main_event_no"] == fin else e for e in new]
+    pas = plate_appearances(*key, new, TAX)
+    published = {str(p.pa_id): p.pa_fingerprint() for p in plate_appearances(*key, old, TAX)}
+    rec = reconcile(pas, published)
+    assert end_marker_restoration(pas, published, new, rec) is not None  # 前提：型態謂詞會放行
+    assert controlled_restoration(pas, published, new, rec) is None
+
+
+@pytest.mark.parametrize("name", FIXTURE_SHAPES)
+def test_controlled_restoration_accepts_list_games_via_golden_only(name):
+    new, old, key = _fixture(name)
+    pas = plate_appearances(*key, new, TAX)
+    published = {str(p.pa_id): p.pa_fingerprint() for p in plate_appearances(*key, old, TAX)}
+    got = controlled_restoration(pas, published, new, reconcile(pas, published))
+    assert got is not None and got["shape"] == ACCEPT_SHAPE_CHANGE_PLAYER
+
+
+def test_controlled_restoration_keeps_shape_predicate_for_other_games():
+    """清單外場次照舊走型態謂詞（2026-C-4 結束標記還原）。"""
+    from cpbl.ingest.pa_build import ACCEPT_SHAPE_END_MARKER, event_sort_key
+
+    key = (2026, "C", 4)
+    new = [dict(zip(COLS, r, strict=True)) for r in _livelog_rows(*key, _raw(FIXTURES / "2026-C-4.json.gz"))]
+    last = max(new, key=event_sort_key)
+    old = [{**e, "content": "比賽結束", "is_special_event": True} if e is last else e for e in new]
+    pas = plate_appearances(*key, new, TAX)
+    published = {str(p.pa_id): p.pa_fingerprint() for p in plate_appearances(*key, old, TAX)}
+    got = controlled_restoration(pas, published, new, reconcile(pas, published))
+    assert got is not None and got["shape"] == ACCEPT_SHAPE_END_MARKER
 
 
 def test_negative_c_shape_added_pa_field_mismatch(monkeypatch):
@@ -165,7 +234,7 @@ def test_negative_invariant_violation_wins():
 
 
 def test_builder_version_bumped():
-    assert pa_build.BUILDER_VERSION == "pa-build-1.5.0"
+    assert pa_build.BUILDER_VERSION == "pa-build-1.6.0"
 
 
 # ── 全量：WP1 原文 20 場＋黃金值可重生（證據目錄不在時 skip）────────────────────────────
