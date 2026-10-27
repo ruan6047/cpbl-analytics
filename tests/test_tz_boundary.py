@@ -134,8 +134,14 @@ def test_predictions_today_metric_uses_taipei_day() -> None:
         queries.append(sql)
         return 0
 
+    from contextlib import contextmanager
+
+    @contextmanager
+    def open_scalar():  # #353 WP3：注入點改成整輪共用一條連線的那一層
+        yield fake_scalar
+
     with pytest.MonkeyPatch.context() as mp:
-        mp.setattr(info, "_scalar", fake_scalar)
+        mp.setattr(info, "_open_scalar", open_scalar)
         info.info()
 
     today_q = [q for q in queries if "home_score + away_score = 0" in q]

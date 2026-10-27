@@ -39,11 +39,12 @@ REVISION_TABLES = ("game_schedule_status_revisions", "game_source_revisions")
 FAKE_LOCAL_SEQ = {"game_schedule_status_revisions": 17489, "game_source_revisions": 18056}
 FAKE_PROD_MAX = {"game_schedule_status_revisions": 18138, "game_source_revisions": 18590}
 
-# 作用域回歸：這兩個函式各自 `_stage` 五張表，其 dump `setval` 是**對的**
+# 作用域回歸：這個函式 `_stage` 五張表，其 dump `setval` 是**對的**
 # （以 OVERRIDING SYSTEM VALUE 明確鏡像 id），修法不得誤傷。
+# `sync_pa_build` 原本也在這裡；#353 WP1 起它不再經 `_stage`（改由 cpbl.ingest.pa_incremental 產生
+# 逐場替換 payload，本來就沒有 setval），其形狀回歸改在 tests/test_pa_sync_shell_353.py。
 SCOPE_REGRESSION = (
     ("sync_advanced_snapshot", "COPY _adv_run (", 5),
-    ("sync_pa_build", "COPY _pa_rev (", 5),
 )
 
 # --- 假 pg_dump 的輸出：複刻 pg_dump 17.9 `--data-only -t` 的真實形狀 -----------------

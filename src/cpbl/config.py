@@ -44,6 +44,18 @@ class Settings(BaseSettings):
     live_game_postseason_kinds: str = ""
     refresh_postseason_kinds: str = ""
 
+    # #353 WP2：只在 API 行程（uvicorn lifespan）套用的讀端逾時；migrate／訓練／ingest 不受影響。
+    # 性質是**保險**（規劃 r3）：一條卡住的讀取在有限時間內放棄並歸還連線，不讓 8 條連線全被占住。
+    # 逾時逐條語句計時，⛔ 不宣稱任何請求的總耗時上界——依序跑 N 條語句的請求可能超過 5s；
+    # 「每次 <5s」由 WP1／WP3 支撐、由正式站實測 E1 判定（需求方裁定 #353 issuecomment-6407637686）。
+    # 三個值的來源：需求方裁定 issuecomment-6407182217。參考數據是研究 2 的正式站實測（每日鏈最重的
+    #   非 PA 段 /api/info 14 個查詢合計最慢 4.626181s）；P3 量不到（正式站 nginx 格式沒有
+    #   $request_time）。其他端點平常的單一語句耗時未量；可經環境變數調高或設 0 關閉 session 逾時
+    #   （調整需重新部署）。
+    api_db_pool_timeout_seconds: float = 1.0
+    api_db_statement_timeout_ms: int = 3500
+    api_db_lock_timeout_ms: int = 2000
+
     port: int = 4001
     app_version: str = "0.1.0"
 

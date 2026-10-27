@@ -34,7 +34,8 @@ def test_both_freshness_checks_retry_transient_failures(tmp_path: Path) -> None:
     result, _ = _run_refresh(tmp_path)
     assert result.returncode == 0, f"harness 未跑完：rc={result.returncode}\n{result.stderr}"
 
-    info_calls = [argv for argv in _curl_calls(tmp_path) if API_INFO_URL in argv]
+    # #353 WP3：等快取換代的標頭探測（`-D -`）也打 /api/info；只數真正取內容比對的那兩道。
+    info_calls = [argv for argv in _curl_calls(tmp_path) if API_INFO_URL in argv and "-fsS" in argv]
     assert len(info_calls) == 2, f"預期 2 道 /api/info 檢查，實際 {len(info_calls)}：{info_calls}"
     for argv in info_calls:
         assert "-fsS" in argv, argv

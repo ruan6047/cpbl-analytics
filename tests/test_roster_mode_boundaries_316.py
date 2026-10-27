@@ -58,9 +58,16 @@ def _outside_roster(data):
 # 模式的命令、payload、順序、退出碼與輸出仍與 BASE 逐項相同（下方 test_existing_modes_… 未改、仍綠）。
 # 舊值：區塊之前 8bb65a65…ae90（16517 bytes）、區塊之後 fd65aafa…2f94（62063 bytes）。
 # #364＋#365 合併（兩卡各自更新基準後依本檔規則以合併後的 refresh-cpbl-prod.sh 重算；保護不減）。
+# #353（核定規劃 r2 WP1／WP3／WP4a；只改基準、保護不減，待需求方追認）：區塊之前新增 --help 的
+# PA_FULL_RESYNC／哨兵／離開碼說明、wait_api_info_cache_since 與哨兵函式、單一 EXIT trap
+# （17778 → 21346 bytes）；區塊之後 sync_pa_build 改逐場增量＋全族對帳、PA_FULL_RESYNC 前置守衛、
+# 完整鏈哨兵啟動、三道 freshness 比對前等快取換代（69032 → 71058 bytes）。ROSTER_ONLY 區塊未動。
+# 舊值：區塊之前 938409e1…f1dd（17778 bytes）、區塊之後 b0995b12…b7aa（69032 bytes）。
+# #353 審核 1 修正（同卡；只改基準、保護不減）：哨兵啟動錯誤隔離與有界等待（區塊之前 21346 → 22468 bytes）、
+# 啟動呼叫加 `|| …` 兜底（區塊之後 71058 → 71135 bytes）。ROSTER_ONLY 區塊未動。
 OUTSIDE_ROSTER_SHA256 = (
-    "938409e16a102c64cf5ea61ff394c0aee664d4b970767e1b52f16fb40b77f1dd",   # 區塊之前（17778 bytes）
-    "b0995b12bcedd64044e47247f7ca78ae6292dd9468df1d6e220ef8c32199b7aa",   # 區塊之後（69032 bytes）
+    "2e54518d330e9d3b804dd61e76b837a149172676547a1898bde2021d952ab92f",   # 區塊之前（22468 bytes）
+    "07984ad1aa597332677d4d0bb0b93af6481a92b6274b5c9d3575a42a67db37d4",   # 區塊之後（71135 bytes）
 )
 # #316 的成果（ROSTER_ONLY 區塊本身）以 main 上合併後的版本為準：#293 不得改動它。
 ROSTER_RESULT = "a473695dfca536e365b08c44aa2e85374e8f3e69"
@@ -133,6 +140,11 @@ os.execv({sys.executable!r}, [{sys.executable!r}, *sys.argv[1:]])
     # Pipeline peers start concurrently: retain stage order while canonicalizing only
     # adjacent pg_dump/ssh and curl/verifier peers (never reorder sequential stages).
     actions = [json.loads(line) for line in ordered.splitlines()]
+    # #353 WP3：data-only 比對前新增「等 /api/info 快取換代」的標頭探測（curl -D -，只讀回應標頭、
+    # 不帶內容進 verify）。BASE 沒有這個呼叫；只剔除這一種 curl，其餘命令、payload、順序、退出碼仍逐項
+    # 與 BASE 比對（保護不減）。剔除條件釘死在 `-D` 與 `-o /dev/null` 同時出現，不吃到 verify 用的 curl。
+    actions = [a for a in actions
+               if not (a[0] == "curl" and "-D" in a and "-o" in a and "/dev/null" in a)]
     for i in range(len(actions) - 1):
         left, right = actions[i:i + 2]
         names = {left[0], right[0]}
