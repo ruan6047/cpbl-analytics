@@ -31,15 +31,18 @@
 
 from __future__ import annotations
 
+import io
 import json
 import re
 import shlex
+import shutil
 import subprocess
 import sys
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import TextIO
 
 from cpbl.ingest._cli import cli_parser
 
@@ -158,15 +161,17 @@ class Psql:
         self.argv = shlex.split(command) if isinstance(command, str) else list(command)
         self.label = label
 
+    def _fail(self, returncode: int, stderr: str) -> SyncError:
+        if self.label != "target":
+            code = EXIT_SELF_CHECK
+        else:
+            code = EXIT_TARGET if returncode == 255 else EXIT_TARGET_SQL
+        return SyncError(code, f"{self.label} psql 失敗 rc={returncode}：{stderr.strip()[-400:]}")
+
     def run(self, script: str) -> str:
         proc = subprocess.run(self.argv, input=script, capture_output=True, text=True, check=False)
         if proc.returncode != 0:
-            if self.label != "target":
-                code = EXIT_SELF_CHECK
-            else:
-                code = EXIT_TARGET if proc.returncode == 255 else EXIT_TARGET_SQL
-            raise SyncError(code,
-                            f"{self.label} psql 失敗 rc={proc.returncode}：{proc.stderr.strip()[-400:]}")
+            raise self._fail(proc.returncode, proc.stderr)
         return proc.stdout
 
     def read(self, sql: str) -> list[list[str]]:
@@ -178,8 +183,25 @@ class Psql:
 
     def copy_out(self, sql: str) -> str:
         """``COPY (sql) TO STDOUT``（text 格式）的原文；與 pg_dump 的 COPY 資料段同一格式。"""
-        return self.run("\\set QUIET on\n\\set ON_ERROR_STOP on\nBEGIN TRANSACTION READ ONLY;\n"
-                        f"COPY ({sql}) TO STDOUT;\nCOMMIT;\n")
+        return self.run(self._copy_script(sql))
+
+    def copy_out_to(self, sql: str, out: TextIO) -> None:
+        """同 :meth:`copy_out`，但串流寫進 ``out``（#353 全量模式的 payload 是 GB 級，不進記憶體）。"""
+        with subprocess.Popen(self.argv, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                              stderr=subprocess.PIPE, text=True) as proc:
+            assert proc.stdin and proc.stdout and proc.stderr
+            proc.stdin.write(self._copy_script(sql))
+            proc.stdin.close()
+            shutil.copyfileobj(proc.stdout, out, 1 << 20)
+            stderr = proc.stderr.read()
+            returncode = proc.wait()
+        if returncode != 0:
+            raise self._fail(returncode, stderr)
+
+    @staticmethod
+    def _copy_script(sql: str) -> str:
+        return ("\\set QUIET on\n\\set ON_ERROR_STOP on\nBEGIN TRANSACTION READ ONLY;\n"
+                f"COPY ({sql}) TO STDOUT;\nCOMMIT;\n")
 
 
 # =========================================================================== 讀取
@@ -242,35 +264,48 @@ def build_pa_payload(local: Psql, keys: Sequence[GameKey]) -> str:
 
     形狀：交易內守衛（timeout、production 端閉包）→ 子→父 DELETE 目標鍵 → 父→子 暫存＋INSERT →
     事後列數自檢。⛔ 不含 TRUNCATE／CASCADE／setval（:func:`assert_pa_payload`）。"""
-    scope = keys_sql(keys)
-    lines = [
-        "SET LOCAL statement_timeout = '300s';",
-        "SET LOCAL lock_timeout = '10s';",
-        "DO $boxpa$ BEGIN",
-        f"  IF EXISTS ({closure_violations_sql(keys)}) THEN",
-        "    RAISE EXCEPTION 'BOXPA_CLOSURE production 端目標場閉包不成立（不刪不寫）';",
-        "  END IF;",
-        "END $boxpa$;",
-    ]
+    out = io.StringIO()
+    write_pa_payload(local, out, scope=keys_sql(keys), closure_sql=closure_violations_sql(keys))
+    return out.getvalue()
+
+
+_TIMEOUT_RE = re.compile(r"^\d+(ms|s|min)$")
+
+
+def write_pa_payload(local: Psql, out: TextIO, *, scope: str, closure_sql: str | None,
+                     statement_timeout: str = "300s") -> None:
+    """:func:`build_pa_payload` 的串流版本，也是 #353 每日增量／全量模式的同一個產生器。
+
+    ``scope``＝SQL 條件（目標鍵 ``IN (…)``，或全量模式的 ``TRUE``）；``closure_sql`` 為 None 時不嵌
+    production 端閉包守衛（只在 scope 涵蓋全部場時合理：沒有 scope 外的列可被波及）。
+    ``scope`` 與 ``closure_sql`` 只接受本模組／``pa_incremental`` 由已驗證的鍵產生的字串。"""
+    if not _TIMEOUT_RE.fullmatch(statement_timeout):
+        raise SyncError(EXIT_SELF_CHECK, f"statement_timeout 格式不符：{statement_timeout!r}")
+    w = out.write
+    w(f"SET LOCAL statement_timeout = '{statement_timeout}';\n")
+    w("SET LOCAL lock_timeout = '10s';\n")
+    if closure_sql is not None:
+        w("DO $boxpa$ BEGIN\n")
+        w(f"  IF EXISTS ({closure_sql}) THEN\n")
+        w("    RAISE EXCEPTION 'BOXPA_CLOSURE production 端目標場閉包不成立（不刪不寫）';\n")
+        w("  END IF;\n")
+        w("END $boxpa$;\n")
     for t in reversed(PA_TABLES):
-        lines.append(f"DELETE FROM cpbl.{t} WHERE {scope};")
+        w(f"DELETE FROM cpbl.{t} WHERE {scope};\n")
     checks = []
     for t in PA_TABLES:
         stg = _PA_STAGE[t]
-        data = local.copy_out(f"SELECT * FROM cpbl.{t} WHERE {scope}")
-        lines.append(f"CREATE TEMP TABLE {stg} (LIKE cpbl.{t} INCLUDING DEFAULTS) ON COMMIT DROP;")
-        lines.append(f"COPY {stg} FROM stdin;")
-        if data.strip():
-            lines.append(data.rstrip("\n"))
-        lines.append("\\.")
-        lines.append(f"DO $boxpa$ BEGIN IF EXISTS (SELECT 1 FROM {stg} WHERE NOT {scope}) THEN "
-                     f"RAISE EXCEPTION 'BOXPA_SCOPE {t} 暫存含目標外的列'; END IF; END $boxpa$;")
+        w(f"CREATE TEMP TABLE {stg} (LIKE cpbl.{t} INCLUDING DEFAULTS) ON COMMIT DROP;\n")
+        w(f"COPY {stg} FROM stdin;\n")
+        local.copy_out_to(f"SELECT * FROM cpbl.{t} WHERE {scope}", out)  # COPY 列各自以 \n 結尾
+        w("\\.\n")
+        w(f"DO $boxpa$ BEGIN IF EXISTS (SELECT 1 FROM {stg} WHERE NOT {scope}) THEN "
+          f"RAISE EXCEPTION 'BOXPA_SCOPE {t} 暫存含目標外的列'; END IF; END $boxpa$;\n")
         override = " OVERRIDING SYSTEM VALUE" if t in _PA_IDENTITY else ""
-        lines.append(f"INSERT INTO cpbl.{t}{override} SELECT * FROM {stg};")
+        w(f"INSERT INTO cpbl.{t}{override} SELECT * FROM {stg};\n")
         checks.append(f"(SELECT count(*) FROM cpbl.{t} WHERE {scope}) <> (SELECT count(*) FROM {stg})")
-    lines.append("DO $boxpa$ BEGIN IF " + " OR ".join(checks) + " THEN "
-                 "RAISE EXCEPTION 'BOXPA_COUNT 寫入後列數與暫存不符'; END IF; END $boxpa$;")
-    return "\n".join(lines) + "\n"
+    w("DO $boxpa$ BEGIN IF " + " OR ".join(checks) + " THEN "
+      "RAISE EXCEPTION 'BOXPA_COUNT 寫入後列數與暫存不符'; END IF; END $boxpa$;\n")
 
 
 _FORBIDDEN = re.compile(r"\b(TRUNCATE|CASCADE|setval|DROP\s+TABLE|ALTER\s+TABLE|refresh_log)\b", re.I)
@@ -278,10 +313,16 @@ _FORBIDDEN = re.compile(r"\b(TRUNCATE|CASCADE|setval|DROP\s+TABLE|ALTER\s+TABLE|
 
 def assert_pa_payload(payload: str, keys: Sequence[GameKey]) -> None:
     """送出前守衛（fail closed）：不在 COPY 資料段的每一行，都必須是本模組產生的形狀。"""
-    scope = keys_sql(keys)
+    assert_pa_lines(payload.splitlines(), keys_sql(keys))
+
+
+def assert_pa_lines(lines: Iterable[str], scope: str) -> None:
+    """:func:`assert_pa_payload` 的逐行版本（#353 的 payload 落地成檔後逐行讀，不整份進記憶體）。
+
+    ``lines`` 不含行尾換行；``scope`` 必須與產生 payload 時的同一字串。"""
     in_copy = False
     deletes, inserts = [], []
-    for line in payload.splitlines():
+    for line in lines:
         if in_copy:
             if line == "\\.":
                 in_copy = False

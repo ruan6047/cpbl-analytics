@@ -38,9 +38,11 @@ scripts/refresh-cpbl-prod.sh — 把本機 CPBL 資料同步到 production（四
   4/4  VPS 重跑賽事預測回測與 serving 模型，最後驗證線上 /api/info freshness
 
 會寫什麼（⚠️ 高後果，且沒有 dry-run）
-  · production PostgreSQL：逐表 upsert；game_features 與 PA build 家族為整表重建
+  · production PostgreSQL：逐表 upsert；game_features 為整表重建；PA build 家族逐場替換＋全族對帳
   · production 主機檔案系統：資料庫備份檔、模型 artifact
   · 本機 PostgreSQL：cpbl-scrape-* 與 cpbl-build-features 的寫入
+  · 完整鏈另起可用性哨兵（#353）：logs/availability-sentinel-*.tsv；正式站任一筆 000／≥5s 或 0 樣本
+    即對 .env 的 CPBL_AVAILABILITY_PING_URL 送告警。哨兵結果不影響本腳本成敗
   不要拿這一支來「跑跑看會發生什麼」——它沒有唯讀模式。
 
 怎麼呼叫（不接受位置參數，設定一律走環境變數）
@@ -87,9 +89,13 @@ scripts/refresh-cpbl-prod.sh — 把本機 CPBL 資料同步到 production（四
                 light／sync_only：上述四步一律略過（乙型／甲型只同步）。同步與備份路徑不變。
   DAILY_FORCE_FULL
                 1＝不套 §3.5 閘門，四步照跑（逃生閥）
+  PA_FULL_RESYNC
+                1＝PA 五表改跑全量模式（全部場 DELETE＋重灌，不 TRUNCATE；需 WITH_DETAIL）。
+                只在全族對帳不等、經需求方個案授權時人工指定（#353 D5）；帶 DAILY_DAY_TYPE 一律拒絕
 
 離開碼
   0 成功 · 64 參數錯 · 65 取不到本機 freshness 基準 · 67 同步 payload 驗證失敗
+  完整鏈 PA 五表（#353）：67 簽章／payload 守衛不過（未送） · 68 全族對帳不等 · 72 ssh 失敗 · 74 prod psql 錯誤
   68 POSTSEASON_RESULTS_ONLY 的 data-only 對帳不等（季後晚間鏈：停止當晚）
   ROSTER_ONLY：67 本機名單自檢失敗 · 69 production 尚無名單表（待部署窗口）
                70 同 scope 內容不同拒絕（不寫、不重試） · 71 事後對帳不等 · 72 目標 psql／ssh 失敗
@@ -131,10 +137,81 @@ REPO_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 YEAR="$(date +%Y)"
 PREV="$((YEAR - 1))"
 
+# #353 WP3：/api/info 改為 TTL 60 秒的行程內快取（api/routers/info.py）。下方 freshness 檢查必須讀到
+# 「同步（或 marker）之後才算出」的快取，否則比到的是舊值、資料明明對卻判失敗。這裡只**等快取換代**
+# （讀回應標頭 X-Cpbl-Info-Computed-At，epoch 秒），⛔ 不重試內容比對：換代後的快取仍不符，照樣讓
+# 同步失敗（同 fetch_api_info 的紅線）。標頭不存在（API 尚未部署 WP3、或取不到）＝沒有快取可等，
+# 直接往下。最長約 12×10 秒。
+# ⚠️ 比的是 Mac 的 `date +%s` 與 VPS 的 time.time()：兩邊都走 NTP，若 VPS 慢 N 秒只會多等一輪；
+# 若快 N 秒，最壞讀到同步結束前 N 秒內算出的快取（未量測時鐘差）。
+wait_api_info_cache_since() {  # $1＝epoch 秒
+  local since="$1" at="" i
+  for i in 1 2 3 4 5 6 7 8 9 10 11 12; do
+    at="$(curl -sS -o /dev/null -D - --max-time 20 "$API_INFO_URL" 2>/dev/null \
+      | awk 'tolower($1) == "x-cpbl-info-computed-at:" { gsub(/\r/, "", $2); print $2 }' \
+      | tail -n 1 || true)"
+    [[ "$at" =~ ^[0-9]+$ ]] || return 0
+    [ "$at" -ge "$since" ] && return 0
+    sleep 10
+  done
+  echo "    ⚠ /api/info 快取 ${i} 輪內未換代（computed_at=${at} < ${since}）；照常比對，不符即失敗" >&2
+}
+
+# —— #353 WP4a 每日鏈可用性哨兵（scripts/prod_availability.py sentinel）——
+# 完整鏈在開始碰 production（2/4 備份）前啟動，第 4 步結束後再量 120 秒才判定；任一筆 http=000 或
+# ≥5s、或 0 樣本 ⇒ 告警（#358 同一收件處）。⛔ 哨兵的任何結果都不改變本腳本的成敗：背景執行、
+# 輸出只進 log，wait 的退出碼被丟棄；EXIT trap 保留本腳本原本的退出碼。
+# 停用＝移除下方 start_availability_sentinel 那一行呼叫（規劃 r2 §8 回復方式）。
+SENTINEL_PID=""
+SENTINEL_STOP=""
+# 啟動準備的每一步都隔離錯誤（#353 審核 1 第 3 項）：本函式在 set -e 下同步執行，任何一步失敗
+# 若外洩，就會讓每日鏈以該碼結束。log 目錄建不起來就改寫 TMPDIR；呼叫端再以 `|| …` 兜底。
+start_availability_sentinel() {
+  local out_dir="$REPO_DIR/logs"
+  SENTINEL_STOP="${TMPDIR:-/tmp}/cpbl-sentinel-stop.$$"
+  rm -f "$SENTINEL_STOP" 2>/dev/null || true
+  if ! mkdir -p "$out_dir" 2>/dev/null; then
+    out_dir="${TMPDIR:-/tmp}"
+    echo "    ⚠ 可用性哨兵：logs 目錄建立失敗，紀錄改寫到 ${out_dir}" >&2
+  fi
+  uv run python "$REPO_DIR/scripts/prod_availability.py" sentinel --stop-file "$SENTINEL_STOP" \
+    --base-url "${API_INFO_URL%/api/info}" --env-file "$REPO_DIR/.env" \
+    --out "${out_dir}/availability-sentinel-$(date +%Y%m%d-%H%M%S).tsv" </dev/null &
+  SENTINEL_PID=$!
+  echo "    ⓘ 可用性哨兵已啟動（每 15 秒；結束後再量 120 秒）"
+}
+# 等待有上限（#353 審核 1 第 1 項）：哨兵停止後最長＝tail 120s＋一輪取樣 3×(10+5)s＝165s；
+# 給到 240s，逾時就送 SIGTERM（哨兵收到後以「偵測器自身失敗」告警），⛔ 每日鏈不得被哨兵卡住。
+SENTINEL_WAIT_MAX=240
+stop_availability_sentinel() {
+  [ -n "$SENTINEL_PID" ] || return 0
+  local waited=0
+  echo "    ⓘ 可用性哨兵：收尾量測 120 秒後判定"
+  touch "$SENTINEL_STOP" 2>/dev/null || true
+  while kill -0 "$SENTINEL_PID" 2>/dev/null && [ "$waited" -lt "$SENTINEL_WAIT_MAX" ]; do
+    sleep 1
+    waited=$((waited + 1))
+  done
+  if kill -0 "$SENTINEL_PID" 2>/dev/null; then
+    echo "    ⚠ 可用性哨兵 ${SENTINEL_WAIT_MAX} 秒內未結束，已送 SIGTERM（哨兵以自身失敗告警）" >&2
+    kill "$SENTINEL_PID" 2>/dev/null || true
+  fi
+  wait "$SENTINEL_PID" 2>/dev/null || true
+  SENTINEL_PID=""
+  rm -f "$SENTINEL_STOP" 2>/dev/null || true
+}
+# 單一 EXIT trap（bash 一個訊號只有一個 trap，後設的會蓋掉先設的）：公告暫存清理＋哨兵收尾。
+_on_exit() {
+  local rc=$?
+  rm -rf "${LINEUP_TMP:-}"
+  stop_availability_sentinel || true
+  exit "$rc"
+}
+
 # 原有限投影與自然鍵guard共用於正常/full及LINEUP_ONLY。
 prepare_lineup_copy() {
   LINEUP_TMP="$(mktemp -d)"
-  trap 'rm -rf "$LINEUP_TMP"' EXIT
+  trap _on_exit EXIT
   docker exec "$LOCAL_DB" pg_dump -U cpbl -d cpbl --data-only \
     -t cpbl.game_lineup_announcement_revisions > "$LINEUP_TMP/input.sql"
   # pg_dump 的控制指令不得隨 COPY 資料進 production；只放行固定欄位的單一 COPY。
@@ -575,64 +652,85 @@ sync_advanced_snapshot() {
   echo "    ✓ advanced snapshot（runs/stats/pitch_type/league_summary/pointer 原子晉升）"
 }
 
-# canonical PA build 家族原子同步（INGEST-PA-DAILY1；migrations/066_game_recap_pa_expand.sql；
-# TRUNCATE+全量重灌改法見 INGEST-PA-DAILY1-FIX1／Issue #88）。
+# canonical PA build 家族同步（INGEST-PA-DAILY1；migrations/066_game_recap_pa_expand.sql；
+# FIX1／Issue #88 改成 TRUNCATE＋全量重灌；#353 WP1 再改成逐場增量替換＋事後全族對帳）。
 # 為何不能用通用 sync_table：
 #   1) game_recap_source_revisions/game_plate_appearances/game_pa_events/game_pa_pitch_mappings
-#      四表 PK 皆 GENERATED ALWAYS AS IDENTITY 代理鍵，INSERT 帶入 pg_dump 匯出的既有值
-#      需 OVERRIDING SYSTEM VALUE（同 advanced_ingest_runs 前例）；game_recap_builds 的
+#      四表 PK 皆 GENERATED ALWAYS AS IDENTITY 代理鍵，INSERT 帶入本機既有值需
+#      OVERRIDING SYSTEM VALUE（同 advanced_ingest_runs 前例）；game_recap_builds 的
 #      build_id 是 builder 產生的 uuid（非 identity），走一般 INSERT 即可。
 #   2) 四表彼此 FK 相依（source_revisions ← builds ← plate_appearances ← pa_events／
-#      pitch_mappings；source_revisions 同時被 pitch_mappings 直接參照），INSERT 必須
-#      同一 --single-transaction 依此順序灌入，否則 FK 失敗。
-# id 值直接鏡像本機、不重新分配：本卡「不部署」——cpbl-refresh-recent 只在本機跑，
-# prod 從不獨立寫入這五張表（唯一 writer 是本同步腳本），故無 prod 自產 identity 與
-# 匯入值碰撞風險，與 advanced_ingest_runs「本機↔prod run id 語意已對齊」同一理由。
+#      pitch_mappings；source_revisions 同時被 pitch_mappings 直接參照），寫入必須在同一
+#      --single-transaction 內「子→父 DELETE、父→子 INSERT」，否則 FK 失敗。
 #
-# 為何改 TRUNCATE 而非 ON CONFLICT upsert（FIX1 根因，首次真實生產同步實測炸裂）：
-# 2026-08-03 有一次一次性 ad-hoc 手動同步（見 INGEST-PA-DAILY1.md Log），對 prod 留下
-# 「內容相同、id 不同」的 game_recap_source_revisions 舊列。舊版 ON CONFLICT (id) 對不到
-# 那些列（衝突鍵是 id，來源 id 與舊列 id 不同→不觸發 UPDATE），退回一般 INSERT 又撞上
-# (year,kind_code,game_sno,source_kind,source_sha256) 內容唯一鍵
-# （game_recap_source_revisions_year_kind_code_game_sno_source__key）→ 整個
-# --single-transaction 回滾（prod 未污染，仍是同步前狀態）。只要 prod 曾有任何一次
-# id 與本機不同步的手動寫入，同一 class 的錯誤就會再發生；TRUNCATE 徹底消滅 id 漂移
-# 殘留列，是唯一能讓「每日全量重灌」真正對 id 漂移免疫的作法（比照下方 game_features
-# 既有 TRUNCATE 先例，理由相同：derived 資料、prod 非獨立 writer，可安全整表重建）。
+# 不變量（FIX1 起至今不變）：id 值直接鏡像本機、不重新分配。cpbl-refresh-recent 只在本機跑，
+# prod 從不獨立寫入這五張表（唯一 writer 是本同步腳本與晚間鏈同形狀的目標場替換），故無 prod
+# 自產 identity 與匯入值碰撞風險，與 advanced_ingest_runs「本機↔prod run id 語意已對齊」同一理由。
+# payload 不含 setval（prod 對這五表從不自行配號，序列值從不被讀取）。
 #
-# 五表在同一條 TRUNCATE 陳述式內列出（非個別五條）：Postgres 只要求「被參照表與參照表
-# 同時出現在同一 TRUNCATE 命令」，不檢查列出順序，故不需要 CASCADE（CASCADE 會波及
-# 「未列出但仍參照這 5 表的其他表」，此處刻意不用、以免意外波及未知表）。已逐一 grep
-# 全部 migrations 確認：除這 5 表彼此互相參照外，沒有其他表對它們建 FK
-# （見 INGEST-PA-DAILY1-FIX1 驗證留痕），故列出這 5 張即完整覆蓋。
-# TRUNCATE 與其後 INSERT 同在一個 --single-transaction 內（非分兩次呼叫，與下方
-# game_features 前例的兩段式不同——PA 家族有跨表 FK、blast radius 較大，要求更嚴格的
-# 原子性）：中途任何一步失敗即整體回滾，prod 維持同步前原狀，不留半殘表。
-# 不需要 RESTART IDENTITY：所有列都以 OVERRIDING SYSTEM VALUE 明確帶入本機 id，
-# 序列本身的下一個值從不被讀取（prod 對這 5 表從不自行 INSERT）。
+# ⛔ 不得改回以 id 當衝突鍵的 ON CONFLICT upsert（FIX1 根因）：2026-08-03 一次 ad-hoc 手動同步在
+# prod 留下「內容相同、id 不同」的 game_recap_source_revisions 舊列；ON CONFLICT (id) 對不到它們、
+# 退回一般 INSERT 又撞上 (year,kind_code,game_sno,source_kind,source_sha256) 內容唯一鍵，整個交易
+# 回滾。現行做法的衝突處理單位是「場」不是 id：被替換的場先刪掉該場**全部**列再插入，所以那類殘留
+# 只要所在的場被替換就一併清掉。
 #
-# ON CONFLICT 子句已移除（不是遺漏）：TRUNCATE 與 INSERT 同一交易內，INSERT 執行時
-# 目標表保證清空，不可能真的觸發衝突；留著舊 ON CONFLICT (id) 只會誤導讀者以為這裡
-# 仍是「增量 upsert」語意——那正是本次事故的根因（id 對不上舊列、退回撞內容唯一鍵）。
-# 若未來要改回非 TRUNCATE 的增量同步，須重新設計 conflict 鍵（比照本機 pa_build 寫入
-# 契約逐表另行論證），不能只是加回這裡移除的舊子句。
+# 為何不再 TRUNCATE（#353，研究 2 正式站實測）：TRUNCATE 取 ACCESS EXCLUSIVE、一路持有到 commit，
+# 正式站每天約 7 分 20 秒；期間讀 PA 表的 API 請求全部排隊，連線池 8 條被占滿，連 /api/info 都等不到
+# 連線（每日鏈期間正式站無回應的主因）。DELETE 只取 ROW EXCLUSIVE，讀者走 MVCC 看到交易前快照。
+#
+# 現行流程（cpbl.ingest.pa_incremental，與晚間鏈 boxpa_sync 同一個 payload 產生器與守衛）：
+#   1) 本機與 prod 各算每場簽章（builds 全列含 state ＋ source_revisions id 集合）；差異場＝簽章不同
+#      ∪ 只在一邊。0 場不送。差異場超過上限＝簽章失準，拒絕（67），⛔ 不自動降級成全量。
+#   2) 只對差異場送單交易 payload：交易內 lock／statement timeout、prod 端 FK 閉包守衛、子→父 DELETE
+#      目標鍵、父→子 OVERRIDING SYSTEM VALUE 插入、寫入後列數自檢；送出前逐行斷言無 TRUNCATE／
+#      CASCADE／setval 且 DELETE 只限目標鍵（payload 先落地成檔再斷言，不是管線過濾器）。
+#   3) 全族對帳：五表總列數＋各表 max(identity)＋published build 集合，本機與 prod 必須相等；
+#      不等 ⇒ 68，整條鏈停在這裡（fail-closed），交需求方決定是否授權全量模式。
+#   全量模式 PA_FULL_RESYNC=1：同一產生器、scope＝全部場（WHERE TRUE），不 TRUNCATE、讀者不被擋，
+#   但寫入量與 WAL 約為 TRUNCATE 的 1.5 倍、表暫時膨脹約 2 倍（規劃 r2 P1），只能人工指定；每日鏈
+#   （帶 DAILY_DAY_TYPE）一律拒絕。跑完建議 VACUUM (ANALYZE) 五表（不取強鎖）。
+#
+# 刪除的連帶效果：FK 的 ON DELETE CASCADE 因子表先刪而無列可波及；FK 閉包守衛在交易內先擋下任何跨場
+# 參照（DELETE 目標場會讓別場列失去參照的情形）。已 grep 全部 migrations：除這 5 表彼此互相參照外，
+# 沒有其他表對它們建 FK（INGEST-PA-DAILY1-FIX1 驗證留痕）。
 sync_pa_build() {
-  {
-    echo "TRUNCATE cpbl.game_recap_source_revisions, cpbl.game_recap_builds, cpbl.game_plate_appearances, cpbl.game_pa_events, cpbl.game_pa_pitch_mappings;"
-    _stage game_recap_source_revisions _pa_rev
-    echo "INSERT INTO cpbl.game_recap_source_revisions OVERRIDING SYSTEM VALUE SELECT * FROM _pa_rev;"
-    _stage game_recap_builds _pa_build
-    echo "INSERT INTO cpbl.game_recap_builds SELECT * FROM _pa_build;"
-    _stage game_plate_appearances _pa_pa
-    echo "INSERT INTO cpbl.game_plate_appearances OVERRIDING SYSTEM VALUE SELECT * FROM _pa_pa;"
-    _stage game_pa_events _pa_ev
-    echo "INSERT INTO cpbl.game_pa_events OVERRIDING SYSTEM VALUE SELECT * FROM _pa_ev;"
-    _stage game_pa_pitch_mappings _pa_map
-    echo "INSERT INTO cpbl.game_pa_pitch_mappings OVERRIDING SYSTEM VALUE SELECT * FROM _pa_map;"
-  } | ssh -o BatchMode=yes "$VPS" \
+  local payload rc mode="增量" full_args=() local_psql target_psql
+  if [ "${PA_FULL_RESYNC:-0}" = 1 ]; then
+    mode="全量（PA_FULL_RESYNC=1，人工指定）"
+    full_args=(--full)
+  fi
+  local_psql="docker exec -i ${LOCAL_DB} psql -X -U cpbl -d cpbl"
+  target_psql="ssh -o BatchMode=yes ${VPS} 'cd ${DEPLOY_PATH} && set -a && . ./.env && docker exec -i prod_pg psql -X -U \"\$DB_USER\" -d \"\$DB_NAME\"'"
+  echo "    ⓘ PA 同步開始 $(date '+%F %T')（${mode}）"
+  payload="$(mktemp "${TMPDIR:-/tmp}/cpbl-pa-sync.XXXXXX")"
+  # 非零（67 守衛不過／72 ssh／74 prod psql）在 set -e 下原碼結束：未送出任何寫入。
+  uv run python -m cpbl.ingest.pa_incremental payload --local-psql "$local_psql" \
+    --target-psql "$target_psql" --out "$payload" ${full_args[@]+"${full_args[@]}"}
+  if [ -s "$payload" ]; then
+    rc=0
+    ssh -o BatchMode=yes "$VPS" \
         "cd ${DEPLOY_PATH} && set -a && . ./.env && docker exec -i prod_pg psql \
-          -v ON_ERROR_STOP=1 -q --single-transaction -U \"\$DB_USER\" -d \"\$DB_NAME\""
-  echo "    ✓ canonical PA build（TRUNCATE + 全量重灌：source_revisions/builds/plate_appearances/pa_events/pitch_mappings 原子同步）"
+          -v ON_ERROR_STOP=1 -q --single-transaction -U \"\$DB_USER\" -d \"\$DB_NAME\"" \
+        < "$payload" || rc=$?
+    if [ "$rc" -ne 0 ]; then
+      echo "FATAL: PA 五表替換失敗 rc=${rc}（單交易已回滾；payload 保留於 ${payload}）" >&2
+      [ "$rc" -eq 255 ] && exit 72
+      exit 74
+    fi
+  else
+    echo "    · PA：本機與 production 每場簽章相同，沒有要替換的場（未送）"
+  fi
+  rm -f "$payload"
+  rc=0
+  uv run python -m cpbl.ingest.pa_incremental reconcile --local-psql "$local_psql" \
+    --target-psql "$target_psql" || rc=$?
+  echo "    ⓘ PA 同步結束 $(date '+%F %T')"
+  if [ "$rc" -ne 0 ]; then
+    echo "FATAL: PA 五表全族對帳未通過 rc=${rc}（已寫入的場保留；見上方 PA_RECONCILE）。" >&2
+    echo "       ⛔ 不自動重跑；交需求方決定是否授權 PA_FULL_RESYNC=1（規劃 r2 D5）。" >&2
+    exit "$rc"
+  fi
+  echo "    ✓ canonical PA build（${mode}：逐場替換＋全族對帳相等）"
 }
 
 # 官方狀態觀測軌跡兩表（`game_schedule_status_revisions`／`game_source_revisions`）。
@@ -644,7 +742,7 @@ sync_pa_build() {
 # （見 sync_pa_build 上方註解）。故這裡**不搬 id**：以顯式欄位清單插入、讓 prod 自己
 # 配號，衝突鍵改用各表真正的內容唯一鍵（migration 061 的 UNIQUE CONSTRAINT）。
 #
-# 為何也不比照 sync_pa_build 用 TRUNCATE 全量重灌：那五表是可由 livelog 重算的 derived
+# 為何也不比照 #353 之前的 sync_pa_build 用 TRUNCATE 全量重灌：那五表是可由 livelog 重算的 derived
 # 產物，這兩表是「我們在哪個時點觀測到官網說什麼」的軌跡本身（fetched_at 首見、
 # last_seen_at 末見、seen_count 觀測次數），且沒有 FK 網要求原子重建。增量 upsert 足夠，
 # 不必每天把 prod 的軌跡列整批重寫。
@@ -692,8 +790,10 @@ sync_pa_build() {
 #   4. 每表印一行不變量遙測：`zone_before` 就是舊碼當天會踩到的地雷區大小，讓綠燈自帶
 #      差分證據（`zone_before=0` 的那天只是僥倖日，不構成修法有效的證據）。
 #
-# `sync_pa_build`／`sync_advanced_snapshot` 續用 `_stage`、**不得**改用 `_stage_noseq`：
-# 那兩者以 `OVERRIDING SYSTEM VALUE` 明確鏡像本機 id，dump 的 setval 在那裡是**對的**。
+# `sync_advanced_snapshot`／`mirror_table` 續用 `_stage`、**不得**改用 `_stage_noseq`：
+# 它們以 `OVERRIDING SYSTEM VALUE` 明確鏡像本機 id，dump 的 setval 在那裡是**對的**。
+# `sync_pa_build` 自 #353 起不再經 `_stage`：payload 由 cpbl.ingest.pa_incremental 以
+# `COPY (SELECT …) TO STDOUT` 產生，本來就沒有 setval（且送出前斷言不得出現）。
 
 # `sync_revision_table` 專用暫存：與 `_stage` 同形，但排除該表 identity 序列的資料。
 _stage_noseq() {  # $1=來源表  $2=暫存表名  $3=該表 id 欄的序列名
@@ -797,7 +897,7 @@ ON CONFLICT (${pk}) DO UPDATE SET $(_excl "$@");"
 #     拿 id 當衝突鍵就是 game_recap_source_revisions 事故的形狀（見 sync_pa_build 上方註解），
 #     而 sync_revision_table 需要內容唯一鍵。
 #   - championship_members：本機 builder 每次 TRUNCATE 重建；sync_table 會讓本機已移除的列殘留在 prod。
-# 形狀同 sync_pa_build：`_stage`（**非** `_stage_noseq`）——dump 帶出的 setval 把 prod 序列設成本機值，
+# 形狀同 sync_advanced_snapshot：`_stage`（**非** `_stage_noseq`）——dump 帶出的 setval 把 prod 序列設成本機值，
 # 與 OVERRIDING SYSTEM VALUE 明確帶入的本機 id 一致，是對的（見 sync_revision_table 上方說明）。
 # 前提：prod 不是這些表的權威 writer，本機值整表覆蓋 prod（#344 需求方裁定：以本機為準）。
 # 第二參數 `identity`：該表有 GENERATED ALWAYS identity 欄，INSERT 需 OVERRIDING SYSTEM VALUE。
@@ -931,6 +1031,7 @@ if [ -n "${POSTSEASON_RESULTS_ONLY:-}" ]; then
   echo '==> 季後晚間：三表＋異動訊號表非破壞性 upsert（games／官方狀態軌跡兩表／official_change_signals）'
   sync_postseason_results
   echo '==> 季後晚間：對帳 production 真實資料 freshness（data-only；不寫 refresh 標記）'
+  wait_api_info_cache_since "$(date +%s)"
   # 對帳不等（或取不到 /api/info）回專屬的 68：核定規劃對它的處置是「記失敗並停止當晚」，
   # 與 64–67／psql 錯誤的「立即停、bootout、交人工」不同，故不得與其他非零碼混用。
   if ! curl -fsS --retry 3 --retry-delay 15 --max-time 20 "$API_INFO_URL" \
@@ -1059,6 +1160,20 @@ remote_outcome_model_metrics() {
     "cd ${DEPLOY_PATH} && set -a && . ./.env && docker exec prod_pg psql -At -U \"\$DB_USER\" -d \"\$DB_NAME\" -c \"SELECT json_build_object('model', (SELECT cv_metrics FROM cpbl.model_versions WHERE task = 'outcome' ORDER BY trained_at DESC LIMIT 1), 'features_completed', (SELECT json_object_agg(season, n) FROM (SELECT season, count(*) AS n FROM cpbl.game_features WHERE completed GROUP BY season) s))::text\"" \
     2>/dev/null | tail -n 1 || true
 }
+# #353 WP1：PA 全量模式只能人工指定——在任何備份／寫入之前就擋下每日鏈與錯誤的值。
+case "${PA_FULL_RESYNC:-0}" in
+  0) ;;
+  1)
+    if [ -n "${DAILY_DAY_TYPE:-}" ] || [ -z "${WITH_DETAIL:-}" ]; then
+      echo 'FATAL: PA_FULL_RESYNC=1 只能人工指定（不得帶 DAILY_DAY_TYPE），且需 WITH_DETAIL=1（未備份、未寫入）' >&2
+      exit 64
+    fi
+    ;;
+  *)
+    echo "FATAL: PA_FULL_RESYNC 只接受 0 或 1：${PA_FULL_RESYNC}" >&2
+    exit 64
+    ;;
+esac
 RUN_OUTCOME=1
 RUN_SIMPLE=1
 OUTCOME_REASON="未套閘門（手動直呼或 DAILY_FORCE_FULL=1）"
@@ -1151,6 +1266,9 @@ if [ -z "$EXPECTED_LAST_GAME_DATE" ] || ! [[ "$EXPECTED_COMPLETED" =~ ^[0-9]+$ ]
   echo "FATAL: 無法取得本機 freshness 基準：${LOCAL_FRESHNESS}" >&2
   exit 65
 fi
+
+trap _on_exit EXIT
+start_availability_sentinel || echo "    ⚠ 可用性哨兵啟動失敗（不影響本次同步）" >&2
 
 echo "==> 2/4 備份 production 資料庫（整庫：cpbl ＋ 主站 public）"
 BACKUP_PATH="$(VPS="$VPS" DEPLOY_PATH="$DEPLOY_PATH" "$REPO_DIR/scripts/backup-prod-db.sh")"
@@ -1281,7 +1399,7 @@ if [ -n "${WITH_DETAIL:-}" ]; then
   # 故整表鏡像（見 mirror_table）。
   mirror_table box_pitching_revisions identity
   # canonical PA build（INGEST-PA-DAILY1）：衍生自上面剛同步的 game_livelog／pitch_tracking／
-  # batting_gamelog／pitching_gamelog，故放在其後；父子表 FK 順序見檔首 sync_pa_build。
+  # batting_gamelog／pitching_gamelog，故放在其後；逐場增量替換＋全族對帳見 sync_pa_build（#353）。
   sync_pa_build
   # 隊伍比較摘要（#287 S06）：衍生自本機 gamelog（每日鏈 builder 已在爬取後建置），故排在 gamelog
   # 同步之後。insert-only＋單交易＋事後對帳在 Python 模組；整庫備份已於 2/4 完成。
@@ -1299,6 +1417,7 @@ if [ -n "${WITH_DETAIL:-}" ]; then
   # 同一寫入者（cpbl-backfill-season）的守備表；#344 前只同步了打／投兩表。
   sync_table fielding_seasons "player_id,year,team_id,pos" team_name g tc po a e dp tp pb cs sb
 fi
+SYNC_DONE_AT="$(date +%s)"   # 3/4 寫入全部結束；freshness 檢查等 /api/info 快取在此之後換代
 
 # 遠端跑訓練並**保留 trainer 的 exit code**。ssh 回傳的是遠端命令串最後一個指令的碼，
 # 遠端 shell（登入 shell 可能是 sh／dash）沒有 pipefail，所以
@@ -1373,6 +1492,7 @@ else
 fi
 
 echo "    + 對帳 production 真實資料 freshness"
+wait_api_info_cache_since "$SYNC_DONE_AT"
 fetch_api_info \
   | python3 "$REPO_DIR/scripts/verify_refresh_info.py" --data-only \
       --expected-last-game-date "$EXPECTED_LAST_GAME_DATE" \
@@ -1386,7 +1506,10 @@ ssh -o BatchMode=yes "$VPS" \
     ('prod-sync', CURRENT_DATE, CURRENT_DATE, jsonb_build_object('source', 'local-refresh'), true, \
     'local-to-production sync completed')\""
 
+MARKER_AT="$(date +%s)"
+
 echo "    + 驗證 production API freshness"
+wait_api_info_cache_since "$MARKER_AT"
 fetch_api_info \
   | python3 "$REPO_DIR/scripts/verify_refresh_info.py" --max-age-minutes 15 \
       --expected-last-game-date "$EXPECTED_LAST_GAME_DATE" \

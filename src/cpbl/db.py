@@ -14,6 +14,12 @@ from cpbl.config import settings
 
 _pool: ConnectionPool | None = None
 
+# psycopg_pool 的借池等待預設值；非 API 行程（migrate、訓練、ingest CLI）一律維持它。
+DEFAULT_POOL_TIMEOUT_SECONDS = 30.0
+_pool_timeout: float = DEFAULT_POOL_TIMEOUT_SECONDS
+# API 行程專用的 session 逾時（statement_timeout_ms, lock_timeout_ms）；None＝不設（#353 WP2）。
+_api_session: tuple[int, int] | None = None
+
 # 業務日期一律台北。中職**不可能在其他時區比賽**（全史 1990–2026 共 28 個球場全在台灣），
 # 所以「今天」只有一個意思。在此之前 session timezone 是 UTC——那不是有人選的，是預設值
 # 漏進來的，於是每個呼叫點各自決定日界（DATA-TZ-BOUNDARY-SUCCESSION1）。
@@ -56,6 +62,11 @@ def _configure(c: psycopg.Connection) -> None:
     :data:`SESSION_TIMEZONE` 的不變量說明。
     """
     c.execute(f"SET TIME ZONE '{SESSION_TIMEZONE}'")
+    if _api_session is not None:
+        statement_ms, lock_ms = _api_session
+        # 值已在 configure_api_timeouts 驗為非負 int，才內插（SET 不吃參數化）。
+        c.execute(f"SET statement_timeout = {statement_ms:d}")
+        c.execute(f"SET lock_timeout = {lock_ms:d}")
     c.commit()  # configure 回傳前必須結束交易，否則 pool 會丟棄該連線（INTRANS）
 
 
@@ -74,12 +85,53 @@ def _migrations_dir() -> Path:
     raise RuntimeError("找不到 migrations 目錄（設 CPBL_MIGRATIONS_DIR 或確認 *.sql 存在）")
 
 
+def configure_api_timeouts(
+    *, pool_timeout_s: float, statement_timeout_ms: int, lock_timeout_ms: int
+) -> None:
+    """只給 API 行程（``cpbl.api.main`` 的 lifespan）呼叫：借池逾時＋session 逾時（#353 WP2）。
+
+    為什麼：每日鏈 PA 同步持 ACCESS EXCLUSIVE 時，等鎖的讀取會把 8 條連線全占住，其他請求
+    （含 ``/api/info``）在借池處排隊到 psycopg_pool 預設 30 秒——外部看來就是無回應（研究 2）。
+    逾時讓卡住的請求在數秒內以錯誤結束、連線歸還，而不是整池陪葬。
+
+    性質是**保險**（規劃 r3）：逾時逐條語句計時，⛔ 不宣稱請求總耗時的上界（依序跑多條語句的
+    請求可能超過 5s；驗收由正式站實測判定，需求方裁定 #353 issuecomment-6407637686）。
+
+    ⛔ **設定點只能是 ``_configure``（建立連線時、以 session 層級 SET、結尾 commit 回到 IDLE）**；
+    :func:`conn` 借出前⛔ 不得對連線執行任何語句。借出前送語句會在非 autocommit 下隱式開交易，
+    呼叫者的 ``c.transaction()`` 就變成 savepoint，``SET TRANSACTION ISOLATION LEVEL REPEATABLE READ``
+    （watch_reader）會因不是交易第一條語句而失敗——#353 審核 2 第 2 項，aed693be 的
+    請求預算正是這個形狀（已移除）。回歸：``tests/test_api_db_timeouts_353.py``。
+
+    ⛔ **作用域是行程**：``migrate()``、``cpbl-train*``、ingest CLI 是各自的行程、從不經過
+    API lifespan，合法地會跑超過 statement_timeout，所以本函式不得在 import 時或 CLI 路徑呼叫
+    （碼面守衛：``tests/test_api_db_timeouts_353.py``）。``0`` 依 PostgreSQL 語意＝不設限。
+
+    ⚠️ 只對**之後建立**的連線生效（``_configure`` 只在建立連線時跑）：若池已存在就先關掉，
+    下一次 :func:`pool` 以新設定重建。仍遵守 :data:`SESSION_TIMEZONE` 的不變量——這裡只加
+    逾時，不動時區。
+    """
+    global _pool, _pool_timeout, _api_session
+    if not pool_timeout_s > 0:
+        raise ValueError(f"pool_timeout_s 必須 > 0：{pool_timeout_s!r}")
+    for name, value in (("statement_timeout_ms", statement_timeout_ms),
+                        ("lock_timeout_ms", lock_timeout_ms)):
+        if not isinstance(value, int) or value < 0:
+            raise ValueError(f"{name} 必須是非負整數（毫秒）：{value!r}")
+    if _pool is not None:
+        _pool.close()
+        _pool = None
+    _pool_timeout = float(pool_timeout_s)
+    _api_session = (statement_timeout_ms, lock_timeout_ms)
+
+
 def pool() -> ConnectionPool:
     """惰性建立全域連線池。"""
     global _pool
     if _pool is None:
         _pool = ConnectionPool(
-            settings.database_url, min_size=1, max_size=8, open=True, configure=_configure
+            settings.database_url, min_size=1, max_size=8, open=True, configure=_configure,
+            timeout=_pool_timeout,
         )
     return _pool
 
