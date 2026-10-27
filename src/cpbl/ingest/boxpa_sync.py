@@ -22,6 +22,7 @@
   ``ssh … docker exec -i prod_pg psql``）。⛔ 不呼叫 ``prod_cpbl_api``、不 migrate、不訓練、不寫 refresh 標記。
 * **對帳**：逐表、逐場列數（本機 vs production）＋ PA published build_id；不用
   ``game_source_revisions.row_count``（livelog 該值比實表多 1 的語意未查，PLAN §14）。
+  送了 box 時另核目標場 livelog／scoreboard 來源觀測紀錄的**當前列**（#355 WP-S，見 :func:`reconcile`）。
 
 離開碼（shell 端照原碼結束，晚間鏈據此判斷）：
   0 成功 · 64 參數錯 · 67 本機自檢／FK 閉包不成立（不送）· 68 對帳不等
@@ -44,6 +45,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import TextIO
 
+from cpbl.api.helpers import SOURCE_REVISION_ORDER_BY
 from cpbl.ingest._cli import cli_parser
 
 EXIT_USAGE = 64
@@ -69,6 +71,10 @@ PA_TABLES: tuple[str, ...] = (
     "game_recap_source_revisions", "game_recap_builds", "game_plate_appearances",
     "game_pa_events", "game_pa_pitch_mappings",
 )
+# #355 WP-S：box 有送的那次一併送、一併核的來源觀測紀錄（`/status` 的 play_by_play_availability 讀這兩個）。
+# 送出端在 refresh-cpbl-prod.sh 的 sync_box_source_revisions；兩邊同一組（tests/test_boxpa_sync_mode.py 釘住）。
+BOX_REVISION_SOURCES: tuple[str, ...] = ("livelog", "scoreboard")
+
 # 有 GENERATED ALWAYS identity 的四表需 OVERRIDING SYSTEM VALUE；builds 的 build_id 是 uuid。
 _PA_IDENTITY = {"game_recap_source_revisions", "game_plate_appearances", "game_pa_events",
                 "game_pa_pitch_mappings"}
@@ -225,6 +231,24 @@ def counts(db: Psql, keys: Sequence[GameKey], tables: Iterable[str]) -> dict[str
     return out
 
 
+def current_source_revisions(db: Psql, keys: Sequence[GameKey]) -> dict[str, dict[str, list[str] | None]]:
+    """目標場 livelog／scoreboard 的**當前列**（版本、outcome、last_seen_at）。沒有列的來源記 ``None``。
+
+    選列規則與 ``/api/v1/games/{sno}/status`` 同一份（``SOURCE_REVISION_ORDER_BY``）——對帳核的就是
+    `/status` 會讀到的那一列。``last_seen_at`` 取 epoch 文字，避免兩端 session TimeZone 不同而誤判不等。"""
+    sources = ",".join(f"'{s}'" for s in BOX_REVISION_SOURCES)
+    rows = db.read(
+        "SELECT DISTINCT ON (year, kind_code, game_sno, source) year||'-'||kind_code||'-'||game_sno, source, "
+        "source_version, outcome, extract(epoch FROM last_seen_at)::text "
+        f"FROM cpbl.game_source_revisions WHERE source IN ({sources}) AND {keys_sql(keys)} "
+        f"ORDER BY year, kind_code, game_sno, source, {SOURCE_REVISION_ORDER_BY}")
+    out: dict[str, dict[str, list[str] | None]] = {k.text: dict.fromkeys(BOX_REVISION_SOURCES) for k in keys}
+    for key, source, *value in rows:
+        if key in out and source in out[key]:
+            out[key][source] = value
+    return out
+
+
 def prod_completed(db: Psql, keys: Sequence[GameKey]) -> set[str]:
     """production 的 games 是否已依 ``cpbl.completion``（新判準＝API 用的那支）判為完賽。"""
     from cpbl.completion import completed_games_sql_with_evidence
@@ -352,18 +376,27 @@ def reconcile(local: Psql, target: Psql, keys: Sequence[GameKey], pa_keys: Itera
               parts: Iterable[str] = ("box", "pa")) -> dict:
     """逐表逐場對帳。回傳 manifest；``ok`` 為 False 時 shell 以 68 結束。
 
-    * box：七表逐場列數相等（本次沒送 box 時 ``box_ok=None``，不參與 ``ok``）。
+    * box：七表逐場列數相等，**且**目標場 livelog／scoreboard 來源觀測紀錄的當前列兩邊相同
+      （#355 WP-S；本次沒送 box 時 ``box_ok=None``、不查也不參與 ``ok``）。
+      併進 ``box_ok`` 而不另立欄位：紀錄未到時走既有 68 重送一次→conflict，``postseason_sources.classify``
+      判未送達、不會記 delivered（不新增狀態、額度或退出碼；PLAN-1 §2.2）。
     * PA：``pa_keys``（本機有 published 的場）五表逐場列數相等，且 published build_id 相同。
     """
     pa_keys = set(pa_keys)
+    box_sent = "box" in set(parts)
     tables = (*BOX_TABLES, *PA_TABLES)
     lc, tc = counts(local, keys, tables), counts(target, keys, tables)
     lpub, tpub = published_builds(local, keys), published_builds(target, keys)
+    if box_sent:
+        lrev, trev = current_source_revisions(local, keys), current_source_revisions(target, keys)
     games = {}
     ok = True
     for k in keys:
         box = {t: {"local": lc[t][k.text], "prod": tc[t][k.text]} for t in BOX_TABLES}
-        box_ok = all(v["local"] == v["prod"] for v in box.values()) if "box" in set(parts) else None
+        box_revisions = ({s: {"local": lrev[k.text][s], "prod": trev[k.text][s]} for s in BOX_REVISION_SOURCES}
+                         if box_sent else None)
+        box_ok = (all(v["local"] == v["prod"] for v in box.values())
+                  and all(v["local"] == v["prod"] for v in box_revisions.values())) if box_sent else None
         pa = {t: {"local": lc[t][k.text], "prod": tc[t][k.text]} for t in PA_TABLES}
         if k.text in pa_keys:
             pa_ok = (all(v["local"] == v["prod"] for v in pa.values())
@@ -371,8 +404,8 @@ def reconcile(local: Psql, target: Psql, keys: Sequence[GameKey], pa_keys: Itera
         else:
             pa_ok = None   # 本次未送 PA
         ok = ok and box_ok is not False and pa_ok is not False
-        games[k.text] = {"box": box, "box_ok": box_ok, "pa": pa, "pa_sent": k.text in pa_keys,
-                         "pa_ok": pa_ok, "published_build_local": lpub.get(k.text),
+        games[k.text] = {"box": box, "box_ok": box_ok, "box_revisions": box_revisions, "pa": pa,
+                         "pa_sent": k.text in pa_keys, "pa_ok": pa_ok, "published_build_local": lpub.get(k.text),
                          "published_build_prod": tpub.get(k.text)}
     return {"at": datetime.now(UTC).isoformat(), "ok": ok, "games": games}
 

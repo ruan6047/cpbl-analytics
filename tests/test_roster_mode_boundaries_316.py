@@ -65,9 +65,13 @@ def _outside_roster(data):
 # 舊值：區塊之前 938409e1…f1dd（17778 bytes）、區塊之後 b0995b12…b7aa（69032 bytes）。
 # #353 審核 1 修正（同卡；只改基準、保護不減）：哨兵啟動錯誤隔離與有界等待（區塊之前 21346 → 22468 bytes）、
 # 啟動呼叫加 `|| …` 兜底（區塊之後 71058 → 71135 bytes）。ROSTER_ONLY 區塊未動。
+# #355 WP-S（需求方核定 #355 issuecomment-6371878740 第 2 項：只改「區塊之後」基準、保護不減）：區塊之後新增
+# sync_box_source_revisions 與 POSTSEASON_BOXPA_ONLY 段送 box 時呼叫它（71135 → 76701 bytes）；區塊之前未變。
+# 舊值：區塊之後 07984ad1…37d4（71135 bytes，origin/main 33a38248）。LINEUP_ONLY／RESULTS_ONLY 對 BASE 的
+# 逐項比對（下方 test_existing_modes_…）未改、仍綠。
 OUTSIDE_ROSTER_SHA256 = (
     "2e54518d330e9d3b804dd61e76b837a149172676547a1898bde2021d952ab92f",   # 區塊之前（22468 bytes）
-    "07984ad1aa597332677d4d0bb0b93af6481a92b6274b5c9d3575a42a67db37d4",   # 區塊之後（71135 bytes）
+    "714cfc0cfbdbc0204e42ee3b8f2a91d50fc58291b691b22760ade107ccf8854e",   # 區塊之後（76701 bytes）
 )
 # #316 的成果（ROSTER_ONLY 區塊本身）以 main 上合併後的版本為準：#293 不得改動它。
 ROSTER_RESULT = "a473695dfca536e365b08c44aa2e85374e8f3e69"
