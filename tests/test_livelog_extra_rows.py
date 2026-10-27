@@ -124,8 +124,13 @@ def scrape_harness(monkeypatch):
     monkeypatch.setattr(cpbl_gamelog, "_upsert", lambda _t, _c, _pk, rows: len(rows))
     monkeypatch.setattr(cpbl_gamelog, "record_source_revision", lambda **_k: None)
     monkeypatch.setattr(cpbl_gamelog, "record_box_pitching_revisions", lambda *_a: None)
-    monkeypatch.setattr(cpbl_gamelog, "_replace_livelog_extra",
-                        lambda y, k, s, rows: calls.append((y, k, s, rows)) or len(rows))
+    def _write(y, k, s, data, *, replace_extra):
+        extra = cpbl_gamelog._livelog_extra_rows(y, k, s, data) if replace_extra else []
+        if replace_extra:
+            calls.append((y, k, s, extra))
+        return len(cpbl_gamelog._livelog_rows(y, k, s, data)), len(extra)
+
+    monkeypatch.setattr(cpbl_gamelog, "_write_livelog", _write)
     return calls, payloads
 
 
@@ -172,33 +177,40 @@ def test_scrape_leaves_extra_rows_alone_on_bad_livelog_json(scrape_harness):
 _SENTINEL = (1900, "Z", 357)
 
 
-def test_replace_livelog_extra_deletes_then_writes():
+def test_write_livelog_replaces_extra_rows_in_db():
+    """`_write_livelog` 在隔離庫：殘列被清、標記列寫入；原文無同號組時附加表清空。"""
     from cpbl.db import conn
 
     name, _dup, _marker = CASES[0]
-    rows = [(*_SENTINEL, *r[3:]) for r in _livelog_extra_rows(*_ident(name), _load(name))]
+    data = _load(name)
+    rows = [(*_SENTINEL, *r[3:]) for r in _livelog_extra_rows(*_ident(name), data)]
     stale = (*_SENTINEL, "0000000001", 3, "STALE", *rows[0][6:])
+
+    def _wipe(c):
+        for t in ("game_livelog", "game_livelog_extra"):
+            c.execute(f"DELETE FROM cpbl.{t} WHERE year=%s AND kind_code=%s AND game_sno=%s", _SENTINEL)
+
     try:
         with conn() as c:
-            c.execute("DELETE FROM cpbl.game_livelog_extra WHERE year=%s AND kind_code=%s AND game_sno=%s",
-                      _SENTINEL)
+            _wipe(c)
             c.execute(f"INSERT INTO cpbl.game_livelog_extra ({_LL_EXTRA_COLS}) "
                       f"VALUES ({','.join(['%s'] * len(_XCOLS))})", stale)
     except (psycopg.Error, Exception) as exc:  # noqa: BLE001 — 無 DB／無 079 的環境
         pytest.skip(f"DB 不可用：{type(exc).__name__}")
     try:
-        assert cpbl_gamelog._replace_livelog_extra(*_SENTINEL, rows) == 1
+        n_main, n_extra = cpbl_gamelog._write_livelog(*_SENTINEL, data, replace_extra=True)
+        assert n_extra == 1 and n_main == len(_livelog_rows(*_SENTINEL, data))
         with conn() as c:
             got = c.execute(
                 "SELECT main_event_no, dup_seq, pkno, content FROM cpbl.game_livelog_extra "
                 "WHERE year=%s AND kind_code=%s AND game_sno=%s ORDER BY 1, 2", _SENTINEL).fetchall()
         assert got == [(rows[0][_X_EVENT], 1, rows[0][_X_PKNO], "比賽結束")]
-        assert cpbl_gamelog._replace_livelog_extra(*_SENTINEL, []) == 0
+        no_dup = [r for r in data if r["Content"] != "比賽結束"]
+        assert cpbl_gamelog._write_livelog(*_SENTINEL, no_dup, replace_extra=True)[1] == 0
         with conn() as c:
             n = c.execute("SELECT count(*) FROM cpbl.game_livelog_extra "
                           "WHERE year=%s AND kind_code=%s AND game_sno=%s", _SENTINEL).fetchone()[0]
         assert n == 0
     finally:
         with conn() as c:
-            c.execute("DELETE FROM cpbl.game_livelog_extra WHERE year=%s AND kind_code=%s AND game_sno=%s",
-                      _SENTINEL)
+            _wipe(c)

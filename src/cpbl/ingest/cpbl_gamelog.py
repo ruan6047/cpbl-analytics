@@ -9,6 +9,7 @@ import json
 import logging
 import re
 import time
+from typing import Any
 
 import psycopg
 
@@ -188,27 +189,35 @@ def _livelog_extra_rows(year: int, kind: str, sno: int, data: list[dict]) -> lis
     return out
 
 
-def _replace_livelog_extra(year: int, kind: str, sno: int, rows: list[tuple]) -> int:
-    """該場附加列先刪後寫，同一交易（#357 B1）。
+def _write_livelog(year: int, kind: str, sno: int, data: list[dict], *,
+                   replace_extra: bool) -> tuple[int, int]:
+    """一場 livelog：主表 UPSERT＋附加表先刪後寫，**同一交易**（#357 B1；WP2 審核 1 項 1）。
 
-    為什麼整場先刪：附加列的鍵含 `dup_seq`，原文同號組若變小（官方事後刪列），只 UPSERT
-    會留下殘列，同號守恆就不再成立。只在原文 LiveLogJson 解析成功時呼叫——壞 JSON 時
-    不碰既有附加列（與主表「解析失敗寫 0 列、不清空」同語意）。
+    為什麼同一交易：主列與附加列是同一份原文拆成的兩半，分開提交時附加列失敗會留下「主表
+    已是新來源、附加表仍是舊來源（或空）」，同號守恆失效且無從回滾。
+    為什麼整場先刪附加列：附加列的鍵含 `dup_seq`，原文同號組若變小（官方事後刪列），只
+    UPSERT 會留下殘列。`replace_extra=False`（壞 JSON／原文空）時不碰既有附加列——與主表
+    「解析失敗寫 0 列、不清空」同語意。回傳 (主表列數, 附加表列數)。
     """
-    cols = [c.strip() for c in _LL_EXTRA_COLS.split(",")]
+    main = _livelog_rows(year, kind, sno, data)
+    extra = _livelog_extra_rows(year, kind, sno, data) if replace_extra else []
+    if not main and not replace_extra:
+        return 0, 0
     with conn() as c:
         cur = c.cursor()
-        cur.execute(
-            "DELETE FROM cpbl.game_livelog_extra WHERE year=%s AND kind_code=%s AND game_sno=%s",
-            (year, kind, sno),
-        )
-        if rows:
-            cur.executemany(
-                f"INSERT INTO cpbl.game_livelog_extra ({_LL_EXTRA_COLS}) "
-                f"VALUES ({','.join(['%s'] * len(cols))})",
-                rows,
+        _upsert_cur(cur, "game_livelog", _LL_COLS, 4, main)
+        if replace_extra:
+            cur.execute(
+                "DELETE FROM cpbl.game_livelog_extra WHERE year=%s AND kind_code=%s AND game_sno=%s",
+                (year, kind, sno),
             )
-    return len(rows)
+            if extra:
+                cur.executemany(
+                    f"INSERT INTO cpbl.game_livelog_extra ({_LL_EXTRA_COLS}) "
+                    f"VALUES ({','.join(['%s'] * len(_LL_EXTRA_COLS.split(',')))})",
+                    extra,
+                )
+    return len(main), len(extra)
 
 
 def _bbox_rows(year: int, kind: str, sno: int, data: list[dict]) -> list[tuple]:
@@ -348,17 +357,24 @@ def scrape_game_details(year: int, snos: list[int], kind_code: str = KIND_REGULA
 def _upsert(table: str, cols: str, n_pk: int, records: list[tuple]) -> int:
     if not records:
         return 0
+    with conn() as c:
+        _upsert_cur(c.cursor(), table, cols, n_pk, records)
+    return len(records)
+
+
+def _upsert_cur(cur: Any, table: str, cols: str, n_pk: int, records: list[tuple]) -> None:
+    """`_upsert` 的本體，在呼叫端持有的交易內執行。"""
+    if not records:
+        return
     col_list = [c.strip() for c in cols.split(",")]
     ph = "(" + ",".join(["%s"] * len(col_list)) + ")"
     updates = ", ".join(f"{c}=EXCLUDED.{c}" for c in col_list[n_pk:])
     pk = ", ".join(col_list[:n_pk])
-    with conn() as c:
-        c.cursor().executemany(
-            f"INSERT INTO cpbl.{table} ({cols}) VALUES {ph} "
-            f"ON CONFLICT ({pk}) DO UPDATE SET {updates}",
-            records,
-        )
-    return len(records)
+    cur.executemany(
+        f"INSERT INTO cpbl.{table} ({cols}) VALUES {ph} "
+        f"ON CONFLICT ({pk}) DO UPDATE SET {updates}",
+        records,
+    )
 
 
 def scrape_gamelogs(year: int, snos: list[int], kind_code: str = KIND_REGULAR,
@@ -507,11 +523,11 @@ def scrape_gamelogs(year: int, snos: list[int], kind_code: str = KIND_REGULAR,
         pp, pp_error = _box_rows("PitchingJson")
         out["scoreboard"] += _upsert("game_scoreboard", _SB_COLS, 5,
                                      _scoreboard_rows(year, kind_code, sno, sb))
-        out["livelog"] += _upsert("game_livelog", _LL_COLS, 4,
-                                  _livelog_rows(year, kind_code, sno, ll))
+        n_main, n_extra = _write_livelog(year, kind_code, sno, ll,
+                                         replace_extra=not ll_error and bool(ll))
+        out["livelog"] += n_main
         if not ll_error and ll:
-            out["livelog_extra"] += _replace_livelog_extra(
-                year, kind_code, sno, _livelog_extra_rows(year, kind_code, sno, ll))
+            out["livelog_extra"] += n_extra
             LIVELOG_WRITTEN[(year, kind_code, sno)] = sum(1 for r in ll if r.get("MainEventNo"))
         if not sb_error:
             record_source_revision(
