@@ -131,9 +131,10 @@ elif "last_value" in joined:
     print(local_seq.get(re.search(r"FROM cpbl\\.(\\w+)_id_seq", joined).group(1), 100))
 elif "max(game_date)" in joined:
     print("2026-08-14|300")
-elif re.search(r"SELECT count\\(\\*\\) FROM cpbl\\.\\w+$", joined):
-    # mirror_table（#344）的本機列數 fail-closed 檢查；STUB_MIRROR_COUNT 可模擬 0 列。
-    print(os.environ.get("STUB_MIRROR_COUNT", "3"))
+elif m := re.search(r"SELECT count\\(\\*\\) FROM cpbl\\.(\\w+)$", joined):
+    # mirror_table（#344）的本機列數 fail-closed 檢查；STUB_MIRROR_COUNT 可模擬 0 列，
+    # STUB_COUNT_<表> 只改單一張表（#357 game_livelog_extra 的 0 列略過）。
+    print(os.environ.get(f"STUB_COUNT_{m.group(1)}", os.environ.get("STUB_MIRROR_COUNT", "3")))
 else:
     print("")
 '''

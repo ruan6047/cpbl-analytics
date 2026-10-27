@@ -442,8 +442,9 @@ production 映像尚未部署，先停止同步並完成正常 main deploy，不
 > **#357 `game_livelog_extra`（migration 079）**：本機寫入端每場先刪後寫；它是本機衍生、
 > 正式站無獨立 writer。上線順序：本機先套 079 → 合併 → **同日下一次 10:10 每日鏈前完成主站部署**
 > → 部署成功後主 checkout 才跟上 main（主 checkout 一跟上，寫入端就寫附加表；正式站的表要等
-> 已部署映像在同步時建立）。同步腳本的附加表段落（TRUNCATE＋全量重灌）待 #353→#355→#357
-> 依序合併後補上。
+> 已部署映像在同步時建立）。同步：完整鏈（WITH_DETAIL）在 `game_livelog` 之後以 `mirror_table`
+> 整表鏡像（`sync_livelog_extra`）；本機 0 列時略過、**不清空 prod**（本機刻意清空要人工處理）；
+> 目標場模式（POSTSEASON_BOXPA_ONLY）不含本表，附加列等下一次完整鏈。
 
 ---
 
