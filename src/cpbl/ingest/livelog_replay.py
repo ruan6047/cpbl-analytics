@@ -4,6 +4,8 @@
     uv run cpbl-replay-livelog-extra --raw-dir DIR --ledger L.jsonl --apply \\
         --restore-out restore.jsonl --report report.json                            # 寫入
 
+`SHA256SUMS` 預設在原文目錄內；WP1 產物放在上一層，用 `--sha256sums PATH` 指定。
+
 輸入：原文目錄（`YEAR-KIND-SNO.json.gz`＝`getlive` 回應，附 `SHA256SUMS`；#357 研究 2／WP1 產物）
 ＋ #361 交付的 ledger（格式契約 `~/.wf-evidence/cpbl-analytics/361/exec-1/FORMAT.md`）。
 
@@ -14,16 +16,18 @@
 * 同號多筆只准出現在**最後事件號**（2026 全 608 場皆此形狀）；其他位置有同號組＝新型態，
   交 C1 回看，不寫。
 * 最後事件號以外，每一列主表＝現行寫入端對原文的轉換（逐欄）。
-* 最後事件號那一列：content／is_special_event 以外的欄位＝主列轉換；content／is_special_event
-  為下列三態之一——
-  - `old`：content＝結束標記（現行寫入端修正前的後到者勝）；
-  - `new`：content＝原文第一筆非標記列（今日切片後重爬過）；
+* 原文沒有同號組（含「結束標記自佔事件號」的 85 場）：**最後事件號也要**＝轉換，不符不寫。
+* 有同號組時，最後事件號那一列為下列三態之一——
+  - `old`：**整列**＝原文同號組最後一列（結束標記）的轉換（修正前寫入端的後到者勝，逐欄照實；
+    C1 回看：2018–2020 有 20 場標記列 IsChangePlayer=1，只比 content 會誤拒）；
+  - `new`：content＝原文第一筆非標記列，其餘欄位＝主列轉換（今日切片後重爬過）；
   - `361`：該 PK 在 #361 ledger，且 DB＝ledger `new_content`／`new_is_special_event`，且 ledger
-    的新值＝原文主列（content 依 ledger 的 `crlf_to_lf` 正規化比對）、`raw_sha256`＝原文檔。
-  is_special_event 允許 true 或主列轉換值（#361 方案甲已把它改成原文值）。
+    的新值＝原文主列（content 依 ledger 的 `crlf_to_lf` 正規化比對）、`raw_sha256`＝原文檔；
+    其餘欄位＝主列轉換。
+  `new` 的 is_special_event 允許 true 或主列轉換值（#361 方案甲已把它改成原文值）。
 * 附加表現況：空，或已等於本次要寫的列（冪等重跑）。
 
-寫入（`--apply`）：`old` 改最後一列為主列轉換值＋寫附加列；`new`／`361` 只寫附加列。
+寫入（`--apply`）：`old` 把最後一列**整列**改成主列轉換值＋寫附加列；`new`／`361` 只寫附加列。
 寫前先把該場被改的主表列與附加表現況寫進 `--restore-out`（JSONL、fsync），再在同一交易內
 `SELECT ... FOR UPDATE` 重驗前態後寫入；重驗不過就 rollback 並列為不符。
 
@@ -52,6 +56,7 @@ from cpbl.ingest.cpbl_gamelog import (
     _is_end_marker,
     _livelog_extra_rows,
     _livelog_rows,
+    final_event_no,
 )
 
 log = logging.getLogger("cpbl.livelog_replay")
@@ -103,19 +108,19 @@ def _sha256(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
-def load_sha256sums(raw_dir: Path) -> dict[str, str]:
+def load_sha256sums(raw_dir: Path, sums_path: Path | None = None) -> dict[str, str]:
     sums: dict[str, str] = {}
-    for line in (raw_dir / "SHA256SUMS").read_text().splitlines():
+    for line in (sums_path or raw_dir / "SHA256SUMS").read_text().splitlines():
         if line.strip():
             digest, name = line.split(None, 1)
             sums[name.strip().lstrip("*")] = digest
     return sums
 
 
-def load_raw_games(raw_dir: Path, *, only: set[GameKey] | None = None
-                   ) -> tuple[dict[GameKey, RawGame], dict[str, str]]:
+def load_raw_games(raw_dir: Path, *, only: set[GameKey] | None = None,
+                   sums_path: Path | None = None) -> tuple[dict[GameKey, RawGame], dict[str, str]]:
     """讀原文目錄。回傳 (可用場次, 不可用檔名→原因)。sha256 不符或不在 SHA256SUMS 的檔不收。"""
-    sums = load_sha256sums(raw_dir)
+    sums = load_sha256sums(raw_dir, sums_path)
     games: dict[GameKey, RawGame] = {}
     rejected: dict[str, str] = {}
     for path in sorted(raw_dir.glob("*.json.gz")):
@@ -163,13 +168,6 @@ def load_ledgers(paths: list[Path]) -> dict[tuple[int, str, int, str], dict]:
     return out
 
 
-def _final_event_no(livelog: list[dict]) -> str | None:
-    nos = [str(r["MainEventNo"]) for r in livelog if r.get("MainEventNo")]
-    if not nos:
-        return None
-    return max(nos, key=lambda no: (0, int(no)) if no.isdigit() else (1, no))  # type: ignore[return-value]
-
-
 def decide(raw: RawGame, db_rows: list[tuple], db_extra: list[tuple],
            ledger: dict[tuple[int, str, int, str], dict]) -> Decision:
     """純函式：一場的前態判定與要寫的列。`db_rows`／`db_extra` 依 `_LL_COLS`／`_LL_EXTRA_COLS` 順序。"""
@@ -182,13 +180,14 @@ def decide(raw: RawGame, db_rows: list[tuple], db_extra: list[tuple],
         d.reasons.append(f"event_set_mismatch: db_only={sorted(set(have) - set(want_main))[:5]} "
                          f"raw_only={sorted(set(want_main) - set(have))[:5]}")
         return d
-    final_no = _final_event_no(raw.livelog)
+    final_no = final_event_no(raw.livelog)
     dup_nos = sorted({r[3] for r in want_extra})
     if dup_nos and dup_nos != [final_no]:
         d.reasons.append(f"unexpected_dup_groups: {dup_nos}（只准最後事件號；交 C1 回看）")
         return d
     for no, want in want_main.items():
-        if no != final_no and have[no] != want:
+        # 無同號組時最後事件號也要逐欄相符（C1 回看：原本漏比，末列被改過也會判 no_duplicate）。
+        if (no != final_no or not dup_nos) and have[no] != want:
             d.reasons.append(f"row_mismatch: {no}")
     if d.reasons:
         return d
@@ -200,11 +199,11 @@ def decide(raw: RawGame, db_rows: list[tuple], db_extra: list[tuple],
         return d
 
     want_last, got = want_main[final_no], have[final_no]
+    # 修正前寫入端（後到者勝）寫進去的＝原文同號組最後一列的整列轉換。
+    old_last = _livelog_rows(year, kind, sno,
+                             [[r for r in raw.livelog if r.get("MainEventNo") == final_no][-1]])[0]
     same_others = all(got[i] == want_last[i] for i in range(len(_COLS))
                       if i not in (_I_CONTENT, _I_SPECIAL))
-    if not same_others:
-        d.reasons.append(f"last_row_structured_mismatch: {final_no}")
-        return d
     content, special = got[_I_CONTENT], got[_I_SPECIAL]
     special_ok = special is True or special == want_last[_I_SPECIAL]
     ledger_row = ledger.get((year, kind, sno, final_no))
@@ -215,12 +214,12 @@ def decide(raw: RawGame, db_rows: list[tuple], db_extra: list[tuple],
                 or ledger_row["raw_sha256"] != raw.sha256):
             d.reasons.append("ledger_disagrees_with_raw")
             return d
-    if content == want_last[_I_CONTENT] and special_ok:
+    if same_others and content == want_last[_I_CONTENT] and special_ok:
         d.state = STATE_NEW
-    elif (ledger_row is not None and content == ledger_row["new_content"]
+    elif (same_others and ledger_row is not None and content == ledger_row["new_content"]
           and special == ledger_row["new_is_special_event"]):
         d.state = STATE_361
-    elif _is_end_marker(content) and special_ok:
+    elif got == old_last and _is_end_marker(content):
         d.state = STATE_OLD
     else:
         d.reasons.append(f"last_row_content_unexpected: {final_no}")
@@ -273,10 +272,12 @@ def apply_decision(d: Decision, ledger: dict, raw: RawGame, restore_fh: Any) -> 
             return False
         _write_restore(restore_fh, d, main, extra)
         if d.update_row is not None:
+            # 整列改寫：鍵欄（前 4 欄）以外全部欄位＝主列轉換（含 is_change_player 等）。
+            sets = ", ".join(f"{c}=%s" for c in _COLS[4:])
             cur.execute(
-                "UPDATE cpbl.game_livelog SET content=%s, is_special_event=%s "
+                f"UPDATE cpbl.game_livelog SET {sets} "  # noqa: S608 — 欄名來自固定常數
                 "WHERE year=%s AND kind_code=%s AND game_sno=%s AND main_event_no=%s",
-                (d.update_row[_I_CONTENT], d.update_row[_I_SPECIAL], *d.key, d.update_row[_I_EVENT]),
+                (*d.update_row[4:], *d.key, d.update_row[_I_EVENT]),
             )
         cur.execute("DELETE FROM cpbl.game_livelog_extra WHERE year=%s AND kind_code=%s "
                     "AND game_sno=%s", d.key)
@@ -290,8 +291,8 @@ def apply_decision(d: Decision, ledger: dict, raw: RawGame, restore_fh: Any) -> 
 
 
 def run(raw_dir: Path, ledger_paths: list[Path], *, apply: bool, restore_out: Path | None,
-        only: set[GameKey] | None = None) -> dict[str, Any]:
-    games, rejected_files = load_raw_games(raw_dir, only=only)
+        only: set[GameKey] | None = None, sums_path: Path | None = None) -> dict[str, Any]:
+    games, rejected_files = load_raw_games(raw_dir, only=only, sums_path=sums_path)
     ledger = load_ledgers(ledger_paths)
     report: dict[str, Any] = {
         "raw_dir": str(raw_dir), "apply": apply, "raw_games": len(games),
@@ -324,6 +325,7 @@ def run(raw_dir: Path, ledger_paths: list[Path], *, apply: bool, restore_out: Pa
 def main(argv: list[str] | None = None) -> None:
     p = cli_parser("cpbl-replay-livelog-extra", __doc__)
     p.add_argument("--raw-dir", type=Path, required=True)
+    p.add_argument("--sha256sums", type=Path, help="SHA256SUMS 位置（預設 RAW_DIR/SHA256SUMS）")
     p.add_argument("--ledger", type=Path, action="append", default=[],
                    help="#361 ledger（最終檔），可重複")
     p.add_argument("--game", action="append", default=[], metavar="YEAR:KIND:SNO",
@@ -341,7 +343,8 @@ def main(argv: list[str] | None = None) -> None:
             y, k, s = g.split(":")
             only.add((int(y), k, int(s)))
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s | %(message)s")
-    report = run(args.raw_dir, args.ledger, apply=args.apply, restore_out=args.restore_out, only=only)
+    report = run(args.raw_dir, args.ledger, apply=args.apply, restore_out=args.restore_out, only=only,
+                 sums_path=args.sha256sums)
     text = json.dumps(report, ensure_ascii=False, indent=2)
     if args.report:
         args.report.write_text(text + "\n", encoding="utf-8")
