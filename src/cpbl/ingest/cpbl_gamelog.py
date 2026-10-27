@@ -126,6 +126,27 @@ def _primary_indices(data: list[dict]) -> set[int]:
     return set(chosen.values())
 
 
+def final_event_no(data: list[dict]) -> str | None:
+    """原文最大事件號：數字者依數值、非數字排最後（同 pa_build.event_sort_key）。"""
+    nos = [str(r["MainEventNo"]) for r in data if r.get("MainEventNo")]
+    if not nos:
+        return None
+    return max(nos, key=lambda no: (0, int(no)) if no.isdigit() else (1, no))  # type: ignore[return-value]
+
+
+def standalone_end_marker_no(data: list[dict]) -> str | None:
+    """結束標記自佔事件號時回傳該事件號，否則 None（#357 C1 回看）。
+
+    判準：原文最大事件號只有一列，且那一列是結束標記。2018–2021 有 85 場是這個形狀
+    （實際最後事件在前一個事件號，沒有被覆蓋）；其餘場次是「實際事件＋標記」同號兩列。
+    DB 只存主列，分不出「自佔」與「同號但尚未回補」——所以只能由看得到原文的一方判定：
+    寫入端記在 livelog revision 的 `detail.standalone_end_marker`，或 `--raw-dir` 原文檔。
+    """
+    no = final_event_no(data)
+    group = [r for r in data if r.get("MainEventNo") and str(r["MainEventNo"]) == no]
+    return no if len(group) == 1 and _is_end_marker(group[0].get("Content")) else None
+
+
 def _livelog_fields(r: dict) -> tuple:
     """主表與附加表共用的事件欄位（`_LL_COLS` 去掉前 4 個鍵欄的順序）。"""
     return (
@@ -504,8 +525,11 @@ def scrape_gamelogs(year: int, snos: list[int], kind_code: str = KIND_REGULAR,
                 outcome="available" if ll else "missing", row_count=len(ll), payload=ll,
                 # event_rows：帶事件號的原文列數＝同號守恆檢查的母體（#357）。row_count 含
                 # 無事件號列，不能直接拿來比主表＋附加表。
+                # standalone_end_marker：末組只有一列結束標記時的事件號（否則 null），
+                # 給 livelog_checks (i) 豁免用——DB 只看得到主列，判不出這件事。
                 detail={"phase": "getlive",
-                        "event_rows": sum(1 for r in ll if r.get("MainEventNo"))},
+                        "event_rows": sum(1 for r in ll if r.get("MainEventNo")),
+                        "standalone_end_marker": standalone_end_marker_no(ll)},
             )
         out["batting_box"] += _upsert("batting_gamelog", _BBOX_COLS, 4,
                                       _bbox_rows(year, kind_code, sno, bb))

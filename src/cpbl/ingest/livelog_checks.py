@@ -6,6 +6,10 @@
 
 (i) **最後事件非結束標記**：每場 `game_livelog` 最大事件號那一列的 content 不是「比賽結束／
     主審裁定比賽結束」（判定與寫入端共用 `cpbl_gamelog._is_end_marker`）。
+    **唯一豁免＝結束標記自佔事件號**（`exempt_standalone_marker`；2018–2021 有 85 場）：原文
+    最大事件號只有那一列標記，實際最後事件在前一號、沒被覆蓋。DB 只存主列分不出它與「同號
+    但尚未回補」，所以豁免必須有原文證據——`--raw-dir` 原文檔，或該場最新 livelog revision
+    的 `detail.standalone_end_marker`（寫入端記錄）＝該事件號。⛔ 沒有原文證據一律算違反。
 (ii) **同號守恆**：每場主表列數＋附加表（`game_livelog_extra`）列數＝原文帶事件號的列數；
     且附加列的事件號都在主表。原文列數來源依序：`--raw-dir` 原文檔 → 該場最新 livelog
     revision 的 `detail.event_rows`（#357 起寫入端記錄）。兩者都沒有的場次記為
@@ -24,7 +28,7 @@ from typing import Any
 
 from cpbl.db import conn
 from cpbl.ingest._cli import KIND_CODES, cli_parser
-from cpbl.ingest.cpbl_gamelog import _is_end_marker
+from cpbl.ingest.cpbl_gamelog import _is_end_marker, standalone_end_marker_no
 
 GameKey = tuple[int, str, int]
 
@@ -40,6 +44,20 @@ ORDER BY year, kind_code, game_sno,
          (main_event_no !~ '^[0-9]+$') DESC,
          CASE WHEN main_event_no ~ '^[0-9]+$' THEN main_event_no::numeric END DESC NULLS LAST,
          main_event_no DESC
+"""
+
+# 寫入端記下的原文證據：最新一筆 available livelog revision 的 detail.standalone_end_marker。
+# has_key=false＝舊 revision（#357 前寫入）沒記，視同沒有原文證據。
+_STANDALONE_SQL = """
+SELECT DISTINCT ON (year, kind_code, game_sno) year, kind_code, game_sno,
+       detail ? 'standalone_end_marker' AS has_key, detail->>'standalone_end_marker' AS marker_no
+FROM cpbl.game_source_revisions
+WHERE source = 'livelog' AND outcome = 'available'
+  AND (%(year)s::int IS NULL OR year = %(year)s::int)
+  AND (%(kinds)s::text[] IS NULL OR kind_code = ANY(%(kinds)s::text[]))
+  AND (%(gy)s::int[] IS NULL OR (year, kind_code, game_sno) IN
+       (SELECT * FROM unnest(%(gy)s::int[], %(gk)s::text[], %(gs)s::int[])))
+ORDER BY year, kind_code, game_sno, last_seen_at DESC
 """
 
 _COUNTS_SQL = """
@@ -92,22 +110,44 @@ def _scope_key(key: GameKey) -> str:
 
 
 def check_last_event(cur: Any, *, year: int | None = None, kinds: list[str] | None = None,
-                     games: set[GameKey] | None = None) -> dict[str, Any]:
-    """(i) 每場最後事件 content 非結束標記。回傳涵蓋場數、違反清單與逐年／賽別計數。"""
-    cur.execute(_LAST_EVENT_SQL, _params(year, kinds, games))
+                     games: set[GameKey] | None = None,
+                     standalone: dict[GameKey, str | None] | None = None) -> dict[str, Any]:
+    """(i) 每場最後事件 content 非結束標記。回傳涵蓋場數、違反／豁免清單與逐年／賽別計數。
+
+    `standalone`：原文檔判出的「自佔標記事件號」（無則 None）；優先於 revision 記錄。
+    """
+    params = _params(year, kinds, games)
+    cur.execute(_STANDALONE_SQL, params)
+    evidence: dict[GameKey, tuple[str | None, str]] = {
+        (int(y), k, int(s)): (no, "revision") for y, k, s, has_key, no in cur.fetchall() if has_key}
+    for key, no in (standalone or {}).items():
+        evidence[key] = (no, "raw")
+    cur.execute(_LAST_EVENT_SQL, params)
     covered: Counter[str] = Counter()
     bad: Counter[str] = Counter()
+    exempt_n: Counter[str] = Counter()
     violations: list[dict[str, Any]] = []
+    exempt: list[dict[str, Any]] = []
     for y, k, s, no, content in cur.fetchall():
         key = (int(y), k, int(s))
         covered[_scope_key(key)] += 1
-        if _is_end_marker(content):
-            bad[_scope_key(key)] += 1
-            violations.append({"game": f"{y}-{k}-{s}", "main_event_no": no, "content": content})
+        if not _is_end_marker(content):
+            continue
+        name = f"{y}-{k}-{s}"
+        marker_no, source = evidence.get(key, (None, None))
+        if marker_no is not None and marker_no == no:
+            exempt_n[_scope_key(key)] += 1
+            exempt.append({"game": name, "main_event_no": no, "reason": "exempt_standalone_marker",
+                           "evidence": source})
+            continue
+        bad[_scope_key(key)] += 1
+        violations.append({"game": name, "main_event_no": no, "content": content,
+                           "evidence": source or "none"})
     return {"check": "last_event_not_end_marker", "games": sum(covered.values()),
-            "violations": len(violations), "by_scope": {sc: {"games": covered[sc], "violations": bad[sc]}
-                                                        for sc in sorted(covered)},
-            "violation_games": violations}
+            "violations": len(violations), "exempt": len(exempt),
+            "by_scope": {sc: {"games": covered[sc], "violations": bad[sc], "exempt": exempt_n[sc]}
+                         for sc in sorted(covered)},
+            "violation_games": violations, "exempt_games": exempt}
 
 
 def check_conservation(cur: Any, *, year: int | None = None, kinds: list[str] | None = None,
@@ -148,20 +188,23 @@ def check_conservation(cur: Any, *, year: int | None = None, kinds: list[str] | 
     return out
 
 
-def raw_event_counts(raw_dir: Path) -> dict[GameKey, int]:
-    """原文目錄（含 SHA256SUMS 驗證）→ 每場帶事件號的列數。"""
+def raw_evidence(raw_dir: Path, sums_path: Path | None = None
+                 ) -> tuple[dict[GameKey, int], dict[GameKey, str | None]]:
+    """原文目錄（含 SHA256SUMS 驗證）→ (每場帶事件號的列數, 每場自佔標記事件號或 None)。"""
     from cpbl.ingest.livelog_replay import load_raw_games
 
-    games, _rejected = load_raw_games(raw_dir)
-    return {k: sum(1 for r in g.livelog if r.get("MainEventNo")) for k, g in games.items()}
+    games, _rejected = load_raw_games(raw_dir, sums_path=sums_path)
+    return ({k: sum(1 for r in g.livelog if r.get("MainEventNo")) for k, g in games.items()},
+            {k: standalone_end_marker_no(g.livelog) for k, g in games.items()})
 
 
 def run_checks(*, year: int | None = None, kinds: list[str] | None = None,
                games: set[GameKey] | None = None, expected: dict[GameKey, int] | None = None,
+               standalone: dict[GameKey, str | None] | None = None,
                require_verifiable: bool = False) -> dict[str, Any]:
     with conn() as c:
         cur = c.cursor()
-        last = check_last_event(cur, year=year, kinds=kinds, games=games)
+        last = check_last_event(cur, year=year, kinds=kinds, games=games, standalone=standalone)
         cons = check_conservation(cur, year=year, kinds=kinds, games=games, expected=expected,
                                   require_verifiable=require_verifiable)
     return {"last_event": last, "conservation": cons,
@@ -173,18 +216,20 @@ def main(argv: list[str] | None = None) -> None:
     p.add_argument("--year", type=int)
     p.add_argument("--kind", action="append", choices=KIND_CODES)
     p.add_argument("--raw-dir", type=Path, help="原文目錄（YEAR-KIND-SNO.json.gz＋SHA256SUMS）")
+    p.add_argument("--sha256sums", type=Path, help="SHA256SUMS 位置（預設 RAW_DIR/SHA256SUMS）")
     p.add_argument("--require-verifiable", action="store_true",
                    help="守恆檢查無原文列數可比的場次視為違反")
     p.add_argument("--json-out", type=Path)
     args = p.parse_args(argv)
-    expected = raw_event_counts(args.raw_dir) if args.raw_dir else None
-    result = run_checks(year=args.year, kinds=args.kind, expected=expected,
+    expected, standalone = raw_evidence(args.raw_dir, args.sha256sums) if args.raw_dir else (None, None)
+    result = run_checks(year=args.year, kinds=args.kind, expected=expected, standalone=standalone,
                         require_verifiable=args.require_verifiable)
     text = json.dumps(result, ensure_ascii=False, indent=2)
     if args.json_out:
         args.json_out.write_text(text + "\n", encoding="utf-8")
     summary = {name: {k: result[name][k] for k in ("games", "violations")}
-               | ({"unverifiable": result[name]["unverifiable"]} if name == "conservation" else {})
+               | ({"unverifiable": result[name]["unverifiable"]} if name == "conservation"
+                  else {"exempt": result[name]["exempt"]})
                for name in ("last_event", "conservation")}
     print(json.dumps(summary | {"ok": result["ok"]}, ensure_ascii=False))
     sys.exit(0 if result["ok"] else 1)

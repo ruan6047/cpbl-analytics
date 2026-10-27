@@ -84,8 +84,8 @@ def test_positive_control_pre_fix_shape_is_reported(db):
     expected = {k: _event_rows(n) for k, n in GAMES.items()}
     res = _run(expected=expected)
     assert res["last_event"]["games"] == 2 and res["last_event"]["violations"] == 2
-    assert res["last_event"]["by_scope"] == {"1900/A": {"games": 1, "violations": 1},
-                                             "1900/D": {"games": 1, "violations": 1}}
+    assert res["last_event"]["by_scope"] == {"1900/A": {"games": 1, "violations": 1, "exempt": 0},
+                                             "1900/D": {"games": 1, "violations": 1, "exempt": 0}}
     assert res["conservation"]["violations"] == 2  # 主表少一列（標記被吃掉）、附加表空
     assert not res["ok"]
 

@@ -147,6 +147,19 @@ def test_scrape_clears_extra_rows_when_source_has_no_duplicates(scrape_harness):
     assert calls == [(2026, "C", 4, [])]
 
 
+@pytest.mark.parametrize(("name", "want"), [("2019-A-118.json.gz", "0920001000"),
+                                             ("2026-C-4.json.gz", None)])
+def test_scrape_records_standalone_marker_in_revision_detail(scrape_harness, monkeypatch, name, want):
+    """C1 回看：寫入端在 livelog revision detail 記「末組只有標記」的事件號（否則 null）。"""
+    _calls, payloads = scrape_harness
+    seen: list[dict] = []
+    monkeypatch.setattr(cpbl_gamelog, "record_source_revision", lambda **k: seen.append(k))
+    payloads[4] = _payload(_load(name))
+    cpbl_gamelog.scrape_gamelogs(2026, [4], "C", delay=0)
+    detail = next(k["detail"] for k in seen if k["source"] == "livelog")
+    assert "standalone_end_marker" in detail and detail["standalone_end_marker"] == want
+
+
 def test_scrape_leaves_extra_rows_alone_on_bad_livelog_json(scrape_harness):
     calls, payloads = scrape_harness
     payloads[4] = _payload("{broken")
