@@ -100,7 +100,7 @@ def configure_api_timeouts(
     ⛔ **設定點只能是 ``_configure``（建立連線時、以 session 層級 SET、結尾 commit 回到 IDLE）**；
     :func:`conn` 借出前⛔ 不得對連線執行任何語句。借出前送語句會在非 autocommit 下隱式開交易，
     呼叫者的 ``c.transaction()`` 就變成 savepoint，``SET TRANSACTION ISOLATION LEVEL REPEATABLE READ``
-    （watch_reader、report.py）會因不是交易第一條語句而失敗——#353 審核 2 第 2 項，aed693be 的
+    （watch_reader）會因不是交易第一條語句而失敗——#353 審核 2 第 2 項，aed693be 的
     請求預算正是這個形狀（已移除）。回歸：``tests/test_api_db_timeouts_353.py``。
 
     ⛔ **作用域是行程**：``migrate()``、``cpbl-train*``、ingest CLI 是各自的行程、從不經過

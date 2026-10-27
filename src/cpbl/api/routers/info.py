@@ -45,8 +45,9 @@ PROD_SYNC_STALL_AFTER_HOURS = 36
 
 
 # 快取 TTL：主站 InfoPoller 每 5 分鐘輪詢，metrics 的陳舊時間必須遠小於它（規劃 r2 §2.3）。
-# 60 秒的理由：容器 HEALTHCHECK 原本就每 30 秒打一次 /api/info（Dockerfile），即每分鐘 2 次全套
-# 14 查詢；改成背景每 60 秒 1 次，DB 負載只降不增，而陳舊時間最多約 1 分鐘（＜ 5 分鐘的 1/5）。
+# 60 秒的理由：陳舊時間最多約 1 分鐘（＜ 5 分鐘的 1/5）。DB 負載「只降不增」只對 Dockerfile 成立：
+# 其 HEALTHCHECK 每 30 秒打一次 /api/info（每分鐘 2 次全套 14 查詢），改成背景每 60 秒 1 次。
+# 正式站 compose 的健康檢查走 readiness CLI、不打 /api/info（主站 DEPLOYMENT.md §4.2.1），⛔ 不得引此論證。
 CACHE_TTL_SECONDS = 60.0
 # 陳舊上限：背景重算連續失敗、最後一份成功值已超過一個 InfoPoller 週期 ⇒ 不再宣稱 running，
 # 退回 maintenance（metrics 照帶）。等於舊版「DB 失敗就 maintenance」的語意，只是晚 5 分鐘生效。
