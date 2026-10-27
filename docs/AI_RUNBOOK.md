@@ -455,8 +455,8 @@ production 映像尚未部署，先停止同步並完成正常 main deploy，不
 | `cpbl-backfill-season <year>` | 官方 teamscore 回填某年 season 彙總(opendata 未涵蓋年) | 補新年度季彙總 |
 | `cpbl-scrape-games <from> <to>` | 逐場賽程/比分/先發/勝敗投(A 例行+C 總冠軍+E 季後) | 補當季比分（**逐打席的前提**） |
 | `cpbl-scrape-gamelog [year]` | 每場逐局比分 + 逐打席事件流(box/getlive)；同號非主列（結束標記等）寫 `game_livelog_extra`（#357，見 GLOSSARY「同號多筆」） | 補賽況頁資料；需比分先就緒 |
-| `cpbl-check-livelog [--year] [--kind] [--raw-dir] [--require-verifiable]` | 唯讀兩支檢查：每場最後事件非結束標記、主表＋附加表＝原文帶事件號列數；違反回 1 | #357 回補前後取證；每日鏈只對當次寫入場次跑同一檢查 |
-| `cpbl-replay-livelog-extra --raw-dir DIR [--ledger L] [--apply --restore-out R]` | 用已存 www 原文只補被吃掉的同號列；**預設 dry-run**；逐場三態前態判定，不符不寫；寫前存復原檔 | #357 WP5 回補（需授權與 `db:local` 租用） |
+| `cpbl-check-livelog [--year] [--kind] [--raw-dir [--sha256sums]] [--require-verifiable]` | 唯讀兩支檢查：每場最後事件非結束標記（結束標記自佔事件號且有原文證據者豁免）、主表＋附加表＝原文帶事件號列數；違反回 1 | #357 回補前後取證；每日鏈只對當次寫入場次跑同一檢查 |
+| `cpbl-replay-livelog-extra --raw-dir DIR [--sha256sums S] [--ledger L] [--apply --restore-out R]` | 用已存 www 原文只補被吃掉的同號列；**預設 dry-run**；逐場三態前態判定（舊態整列比對、整列改寫），不符不寫；寫前存復原檔 | #357 WP5 回補（需授權與 `db:local` 租用） |
 | `cpbl-refresh-box-deep [year] [kind] [days_back] [--delay]` | 深度重抓近 N 天（預設 30）已完成場的 box（等同對該窗重跑 `scrape_gamelogs`）；**只寫**逐投手 append-only 快照 `cpbl.box_pitching_revisions`（既有表照常冪等 UPSERT，非本卡新增行為） | DATA-BOX-REVISION-SNAPSHOT1 深度層：每日窗只看昨/今 2 天，一場抓過一次後不會再被自動排程碰到；每週跑一次收斂近 N 天內的官方賽後修正 |
 | `cpbl-scrape-stats <from> <to>` | 投打進階 + 團隊累計(ERA/WHIP/K9/OPS…) | 當季累計刷新 |
 | `cpbl-scrape-standings <year>` | 官方戰績(含上下半季/勝差/H2H/近十場) | 戰績刷新 |

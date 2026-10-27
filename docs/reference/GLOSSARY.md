@@ -64,6 +64,8 @@ www `getlive` 的 `LiveLogJson` **同一 `MainEventNo` 可以有多列**：每�
 - ⛔ 不得從 `game_livelog` 沒有標記列推出「原文沒有結束標記」；要全部原文列須合併兩表（`/live` 依 `(main_event_no::bigint, dup_seq)`）。
 - 機械檢查：`cpbl-check-livelog`（最後事件非標記、主表＋附加表＝原文帶事件號列數）；每日鏈對當次寫入的場次跑同一檢查，未過亮 69。
 - 2026-10-23 前寫入的場次最後一列是標記（後到者勝）；回補見 `cpbl-replay-livelog-extra`。
+- **結束標記自佔事件號**（2018–2021 共 85 場，例 2019-A-118）：最大事件號只有一列標記、實際最後事件在前一號，沒被覆蓋、不需回補。DB 只存主列分不出它與「同號未回補」，故檢查 (i) 的豁免（`exempt_standalone_marker`）要原文證據：`--raw-dir`，或寫入端記在 livelog revision 的 `detail.standalone_end_marker`；沒有證據一律算違反。
+- 標記列的 `IsChangePlayer` 可能是 1（2018–2020 有 20 組「主審裁定比賽結束」），⛔ 不得拿附加列判換人。
 
 ### island
 
