@@ -152,7 +152,7 @@ def test_identical_source_is_plain_publish_not_shape():
 
 def test_builder_version_bumped_for_reconcile_decision_change():
     """版本紀律（pa_build.py 檔頭）：預設路徑的 reconcile 決策改變必須進位。"""
-    assert pa_build.BUILDER_VERSION == "pa-build-1.4.0"
+    assert pa_build.BUILDER_VERSION == "pa-build-1.5.0"  # 1.5.0：#357 第 5 項逐場黃金值
 
 
 # ── DB：真的走 build_game（隔離庫；DB 不可達時 skip）────────────────────────────────

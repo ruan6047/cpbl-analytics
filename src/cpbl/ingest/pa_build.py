@@ -67,7 +67,9 @@ Pitch = dict[str, Any]
 # ⚠️ 拿不準時進位，代價只是重跑一輪，判錯的代價是靜默跳過 side effect。
 # 1.4.0（#357 WP2-d）：預設路徑的 reconcile 決策新增「結束標記還原」受控接受
 # （:func:`end_marker_restoration`）——改變預設路徑的等價判定，依上方判準必須進位。
-BUILDER_VERSION = "pa-build-1.4.0"
+# 1.5.0（#357 WP2 第 5 項）：預設路徑再新增 20 場逐場黃金值受控接受
+# （:func:`end_marker_change_player_restoration`）——同樣改變預設路徑的 reconcile 決策，必須進位。
+BUILDER_VERSION = "pa-build-1.5.0"
 EVENT_ORDER_VERSION = "evord-1.0"  # main_event_no::bigint 嚴格全序
 # 固定 UUIDv5 namespace（勿更動：更動會使全部 pa_id 漂移）。
 PA_ID_NAMESPACE = uuid.UUID("5f3b9d2a-1c47-5e60-9a8b-6d2f0c1e7a44")
@@ -987,6 +989,97 @@ def end_marker_restoration(
 
 
 # ===========================================================================
+# 受控接受（逐場黃金值）：標記列 IsChangePlayer=1 的 20 場（#357 WP2 第 5 項）
+# ===========================================================================
+# 為什麼上面的型態謂詞接不住：2018–2020 有 20 場的「主審裁定比賽結束」標記列 IsChangePlayer='1'。
+# 修正前寫入端（後到者勝）把整列標記寫進 game_livelog，末事件因此被當成換人列——換人列附掛、
+# 不算打席結果，所以舊 PA 不只末成員指紋不同，還有三種結構差（WP2 實跑 20 場，
+# `pa20-shape.json` sha256 b766bafb…7e49）：
+#   A 型 3 場：PA 結構零差異，只有末事件 content／is_special_event／is_change_player 不同；
+#   B 型 15 場：另外末 PA 的 end_event_no 由舊值推進到末事件；
+#   C 型 2 場：舊末 PA 帶著標記列當最後成員；新 build 末事件自成一個新的末打席。
+#
+# ⚠️ 需求方裁定 issuecomment-6437358761：**封閉清單＋逐場黃金值**，不是型態放寬。
+# 黃金值 `cpbl/resources/pa_end_marker_change_player.v1.json`（由 WP1 原文機械產生、隨 wheel
+# 打包）逐場寫明：末事件號、舊末事件三欄的值、被改 PA 的起點與舊欄位、C 型新末打席的全部欄位。
+# 謂詞用新 build＋黃金值**重建**舊 PA 指紋，必須逐位元等於 published；任一不符回 None，
+# 呼叫端照原路徑 reconcile。
+# ⛔ 不得把清單外場次加進黃金值檔來「放行」：要接受其他場次另開卡、另經需求方裁定。
+ACCEPT_SHAPE_CHANGE_PLAYER = "end_marker_change_player_restored"
+_CHANGE_PLAYER_GOLDEN_PATH = (Path(__file__).resolve().parent.parent / "resources"
+                              / "pa_end_marker_change_player.v1.json")
+_PA_FIELDS = ("start_event_no", "end_event_no", "hitter_acnt", "end_hitter_acnt",
+              "start_pitcher_acnt", "end_pitcher_acnt", "result_action")
+
+
+@lru_cache(maxsize=1)
+def change_player_golden() -> dict[str, dict[str, Any]]:
+    """逐場黃金值（鍵 `YEAR-KIND-SNO`）。"""
+    return json.loads(_CHANGE_PLAYER_GOLDEN_PATH.read_text(encoding="utf-8"))["games"]
+
+
+def _pa_fields(pa: PlateAppearance) -> dict[str, Any]:
+    return {f: getattr(pa, f) for f in _PA_FIELDS}
+
+
+def end_marker_change_player_restoration(
+    new_pas: list[PlateAppearance], published: dict[str, str] | None,
+    events: list[Event], rec: ReconcileResult, *, invariant_violations: Any = None,
+) -> dict[str, Any] | None:
+    """`rec` 若恰為該場黃金值描述的差異，回傳留痕 dict；否則 None（照原路徑 fail closed）。"""
+    if (rec.action != "reconcile" or invariant_violations or not published or rec.removed_pa_ids
+            or len(rec.changed_pa_ids) != 1 or not new_pas or not events):
+        return None
+    head = new_pas[0]
+    name = f"{head.year}-{head.kind_code}-{head.game_sno}"
+    g = change_player_golden().get(name)
+    if g is None:
+        return None
+    final_event = max(events, key=event_sort_key)
+    final_no = str(final_event.get("main_event_no"))
+    if final_no != g["final_event_no"] or _is_end_marker_content(final_event.get("content")):
+        return None
+    by_id = {str(pa.pa_id): pa for pa in new_pas}
+    changed = by_id.get(rec.changed_pa_ids[0])
+    if changed is None or changed.start_event_no != g["changed_pa_start_event_no"] \
+            or rec.changed_pa_ids[0] not in published:
+        return None
+    # 新增的 PA：數量、各欄位、成員事件號全部＝黃金值（A／B 型為空）。
+    added = sorted((by_id[i] for i in rec.added_pa_ids if i in by_id), key=lambda p: p.pa_index)
+    if len(added) != len(rec.added_pa_ids) or len(added) != len(g["added_pas"]):
+        return None
+    for pa, want in zip(added, g["added_pas"], strict=True):
+        if {**_pa_fields(pa), "members": [m.event_no for m in pa.members]} != want:
+            return None
+    # 末事件歸屬：A／B 型在被改 PA 的最後成員；C 型在新增的末打席。
+    in_changed = [m.event_no for m in changed.members].count(final_no)
+    if g["added_pas"]:
+        if in_changed or [m.event_no for m in added[-1].members] != [final_no]:
+            return None
+    elif not changed.members or changed.members[-1].event_no != final_no:
+        return None
+    member = next((m for pa in (changed, *added) for m in pa.members if m.event_no == final_no), None)
+    if member is None or member.fingerprint != event_fingerprint(final_event):
+        return None
+    # 重建舊 PA：末事件換回黃金值的舊三欄、接在其餘成員之後；PA 欄位覆上黃金值的舊值。
+    old_fp = event_fingerprint({**final_event, **g["old_final_event"]})
+    fields = {**_pa_fields(changed), **g["changed_pa_old_fields"]}
+    rebuilt = compute_pa_fingerprint(
+        members=[m.fingerprint for m in changed.members if m.event_no != final_no] + [old_fp],
+        hitter=fields["hitter_acnt"], end_hitter=fields["end_hitter_acnt"],
+        start_pitcher=fields["start_pitcher_acnt"], end_pitcher=fields["end_pitcher_acnt"],
+        result_action=fields["result_action"],
+        start_event_no=fields["start_event_no"], end_event_no=fields["end_event_no"],
+    )
+    if rebuilt != published[rec.changed_pa_ids[0]]:
+        return None
+    return {"shape": ACCEPT_SHAPE_CHANGE_PLAYER, "game": name, "golden_shape": g["shape"],
+            "pa_id": rec.changed_pa_ids[0], "added_pa_ids": list(rec.added_pa_ids),
+            "event_no": final_no, "old_final_event": g["old_final_event"],
+            "before_fingerprint": old_fp, "after_fingerprint": member.fingerprint}
+
+
+# ===========================================================================
 # 受控接受路徑：碼內封閉清單 ＋ 不變式硬拒（DATA-PA-REBUILD-GAP1 Q2／Q6）
 # ===========================================================================
 # 為什麼需要它：``reconcile()`` 對任一 changed／added／removed 一律產出
@@ -1725,8 +1818,11 @@ def build_game(
         )
     # #357 結束標記還原（型態受控接受）：同樣在不變式區塊之後，違反時謂詞直接回 None。
     # 接受路徑（accept_reconciliation）有自己的清單閘門，不混用。
-    restored = None if accept_reconciliation else end_marker_restoration(
-        pas, published, events, rec, invariant_violations=violations)
+    # #357 WP2 第 5 項：20 場 IsChangePlayer 標記列走逐場黃金值（型態謂詞接不住時才看）。
+    restored = None if accept_reconciliation else (
+        end_marker_restoration(pas, published, events, rec, invariant_violations=violations)
+        or end_marker_change_player_restoration(pas, published, events, rec,
+                                                invariant_violations=violations))
     if restored:
         rec = ReconcileResult(
             action="publish", changed_pa_ids=rec.changed_pa_ids,

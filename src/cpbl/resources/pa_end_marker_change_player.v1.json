@@ -1,0 +1,301 @@
+{
+ "_source": "#357 WP2 第5項；WP1 www 原文（SHA256SUMS 驗證）經本產生器；需求方裁定 issuecomment-6437358761",
+ "games": {
+  "2018-D-110": {
+   "added_pas": [],
+   "changed_pa_old_fields": {
+    "end_event_no": "0720008000"
+   },
+   "changed_pa_start_event_no": "0720008000",
+   "final_event_no": "0720009000",
+   "old_final_event": {
+    "content": "主審裁定比賽結束",
+    "is_change_player": true,
+    "is_special_event": true
+   },
+   "shape": "B"
+  },
+  "2018-D-118": {
+   "added_pas": [],
+   "changed_pa_old_fields": {
+    "end_event_no": "0620005000"
+   },
+   "changed_pa_start_event_no": "0620001000",
+   "final_event_no": "0620006000",
+   "old_final_event": {
+    "content": "主審裁定比賽結束",
+    "is_change_player": true,
+    "is_special_event": true
+   },
+   "shape": "B"
+  },
+  "2018-D-119": {
+   "added_pas": [],
+   "changed_pa_old_fields": {
+    "end_event_no": "0820020000"
+   },
+   "changed_pa_start_event_no": "0820016000",
+   "final_event_no": "0820021000",
+   "old_final_event": {
+    "content": "主審裁定比賽結束",
+    "is_change_player": true,
+    "is_special_event": true
+   },
+   "shape": "B"
+  },
+  "2018-D-136": {
+   "added_pas": [],
+   "changed_pa_old_fields": {
+    "end_event_no": "0820015000"
+   },
+   "changed_pa_start_event_no": "0820010000",
+   "final_event_no": "0820016000",
+   "old_final_event": {
+    "content": "主審裁定比賽結束",
+    "is_change_player": true,
+    "is_special_event": true
+   },
+   "shape": "B"
+  },
+  "2018-D-63": {
+   "added_pas": [],
+   "changed_pa_old_fields": {
+    "end_event_no": "0810023000"
+   },
+   "changed_pa_start_event_no": "0810021000",
+   "final_event_no": "0810024000",
+   "old_final_event": {
+    "content": "主審裁定比賽結束",
+    "is_change_player": true,
+    "is_special_event": true
+   },
+   "shape": "B"
+  },
+  "2018-D-73": {
+   "added_pas": [],
+   "changed_pa_old_fields": {},
+   "changed_pa_start_event_no": "0820002000",
+   "final_event_no": "0820006000",
+   "old_final_event": {
+    "content": "主審裁定比賽結束",
+    "is_change_player": true,
+    "is_special_event": true
+   },
+   "shape": "A"
+  },
+  "2018-D-93": {
+   "added_pas": [],
+   "changed_pa_old_fields": {
+    "end_event_no": "0820005000"
+   },
+   "changed_pa_start_event_no": "0820003000",
+   "final_event_no": "0820006000",
+   "old_final_event": {
+    "content": "主審裁定比賽結束",
+    "is_change_player": true,
+    "is_special_event": true
+   },
+   "shape": "B"
+  },
+  "2019-A-39": {
+   "added_pas": [],
+   "changed_pa_old_fields": {
+    "end_event_no": "0520009000"
+   },
+   "changed_pa_start_event_no": "0520009000",
+   "final_event_no": "0520010000",
+   "old_final_event": {
+    "content": "主審裁定比賽結束",
+    "is_change_player": true,
+    "is_special_event": true
+   },
+   "shape": "B"
+  },
+  "2019-D-110": {
+   "added_pas": [],
+   "changed_pa_old_fields": {
+    "end_event_no": "0720015000"
+   },
+   "changed_pa_start_event_no": "0720015000",
+   "final_event_no": "0720016000",
+   "old_final_event": {
+    "content": "主審裁定比賽結束",
+    "is_change_player": true,
+    "is_special_event": true
+   },
+   "shape": "B"
+  },
+  "2019-D-114": {
+   "added_pas": [],
+   "changed_pa_old_fields": {},
+   "changed_pa_start_event_no": "0720002000",
+   "final_event_no": "0720003000",
+   "old_final_event": {
+    "content": "主審裁定比賽結束",
+    "is_change_player": true,
+    "is_special_event": true
+   },
+   "shape": "A"
+  },
+  "2019-D-140": {
+   "added_pas": [
+    {
+     "end_event_no": null,
+     "end_hitter_acnt": "0000004030",
+     "end_pitcher_acnt": "0000000117",
+     "hitter_acnt": "0000004030",
+     "members": [
+      "0620006000"
+     ],
+     "result_action": null,
+     "start_event_no": "0620006000",
+     "start_pitcher_acnt": "0000000117"
+    }
+   ],
+   "changed_pa_old_fields": {},
+   "changed_pa_start_event_no": "0620001000",
+   "final_event_no": "0620006000",
+   "old_final_event": {
+    "content": "主審裁定比賽結束",
+    "is_change_player": true,
+    "is_special_event": true
+   },
+   "shape": "C"
+  },
+  "2019-D-22": {
+   "added_pas": [
+    {
+     "end_event_no": "0520009000",
+     "end_hitter_acnt": "0000004643",
+     "end_pitcher_acnt": "0000003306",
+     "hitter_acnt": "0000004643",
+     "members": [
+      "0520009000"
+     ],
+     "result_action": "飛球接殺",
+     "start_event_no": "0520009000",
+     "start_pitcher_acnt": "0000003306"
+    }
+   ],
+   "changed_pa_old_fields": {},
+   "changed_pa_start_event_no": "0520008000",
+   "final_event_no": "0520009000",
+   "old_final_event": {
+    "content": "主審裁定比賽結束",
+    "is_change_player": true,
+    "is_special_event": false
+   },
+   "shape": "C"
+  },
+  "2019-D-44": {
+   "added_pas": [],
+   "changed_pa_old_fields": {
+    "end_event_no": "0820018000"
+   },
+   "changed_pa_start_event_no": "0820014000",
+   "final_event_no": "0820019000",
+   "old_final_event": {
+    "content": "主審裁定比賽結束",
+    "is_change_player": true,
+    "is_special_event": true
+   },
+   "shape": "B"
+  },
+  "2019-D-69": {
+   "added_pas": [],
+   "changed_pa_old_fields": {
+    "end_event_no": "0520023000"
+   },
+   "changed_pa_start_event_no": "0520022000",
+   "final_event_no": "0520024000",
+   "old_final_event": {
+    "content": "主審裁定比賽結束",
+    "is_change_player": true,
+    "is_special_event": true
+   },
+   "shape": "B"
+  },
+  "2020-D-121": {
+   "added_pas": [],
+   "changed_pa_old_fields": {
+    "end_event_no": "0820032000"
+   },
+   "changed_pa_start_event_no": "0820032000",
+   "final_event_no": "0820033000",
+   "old_final_event": {
+    "content": "主審裁定比賽結束",
+    "is_change_player": true,
+    "is_special_event": true
+   },
+   "shape": "B"
+  },
+  "2020-D-149": {
+   "added_pas": [],
+   "changed_pa_old_fields": {
+    "end_event_no": "0620009000"
+   },
+   "changed_pa_start_event_no": "0620008000",
+   "final_event_no": "0620010000",
+   "old_final_event": {
+    "content": "主審裁定比賽結束",
+    "is_change_player": true,
+    "is_special_event": true
+   },
+   "shape": "B"
+  },
+  "2020-D-154": {
+   "added_pas": [],
+   "changed_pa_old_fields": {
+    "end_event_no": "0520036000"
+   },
+   "changed_pa_start_event_no": "0520034000",
+   "final_event_no": "0520037000",
+   "old_final_event": {
+    "content": "主審裁定比賽結束",
+    "is_change_player": true,
+    "is_special_event": true
+   },
+   "shape": "B"
+  },
+  "2020-D-191": {
+   "added_pas": [],
+   "changed_pa_old_fields": {
+    "end_event_no": "0620018000"
+   },
+   "changed_pa_start_event_no": "0620018000",
+   "final_event_no": "0620019000",
+   "old_final_event": {
+    "content": "主審裁定比賽結束",
+    "is_change_player": true,
+    "is_special_event": true
+   },
+   "shape": "B"
+  },
+  "2020-D-74": {
+   "added_pas": [],
+   "changed_pa_old_fields": {},
+   "changed_pa_start_event_no": "0620002000",
+   "final_event_no": "0620006000",
+   "old_final_event": {
+    "content": "主審裁定比賽結束",
+    "is_change_player": true,
+    "is_special_event": true
+   },
+   "shape": "A"
+  },
+  "2020-D-84": {
+   "added_pas": [],
+   "changed_pa_old_fields": {
+    "end_event_no": "0620017000"
+   },
+   "changed_pa_start_event_no": "0620014000",
+   "final_event_no": "0620018000",
+   "old_final_event": {
+    "content": "主審裁定比賽結束",
+    "is_change_player": true,
+    "is_special_event": true
+   },
+   "shape": "B"
+  }
+ }
+}
