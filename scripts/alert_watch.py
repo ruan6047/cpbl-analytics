@@ -245,6 +245,9 @@ def evening_settled(state: object, keys: list) -> tuple:
             return False, "event_malformed"
         if "state" not in event:
             return False, "event_state_unavailable"
+        if not isinstance(event["state"], str):
+            # 審核第 2 輪 R1：list／dict 等不可雜湊值拿去做 frozenset 成員判斷會拋 TypeError
+            return False, "event_state_malformed"
         if event["state"] == "open":
             return False, "open_events"
         if event["state"] == "ingested":
@@ -254,7 +257,7 @@ def evening_settled(state: object, keys: list) -> tuple:
     rows = _schedule_rows(state)
     for key in keys:
         status = (rows.get(key) or {}).get("status")
-        if status not in TERMINAL_STATUSES:
+        if not isinstance(status, str) or status not in TERMINAL_STATUSES:
             return False, f"not_final:{key}:{status}"
     return True, "settled"
 
@@ -304,7 +307,7 @@ def evening_step(now: datetime, repo: Path, previous: dict | None, config: alert
                                   and armed.get("deadline") != deadline.isoformat())
     # 「每晚最多武裝一次、改正一次」數的是**成功**的武裝（規劃 2 §4.2 第 1 點）。失敗就在下一次喚醒
     # 再試、⛔ 沒有放棄上限（審核第 1 輪 blocking 2：舊版連敗 3 次就放棄整晚，網路恢復也不再武裝，
-    # 晚間鏈整天沒跑時就沒有期限告警）。每次只是一個有逾時的 API 請求，5 分鐘一次的成本可忽略。
+    # 晚間鏈整天沒跑時就沒有期限告警）。成本（審核第 2 輪 R2 更正）：每次 arm_schedule 是查詢（GET ?slug=）＋更新（POST）兩個請求，各自最多試 3 次（10 秒逾時＋退避），最壞約 66 秒，仍短於 300 秒的喚醒間隔。
     if wants_arm:
         result = armer(config, alert_ping.CHECK_EVENING, cron=cron_for(deadline), tz="Asia/Taipei",
                        grace_seconds=int(EVENING_GRACE.total_seconds()))
@@ -372,9 +375,18 @@ def run_once(repo: Path, now: datetime, *, containers: tuple = DEFAULT_CONTAINER
         state["services"] = services
 
     if only in (None, "evening"):
-        ev, ev_lines = evening_step(now, repo, state.get("evening"), config, pinger, armer)
-        state["evening"] = ev
-        lines += ev_lines
+        # 審核第 2 輪 R1：晚間判定（讀他鏈的狀態檔）出任何錯，都⛔ 不得連坐同一次的服務觀測——
+        # 服務段已在上面算完，這裡吞下例外、保留前一次的 evening 狀態，下面照常寫整份狀態檔。
+        # 晚間這一次就是沒判（不武裝、不送成功），結果仍交給期限告警（fail closed）。
+        try:
+            ev, ev_lines = evening_step(now, repo, state.get("evening"), config, pinger, armer)
+            state["evening"] = ev
+            lines += ev_lines
+        except Exception as error:  # noqa: BLE001
+            state["evening_error"] = {"at": now.isoformat(), "error": type(error).__name__}
+            lines.append(f"WARN evening 判定失敗（{type(error).__name__}），服務觀測照常保留")
+        else:
+            state.pop("evening_error", None)
 
     state["schema_version"] = STATE_SCHEMA
     state["observed_at"] = now.isoformat()

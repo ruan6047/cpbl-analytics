@@ -242,6 +242,34 @@ def test_darkwake_runs_never_ping(tmp_path: Path) -> None:
     assert calls.pings == []
 
 
+def test_evening_failure_does_not_lose_service_observations(tmp_path: Path, monkeypatch) -> None:
+    """審核第 2 輪 R1：晚間判定出錯時，同一次執行的服務觀測仍要寫入，第二次停擺確認仍能累積。"""
+    def boom(*_a, **_k):  # noqa: ANN002, ANN003
+        raise RuntimeError("synthetic evening failure")
+
+    monkeypatch.setattr(aw, "evening_step", boom)
+    calls = Calls()
+    stopped = FakeRunner(containers={DB: "running", REDIS: "exited"})
+    first = _run(tmp_path, T0, stopped, calls)
+    assert _state(tmp_path)["services"]["last_obs"]["down"] is True
+    assert any("evening" in line and "RuntimeError" in line for line in first)
+    _run(tmp_path, T5, stopped, calls)
+    assert calls.pings == [(ap.CHECK_SERVICES, "fail", f"{REDIS}=exited")]
+
+
+def test_malformed_evening_state_file_does_not_lose_service_observations(tmp_path: Path) -> None:
+    """同上，用審核者的實際輸入（事件 state 是 list）走完整 run_once。"""
+    bad = {**REAL_STATE, "events": {"x": {"state": []}}}
+    repo = _evening_repo(tmp_path, today=REAL_TODAY, state=bad, last=REAL_LAST)
+    calls = Calls()
+    stopped = FakeRunner(containers={DB: "running", REDIS: "exited"})
+    _run(repo, "2026-10-26T18:21:46+08:00", stopped, calls)
+    _run(repo, "2026-10-26T18:26:46+08:00", stopped, calls)
+    assert (ap.CHECK_SERVICES, "fail", f"{REDIS}=exited") in calls.pings
+    assert all(p[1] != "success" for p in calls.pings if p[0] == ap.CHECK_EVENING)
+    assert _state(repo)["evening"]["settled_reason"] == "event_state_malformed"
+
+
 def test_only_evening_runs_no_probes(tmp_path: Path) -> None:
     runner = FakeRunner()
     _run(tmp_path, T0, runner, Calls(), only="evening")
@@ -357,6 +385,11 @@ def test_no_scheduled_game_tonight_never_arms(tmp_path: Path, mutate) -> None:
     (lambda s: {**s, "events": {"x": {"type": "final_not_ingested"}}}, "event_state_unavailable"),
     (lambda s: {**s, "events": {"x": "synced"}}, "event_malformed"),
     (lambda s: {**s, "events": {"x": {"state": "pending_review"}}}, "event_state_unknown"),
+    # 審核第 2 輪 R1：state 不是字串（不可雜湊）時要判不成立，⛔ 不得拋例外
+    (lambda s: {**s, "events": {"x": {"state": []}}}, "event_state_malformed"),
+    (lambda s: {**s, "events": {"x": {"state": {}}}}, "event_state_malformed"),
+    (lambda s: {**s, "events": {"x": {"state": None}}}, "event_state_malformed"),
+    (lambda s: _with_status(s, "2026-C-6", ["FINISHED"]), "not_final:2026-C-6:['FINISHED']"),
     # 晚間鏈的 ingested＝本機已入庫、尚未同步到正式站（postseason_evening 同步成功才改 synced）
     (lambda s: {**s, "events": {"x": {"state": "ingested"}}}, "event_not_synced"),
 ])
@@ -413,7 +446,7 @@ def test_arm_failure_recovers_the_same_night(tmp_path: Path) -> None:
 
 
 def test_arm_keeps_retrying_while_api_is_down(tmp_path: Path) -> None:
-    """一直失敗就每次喚醒都再試（沒有放棄上限）；每次都只是一個有逾時的 API 請求。"""
+    """一直失敗就每次喚醒都再試（沒有放棄上限）。每次武裝＝查詢＋更新兩個請求，各自最多試 3 次。"""
     repo = _evening_repo(tmp_path, today=REAL_TODAY,
                          state=_with_status(REAL_STATE, "2026-C-6", "SCHEDULED"))
     calls = Calls(ok=False)
