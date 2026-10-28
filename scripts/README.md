@@ -88,11 +88,11 @@
 ## 計數對帳
 
 - `scripts/**`：**57**
-- `docs/research/**/*.py`：**22**
+- `docs/research/**/*.py`：**23**
 - `pyproject [project.scripts]`：**51**
-- **三面總和：130**
+- **三面總和：131**
 
-檔案面分類分佈：CI 繫結守衛 10、一次性產物 42、待產品裁定 1、常設工具 26
+檔案面分類分佈：CI 繫結守衛 11、一次性產物 42、待產品裁定 1、常設工具 26
 
 ## 寫入面：兩套獨立判準交叉複算
 
@@ -101,9 +101,9 @@
 
 **不取聯集也不取交集**：聯集會把「只是 import 了一個含寫入函式的模組」誤判成寫入者；交集會漏掉「呼叫 `build_splits()` 但自己一行 SQL 都沒有」的真寫入者。不一致者逐支人工裁定，出現**未裁定的新不一致**即 CI 紅，**裁定條目過期**（兩判準已一致）也會 CI 紅——後者是刻意的，`roadmap_lines.py` 的 `GATE_OVERRIDES` 被 `#137` 判為缺陷的理由正是「沒有到期來源」。
 
-- 兩判準皆適用：**119** 支，其中不一致 **32** 支（全部已裁定）
+- 兩判準皆適用：**120** 支，其中不一致 **33** 支（全部已裁定）
 - **只有一套判準：11** 支（`.sh`／`.plist` 沒有 Python AST，W1 結構性不適用）——**這一格沒有交叉複算**，不假裝有
-- 判定為寫入型：**58** 支（`scripts/**` 11、`docs/research/` 1、CLI 46）
+- 判定為寫入型：**59** 支（`scripts/**` 11、`docs/research/` 2、CLI 46）
 
 > [!important] **W1 有一個結構性盲點，而它剛好落在最危險的那支上。**
 > `docs/research/INGEST-DEEP-TM-BACKFILL1/sync_deep_tm_prod.py` 把 `COPY` ＋ `UPDATE cpbl.pitch_tracking` 透過 `subprocess.run(['ssh', VPS, …'psql'], input=…)` 串進**生產**——
@@ -120,6 +120,7 @@
 | `cpbl-verify-splits` | 唯讀 | 寫 | 唯讀 | 唯讀驗證入口 |
 | `docs/research/INGEST-DEEP-TM-BACKFILL1/sync_deep_tm_prod.py` | 唯讀 | 寫 | **寫** | ⚠️ **W1 的結構性偽陰性**：它以 `subprocess.run(['ssh', VPS, ... 'psql'], input=script)` 把 `COPY cpbl.pitch_tracking_deep_staging` ＋ `UPDATE cpbl.pitch_tracking` 串進**生產** psql——寫入完全不經過 Python 的 DB cursor，AST 呼叫圖看不到。W2 掃字面才抓得到。這一支就是兩套判準必須並存的理由 |
 | `docs/research/ISSUE-201/collect_matchup_pre2018.py` | 唯讀 | 寫 | 唯讀 | W2 命中的是 import 閉包 cpbl_fighting.py 的 INSERT；本檔只 import 其 `_token_in`，DB 連線強制 default_transaction_read_only、SQL 全是 SELECT，產物落 --workdir 與 src/cpbl/resources/ 的 JSON |
+| `docs/research/ISSUE-383/replace_derived_tables.py` | 唯讀 | 寫 | **寫** | #383 段 2 P-B：與 sync_deep_tm_prod.py 同形的 W1 結構性偽陰性——`replace --apply` 以 `subprocess.run(['docker'\|'ssh', … 'psql'], input=sql)` 送出單一交易的 `DELETE FROM cpbl.<11 表>` ＋ `COPY … FROM stdin`，不經 Python DB cursor。預設（不加 --apply）與 `export` 只走 default_transaction_read_only 的唯讀連線 |
 | `docs/research/ML-PITCHER-ER-REBUILD1/cases/build_cases.py` | 唯讀 | 寫 | 唯讀 | 唯讀取樣落 JSON |
 | `docs/research/ML-PITCHER-ER-REBUILD1/rebuild_er.py` | 唯讀 | 寫 | 唯讀 | docstring 明寫「本檔只讀 DB、只寫 JSON 到本目錄，不改任何既有模組、不寫任何表」；檔內 `cur.execute` 全是 SELECT |
 | `docs/research/ML-WP-VAL-RESAMPLE1/bin_stability.py` | 唯讀 | 寫 | 唯讀 | 唯讀重抽樣分析 |
@@ -189,7 +190,7 @@
 
 判定為**高後果**的入口，argv 必須在主流程前被解析。**既有不合格者具名列入 allowlist**。
 
-高後果 **70** 支（其中非寫入型 **12** 支）。
+高後果 **71** 支（其中非寫入型 **12** 支）。
 
 ### 判準的形狀：出口目錄 ＋ 一台可達性引擎
 
@@ -211,7 +212,7 @@
 > **兩次都不是「少寫了一條正則」，是「判準的名字承諾了一致性、實作沒有給」。**所以第二次的修法不是再加一條，是把「出口是什麼」與「碰不碰得到」拆開。
 
 > [!important] **為什麼不掃 import 閉包**（W2 的射程，也是本判準改版前對 `.py` 用的射程）。
-> `httpx` 在 `cpbl.*` 相依圖裡到處都是，掃閉包會把只 import 了一個常數的唯讀腳本判成打網路的。**現算的差額**（每次重生清冊時重新量，不寫死；母體限 `.py` 入口 119 支，`.sh` 沒有 import 圖故不在本對照內）：閉包法命中 **55** 支、呼叫圖法 **43** 支，閉包法多出來的 **12** 支即誤判面。
+> `httpx` 在 `cpbl.*` 相依圖裡到處都是，掃閉包會把只 import 了一個常數的唯讀腳本判成打網路的。**現算的差額**（每次重生清冊時重新量，不寫死；母體限 `.py` 入口 120 支，`.sh` 沒有 import 圖故不在本對照內）：閉包法命中 **55** 支、呼叫圖法 **43** 支，閉包法多出來的 **12** 支即誤判面。
 > 最刺眼的一支是 `check_splits_pa_split1_results.py`——它從 `cpbl.ingest.cpbl_player_detail` **只 import 了 `APART_COMBOS` 這個 list 常數**，閉包法照樣判它打網路。**誤判要靠 allowlist 消化，而每多一條 allowlist 就離 `roadmap_lines.py` 的 `GATE_OVERRIDES` 近一步**——這裡要的是精確，不是寬。
 
 閉包法多判、呼叫圖法不判的 12 支：`cpbl-check-livelog`、`cpbl-classify-pitches-v2`、`cpbl-replay-livelog-extra`、`docs/research/DEV-CLI-HELP-GUARD1/audit_cli_help.py`、`docs/research/ISSUE-201/collect_matchup_pre2018.py`、`scripts/alert_ping.py`、`scripts/check_splits_pa_split1_results.py`、`scripts/data_tie_remedy1.py`、`scripts/g4_gate_report.py`、`scripts/g4_phase_a_metrics.py`、`scripts/ibb_ghost1_probe.py`、`scripts/verify_splits_pa_split1.py`
@@ -337,11 +338,12 @@ shell 沒有 argparse，判準原本是一條寬鬆正則（「有 `getopts`／`
 | `weekly-game-pitches.sh` | 常設工具 | `scripts/` | ✅ | **寫** | ✅ --help 安全 | INGEST-GAME-TM-REFACTOR1-G4 | 每週一次的逐球全季重跑（INGEST-GAME-TM-REFACTOR1-G4 Phase A）。 | ⚠️ 未查證 |
 | `workflow_ledger.py` | 常設工具 | `scripts/` | ✅ | 唯讀 | ✅ --help 安全 | — | 由 append-only control-plane events 產生活卡 Ledger。 | ⚠️ 已於 33c7c3f 加拒絕執行守衛——TASKS.md 已封存，--write 會覆寫封存產物 |
 
-## 清冊：`docs/research/**/*.py`（22）
+## 清冊：`docs/research/**/*.py`（23）
 
 | 入口 | 分類 | 位置 | 應在 | 寫入 | runnable | 卡 | purpose_declared | purpose_verified |
 |---|---|---|---|---|---|---|---|---|
 | `audit_cli_help.py` | CI 繫結守衛 | `docs/research/DEV-CLI-HELP-GUARD1/` | ✅ | 唯讀 | ✅ --help 安全 | DEV-CLI-HELP-GUARD1 | DEV-CLI-HELP-GUARD1 盤點工具：掃描 pyproject `[project.scripts]` 全部入口的 --help 行為。 | ⚠️ 未查證 |
+| `replace_derived_tables.py` | CI 繫結守衛 | `docs/research/ISSUE-383/` | ✅ | **寫** | ✅ --help 安全 | ISSUE-383 | #383 段 2 P-B：11 張衍生表的受守衛整表替換（PLAN-v4 §3.2 P-B、§4 S2-3a／S2-3、§6）。 | ⚠️ 未查證 |
 | `scan_g4_freeze.py` | 一次性產物 | `docs/research/DOC-G4-FREEZE-STALE1/` | ✅ | 唯讀 | ✅ --help 安全 | DOC-G4-FREEZE-STALE1 | DOC-G4-FREEZE-STALE1：全庫 G4 觀測凍結陳述盤點（唯讀）。 | ⚠️ 未查證 |
 | `sync_deep_tm_prod.py` | 一次性產物 | `docs/research/INGEST-DEEP-TM-BACKFILL1/` | ✅ | **寫** | ⚠️ --help 不安全（具名例外） | INGEST-DEEP-TM-BACKFILL1 | Sync 12 deep TrackMan fields from local DB to production DB for INGEST-DEEP-TM-BACKFILL1. | ⚠️ 未查證 |
 | `confirm_live_schema.py` | 一次性產物 | `docs/research/INGEST-SCORELESS-INNING-PITCHER1/` | ✅ | 唯讀 | ✅ --help 安全 | INGEST-SCORELESS-INNING-PITCHER1 | 單次確認請求：對一場「未落在 G4 保存樣本內」的完成場重取 schema。 | ⚠️ 未查證 |
@@ -455,6 +457,7 @@ shell 沒有 argparse，判準原本是一條寬鬆正則（「有 `getopts`／`
 | 入口 | 理由 |
 |---|---|
 | `docs/research/DEV-CLI-HELP-GUARD1/audit_cli_help.py` | 推導判 CI 繫結（`tests/test_cli_help_guard.py::test_seal_surface_matches_audit_tool` 以硬編路徑載入它防兩份 seal 漂移），但它是 DEV-CLI-HELP-GUARD1 的**交付產物**、已住在自己卡的目錄裡。搬它要同時改 `tests/test_cli_help_guard.py` 的路徑常數與 `docs/research/DEV-CLI-HELP-GUARD1/cli-help-audit.md`——後者射程外 |
+| `docs/research/ISSUE-383/replace_derived_tables.py` | 推導判 CI 繫結（`tests/test_replace_derived_tables.py` 以硬編路徑載入它，守住庫名守衛與 交易內 md5 斷言不被拿掉），但它是 #383 段 2 P-B 的**一次性交付產物**（S2-3a 演練、S2-3 由需求方 --apply），不是常設 CI 守衛；住在自己卡的目錄裡，同 DEV-CLI-HELP-GUARD1 前例 |
 | `docs/research/TIME-SEMANTICS-CONTRACT1/scan_time_semantics.py` | ⚠️ **本卡掃出來的既有不一致**：`docs/TIME_SEMANTICS_CONTRACT.md:243` 給了重跑指令（`uv run python docs/research/…/scan_time_semantics.py --verify`），依推導規則屬常設工具，卻住在 research 卡目錄。判準與位置真的不符，但它是 TIME-SEMANTICS-CONTRACT1 的交付產物，搬它要改活契約——射程外。列為交付報告的待裁項 |
 | `scripts/data_rules_audit1.py` | scripts/data_tie_remedy1.py 的 FROZEN_FILES 以**字面路徑**硬編它，而 CI 只 import `_streaks_for` 碰不到 `is_frozen`——搬走會讓守衛靜默回 False。凍結理由是「必須能重現當初的數字」，動它會讓歷史證據不可重現 |
 | `scripts/g4_phase_a_metrics.py` | 同上：FROZEN_FILES 字面路徑成員判定，凍結理由是「判準一換觀測就不可比」 |
@@ -465,5 +468,5 @@ shell 沒有 argparse，判準原本是一條寬鬆正則（「有 `getopts`／`
 - **「未找到消費者」不等於「沒有消費者」**：本清冊的觀測面只有 **git 追蹤檔案**。本機執行歷史、需求方手動操作、封存前的口頭流程都不在裡面。用詞一律「未找到」。
 - **本輪零刪除**。已用盡的只標記，刪除是需求方的獨立裁定。
 - 位置不變式證明的是「位置與分類一致」，**不是「分類是對的」**。分類含具名人工改判，機器只驗一致性不驗真假。
-- **分段路徑**（`"scripts/" + name` 這類靜態解析不了的組裝）共 118 處，引用完整性檢查涵蓋不到，逐處列出：`docs/research/TIME-SEMANTICS-CONTRACT1/scan_time_semantics.py:149`、`scripts/data_rules_audit1.py:761`、`scripts/data_tie_remedy1.py:322`、`scripts/script_inventory.py:72`、`scripts/script_inventory.py:396`、`scripts/script_inventory.py:400`、`scripts/script_inventory.py:1088`、`scripts/script_inventory.py:1313`、`scripts/script_inventory.py:2001`、`src/cpbl/ingest/starter_watch.py:246`、`tests/test_alert_ping.py:23`、`tests/test_alert_watch.py:33`、`tests/test_alert_watch.py:34`、`tests/test_alert_watch.py:36`、`tests/test_alert_watch.py:493`、`tests/test_alert_watch.py:494`、`tests/test_alert_watch.py:500`、`tests/test_backup_prod_db.py:16`、`tests/test_backup_prod_db.py:186`、`tests/test_backup_prod_db.py:202`、`tests/test_backup_prod_db.py:251`、`tests/test_bio_gap2_backfill.py:19`、`tests/test_bio_gap_backfill.py:27`、`tests/test_boxpa_sync_mode.py:30`、`tests/test_boxpa_sync_mode.py:127`、`tests/test_boxpa_sync_mode.py:130`、`tests/test_boxpa_sync_mode.py:152`、`tests/test_daily_gate.py:365`、`tests/test_daily_gate.py:378`、`tests/test_daily_gate.py:385`、`tests/test_daily_gate.py:393`、`tests/test_daily_gate.py:426`、`tests/test_daily_gate.py:435`、`tests/test_daily_gate.py:956`、`tests/test_evening_night_backup.py:31`、`tests/test_evening_night_backup.py:32`、`tests/test_evening_night_backup.py:135`、`tests/test_evening_night_backup.py:136`、`tests/test_evening_night_backup.py:137`、`tests/test_evening_night_backup.py:149`、`tests/test_evening_night_backup.py:150`、`tests/test_evening_night_backup.py:155`、`tests/test_evening_night_backup.py:305`、`tests/test_evening_night_backup.py:308`、`tests/test_evening_night_backup.py:312`、`tests/test_evening_tm_recheck.py:154`、`tests/test_evening_tm_recheck.py:156`、`tests/test_evening_tm_recheck.py:162`、`tests/test_gamelog_reconcile.py:519`、`tests/test_gamelog_reconcile.py:520`、`tests/test_gamelog_reconcile.py:578`、`tests/test_pa_sync_shell_353.py:95`、`tests/test_postseason_boxpa_stage.py:30`、`tests/test_postseason_boxpa_stage.py:380`、`tests/test_postseason_boxpa_stage.py:385`、`tests/test_postseason_boxpa_stage.py:396`、`tests/test_postseason_evening_sync.py:32`、`tests/test_postseason_evening_sync.py:33`、`tests/test_postseason_evening_sync.py:48`、`tests/test_postseason_evening_sync.py:75`、`tests/test_postseason_evening_sync.py:119`、`tests/test_postseason_evening_sync.py:214`、`tests/test_postseason_evening_sync.py:219`、`tests/test_postseason_evening_sync.py:231`、`tests/test_prod_availability_353.py:12`、`tests/test_prod_availability_353.py:234`、`tests/test_prod_sync_revision_seq.py:33`、`tests/test_prod_sync_revision_seq.py:198`、`tests/test_prod_sync_revision_seq.py:199`、`tests/test_prod_sync_revision_seq.py:200`、`tests/test_prod_sync_revision_seq.py:231`、`tests/test_refresh_info_cache_wait_353.py:15`、`tests/test_refresh_pitch_ingest.py:26`、`tests/test_refresh_remote_train.py:20`、`tests/test_refresh_status.py:29`、`tests/test_refresh_status.py:30`、`tests/test_refresh_status.py:31`、`tests/test_refresh_status.py:32`、`tests/test_refresh_status_alert.py:26`、`tests/test_refresh_status_alert.py:27`、`tests/test_refresh_status_alert.py:98`、`tests/test_refresh_status_alert.py:100`、`tests/test_refresh_status_alert.py:121`、`tests/test_refresh_status_alert.py:264`、`tests/test_review_prompt.py:7`、`tests/test_roadmap_lines.py:28`、`tests/test_schedule_watch.py:22`、`tests/test_schedule_watch.py:23`、`tests/test_schedule_watch.py:291`、`tests/test_schedule_watch.py:364`、`tests/test_scrape_daily.py:33`、`tests/test_scrape_daily.py:34`、`tests/test_scrape_daily.py:119`、`tests/test_scrape_daily.py:136`、`tests/test_scrape_daily.py:160`、`tests/test_scrape_daily.py:314`、`tests/test_script_inventory.py:251`、`tests/test_script_inventory.py:616`、`tests/test_script_inventory.py:662`、`tests/test_script_inventory.py:676`、`tests/test_script_inventory.py:684`、`tests/test_script_inventory.py:692`、`tests/test_script_inventory.py:704`、`tests/test_script_inventory.py:757`、`tests/test_script_inventory.py:815`、`tests/test_script_inventory.py:820`、`tests/test_script_inventory.py:821`、`tests/test_script_inventory.py:822`、`tests/test_script_inventory.py:929`、`tests/test_shell_help_guard.py:315`、`tests/test_shell_help_guard.py:387`、`tests/test_state_plane_migrate.py:16`、`tests/test_sync_table_column_guard.py:22`、`tests/test_task_card_sections.py:8`、`tests/test_team_comparison_only_mode.py:189`、`tests/test_team_comparison_only_mode.py:190`、`tests/test_verify_refresh_info.py:27`、`tests/test_workflow_ledger.py:5`
+- **分段路徑**（`"scripts/" + name` 這類靜態解析不了的組裝）共 118 處，引用完整性檢查涵蓋不到，逐處列出：`docs/research/TIME-SEMANTICS-CONTRACT1/scan_time_semantics.py:149`、`scripts/data_rules_audit1.py:761`、`scripts/data_tie_remedy1.py:322`、`scripts/script_inventory.py:72`、`scripts/script_inventory.py:396`、`scripts/script_inventory.py:400`、`scripts/script_inventory.py:1098`、`scripts/script_inventory.py:1323`、`scripts/script_inventory.py:2011`、`src/cpbl/ingest/starter_watch.py:246`、`tests/test_alert_ping.py:23`、`tests/test_alert_watch.py:33`、`tests/test_alert_watch.py:34`、`tests/test_alert_watch.py:36`、`tests/test_alert_watch.py:493`、`tests/test_alert_watch.py:494`、`tests/test_alert_watch.py:500`、`tests/test_backup_prod_db.py:16`、`tests/test_backup_prod_db.py:186`、`tests/test_backup_prod_db.py:202`、`tests/test_backup_prod_db.py:251`、`tests/test_bio_gap2_backfill.py:19`、`tests/test_bio_gap_backfill.py:27`、`tests/test_boxpa_sync_mode.py:30`、`tests/test_boxpa_sync_mode.py:127`、`tests/test_boxpa_sync_mode.py:130`、`tests/test_boxpa_sync_mode.py:152`、`tests/test_daily_gate.py:365`、`tests/test_daily_gate.py:378`、`tests/test_daily_gate.py:385`、`tests/test_daily_gate.py:393`、`tests/test_daily_gate.py:426`、`tests/test_daily_gate.py:435`、`tests/test_daily_gate.py:956`、`tests/test_evening_night_backup.py:31`、`tests/test_evening_night_backup.py:32`、`tests/test_evening_night_backup.py:135`、`tests/test_evening_night_backup.py:136`、`tests/test_evening_night_backup.py:137`、`tests/test_evening_night_backup.py:149`、`tests/test_evening_night_backup.py:150`、`tests/test_evening_night_backup.py:155`、`tests/test_evening_night_backup.py:305`、`tests/test_evening_night_backup.py:308`、`tests/test_evening_night_backup.py:312`、`tests/test_evening_tm_recheck.py:154`、`tests/test_evening_tm_recheck.py:156`、`tests/test_evening_tm_recheck.py:162`、`tests/test_gamelog_reconcile.py:519`、`tests/test_gamelog_reconcile.py:520`、`tests/test_gamelog_reconcile.py:578`、`tests/test_pa_sync_shell_353.py:95`、`tests/test_postseason_boxpa_stage.py:30`、`tests/test_postseason_boxpa_stage.py:380`、`tests/test_postseason_boxpa_stage.py:385`、`tests/test_postseason_boxpa_stage.py:396`、`tests/test_postseason_evening_sync.py:32`、`tests/test_postseason_evening_sync.py:33`、`tests/test_postseason_evening_sync.py:48`、`tests/test_postseason_evening_sync.py:75`、`tests/test_postseason_evening_sync.py:119`、`tests/test_postseason_evening_sync.py:214`、`tests/test_postseason_evening_sync.py:219`、`tests/test_postseason_evening_sync.py:231`、`tests/test_prod_availability_353.py:12`、`tests/test_prod_availability_353.py:234`、`tests/test_prod_sync_revision_seq.py:33`、`tests/test_prod_sync_revision_seq.py:198`、`tests/test_prod_sync_revision_seq.py:199`、`tests/test_prod_sync_revision_seq.py:200`、`tests/test_prod_sync_revision_seq.py:231`、`tests/test_refresh_info_cache_wait_353.py:15`、`tests/test_refresh_pitch_ingest.py:26`、`tests/test_refresh_remote_train.py:20`、`tests/test_refresh_status.py:29`、`tests/test_refresh_status.py:30`、`tests/test_refresh_status.py:31`、`tests/test_refresh_status.py:32`、`tests/test_refresh_status_alert.py:26`、`tests/test_refresh_status_alert.py:27`、`tests/test_refresh_status_alert.py:98`、`tests/test_refresh_status_alert.py:100`、`tests/test_refresh_status_alert.py:121`、`tests/test_refresh_status_alert.py:264`、`tests/test_review_prompt.py:7`、`tests/test_roadmap_lines.py:28`、`tests/test_schedule_watch.py:22`、`tests/test_schedule_watch.py:23`、`tests/test_schedule_watch.py:291`、`tests/test_schedule_watch.py:364`、`tests/test_scrape_daily.py:33`、`tests/test_scrape_daily.py:34`、`tests/test_scrape_daily.py:119`、`tests/test_scrape_daily.py:136`、`tests/test_scrape_daily.py:160`、`tests/test_scrape_daily.py:314`、`tests/test_script_inventory.py:251`、`tests/test_script_inventory.py:616`、`tests/test_script_inventory.py:662`、`tests/test_script_inventory.py:676`、`tests/test_script_inventory.py:684`、`tests/test_script_inventory.py:692`、`tests/test_script_inventory.py:704`、`tests/test_script_inventory.py:757`、`tests/test_script_inventory.py:815`、`tests/test_script_inventory.py:820`、`tests/test_script_inventory.py:821`、`tests/test_script_inventory.py:822`、`tests/test_script_inventory.py:932`、`tests/test_shell_help_guard.py:315`、`tests/test_shell_help_guard.py:387`、`tests/test_state_plane_migrate.py:16`、`tests/test_sync_table_column_guard.py:22`、`tests/test_task_card_sections.py:8`、`tests/test_team_comparison_only_mode.py:189`、`tests/test_team_comparison_only_mode.py:190`、`tests/test_verify_refresh_info.py:27`、`tests/test_workflow_ledger.py:5`
 

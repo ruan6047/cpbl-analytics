@@ -807,6 +807,12 @@ WRITE_ADJUDICATION: dict[str, tuple[bool, str]] = {
         "把 `COPY cpbl.pitch_tracking_deep_staging` ＋ `UPDATE cpbl.pitch_tracking` 串進"
         "**生產** psql——寫入完全不經過 Python 的 DB cursor，AST 呼叫圖看不到。"
         "W2 掃字面才抓得到。這一支就是兩套判準必須並存的理由"),
+    "docs/research/ISSUE-383/replace_derived_tables.py": (
+        True,
+        "#383 段 2 P-B：與 sync_deep_tm_prod.py 同形的 W1 結構性偽陰性——`replace --apply` 以 "
+        "`subprocess.run(['docker'|'ssh', … 'psql'], input=sql)` 送出單一交易的 "
+        "`DELETE FROM cpbl.<11 表>` ＋ `COPY … FROM stdin`，不經 Python DB cursor。"
+        "預設（不加 --apply）與 `export` 只走 default_transaction_read_only 的唯讀連線"),
 }
 
 # ⚠️ shell／plist 只有 W2 一套判準（W1 需要 Python AST）。這一格**沒有交叉複算**，
@@ -932,6 +938,10 @@ POSITION_EXCEPTIONS: dict[str, str] = {
         "（`uv run python docs/research/…/scan_time_semantics.py --verify`），依推導規則屬常設工具，"
         "卻住在 research 卡目錄。判準與位置真的不符，但它是 TIME-SEMANTICS-CONTRACT1 的交付產物，"
         "搬它要改活契約——射程外。列為交付報告的待裁項"),
+    "docs/research/ISSUE-383/replace_derived_tables.py": (
+        "推導判 CI 繫結（`tests/test_replace_derived_tables.py` 以硬編路徑載入它，守住庫名守衛與 "
+        "交易內 md5 斷言不被拿掉），但它是 #383 段 2 P-B 的**一次性交付產物**（S2-3a 演練、"
+        "S2-3 由需求方 --apply），不是常設 CI 守衛；住在自己卡的目錄裡，同 DEV-CLI-HELP-GUARD1 前例"),
 }
 
 # 一次性產物的歸屬卡（決定 `docs/research/<CARD-ID>/` 的目標目錄）。
