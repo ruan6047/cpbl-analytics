@@ -39,6 +39,40 @@
   ],
   "jobs": [
     {
+      "label": "com.cpbl.alert-watch",
+      "plist": "ops/launchd/com.cpbl.alert-watch.plist",
+      "cadence": {
+        "kind": "interval",
+        "seconds": 300
+      },
+      "effective_from": "2026-10-27",
+      "effective_from_evidence": "#358 交付日（宣告，非量測）。interval job 不做週期判定，本欄不參與判定；實際安裝由需求方於合併後 bootstrap（D4）",
+      "expected_installed": true,
+      "expected_installed_reason": "#358 本機告警 watcher：本機服務停擺偵測（驗收 5）＋晚間鏈武裝／成功／halted。需求方裁定 D4 https://github.com/ruan6047/cpbl-analytics/issues/358#issuecomment-6429157634：合併後由需求方親自 bootstrap、AI 不動 launchd。合併到安裝之間 watchdog 報 JOB_NOT_INSTALLED 是刻意的提醒，不是誤報。",
+      "status_path": "logs/alert-watch/state.json",
+      "history_path": "logs/schedule-history/com.cpbl.alert-watch.jsonl",
+      "history_from": "2026-10-27",
+      "history_from_evidence": "interval job 不做週期判定、不寫歷史；欄位為登記表必填，填交付日。判定只讀 status_path 的 halted（本 job 不寫 halted）。",
+      "alert": {
+        "channel": "healthchecks",
+        "check": "services",
+        "mode": "explicit_fail",
+        "interval_seconds": 300,
+        "confirmations": 2,
+        "ruling": "https://github.com/ruan6047/cpbl-analytics/issues/358#issuecomment-6418264766（判準三題）；https://github.com/ruan6047/cpbl-analytics/issues/358#issuecomment-6429157634（D1 daemon 無回應算停擺、D2 每 5 分連 2 次）",
+        "note": "Mac 完全醒著（systemstate 含 Graphics）且兩次觀測間 kern.sleeptime 不變才送 /fail；不靠沉默告警，services 的 period／grace 由需求方設到上限"
+      },
+      "evening_alert": {
+        "channel": "healthchecks",
+        "check": "evening",
+        "for": "com.cpbl.postseason-evening",
+        "deadline_after_start_minutes": 300,
+        "fallback_deadline": "23:35",
+        "ruling": "https://github.com/ruan6047/cpbl-analytics/issues/358#issuecomment-6348735853（第 5、6 項）；https://github.com/ruan6047/cpbl-analytics/issues/358#issuecomment-6429157634（D3 fallback）",
+        "note": "本段放在 watcher 條目而不寫進晚間鏈條目：晚間鏈條目是 #365／PR #371 revert 的範圍，避開同一個 hunk"
+      }
+    },
+    {
       "label": "com.cpbl.scrape-daily",
       "plist": "scripts/com.cpbl.scrape-daily.plist",
       "cadence": {
