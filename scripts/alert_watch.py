@@ -18,8 +18,9 @@
 
 `awake`＝`pmset -g systemstate` 的能力清單含 `Graphics`（完全喚醒實測 `CPU Graphics Audio Network`）；
 `continuous`＝兩次觀測的 `kern.sleeptime` 相同（中間沒入睡）。DarkWake 沒有 Graphics 有旁證：
-`pmset -g log` 的 DarkWake 列旗標是 `[CDNP]`、完全喚醒是 `[CDNVA]`（V＝video）。DarkWake 當下的
-systemstate 輸出本身尚未取樣（規劃 2 §7 的 DarkWake 判準取樣項）；**驗不出來就停用本判準回報，⛔ 不改用沉默告警**。
+`pmset -g log` 的 DarkWake 列旗標是 `[CDNP]`／`[CDNPB]`、完全喚醒是 `[CDNVA]`（V＝video）。DarkWake 當下的
+systemstate 已實測（#358 exec-2c，FI-S4 一夜取樣）：落在 DarkWake 的 18 筆都是 `CPU Network`、沒有 Graphics。
+限制：取樣由使用者程序觸發、不是 launchd，單夜／單機／AC。⛔ 不改用沉默告警。
 
 ## 隔離（刻意）
 
@@ -74,7 +75,9 @@ TERMINAL_STATUSES = frozenset({"FINISHED", "POSTPONED"})  # 同 postseason_eveni
 EVENING_GRACE = timedelta(hours=5)                         # 裁定 6348735853 第 5 項
 FALLBACK_DEADLINE = time(23, 35)                           # D3 6429157634
 NIGHT_START = time(9, 45)
-MAX_ARM_ATTEMPTS = 3
+# 晚間鏈事件的終態（postseason_evening：open → ingested（本機已入庫）→ synced（已同步），或 unreached
+# （交隔日每日鏈）。白名單：新增其他值時這裡會判不成立（fail closed），不會被當成已結。
+SETTLED_EVENT_STATES = frozenset({"synced", "unreached"})
 HALTED_EXIT = 69
 START_RE = re.compile(r"[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}", re.ASCII)
 _SLEEPTIME_RE = re.compile(r"sec\s*=\s*(\d+),\s*usec\s*=\s*(\d+)")
@@ -226,15 +229,28 @@ def evening_settled(state: object, keys: list) -> tuple:
     """成功條件（欄位缺失一律不成立＝fail closed，結果是期限告警）。"""
     if not isinstance(state, dict):
         return False, "state_unavailable"
-    if state.get("halted"):
+    # 規劃 2 §4.2 第 2 點「欄位缺失一律不送成功」（審核第 1 輪 blocking 1）：每個欄位都要「在、而且是
+    # 預期的值」才算成立；缺欄、型別不對、不認得的值一律不成立，結果是期限告警。
+    if "halted" not in state:
+        return False, "halted_unavailable"
+    if state["halted"]:
         return False, "halted"
     if state.get("pending_sync") is not False:
         return False, "pending_sync"
     events = state.get("events")
     if not isinstance(events, dict):
         return False, "events_unavailable"
-    if any(isinstance(e, dict) and e.get("state") == "open" for e in events.values()):
-        return False, "open_events"
+    for event in events.values():
+        if not isinstance(event, dict):
+            return False, "event_malformed"
+        if "state" not in event:
+            return False, "event_state_unavailable"
+        if event["state"] == "open":
+            return False, "open_events"
+        if event["state"] == "ingested":
+            return False, "event_not_synced"
+        if event["state"] not in SETTLED_EVENT_STATES:
+            return False, "event_state_unknown"
     rows = _schedule_rows(state)
     for key in keys:
         status = (rows.get(key) or {}).get("status")
@@ -264,7 +280,7 @@ def evening_step(now: datetime, repo: Path, previous: dict | None, config: alert
     night = watch_night(now)
     ev = dict(previous or {})
     if ev.get("night") != night.isoformat():
-        ev = {"night": night.isoformat(), "armed": None, "corrected": False, "arm_attempts": 0,
+        ev = {"night": night.isoformat(), "armed": None, "corrected": False, "arm_failures": 0,
               "success_sent": False, "halted_sent": None}
     lines = []
     state, last = load_json(repo / EVENING_STATE), load_json(repo / EVENING_LAST)
@@ -286,7 +302,10 @@ def evening_step(now: datetime, repo: Path, previous: dict | None, config: alert
     wants_arm = armed is None or (armed.get("kind") == "fallback" and kind == "start"
                                   and not ev.get("corrected")
                                   and armed.get("deadline") != deadline.isoformat())
-    if wants_arm and int(ev.get("arm_attempts") or 0) < MAX_ARM_ATTEMPTS:
+    # 「每晚最多武裝一次、改正一次」數的是**成功**的武裝（規劃 2 §4.2 第 1 點）。失敗就在下一次喚醒
+    # 再試、⛔ 沒有放棄上限（審核第 1 輪 blocking 2：舊版連敗 3 次就放棄整晚，網路恢復也不再武裝，
+    # 晚間鏈整天沒跑時就沒有期限告警）。每次只是一個有逾時的 API 請求，5 分鐘一次的成本可忽略。
+    if wants_arm:
         result = armer(config, alert_ping.CHECK_EVENING, cron=cron_for(deadline), tz="Asia/Taipei",
                        grace_seconds=int(EVENING_GRACE.total_seconds()))
         lines.append(f"{result.summary()} deadline={deadline.isoformat()} basis={kind}")
@@ -294,9 +313,8 @@ def evening_step(now: datetime, repo: Path, previous: dict | None, config: alert
             if armed is not None:
                 ev["corrected"] = True
             ev["armed"] = {"deadline": deadline.isoformat(), "kind": kind, "at": now.isoformat()}
-            ev["arm_attempts"] = 0
         else:
-            ev["arm_attempts"] = int(ev.get("arm_attempts") or 0) + 1
+            ev["arm_failures"] = int(ev.get("arm_failures") or 0) + 1  # 只供檢視，不當上限
 
     if not ev.get("success_sent"):
         # 兩份狀態檔任一份 halted 都不算成功（偵測器讀的是 last-…；閒置喚醒不重寫它）。

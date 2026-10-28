@@ -3,9 +3,9 @@
 樣本來源（`tests/fixtures/alert_watch/`）：
 - `pmset -g systemstate`、`sysctl -n kern.sleeptime`、`docker inspect` 的輸出取自本機
   2026-10-27 06:5x 的**真實執行**（唯讀），原樣入檔。
-- DarkWake 時的 systemstate **尚未取樣**（規劃 2 §7 FI-S4，下一段故障注入做）；這裡用的
-  `CPU Network` 是**依 `pmset -g log` DarkWake 列旗標 `[CDNP]`（無 V＝video）推論的合成值**，
-  測的是「沒有 Graphics 就不算醒」這條判準本身，不證明真實 DarkWake 輸出長這樣。
+- DarkWake 時的 systemstate：這裡的 `CPU Network` 寫這組測試時是依 `pmset -g log` DarkWake 旗標
+  `[CDNP]` 推論的合成值；之後 #358 exec-2c（FI-S4 一夜取樣）實測 DarkWake 中的 18 筆都正是
+  `CPU Network`，與此值一致。
 - 晚間鏈狀態檔／今日賽程檔取自主 checkout `logs/` 的真實檔（10-26 C-6 那晚；唯讀擷取，
   去掉與判定無關、含本機路徑的欄位）。標「衍生」的 case 是在真實樣本上改一兩個欄位。
 
@@ -352,6 +352,13 @@ def test_no_scheduled_game_tonight_never_arms(tmp_path: Path, mutate) -> None:
     (lambda s: {k: v for k, v in s.items() if k != "events"}, "events_unavailable"),
     (lambda s: _with_status(s, "2026-C-6", "START"), "not_final:2026-C-6:START"),
     (lambda s: _with_status(s, "2026-C-6", "RESERVED"), "not_final:2026-C-6:RESERVED"),
+    # 審核第 1 輪 blocking 1（規劃 2 §4.2 第 2 點「欄位缺失一律不送成功」）：審核者重現的三種＋未知值
+    (lambda s: {k: v for k, v in s.items() if k != "halted"}, "halted_unavailable"),
+    (lambda s: {**s, "events": {"x": {"type": "final_not_ingested"}}}, "event_state_unavailable"),
+    (lambda s: {**s, "events": {"x": "synced"}}, "event_malformed"),
+    (lambda s: {**s, "events": {"x": {"state": "pending_review"}}}, "event_state_unknown"),
+    # 晚間鏈的 ingested＝本機已入庫、尚未同步到正式站（postseason_evening 同步成功才改 synced）
+    (lambda s: {**s, "events": {"x": {"state": "ingested"}}}, "event_not_synced"),
 ])
 def test_not_settled_fails_closed(tmp_path: Path, mutate, reason: str) -> None:
     repo = _evening_repo(tmp_path, today=REAL_TODAY, state=mutate(copy.deepcopy(REAL_STATE)))
@@ -379,22 +386,50 @@ def test_halted_sends_69_once(tmp_path: Path) -> None:
     assert len(halted) == 1 and "sync_exit_66" in halted[0][2]
 
 
-def test_arm_failure_retries_at_most_three_times(tmp_path: Path) -> None:
+class FlakyArmCalls(Calls):
+    """審核第 1 輪 blocking 2 的重現：前 `failures` 次武裝失敗、之後恢復。"""
+
+    def __init__(self, failures: int) -> None:
+        super().__init__()
+        self.failures = failures
+
+    def armer(self, config, check, **kw):  # noqa: ANN001
+        self.arms.append((check, kw))
+        ok = len(self.arms) > self.failures
+        return _Res(ok, True, f"arm {check}")
+
+
+def test_arm_failure_recovers_the_same_night(tmp_path: Path) -> None:
+    """規劃 2 §4.2 第 1 點、驗收 1：API 短暫故障不得讓當晚放棄武裝。前三次失敗，第四次就要武裝上。"""
+    repo = _evening_repo(tmp_path, today=REAL_TODAY,
+                         state=_with_status(REAL_STATE, "2026-C-6", "SCHEDULED"))
+    calls = FlakyArmCalls(failures=3)
+    for at in ("10:30", "10:35", "10:40", "11:00", "18:00"):
+        _run(repo, f"2026-10-26T{at}:00+08:00", FakeRunner(), calls, only="evening")
+    assert len(calls.arms) == 4  # 第四次成功之後就不再呼叫
+    ev = _state(repo)["evening"]
+    assert ev["armed"]["deadline"].startswith("2026-10-26T20:05") and ev["armed"]["kind"] == "start"
+    assert ev["arm_failures"] == 3
+
+
+def test_arm_keeps_retrying_while_api_is_down(tmp_path: Path) -> None:
+    """一直失敗就每次喚醒都再試（沒有放棄上限）；每次都只是一個有逾時的 API 請求。"""
     repo = _evening_repo(tmp_path, today=REAL_TODAY,
                          state=_with_status(REAL_STATE, "2026-C-6", "SCHEDULED"))
     calls = Calls(ok=False)
     for minute in range(0, 30, 5):
         _run(repo, f"2026-10-26T10:{30 + minute:02d}:00+08:00", FakeRunner(), calls, only="evening")
-    assert len(calls.arms) == aw.MAX_ARM_ATTEMPTS
+    assert len(calls.arms) == 6
+    assert _state(repo)["evening"]["armed"] is None
 
 
 def test_clinched_series_unplayed_game_is_not_distinguishable(tmp_path: Path) -> None:
-    """規劃 2 §4.2 第 4 點（停下項，交需求方）：系列已封王，官方仍列 C-7 10-27 18:35 SCHEDULED。
+    """規劃 2 §4.2 第 4 點：系列已封王，官方仍列 C-7 10-27 18:35 SCHEDULED。
 
     真實狀態檔（10-27 06:51）裡 C-7 就是 SCHEDULED；本機 `present_status` 全史只觀測到 1
     （docs/research/GAME-RECAP-STATUS1_REVIEW.md §2.1），兩個來源都分不出「不會進行」。
     今日賽程檔是衍生的（10-27 J1 尚未執行）。本 case 釘住**現行行為**：會武裝、永遠不終局
-    ⇒ 到 23:35 期限告警。是否接受或改由人工通知，由需求方裁定；裁定前不改這個行為。
+    ⇒ 到 23:35 期限告警。需求方已裁定接受誤報（#358 issuecomment-6430106528），⛔ 不改這個行為。
     """
     today = copy.deepcopy(REAL_TODAY)
     today["date"] = "2026-10-27"
