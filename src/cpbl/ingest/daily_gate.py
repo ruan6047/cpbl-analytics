@@ -694,6 +694,20 @@ def weekly_signals(connection: Any | None = None, *, j3_status: Path = DEFAULT_J
     return [j3_signal, j4_signal, retry]
 
 
+def pa_manifest_drift_signal(count: Callable[[], int]) -> DerivedSignal:
+    """#383 PLAN §2.2：當季完成場中 livelog 已被官方改寫、published PA 還沒跟上的場數。
+
+    ``count`` 由呼叫端給（與 PA 選場第四條同一個計數，``run_refresh_recent._pa_manifest_drift_count``）。
+    算不出來 → None（判斷不了就跑，fail open）。被閘門拒收的場次會讓本訊號持續為 True，
+    這是刻意的：拒收要每次執行都重評、都出 69，不能因日型略過而沉默。
+    """
+    try:
+        n = int(count())
+    except Exception as error:  # noqa: BLE001 — fail open
+        return DerivedSignal("pa_manifest_drift", None, f"算不出 manifest 漂移（{type(error).__name__}）→ 跑")
+    return DerivedSignal("pa_manifest_drift", n > 0, f"當季完成場 livelog manifest ≠ published：{n} 場")
+
+
 # =========================================================================== 今日賽程檔
 
 def taipei_today() -> date:

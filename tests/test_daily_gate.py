@@ -555,6 +555,8 @@ def _stub_refresh_main(monkeypatch, rr, ran: list[str], *, new_pitches: int = 0,
         "_sync_player_names": lambda: ran.append("name_sync") or 0,
         "_recent_counts": lambda *a, **k: [],
         "_log_refresh": lambda *a, **k: ran.append(f"log:{a[5].get('day_type')}"),
+        # #383：選場第四條的 manifest 漂移計數（衍生訊號）；替身＝0 場，不打 DB。
+        "_pa_manifest_drift_count": lambda year: 0,
     }
     if pa_build is None:
         stubs["_pa_build_step"] = lambda *a, **k: ran.append("pa_build") or {"errors": []}

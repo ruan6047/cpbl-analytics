@@ -18,7 +18,7 @@
 結束碼（DATA-BOX-DEEP-SILENT-FAIL1）：
 - 0：完全成功。
 - `EXIT_INCOMPLETE_SCRAPE`（69）：**有部分步驟失敗、其餘步驟照常完成**。
-  值班判讀要看 note 才知道是哪一種——69 現在有**六個來源**：
+  值班判讀要看 note 才知道是哪一種——69 現在有**七個來源**：
   1. 逐場 gamelog 有失敗 → note 列出失敗場號、detail.gamelog_gaps。
   2. 官方球隊戰績對帳失敗（拿到別的球季／空表，已拒寫）→ note 列出
      `官方戰績未寫入：sc=N(kind)`、detail.standings_failures
@@ -32,7 +32,10 @@
   6. livelog 同號檢查未過（#357）→ note 列出 `livelog 檢查未過：場次(原因)`、
      detail.livelog_check.errors；對象只有本次寫入 livelog 的場次（寫入端自記的帳），
      檢查 (i) 最後事件非結束標記、(ii) 主表＋附加表＝原文帶事件號列數。
-  六者都記 refresh_log ok=false；`scripts/scrape-daily.sh` 對這個碼仍會執行生產同步
+  7. 當季有待收尾的 PA 對帳（#383；含官方改值閘門拒收）→ note 列出
+     `PA 對帳待收尾：場次(拒收條件號;天數)`、detail.pa_build.reconciliation_alerts；
+     舊 published 照常服務，只在 pa_build 有跑的那次執行結清。
+  七者都記 refresh_log ok=false；`scripts/scrape-daily.sh` 對這個碼仍會執行生產同步
   （Q3 裁定＝甲-2：擋同步只是把「靜默失敗」換成「生產靜默落後」）。
 - 1：硬失敗（含取 token 階段失敗＝整批一場都沒抓），同步不執行。
 
@@ -483,6 +486,52 @@ def _active_kinds(year: int, candidate_kinds: tuple[str, ...]) -> list[str]:
     return sorted(r[0] for r in rows)
 
 
+# #383 第四條（PLAN §2.2）：published build 的 livelog manifest 對照「該場最新官方 livelog revision
+# 寫入當下記錄的 manifest」（`cpbl_gamelog` 同交易讀回、記在 game_source_revisions.detail）。
+# ⛔ 只比有記錄的場次：WP1 之前寫入的 revision 都沒有 manifest，缺值**一律不入選**（不得因缺值全選，
+# 否則合併後第一次每日鏈會把全庫已 published 場次選進來）。外層別名必須是 `g`。
+_MANIFEST_DRIFT_LATERAL_SQL = """
+            LEFT JOIN LATERAL (
+              SELECT
+                (SELECT sr.source_sha256
+                 FROM cpbl.game_recap_builds pb
+                 JOIN cpbl.game_recap_source_revisions sr ON sr.id = pb.livelog_revision_id
+                 WHERE pb.year = g.year AND pb.kind_code = g.kind_code AND pb.game_sno = g.game_sno
+                   AND pb.state = 'published'
+                 LIMIT 1) AS published_sha,
+                (SELECT gs.detail ->> 'livelog_manifest_sha256'
+                 FROM cpbl.game_source_revisions gs
+                 WHERE gs.year = g.year AND gs.kind_code = g.kind_code AND gs.game_sno = g.game_sno
+                   AND gs.source = 'livelog' AND gs.outcome = 'available'
+                 ORDER BY gs.last_seen_at DESC, gs.id DESC
+                 LIMIT 1) AS recorded_manifest
+            ) drift ON TRUE
+"""
+
+
+def manifest_drift_selected(recorded_manifest: str | None, published_sha: str | None) -> bool:
+    """第四條的判準（純函式）：兩者都有值且不同才入選；任一缺值＝不入選。"""
+    return (recorded_manifest is not None and published_sha is not None
+            and recorded_manifest != published_sha)
+
+
+def _pa_manifest_drift_count(year: int) -> int:
+    """當季完成場中第四條會入選的場數（daily_gate 衍生訊號用；與選場同一判準、同一段 SQL）。"""
+    kinds = [k for tier in _PA_BUILD_TIER_KINDS.values() for k in tier]
+    with conn() as c:
+        rows = c.execute(
+            f"""
+            SELECT drift.recorded_manifest, drift.published_sha
+            FROM cpbl.games g
+            {_MANIFEST_DRIFT_LATERAL_SQL}
+            WHERE g.year = %s AND g.kind_code = ANY(%s) AND {daily_chain_completed_games_sql('g')}
+              AND drift.published_sha IS NOT NULL AND drift.recorded_manifest IS NOT NULL
+            """,
+            (year, kinds),
+        ).fetchall()
+    return sum(1 for rec, pub in rows if manifest_drift_selected(rec, pub))
+
+
 def _pa_build_targets(year: int, kinds: list[str], days: list[date]) -> list[tuple[int, str, int]]:
     """本次應嘗試 canonical PA build 的 (year, kind, game_sno) 清單。
 
@@ -504,7 +553,12 @@ def _pa_build_targets(year: int, kinds: list[str], days: list[date]) -> list[tup
     拿舊的比會把已處理的場次誤報成漂移。
 
     ⚠️ 這條**抓得到增長、抓不到原地修改**：列數不變的官方改判（同列改內容）在
-    ``row_count`` 上看不出來。該盲區的承接卡是 `#109 DATA-BOX-REVISION-SNAPSHOT1`。
+    ``row_count`` 上看不出來。該盲區原由 `#109` 名義承接；#109 已關閉，依需求方裁定
+    （#383 issuecomment-6440067804 第 5 項）由 #383 以第四條補上（見下）。
+    - ⭐ **第四條（#383）**：已 published，且該場最新官方 livelog revision 在寫入當下記錄的
+      manifest ≠ published build 的 livelog manifest（:func:`manifest_drift_selected`）。
+      沒有記錄 manifest 的 revision（#383 WP1 之前寫入的全部）**不因第四條入選**。
+      被官方改值閘門拒收的場次會天天被這條選到：``build_game`` 對它只重評、不寫新 build。
 
     ⚠️ 它是**一次性觸發器不是持續告警**：`build_game` 的順序是「先 upsert revision →
     再判等價 → 再 reconcile」，build 一跑 ``row_count`` 就被更新、條件從此不命中。
@@ -539,10 +593,12 @@ def _pa_build_targets(year: int, kinds: list[str], days: list[date]) -> list[tup
     with conn() as c:
         rows = c.execute(
             f"""
-            SELECT g.year, g.kind_code, g.game_sno, (g.game_date = {TAIPEI_TODAY_SQL}) AS same_day
-            FROM cpbl.games g
-            WHERE g.year = %s AND g.kind_code = ANY(%s) AND {daily_chain_completed_games_sql('g')}
-              AND (
+            WITH cand AS (
+              SELECT g.* FROM cpbl.games g
+              WHERE g.year = %s AND g.kind_code = ANY(%s) AND {daily_chain_completed_games_sql('g')}
+            ), t AS (
+            SELECT g.year, g.kind_code, g.game_sno, (g.game_date = {TAIPEI_TODAY_SQL}) AS same_day,
+              (
                 g.game_date = ANY(%s)
                 OR NOT EXISTS (
                   SELECT 1 FROM cpbl.game_recap_builds b
@@ -565,11 +621,22 @@ def _pa_build_targets(year: int, kinds: list[str], days: list[date]) -> list[tup
                       AND l.game_sno = g.game_sno
                   )
                 )
-              )
-            ORDER BY g.kind_code, g.game_sno
+              ) AS first_three,
+              drift.published_sha, drift.recorded_manifest
+            FROM cand g
+            {_MANIFEST_DRIFT_LATERAL_SQL}
+            )
+            SELECT * FROM t
+            WHERE t.first_three
+               OR (t.published_sha IS NOT NULL AND t.recorded_manifest IS NOT NULL)
+            ORDER BY t.kind_code, t.game_sno
             """,
             (year, kinds, days),
         ).fetchall()
+        # 第四條（#383）由純函式判：SQL 只預篩「有 published 且有記錄 manifest」的場次。
+        # 4 欄列＝只有前三條資訊的舊形狀（測試替身）；照原語意視同前三條命中。
+        rows = [r for r in rows
+                if (bool(r[4]) if len(r) > 4 else True) or manifest_drift_selected(r[6], r[5])]
         same_day = [(r[0], r[1], r[2]) for r in rows if r[3]]
         phases = _official_phases(c, same_day) if same_day else {}
     kept, dropped = _drop_unfinished_same_day(
@@ -697,7 +764,47 @@ def _build_pa_daily(year: int, days: list[date], *, include_farm: bool) -> dict[
         result = {"games": 0, "actions": {}, "build_states": {}, "errors": []}
     result["kinds"] = kinds
     result["coverage"] = _pa_build_coverage(year, kinds)
+    if any(v.get("reconciliation_outstanding", 0) for v in result["coverage"].values()):
+        result["reconciliation_alerts"] = _pa_reconciliation_alerts(year, kinds)
     return result
+
+
+def _pa_reconciliation_alerts(year: int, kinds: list[str]) -> list[dict[str, Any]]:
+    """當季完成場的待收尾 reconciliation（逐場）：場次、卡了幾天、最新一次官方改值閘門的拒收條件。
+
+    #383 PLAN §2.3：這份清單非空即由 main() 結清成 refresh_log ok=false＋69（可見訊號）。
+    `failed` 取該場**最新** reconciliation build 的 ``validation_summary.reconcile.official_revision
+    .failed``；閘門沒評估過（例如舊版 builder 留下的 build）時為空清單。
+    """
+    if not kinds:
+        return []
+    with conn() as c:
+        rows = c.execute(
+            f"""
+            SELECT b.year, b.kind_code, b.game_sno,
+                   FLOOR(EXTRACT(EPOCH FROM (now() - MIN(b.built_at))) / 86400)::int AS days,
+                   (array_agg(b.validation_summary -> 'reconcile' -> 'official_revision' -> 'failed'
+                              ORDER BY b.built_at DESC))[1] AS failed
+            FROM cpbl.game_recap_builds b
+            JOIN cpbl.games g
+              ON g.year = b.year AND g.kind_code = b.kind_code AND g.game_sno = b.game_sno
+            WHERE b.year = %s AND b.kind_code = ANY(%s) AND b.state = 'reconciliation_required'
+              AND {daily_chain_completed_games_sql('g')}
+            GROUP BY b.year, b.kind_code, b.game_sno
+            ORDER BY b.kind_code, b.game_sno
+            """,
+            (year, kinds),
+        ).fetchall()
+    return [{"game": f"{y}/{k}/{s}", "days": int(d or 0),
+             "failed": f if isinstance(f, list) else []} for y, k, s, d, f in rows]
+
+
+def _pa_alert_note(alerts: list[dict[str, Any]]) -> str:
+    """69 note：場次、拒收條件號（未評估＝「未評估」）與天數。"""
+    parts = [f"{a['game']}({','.join(a.get('failed') or []) or '未評估'};{a.get('days', 0)}天)"
+             for a in alerts[:12]]
+    more = f"…共 {len(alerts)} 場" if len(alerts) > 12 else ""
+    return "PA 對帳待收尾：" + "；".join(parts) + more
 
 
 def _pa_build_step(year: int, days: list[date], *, include_farm: bool) -> dict[str, Any]:
@@ -714,6 +821,12 @@ def _pa_build_step(year: int, days: list[date], *, include_farm: bool) -> dict[s
         # 寫「published 覆蓋恆真」而 D/119 正卡在第 11 天——這是本卡機制事實 (E)。
         # `.get` 而非 `[]`：coverage 的形狀是本卡才擴充的，呼叫端/測試給舊形狀不該炸。
         outstanding_total = sum(v.get("reconciliation_outstanding", 0) for v in cov)
+        if outstanding_total and not result.get("reconciliation_alerts"):
+            # 舊形狀／只有計數時退回以 kind 計，仍要亮（#383 PLAN §2.3）。
+            result["reconciliation_alerts"] = [
+                {"game": f"{year}/{k}（{v['reconciliation_outstanding']} 場）",
+                 "days": v.get("oldest_days", 0), "failed": []}
+                for k, v in result["coverage"].items() if v.get("reconciliation_outstanding")]
         if result["errors"] or gap_total or outstanding_total:
             log.warning("PA build 完成但仍有缺口／待收尾／錯誤：%s", result)
         else:
@@ -1143,6 +1256,8 @@ def main() -> None:
                     "j1_pitches", _new_pitches_written(detail_inc, postseason_result.get("detail")) > 0,
                     "本次 J1 逐球（當日窗＋落後自癒）寫入球數"),
                 *gate.weekly_signals(),
+                # #383 PLAN §2.2：與選場第四條同一個計數，讓 sync_only／light 日也會跑 pa_build。
+                gate.pa_manifest_drift_signal(lambda: _pa_manifest_drift_count(year)),
             ]
             run_steps, derived_gate = gate.derived_decision(signals, full_set)
         else:
@@ -1246,6 +1361,14 @@ def main() -> None:
         note = ll_note if note is None else f"{note}；{ll_note}"
         log.error(ll_note)
 
+    # #383 PLAN §2.3：當季有待收尾的 PA 對帳（含官方改值閘門拒收）→ ok=false＋69，note 列場次、
+    # 拒收條件號與天數。只記不擋：PA 舊 published 照常服務，其餘資料照常同步。
+    pa_alerts = pa_build_result.get("reconciliation_alerts") or []
+    if pa_alerts:
+        pa_note = _pa_alert_note(pa_alerts)
+        note = pa_note if note is None else f"{note}；{pa_note}"
+        log.error(pa_note)
+
     total = sum(t for _, t, _ in recent)
     completed = sum(comp for _, _, comp in recent)
     detail = {
@@ -1259,7 +1382,7 @@ def main() -> None:
         "recent": [{"date": d.isoformat(), "total": t, "completed": comp} for d, t, comp in recent],
     }
     failed = bool(_GAMELOG_GAPS or standings_failed or pitch_type_failed or derived_failed
-                  or postseason_failed or livelog_failed)
+                  or postseason_failed or livelog_failed or pa_alerts)
     _log_refresh("recent-games", yesterday, today, total, completed, detail,
                  ok=not failed, note=note)
 
