@@ -224,6 +224,7 @@ def test_build_pa_daily_always_tries_major_kinds_and_gates_farm_by_flag(
 
     monkeypatch.setattr(rr, "_active_kinds", fake_active_kinds)
     monkeypatch.setattr(rr, "_pa_build_targets", lambda *_a, **_k: [])
+    monkeypatch.setattr(rr, "_pa_manifest_drift_targets", lambda *_a, **_k: [])  # #383 第四條
     monkeypatch.setattr(rr, "_pa_build_coverage", lambda *_a, **_k: {})
 
     def _boom_build_scope(*_a, **_k):
@@ -247,6 +248,7 @@ def test_build_pa_daily_never_calls_build_scope_with_empty_only_games(
     """
     monkeypatch.setattr(rr, "_active_kinds", lambda *_a, **_k: ["A"])
     monkeypatch.setattr(rr, "_pa_build_targets", lambda *_a, **_k: [])
+    monkeypatch.setattr(rr, "_pa_manifest_drift_targets", lambda *_a, **_k: [])  # #383 第四條
     monkeypatch.setattr(rr, "_pa_build_coverage", lambda *_a, **_k: {"A": {"completed": 5, "published": 5, "gap": 0}})
 
     calls = []
@@ -268,6 +270,7 @@ def test_build_pa_daily_calls_build_scope_with_only_games_when_targets_exist(
     targets = [(2026, "A", 228), (2026, "A", 233)]
     monkeypatch.setattr(rr, "_active_kinds", lambda *_a, **_k: ["A"])
     monkeypatch.setattr(rr, "_pa_build_targets", lambda *_a, **_k: targets)
+    monkeypatch.setattr(rr, "_pa_manifest_drift_targets", lambda *_a, **_k: [])  # #383 第四條
     monkeypatch.setattr(rr, "_pa_build_coverage", lambda *_a, **_k: {"A": {"completed": 234, "published": 234, "gap": 0}})
 
     calls = []

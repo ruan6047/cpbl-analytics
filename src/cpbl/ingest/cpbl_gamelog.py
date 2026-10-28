@@ -12,9 +12,11 @@ import time
 from typing import Any
 
 import psycopg
+from psycopg.rows import dict_row
 
 from cpbl.completion import completed_games_sql
 from cpbl.db import conn
+from cpbl.ingest import pa_build
 from cpbl.ingest.box_revisions import record_box_pitching_revisions
 from cpbl.ingest.cpbl_site import BASE, KIND_REGULAR
 from cpbl.ingest.game_source_revisions import record_source_revision
@@ -41,6 +43,11 @@ EXIT_INCOMPLETE_SCRAPE = 69
 # #357 WP2-c：本程序內 livelog 寫入成功的場次 → 原文帶事件號的列數。每日鏈開頭清空、
 # 收尾時用 `livelog_checks` 對這些場次讀回 DB 驗兩支檢查（寫入端自己的帳，不靠時間窗猜）。
 LIVELOG_WRITTEN: dict[tuple[int, str, int], int] = {}
+# #383 WP1-b：`_write_livelog` 在寫入的**同一交易**讀回主表、算出的 manifest（場次→detail 欄位），
+# 由 `scrape_gamelogs` 取走併進 livelog revision 的 detail。走模組級交接而不改 `_write_livelog`
+# 的回傳形狀：既有呼叫端與測試替身都依 (主表列數, 附加表列數) 解包。替身不寫這裡＝detail 不帶
+# manifest，PA 官方改值閘門的條件 3 因此不成立（fail closed），不會誤放。
+LIVELOG_WRITE_MANIFESTS: dict[tuple[int, str, int], dict[str, Any]] = {}
 
 
 class GamelogScrapeIncomplete(RuntimeError):
@@ -217,7 +224,24 @@ def _write_livelog(year: int, kind: str, sno: int, data: list[dict], *,
                     f"VALUES ({','.join(['%s'] * len(_LL_EXTRA_COLS.split(',')))})",
                     extra,
                 )
+        if main:
+            LIVELOG_WRITE_MANIFESTS[(year, kind, sno)] = _written_manifest(
+                c.cursor(row_factory=dict_row), year, kind, sno, {str(r[3]) for r in main})
     return len(main), len(extra)
+
+
+def _written_manifest(cur: Any, year: int, kind: str, sno: int,
+                      written_nos: set[str]) -> dict[str, Any]:
+    """寫入同一交易內讀回主表，算 PA builder 用的同一個 manifest（#383 WP1-b）。
+
+    `livelog_residual_rows`＝主表裡**不在這次原文**的事件號列數。UPSERT 不刪列，官方刪掉的事件
+    會殘留；殘列不為 0 時，本機列就不是「完全由這份原文產生」，PA 閘門條件 3 拒收。
+    """
+    events = pa_build._fetch_events(cur, year, kind, sno)
+    sha, rows, _max = pa_build._livelog_manifest(events)
+    residual = sum(1 for e in events if str(e.get("main_event_no")) not in written_nos)
+    return {"livelog_manifest_sha256": sha, "livelog_manifest_rows": rows,
+            "livelog_residual_rows": residual, "livelog_writer": pa_build.LIVELOG_WRITER_VERSION}
 
 
 def _bbox_rows(year: int, kind: str, sno: int, data: list[dict]) -> list[tuple]:
@@ -523,8 +547,10 @@ def scrape_gamelogs(year: int, snos: list[int], kind_code: str = KIND_REGULAR,
         pp, pp_error = _box_rows("PitchingJson")
         out["scoreboard"] += _upsert("game_scoreboard", _SB_COLS, 5,
                                      _scoreboard_rows(year, kind_code, sno, sb))
+        LIVELOG_WRITE_MANIFESTS.pop((year, kind_code, sno), None)
         n_main, n_extra = _write_livelog(year, kind_code, sno, ll,
                                          replace_extra=not ll_error and bool(ll))
+        written_manifest = LIVELOG_WRITE_MANIFESTS.pop((year, kind_code, sno), None)
         out["livelog"] += n_main
         if not ll_error and ll:
             out["livelog_extra"] += n_extra
@@ -543,9 +569,11 @@ def scrape_gamelogs(year: int, snos: list[int], kind_code: str = KIND_REGULAR,
                 # 無事件號列，不能直接拿來比主表＋附加表。
                 # standalone_end_marker：末組只有一列結束標記時的事件號（否則 null），
                 # 給 livelog_checks (i) 豁免用——DB 只看得到主列，判不出這件事。
+                # #383 WP1-b：寫入後 manifest（只有本次真的寫了主表才有；見 LIVELOG_WRITE_MANIFESTS）。
                 detail={"phase": "getlive",
                         "event_rows": sum(1 for r in ll if r.get("MainEventNo")),
-                        "standalone_end_marker": standalone_end_marker_no(ll)},
+                        "standalone_end_marker": standalone_end_marker_no(ll),
+                        **(written_manifest or {})},
             )
         out["batting_box"] += _upsert("batting_gamelog", _BBOX_COLS, 4,
                                       _bbox_rows(year, kind_code, sno, bb))

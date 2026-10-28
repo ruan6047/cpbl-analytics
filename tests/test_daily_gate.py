@@ -555,6 +555,8 @@ def _stub_refresh_main(monkeypatch, rr, ran: list[str], *, new_pitches: int = 0,
         "_sync_player_names": lambda: ran.append("name_sync") or 0,
         "_recent_counts": lambda *a, **k: [],
         "_log_refresh": lambda *a, **k: ran.append(f"log:{a[5].get('day_type')}"),
+        # #383：選場第四條的 manifest 漂移計數（衍生訊號）；替身＝0 場，不打 DB。
+        "_pa_manifest_drift_count": lambda year: 0,
     }
     if pa_build is None:
         stubs["_pa_build_step"] = lambda *a, **k: ran.append("pa_build") or {"errors": []}
@@ -572,6 +574,7 @@ def _stub_refresh_main(monkeypatch, rr, ran: list[str], *, new_pitches: int = 0,
             "_active_kinds": lambda year, kinds: ["A"],
             # 與真 SQL 同語意的假集合：當日窗（此處無）∪ 全域缺口（完成但無 published）
             "_pa_build_targets": lambda year, kinds, days: sorted(completed - published),
+            "_pa_manifest_drift_targets": lambda year, kinds: [],   # #383 第四條：替身＝無漂移
             "build_scope": build_scope,
             "_pa_build_coverage": lambda year, kinds: {
                 "A": {"gap": len(completed - published), "reconciliation_outstanding": 0}},
