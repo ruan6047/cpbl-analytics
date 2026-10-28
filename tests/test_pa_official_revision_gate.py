@@ -565,3 +565,51 @@ def test_e2e_c_official_revision_with_matching_box_is_selected_and_published(mon
     res = pb.build_game(cur, *KEY)
     assert res.action == "official_publish" and res.build_state == "published"
     assert res.summary["reconcile"]["official_revision"]["failed"] == []
+
+
+# ============================================================ 審核 r1 F1：涉及球員缺官方 box 列＝拒收
+def _with_event4(**fields) -> list[dict]:
+    events = new_events()
+    events[3] = {**events[3], **fields}
+    return events
+
+
+def test_r1_f1_pitcher_missing_from_box_is_rejected() -> None:
+    """審核者重現：H4 的投手改成 P3，官方投手 box 只有 P1、P2 → 條件 4 拒收（不得把缺列當 0）。"""
+    out = run_gate(scenario(events=_with_event4(pitcher_acnt="P3")))
+    assert out["accepted"] is False and out["failed"] == ["4_box"]
+    assert {"side": "pit", "player": "P3"} in out["conditions"]["4_box"]["missing_box_rows"]
+
+
+def test_r1_f1_batter_missing_from_box_is_rejected() -> None:
+    """對稱負例：H4 那一打席改由 H5 打，官方打者 box 沒有 H5 → 拒收。"""
+    out = run_gate(scenario(events=_with_event4(hitter_acnt="H5")))
+    assert out["accepted"] is False and "4_box" in out["failed"]
+    assert {"side": "bat", "player": "H5"} in out["conditions"]["4_box"]["missing_box_rows"]
+
+
+def test_r1_f1_pitcher_missing_keeps_old_published_and_alerts_69(monkeypatch) -> None:
+    events = _with_event4(pitcher_acnt="P3")
+    sha_old, sha_new = pb._livelog_manifest(old_events())[0], pb._livelog_manifest(events)[0]
+    old_pas = _pas(old_events())
+    cur = FakeCursor(events=events, old_pas=old_pas, builds=[
+        {"build_id": str(uuid.uuid4()), "state": "published", "builder_version": "pa-build-1.6.0",
+         "taxonomy_version": TAX.version, "livelog_revision_id": 100, "tracking_revision_id": None,
+         "built_at": T_BUILT, "validation_summary": {}}],
+        revision={"id": 778, "fetched_at": T_OFFICIAL, "last_seen_at": T_OFFICIAL,
+                  "detail": {"livelog_manifest_sha256": sha_new, "livelog_residual_rows": 0,
+                             "livelog_writer": pb.LIVELOG_WRITER_VERSION}},
+        rev_ids={sha_old: 100, sha_new: 101})
+    res = pb.build_game(cur, *KEY)
+    assert res.action == "reconcile" and res.build_state == "reconciliation_required"
+    failed = res.summary["reconcile"]["official_revision"]["failed"]
+    assert failed == ["4_box"]
+    published = [b for b in cur.builds if b["state"] == "published"]
+    assert len(published) == 1 and published[0]["livelog_revision_id"] == 100   # 舊 published 保留
+
+    monkeypatch.setattr(rr, "_build_pa_daily", lambda *_a, **_k: {
+        "games": 1, "actions": {"reconcile": 1}, "build_states": {}, "errors": [],
+        "coverage": {"A": {"gap": 0, "reconciliation_outstanding": 1, "oldest_days": 0}},
+        "reconciliation_alerts": [{"game": "2026/A/1", "days": 0, "failed": failed}]})
+    step = rr._pa_build_step(2026, [date(2026, 10, 28)], include_farm=True)
+    assert rr._pa_alert_note(step["reconciliation_alerts"]) == "PA 對帳待收尾：2026/A/1(4_box;0天)"

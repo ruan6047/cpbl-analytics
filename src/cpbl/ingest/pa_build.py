@@ -1110,6 +1110,7 @@ def controlled_restoration(
 #   4. 同次原文對帳：差異 PA 涉及的打者／投手（新舊 build 都算），以新 build 推得的單場計數
 #      ＝官方 box。欄位由 #383 WP0 B4 固定（⛔ 不增減）：打者 PA、H、HR、BB（含 IBB）、IBB、
 #      HBP、SO；投手 H、HR、IBB、HBP、SO。歸屬：打者＝hitter_acnt、投手＝end_pitcher_acnt。
+#      涉及的球員沒有官方 box 列＝無從對帳，拒收（缺列不得當成全 0）。
 #   5. 內部一致性：livelog 末事件比分＝`game_scoreboard` 逐局加總＝`games` 比分。
 #   6. 與 #357 組合：差異含末事件時，末事件那部分必須恰好是 1.6.0 結束標記還原的型態
 #      （以 END_MARKER_CONTENTS 重建舊指紋；⛔ 不改 1.6.0 謂詞）；黃金值清單場次不經本條放行。
@@ -1225,12 +1226,17 @@ def _cond_box(new_pas: list[PlateAppearance], rec: ReconcileResult, facts: Offic
     bat, pit = box_counts_from_pas(
         [(pa.hitter_acnt, pa.end_pitcher_acnt, pa.result_action) for pa in new_pas], taxonomy)
     mismatches: list[dict[str, Any]] = []
+    missing: list[dict[str, Any]] = []
     for side, players, derived, box, fields in (
         ("bat", batters, bat, facts.box_batting, BOX_BATTING_FIELDS),
         ("pit", pitchers, pit, facts.box_pitching, BOX_PITCHING_FIELDS),
     ):
         for player in sorted(players):
-            row = box.get(player) or {}
+            row = box.get(player)
+            if row is None:
+                # ⛔ 缺列≠官方記為 0（審核 r1 F1）：涉及的球員沒有官方 box 列＝無從對帳 → 拒收。
+                missing.append({"side": side, "player": player})
+                continue
             for key, col in fields.items():
                 want = row.get(col)
                 want = 0 if want is None else int(want)
@@ -1239,8 +1245,9 @@ def _cond_box(new_pas: list[PlateAppearance], rec: ReconcileResult, facts: Offic
                     mismatches.append({"side": side, "player": player, "field": key,
                                        "pa_derived": got, "box": want})
     has_box = bool(facts.box_batting or facts.box_pitching)
-    ok = has_box and bool(diff_ids) and not mismatches
+    ok = has_box and bool(diff_ids) and not mismatches and not missing
     return {"ok": ok, "has_box": has_box, "batters": sorted(batters), "pitchers": sorted(pitchers),
+            "missing_box_rows": missing,
             "mismatches": mismatches[:50]}
 
 
