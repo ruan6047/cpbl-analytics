@@ -120,8 +120,10 @@ start)
   rstream proc "if command -v pidstat >/dev/null; then echo '# tool=pidstat -h -u -r -d 1'; timeout ${MAX_SECONDS} pidstat -h -u -r -d 1 </dev/null | ${stamp}; else echo '# tool=top -b -d 1 (pidstat 不在；規劃 r4 §5 的替代)'; timeout ${MAX_SECONDS} top -b -d 1 </dev/null | awk '/^top -/{n=0} {n++; if (n<=22) {print; fflush()}}' | ${stamp}; fi"
   # DB：application_name＝tag（stop 時只 terminate 這個名字）；\watch c=N 給次數上限（psql ≥16；prod_pg 是 17）；
   # \watch 遇錯（例如 900ms 逾時）會結束，遠端迴圈重開，直到保險絲或 stop。
+  # PG_EXEC 用子 shell 包住：預設 PG_EXEC 是 `cd … && . ./.env && docker exec …`，不包的話管線只包住 `cd`，
+  # `. ./.env` 會在原本目錄執行而找不到（L353-VPS1 乾跑 pg.tsv 0 列；tests/test_e1_sampler_353.py 釘住）。
   sql="SELECT to_char(extract(epoch FROM clock_timestamp()), 'FM9999999999.000'), 'api', coalesce(wait_event_type, '-'), coalesce(wait_event, '-'), coalesce(state, '-'), count(*), coalesce(round(max(extract(epoch FROM clock_timestamp() - query_start))::numeric, 3), 0) FROM pg_stat_activity WHERE pid <> pg_backend_pid() AND host(client_addr) IN (${inlist}) GROUP BY 3, 4, 5 ORDER BY 3, 4, 5 \\watch i=1 c=${MAX_SECONDS}"
-  rstream pg "export PGAPPNAME=${tag}; end=\$((\$(date +%s) + ${MAX_SECONDS})); while [ \$(date +%s) -lt \$end ]; do printf '%s\\n' \"${sql//\"/\\\"}\" | ${PG_EXEC}; sleep 1; done"
+  rstream pg "export PGAPPNAME=${tag}; end=\$((\$(date +%s) + ${MAX_SECONDS})); while [ \$(date +%s) -lt \$end ]; do printf '%s\\n' \"${sql//\"/\\\"}\" | ( ${PG_EXEC} ); sleep 1; done"
   sleep 2
   echo "STARTED $(wc -l <"$out/pids" | tr -d ' ') streams tag=${tag} at $(date +%s)"
   ;;
