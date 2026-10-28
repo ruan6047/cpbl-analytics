@@ -69,9 +69,12 @@ def _outside_roster(data):
 # sync_box_source_revisions 與 POSTSEASON_BOXPA_ONLY 段送 box 時呼叫它（71135 → 76701 bytes）；區塊之前未變。
 # 舊值：區塊之後 07984ad1…37d4（71135 bytes，origin/main 33a38248）。LINEUP_ONLY／RESULTS_ONLY 對 BASE 的
 # 逐項比對（下方 test_existing_modes_…）未改、仍綠。
+# #357 WP2-f（只改「區塊之後」基準、保護不減，待需求方追認）：區塊之後新增 sync_livelog_extra（附加表
+# game_livelog_extra 整表鏡像、本機 0 列略過）並在完整鏈 sync_box_game_livelog 之後呼叫（76701 → 77968 bytes）；
+# 區塊之前未變。舊值：區塊之後 714cfc0c…854e（76701 bytes，origin/main 53f0bd93）。ROSTER_ONLY 區塊未動。
 OUTSIDE_ROSTER_SHA256 = (
     "2e54518d330e9d3b804dd61e76b837a149172676547a1898bde2021d952ab92f",   # 區塊之前（22468 bytes）
-    "714cfc0cfbdbc0204e42ee3b8f2a91d50fc58291b691b22760ade107ccf8854e",   # 區塊之後（76701 bytes）
+    "93b123afaf144e4ae07f9f53c4349f3c6e498a3300da24d6ff9e95f8d84682df",   # 區塊之後（77968 bytes）
 )
 # #316 的成果（ROSTER_ONLY 區塊本身）以 main 上合併後的版本為準：#293 不得改動它。
 ROSTER_RESULT = "a473695dfca536e365b08c44aa2e85374e8f3e69"

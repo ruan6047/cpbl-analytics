@@ -18,11 +18,23 @@ type Moment = {
   afterIsFinal: boolean;
 };
 
-/** 每打席 ΔWP（後點 − 前點，主隊視角）+ 該打席結果文（PA 末筆非更換事件的首行）。 */
+// 結束標記（#357）：每場最後事件號下，實際打席之後會跟一筆同號的「比賽結束／主審裁定比賽結束」
+// （快照路徑與合併附加表後的 DB 路徑皆然）。判定同後端 `cpbl_gamelog._is_end_marker`：
+// 去空白、去句末「。」後比對。它不是打席結果，不得當成關鍵打席的結果文。
+const END_MARKERS = new Set(["比賽結束", "主審裁定比賽結束"]);
+const isEndMarker = (e: StatRow) =>
+  END_MARKERS.has(String(e.content ?? "").trim().replace(/[。\s]+$/, ""));
+
+/** 每打席 ΔWP（後點 − 前點，主隊視角）+ 該打席結果文（PA 末筆非更換、非結束標記事件的首行）。 */
 export function buildMoments(wp: WpPoint[], log: StatRow[]): Moment[] {
   if (wp.length < 2) return [];
-  // evt(打席首事件) → 該打席結果：從首事件掃到下一打席前，取最後一筆同打者事件
-  const idxByEvt = new Map<string, number>(log.map((e, i) => [String(e.main_event_no), i]));
+  // evt(打席首事件) → 該打席結果：從首事件掃到下一打席前，取最後一筆同打者事件。
+  // 同號多列時取第一筆非結束標記列（Map 預設後到者勝，會指到結束標記）。
+  const idxByEvt = new Map<string, number>();
+  log.forEach((e, i) => {
+    const k = String(e.main_event_no);
+    if (!idxByEvt.has(k) && !isEndMarker(e)) idxByEvt.set(k, i);
+  });
   const out: Moment[] = [];
   for (let i = 0; i < wp.length - 1; i++) {
     const p = wp[i];
@@ -33,7 +45,7 @@ export function buildMoments(wp: WpPoint[], log: StatRow[]): Moment[] {
     let last = start, isScore = false;
     for (let j = start; j < log.length; j++) {
       const e = log[j];
-      if (e.is_change_player) continue;
+      if (e.is_change_player || isEndMarker(e)) continue;
       if (String(e.hitter_acnt) !== String(hitter)) break;
       last = j;
       if (e.is_score) isScore = true;
