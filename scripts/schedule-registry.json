@@ -87,7 +87,18 @@
       "status_path": "logs/last-launchd-status.json",
       "history_path": "logs/schedule-history/com.cpbl.scrape-daily.jsonl",
       "history_from": "2026-08-15",
-      "history_from_evidence": "#132 交付日（保守下界的宣告，非量測）。實際生效日以 logs/schedule-watchdog/deployed-at.json 的部署錨點為準——見 _readme。歷史由 scripts/refresh_status.py 的 start/finish 自動 append"
+      "history_from_evidence": "#132 交付日（保守下界的宣告，非量測）。實際生效日以 logs/schedule-watchdog/deployed-at.json 的部署錨點為準——見 _readme。歷史由 scripts/refresh_status.py 的 start/finish 自動 append",
+      "alert": {
+        "channel": "healthchecks",
+        "check": "daily",
+        "schedule": "10 10 * * *",
+        "tz": "Asia/Taipei",
+        "grace_minutes": 50,
+        "deadline": "11:00",
+        "pinged_by": "scripts/refresh_status.py 的 start／finish（只在 --trigger launchd）：/start 與 /<exit code>，同一個 rid",
+        "ruling": "https://github.com/ruan6047/cpbl-analytics/issues/358#issuecomment-6348735853（第 1、2、4 項）",
+        "note": "服務端排程與 grace 由需求方在 healthchecks 設定；本段是預期值。#343 改每日鏈節奏時，cadence、本段與服務端要在同一個變更裡一起改（本機核對不到 SaaS 端，殘餘風險）"
+      }
     },
     {
       "label": "com.cpbl.weekly-box-revisions",

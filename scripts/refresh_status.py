@@ -53,6 +53,13 @@ HISTORY_KEEP = 400
 HISTORY_COMPACT_AT = 500
 HISTORY_STATES = ("running", "succeeded", "failed", "skipped")
 
+# #358 WP2'：每日鏈的外部心跳 ping（healthchecks check `daily`，門檻 11:00＝cron 10:10＋grace 50 分，
+# 需求方裁定 6348735853 第 4 項）。掛在這裡而不是 scrape-daily.sh：鏈檔是共享檔，本檔只被它的
+# start／finish 呼叫（規劃 2 §4.1）。只在 `--trigger launchd` 且 label 是每日鏈時送；ping 本身在
+# 同目錄的 alert_ping.py，一律 fail-open（驗收 6）：ping 失敗、模組缺席都不改 rc 與狀態寫入。
+# ⚠️ 狀態與歷史**先寫、再 ping**——ping 最壞要等約 33 秒，不能排在狀態寫入之前。
+ALERT_LABEL = DEFAULT_HISTORY_LABEL
+
 
 def _bool(value: str) -> bool:
     if value == "1":
@@ -197,8 +204,27 @@ def _base_payload(args: argparse.Namespace) -> dict[str, Any]:
     }
 
 
+def _alert_ping(args: argparse.Namespace, signal: object) -> None:
+    """送 daily check 的 ping；任何失敗只在 stderr 留一行（fail-open，驗收 6）。"""
+    if args.trigger != "launchd" or args.history_label != ALERT_LABEL:
+        return
+    try:
+        here = str(Path(__file__).resolve().parent)
+        if here not in sys.path:
+            sys.path.insert(0, here)
+        import alert_ping  # noqa: PLC0415 — 只在 launchd 每日鏈路徑才需要
+
+        config = alert_ping.load_config()
+        result = alert_ping.ping(config, alert_ping.CHECK_DAILY, signal,
+                                 rid=alert_ping.run_id(args.started_at))
+        print(result.summary(), file=sys.stderr)
+    except Exception as error:  # noqa: BLE001 — 觀測器不得把被觀測的鏈弄掛
+        print(f"WARN alert ping 略過（{type(error).__name__}）", file=sys.stderr)
+
+
 def command_start(args: argparse.Namespace) -> int:
     _write_status(args, _base_payload(args))
+    _alert_ping(args, "start")
     return 0
 
 
@@ -234,6 +260,8 @@ def command_finish(args: argparse.Namespace) -> int:
         }
     )
     _write_status(args, payload)
+    # 結束碼原樣送（0＝成功，甲型略過日也是 0）；非 0 由服務端立即判 down（規劃 1 §3.1）。
+    _alert_ping(args, exit_code if isinstance(exit_code, int) and 0 <= exit_code <= 255 else "fail")
     return 0
 
 

@@ -989,7 +989,12 @@ GitHub 會自動標記。判斷是否經 PR 合併要看 `gh api repos/.../commi
 
 ### 11.1 每日鏈（check `daily`）
 
-尚未接線。
+- 服務端（需求方設定）：cron `10 10 * * *`、時區 `Asia/Taipei`、grace 50 分＝**11:00 前要完成**（裁定 6348735853 第 4 項）；預期值登記在 `scripts/schedule-registry.json` 的 `alert` 段。
+- 接線：`scripts/refresh_status.py` 的 `start` 送 `/start?rid=`，`finish` 送 `/<exit code>?rid=`（同一個 rid，由 `started_at` 決定）；**只在 `--trigger launchd` 且 label 是 `com.cpbl.scrape-daily`** 時送，手動 fallback 不送。
+  狀態檔與歷史**先寫完才 ping**。`scripts/scrape-daily.sh` 沒有改。甲型略過日照樣是 `succeeded`，送 `/0`。
+- 四類對應：失敗（exit 非 0）立即 down；中斷（有 start、沒有結束）與整天沒跑在 11:00 down；延後＝11:00 先 down，之後成功 ping 到達時服務端再寄一則恢復通知。
+- 已知盲區：取鎖失敗（75）、參數錯誤（64）、start 寫入失敗（70）都發生在 `start` 之前，不立即送，由 11:00 期限涵蓋（規劃 2 §4.1）。
+  ping 的結果只寫一行到 launchd stderr（`alert ping:<訊號> check=daily ok|failed|skipped`），金鑰與 URL 已遮罩。
 
 ### 11.2 本機服務（check `services`）與晚間鏈（check `evening`）
 
