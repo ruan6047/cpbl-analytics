@@ -877,7 +877,7 @@ def test_counts_reconcile_across_three_surfaces() -> None:
     research = [e for e in entries if e.surface == "research"]
     cli = [e for e in entries if e.surface == "cli"]
 
-    assert len(scripts) == 56, (
+    assert len(scripts) == 57, (
         "49（基準 33c7c3f）＋ 1（DEV-SCRIPT-INVENTORY1 的 script_inventory.py）"
         "＋ 3（OPS-SCHEDULE-FAILURE-BLIND1／#132：schedule_watch.py、"
         "schedule-watchdog.sh、com.cpbl.schedule-watchdog.plist）"
@@ -886,7 +886,8 @@ def test_counts_reconcile_across_three_surfaces() -> None:
         "＋ 1（#353 WP4：prod_availability.py，每日鏈哨兵與主站部署後探針的常設入口；"
         "主站 GitHub Actions 以 python3 直接執行，故只用標準庫、放 scripts/）"
         "＋ 1（#358 WP1：alert_ping.py，外部心跳服務 ping／Management API 的 stdlib 模組，"
-        "供每日鏈狀態寫入器與本機告警 watcher 共用）。"
+        "供每日鏈狀態寫入器與本機告警 watcher 共用）＋ 1（#358 WP6：alert_watch.py，本機告警 watcher；"
+        "其 launchd 樣板放 ops/launchd/，故不另計）。"
         "同卡的 schedule-registry.json 是純資料不是入口，見 NON_ENTRY_BASENAMES")
     assert len(research) == 22, (
         "19（基準）＋ 1（OPS-SCHEDULE-FAILURE-BLIND1／#132："
@@ -906,11 +907,11 @@ def test_counts_reconcile_across_three_surfaces() -> None:
         "入口同樣放在 cpbl.ingest 底下以受 --help 零副作用探針涵蓋）"
         "＋ 2（#357 WP2：cpbl-check-livelog 唯讀檢查、cpbl-replay-livelog-extra 預設 dry-run 的"
         "回補工具；同樣放在 cpbl.ingest 底下受 --help 探針涵蓋）")
-    assert len(scripts) + len(research) + len(cli) == 129, (
+    assert len(scripts) + len(research) + len(cli) == 130, (
         "119＋1（#132 的量測工具）＋1（#100 的重測工具）＋1（#201 的收集工具）"
         "＋1（#268 的 postseason-evening.sh）＋1（#284 的 cpbl-roster CLI）"
         "＋1（#287 的 cpbl-build-team-comparison CLI）＋1（#353 的 prod_availability.py）"
-        "＋2（#357 的兩支 CLI）＋1（#358 的 alert_ping.py）")
+        "＋2（#357 的兩支 CLI）＋1（#358 的 alert_ping.py）＋1（#358 的 alert_watch.py）")
 
 
 def test_invariant_proof_enumerates_every_entry(capsys: pytest.CaptureFixture) -> None:

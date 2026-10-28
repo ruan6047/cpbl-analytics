@@ -31,8 +31,8 @@ stdlib only、相容 Python 3.9（launchd 走系統 `/usr/bin/python3`）。
 程式內：`load_config()` → `ping(config, CHECK_DAILY, "start", rid=...)`／
 `arm_schedule(config, CHECK_EVENING, cron=..., tz=..., grace_seconds=...)`。
 
-⚠️ 未查證（規劃 1 §2、規劃 2 §8 停止條件，交故障注入時以 TEST check 實測）：Management API
-v3 以 `?slug=` 篩選、回應帶 `update_url`、POST `schedule`／`tz`／`grace` 可改排程。
+已實測（#358 exec-2a §1.4，TEST check）：Management API v3 以 `?slug=` 篩選、可寫金鑰的回應帶
+`update_url`、POST `schedule`／`tz`／`grace` 可改排程；timeout／grace 上限 31536000 秒。
 """
 
 from __future__ import annotations
