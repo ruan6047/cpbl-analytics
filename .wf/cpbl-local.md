@@ -54,3 +54,7 @@
 
 - 隔離來源已正式同步名單角色後，若該任務亦經授權須對齊共享本機資料，核對同份角色版本與角色列（含 changed_at）；共享本機對齊與生產寫入是不同授權，不能由前者或部署成功推得另一者。來源：[#316 結案](https://github.com/ruan6047/cpbl-analytics/issues/316#issuecomment-6230391915)；最後核對 2026-10-18。此處只保存該經驗，不授權查庫或寫資料。
 - [#316 已登記裁定](https://github.com/ruan6047/cpbl-analytics/issues/316#issuecomment-6229676780) 要求保留 PR #328 的共用 UI、InfoDot 與動態 notes 再疊角色。這是該交集的歷史依據，不外推為所有未來介面都不可修改；新任務須讀當下有效規範與核定需求。
+
+- **測試連線目標**：獨立 worktree 不代表 DB 隔離；未設 `DATABASE_URL` 且沒有 `.env` 時，pytest 可能以預設值連上共享 cpbl，DB 可達時整合測試可能寫入。執行前核對有效連線目標與各整合測試專用環境變數；需 DB 的測試使用已核定的隔離庫／租用，無 DB 授權的測試明設不可達的 `DATABASE_URL`，並如實列出略過項，不稱 DB 整合已驗證。沿用 `docs/DATABASE_CONTRACT.md` §2。來源：[#358 未租用測試](https://github.com/ruan6047/cpbl-analytics/issues/358#issuecomment-6462486937)、[#353 同型事件](https://github.com/ruan6047/cpbl-analytics/issues/353#issuecomment-6464593800)；核對 2026-10-28。
+- **部署與 schema 先後**：新增 API 對資料表／欄位的依賴時，交付須對照實際部署鏈，讓已驗證備份及已授權 migration 先於新程式的相關讀取；不可假設 API 啟動會自動 migrate，亦不可只以 `/api/info` 成功代替受影響端點驗證。事故處置仍遵守既有備份、授權與角色邊界。來源：[#357 部署後 /live 500 與未備份 migration](https://github.com/ruan6047/cpbl-analytics/issues/357#issuecomment-6462181389)；核對 2026-10-28。
+- **工作樹寫入受限**：派工指定的獨立 worktree 無法寫入時，先停受影響操作並回報 PM 協調可用位置；不得自行改在 PM 或其他使用中的既有 worktree 切分支交付，即使當下工作區乾淨亦同。來源：[#383 工作樹事件及改善](https://github.com/ruan6047/cpbl-analytics/issues/383#issuecomment-6467687412)；核對 2026-10-28。
