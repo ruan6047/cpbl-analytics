@@ -998,7 +998,7 @@ GitHub 會自動標記。判斷是否經 PR 合併要看 `gh api repos/.../commi
 - **晚間鏈**（門檻＝今晚最晚開賽＋5h，6348735853 第 5 項；plan FATAL 不立即送，第 6 項）：
   - 武裝：今日賽程檔（`logs/daily-schedule-today.json`；判法同 §10 動作條件，`date`＝今晚、排定場＝A／E／C 且 `game_date == date`，不看 `present_status`）有場，
     就以 Management API 把 `evening` 設成只對今天生效的 cron `MM HH D M *`（`Asia/Taipei`，grace 5h）。晚間狀態檔 `schedule[].starts_at` 還沒有今晚每一場的開賽時刻時，
-    先以 **23:35** 為期限（D3），取得後改成開賽＋5h；每晚最多**成功**武裝一次、改正一次；API 失敗就在下一次喚醒（5 分鐘後）再試，沒有放棄上限（#358 審核第 1 輪 blocking 2）。「今晚」＝台北 09:45 起到次日 09:45 前。
+    先以 **23:35** 為期限（D3），取得後改成開賽＋5h；每晚最多**成功**武裝一次、改正一次；API 失敗就在下一次喚醒（5 分鐘後）再試，沒有放棄上限（#358 審核第 1 輪 blocking 2）；每次 `arm_schedule` 是查詢（GET ?slug=）＋更新（POST）兩個請求，各自最多試 3 次（10 秒逾時＋退避），最壞約 66 秒，仍短於 300 秒的喚醒間隔。「今晚」＝台北 09:45 起到次日 09:45 前。
   - 成功：今晚每一場在狀態檔是 `FINISHED`／`POSTPONED`、`pending_sync` 為 `false`、狀態檔有 `halted` 欄且為空、兩份狀態檔都沒有 halted、`events` 每一筆都是物件且 `state` ∈ {`synced`, `unreached`}（`open`、`ingested`＝已入庫未同步、缺 `state`、格式錯、不認得的值都不算），才送成功（每晚一次）。
     欄位缺失一律不送（fail closed，結果是期限告警；#358 審核第 1 輪 blocking 1）。保留賽（`RESERVED`）不算終態，該晚會在期限告警。
   - halted：`logs/postseason-evening-state.json` 或 `logs/last-postseason-evening.json` 有 `halted` 時立即送 `/69`（同一原因每晚一次）。
