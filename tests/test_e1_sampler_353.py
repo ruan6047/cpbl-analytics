@@ -1,8 +1,10 @@
 """#353 E1 取樣工具（``docs/research/ISSUE-353/e1_sampler.sh``）的停止程序：只對帶本工具標記的行程送訊號。
 
-E0 實測過：修正前的版本以行程群組 kill（``kill -- -<pid>``）停止取樣，某一路提早結束後 pid 被 postgres
-backend 重用（backend 自己 setsid、自成群組），TERM 打到 backend、postmaster 整個重啟。正式站上
-prod_pg 的 backend 同樣看得到 host pid。這裡逐行釘住：
+E0 的 postmaster 重啟（16:36／16:45／16:50）成因已更正（#353 issuecomment-6464716650）：取樣跑在 PID 1＝
+postmaster 的容器內，孤兒行程被 postmaster 收養，之後一被 TERM，postmaster 就當成 backend crash 而重啟；
+這是用誘餌重現的。⛔「pid 被 postgres backend 重用」沒有證據、已收回。正式站 host PID 1 是 systemd，不會
+有收養效應——推論、未實測。停止規則仍要釘死，因為 pid 清單在某一路提早結束後可能指向已被重用的 pid，
+行程群組 kill 會連帶打到同群組的任何行程（含自己 setsid 的 backend）。這裡逐行釘住：
 
 1. ⛔ 沒有任何行程群組訊號（``kill -- -…``、``kill -TERM -…``、``killpg``）、⛔ 沒有 pkill／killall。
 2. 每一個 ``kill`` 都在**同一行**先比對本工具的標記（遠端 ``E1S_TAG=$tag`` 完全相等、本機命令列含

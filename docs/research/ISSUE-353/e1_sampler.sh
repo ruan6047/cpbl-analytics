@@ -34,10 +34,14 @@
 #               ⛔ 不留 query 文字、⛔ 不留位址。READ ONLY、statement_timeout 900ms。
 #   autovacuum.tsv、preflight.txt、pids、run_id、*.err、stop.log
 #
-# 停止（為什麼這樣寫）：E0 實測兩次「kill 到不屬於本工具的行程」——一次是用過期 pid 清單，一次是修正前
-# 的本工具：某一路提早結束（容器沒有 vmstat），它的 pid 被重用；postgres backend 每條都自己 setsid（自成
-# 行程群組），對 -<pid> 送 TERM 就打到 backend，postmaster 整個重啟。VPS 上 prod_pg 的 backend 同樣看得到
-# host pid。所以：
+# 停止（為什麼這樣寫）：E0 的 postmaster 重啟三次（16:36 用過期 pid 清單 kill；16:45 修正前本工具的行程
+# 群組 kill；16:50 修正後本工具 kill 自己帶標記的孤兒）。成因（已更正，見 #353 issuecomment-6464716650）：
+# E0 把主機層取樣跑在 postgres 容器內，該容器 PID 1＝postmaster；取樣子行程成為孤兒後被 postmaster 收養，
+# 之後一被 TERM，postmaster 就當成 backend crash 而整個重啟。這一點是用誘餌（setsid sleep）重現的。
+# ⛔ 先前「pid 被 postgres backend 重用、TERM 打到 backend」的說法沒有證據、已收回；16:45 那次打到的是孤兒
+# 還是 backend 無法判定。正式站：取樣在 VPS host 跑、host PID 1 是 systemd，不會有上述收養效應——這是推論，
+# 未實測。即使如此，pid 清單在某一路提早結束後可能指向已被重用的 pid，行程群組 kill 會連帶打到同群組的任何
+# 行程（含自己 setsid 的 backend），所以：
 #   * ⛔ 不用行程群組 kill（kill -- -PGID、killpg）、⛔ 不用 pkill／killall、⛔ 不靠 pid 清單決定要殺誰。
 #   * 遠端每一路都帶環境變數 E1S_TAG=e1s-<run_id>（子孫行程繼承）；stop 掃 /proc/*/environ，只對
 #     E1S_TAG 完全相等的行程逐一 kill <pid>。start 時記下的 pid 只用來報告：已不帶標記者記 skip_stale。
