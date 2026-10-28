@@ -66,7 +66,9 @@ def test_live_game_row_exposes_the_canonical_completed_column(monkeypatch) -> No
     cur = _Cursor([
         (["year", "kind_code", "game_sno", "home_score", "away_score", "completed"],
          [(2026, "E", 1, 3, 0, False)]),
-        empty, empty, empty, empty,          # scoreboard／livelog／batting／pitching
+        empty, empty,                        # scoreboard／livelog
+        empty,                               # livelog_extra（#357 同號附加列）
+        empty, empty,                        # batting／pitching
         empty,                               # tracking（published PA mapping）
         (["exists"], [(False,)]),            # has_raw_tracking
         empty,                               # game_detail

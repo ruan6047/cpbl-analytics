@@ -93,6 +93,12 @@
 | `run_scrape_legends`（退役生涯分項） | 同 `cpbl_player_detail`（apart 端點，year=9999、kind A/C/E） | 同上 | C | 名單=現任教練前球員 + 7 生涯榜 top10 |
 | `cpbl_site.lineup_acnts` | ⚠️ **純 httpx** GET `/box` + POST `/box/getlive` | 當日上場名單（BattingJson/PitchingJson） | B | **例外：此路徑 httpx 目前可直連**（2026-07-04 實測 200；挑戰未覆蓋或機率性）。若日後回 428 → 改走 `_browser` 即可 |
 
+> **getlive `LiveLogJson` 的同一事件號多列**（#357）：`MainEventNo` **不是**列唯一鍵。每場最後一個
+> 事件號下，實際打席／事件之後跟一筆同號的「比賽結束」或「主審裁定比賽結束」（2026 全 608 場；
+> 原文陣列依事件號遞增、標記全在同號組最後）。兩列只差 `Content`、`Pkno`、`IsSpecialEvent`（＋少數
+> `Rowstamp`）。`Pkno` 是英數字串（如 `Z063OE5D`），2026 逐列唯一、不可當整數排序；2018–2025 未證。
+> `IsSpecialEvent` 值域不只 0/1（主列見過 `"2"`／`"3"`，現行 `_b()` 轉成 false）。入庫拆法見 GLOSSARY「同號多筆」。
+
 > **getgamedatas 的官方先發欄位**（#292 S11）：每場 entry 的 `HomePitcherAcnt`／`VisitingPitcherAcnt`
 > （另有 `*PitcherName`）是官方公布的預定先發，`cpbl_site.upsert_games` 寫進 `games.home_starter_id`／
 > `away_starter_id`（原地覆寫），原始 entry 另存 `game_schedule_status_revisions.raw_payload`（內容相同只更新

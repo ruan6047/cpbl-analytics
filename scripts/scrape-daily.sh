@@ -69,7 +69,8 @@ scripts/scrape-daily.sh — 每日本機自動爬取，成功後同步 productio
      69 有四個來源，看 refresh_log 的 note 分辨：逐場 gamelog 失敗（列出場號）／
      官方球隊戰績對帳失敗（列出 sc=N(kind)，該幾列已拒寫）／
      球種推算失敗（列出 kind/階段，該段保留上一輪標籤）／
-     當季衍生重建失敗（列出 builder，如 team_der／re24；該表保留上一輪值）
+     當季衍生重建失敗（列出 builder，如 team_der／re24；該表保留上一輪值）／
+     livelog 同號檢查未過（#357；列出本次寫入的場次與原因）
   70 狀態檔寫入失敗 · 75 鎖被佔用 · 127 本機 DB 容器沒開
   其餘＝爬取或同步階段的原始離開碼
 
