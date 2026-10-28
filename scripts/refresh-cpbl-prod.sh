@@ -937,6 +937,24 @@ mirror_table() {  # $1=表 $2=identity（可省略）
   echo "    ✓ ${t}（整表鏡像 ${n} 列）"
 }
 
+# livelog 同號非主列（#357 B1，migration 079 `game_livelog_extra`）：整表鏡像。
+# 為何不用 sync_table：本機寫入端每場「先刪後寫」（原文同號組變小時要清掉殘列），sync_table 只
+# UPSERT，殘列會留在 prod，同號守恆就不成立。表小（全史約 3,900 列），TRUNCATE 的 ACCESS EXCLUSIVE
+# 只持有到這一個小交易 commit；prod 沒有其他 writer（#357 PLAN §WP2-f）。
+# 本機 0 列時**略過、不清空 prod**（不交給 mirror_table 的 exit 67）：#357 回補（WP5）前、或當日
+# 沒有寫入任何同號組時，本機合法地是空表；若照 mirror_table 拒寫，整條每日鏈會停在這裡。
+# ⚠️ 代價：本機刻意清空時 prod 不會跟著清空，需人工處理（回滾程序見 #357 PLAN）。
+# ⚠️ 只在完整鏈同步；目標場模式（POSTSEASON_BOXPA_ONLY）不含本表，該場附加列等下一次完整鏈。
+sync_livelog_extra() {
+  local n
+  n="$(docker exec "$LOCAL_DB" psql -U cpbl -d cpbl -At -c "SELECT count(*) FROM cpbl.game_livelog_extra" || true)"
+  if [ "$n" = 0 ]; then
+    echo "    ⏭ game_livelog_extra：本機 0 列，略過（不清空 prod）"
+    return 0
+  fi
+  mirror_table game_livelog_extra
+}
+
 # 季後賽果三表（#268）：games 與兩張官方狀態軌跡表，加上官方賽程異動訊號表（B1）。完整鏈與
 # POSTSEASON_RESULTS_ONLY 共用**同一份**欄位清單——兩處各寫一份會漂（sync_table 的「只插不更」教訓見上方）。
 sync_postseason_results() {
@@ -1453,6 +1471,7 @@ if [ -n "${WITH_DETAIL:-}" ]; then
   sync_box_game_detail
   sync_box_game_scoreboard
   sync_box_game_livelog
+  sync_livelog_extra
   # 進階快照：父子表 + gating pointer 原子同步（見檔首 sync_advanced_snapshot）。
   # 取代舊 sync_table advanced_stats（RECONCILE1 後 FK 失敗 + gating 濾除既有列）。
   sync_advanced_snapshot

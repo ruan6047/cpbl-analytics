@@ -83,6 +83,8 @@ def injected(monkeypatch: pytest.MonkeyPatch):
         monkeypatch.setattr("cpbl.ingest._browser.session", lambda: session)
         monkeypatch.setattr(cpbl_gamelog.time, "sleep", lambda _delay: None)
         monkeypatch.setattr(cpbl_gamelog, "_upsert", lambda _t, _c, _pk, rows: len(rows))
+        monkeypatch.setattr(cpbl_gamelog, "_write_livelog",
+                            lambda y, k, s, data, **_kw: (len(cpbl_gamelog._livelog_rows(y, k, s, data)), 0))
         monkeypatch.setattr(cpbl_gamelog, "record_source_revision", lambda **_kw: None)
         monkeypatch.setattr(cpbl_gamelog, "record_box_pitching_revisions",
                             lambda *_a, **_kw: None)
@@ -188,6 +190,13 @@ def test_broken_source_json_still_writes_the_sources_that_did_parse(injected, mo
     }))
     monkeypatch.setattr(cpbl_gamelog, "_upsert",
                         lambda table, _c, _pk, rows: upserts.append((table, len(rows))) or len(rows))
+
+    def _write(y, k, s, data, **_kw):  # #357：livelog 主表與附加表同交易寫入，改由此記錄
+        n = len(cpbl_gamelog._livelog_rows(y, k, s, data))
+        upserts.append(("game_livelog", n))
+        return n, 0
+
+    monkeypatch.setattr(cpbl_gamelog, "_write_livelog", _write)
 
     with pytest.raises(cpbl_gamelog.GamelogScrapeIncomplete):
         cpbl_gamelog.scrape_gamelogs(2026, [188], "D", delay=0)

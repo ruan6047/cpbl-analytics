@@ -774,6 +774,9 @@ WRITE_ADJUDICATION: dict[str, tuple[bool, str]] = {
                "各自選中垃圾時間打席的場次數與 |ΔWP| 分布；唯一寫入是同目錄的 JSON "
                "artifact，不碰 DB"),
     "cpbl-verify-splits": (False, "唯讀驗證入口"),
+    "cpbl-check-livelog": (
+        False, "#357：兩支 livelog 檢查只跑 SELECT；W2 命中的是 import 閉包 cpbl_gamelog／"
+               "livelog_replay 的寫入 SQL，本入口只 import 其判定函式與原文讀取器"),
     "cpbl-research-umpire-impact": (False, "唯讀研究，產物落檔案"),
     "scripts/ability_snapshot.py": (
         False, "唯讀抽驗：呼叫 API helper `_ability_card` 取快照 dump 成 JSON；"

@@ -18,7 +18,7 @@
 結束碼（DATA-BOX-DEEP-SILENT-FAIL1）：
 - 0：完全成功。
 - `EXIT_INCOMPLETE_SCRAPE`（69）：**有部分步驟失敗、其餘步驟照常完成**。
-  值班判讀要看 note 才知道是哪一種——69 現在有**五個來源**：
+  值班判讀要看 note 才知道是哪一種——69 現在有**六個來源**：
   1. 逐場 gamelog 有失敗 → note 列出失敗場號、detail.gamelog_gaps。
   2. 官方球隊戰績對帳失敗（拿到別的球季／空表，已拒寫）→ note 列出
      `官方戰績未寫入：sc=N(kind)`、detail.standings_failures
@@ -29,7 +29,10 @@
      detail.derived.errors；失敗的表保留上一輪值，其餘表照跑。
   5. 2026+ 季後 E／C 賽程更新失敗（#237；僅 REFRESH_POSTSEASON_KINDS 有設定時才會抓）→ note 列出 `季後賽程更新失敗：kind`、
      detail.games_postseason.errors；A／D 與其餘步驟照跑。
-  五者都記 refresh_log ok=false；`scripts/scrape-daily.sh` 對這個碼仍會執行生產同步
+  6. livelog 同號檢查未過（#357）→ note 列出 `livelog 檢查未過：場次(原因)`、
+     detail.livelog_check.errors；對象只有本次寫入 livelog 的場次（寫入端自記的帳），
+     檢查 (i) 最後事件非結束標記、(ii) 主表＋附加表＝原文帶事件號列數。
+  六者都記 refresh_log ok=false；`scripts/scrape-daily.sh` 對這個碼仍會執行生產同步
   （Q3 裁定＝甲-2：擋同步只是把「靜默失敗」換成「生產靜默落後」）。
 - 1：硬失敗（含取 token 階段失敗＝整批一場都沒抓），同步不執行。
 
@@ -70,6 +73,7 @@ from cpbl.ingest.cpbl_advanced import AdvancedScrapeResult, scrape_advanced_resu
 from cpbl.ingest.cpbl_fighting import YEAR_CAREER, scrape_matchups
 from cpbl.ingest.cpbl_gamelog import (
     EXIT_INCOMPLETE_SCRAPE,
+    LIVELOG_WRITTEN,
     reconcile_line,
     scrape_game_details,
     scrape_gamelogs,
@@ -771,6 +775,33 @@ def _derived_step(year: int) -> dict[str, Any]:
         return {"errors": [{"builder": "setup", "error": str(exc)}]}
 
 
+def _livelog_check_step() -> dict[str, Any]:
+    """#357 WP2-c：對本次寫入 livelog 的場次讀回 DB，跑兩支同號檢查；失敗由 main() 轉 69。
+
+    對象取寫入端自記的 `LIVELOG_WRITTEN`（場次→原文帶事件號列數），不用時間窗猜，
+    也不掃全史——全史檢查是 `cpbl-check-livelog`，回補前會報出全部舊場次，接進每日鏈
+    只會天天亮 69 而無人能處置。沒寫任何場（甲型只同步、無賽事日）＝不查、不碰 DB。
+    fail closed：檢查本身出錯也記 errors，不擋同步。
+    """
+    if not LIVELOG_WRITTEN:
+        return {"games": 0, "errors": []}
+    from cpbl.ingest.livelog_checks import run_checks
+
+    written = dict(LIVELOG_WRITTEN)
+    try:
+        res = run_checks(games=set(written), expected=written)
+    except Exception as exc:  # noqa: BLE001 — fail-closed：由 main() 轉成 69，不擋主流程
+        log.exception("livelog 同號檢查失敗")
+        return {"games": len(written), "errors": [{"game": "setup", "reason": str(exc)}]}
+    errors = [{"check": "last_event", "game": v["game"], "reason": "end_marker_is_last_event"}
+              for v in res["last_event"]["violation_games"]]
+    errors += [{"check": "conservation", **v} for v in res["conservation"]["violation_games"]]
+    return {"games": len(written),
+            "last_event": {k: res["last_event"][k] for k in ("games", "violations")},
+            "conservation": {k: res["conservation"][k] for k in ("games", "violations", "unverifiable")},
+            "errors": errors}
+
+
 def _sync_player_names() -> int:
     """以「最近一場逐場登錄名」更新 players.name（處理球員改名，如 象魔力→魔力藍）。
     gamelog 名為官方當場登錄名、最乾淨；current 表名帶 #/◎/* roster 標記故不用。
@@ -1033,6 +1064,7 @@ def main() -> None:
     derive_only = day_type == gate.SYNC_ONLY
     log.info("日型＝%s（gated=%s，derive_only=%s）", day_type, gated, derive_only)
     _GAMELOG_GAPS.clear()   # 一次執行一份帳（模組級累積器，同程序內重複呼叫不得互相污染）
+    LIVELOG_WRITTEN.clear()  # 同上；本次寫入 livelog 的場次（#357 檢查對象）
     reset_standings_failures()   # 同上；官方戰績的失敗帳
     standings: dict = {}
     standings_failed: list[dict] = []
@@ -1050,6 +1082,7 @@ def main() -> None:
     derived_result: dict[str, Any] = {"skipped": True, "errors": []}
     postseason_result: dict[str, Any] = {"games": {}, "errors": []}
     derived_gate: dict[str, Any] = {"gated": False}
+    livelog_check_result: dict[str, Any] = {"games": 0, "errors": []}
     try:
         backfill: list[dict] = []
         if derive_only:
@@ -1096,6 +1129,8 @@ def main() -> None:
                 )
                 postseason_result["detail"] = postseason_detail["games"]
                 postseason_result["errors"].extend(postseason_detail["errors"])
+        # #357：本次寫入 livelog 的場次讀回檢查（所有 gamelog 寫入之後；fail-closed）。
+        livelog_check_result = _livelog_check_step()
         # #364 PLAN-r5 §3.2.3：衍生步驟依來源變動決定。完整鏈（full／DAILY_FORCE_FULL）照舊全跑；
         # 乙型／甲型只同步：任一訊號（含判斷不了）→ 跑「與完整鏈同一組」衍生步驟，全為 0 → 全略過。
         full_set = gate.full_chain_derived(skip_detail=skip_detail)
@@ -1202,6 +1237,15 @@ def main() -> None:
         note = ps_note if note is None else f"{note}；{ps_note}"
         log.error(ps_note)
 
+    # #357 livelog 同號檢查未過同理：資料已寫進去（下次重爬自然收斂），結清成 ok=false＋69。
+    livelog_failed = livelog_check_result.get("errors") or []
+    if livelog_failed:
+        ll_note = "livelog 檢查未過：" + "；".join(
+            f"{e['game']}({e['reason']})" for e in livelog_failed[:10]
+        ) + (f"…共 {len(livelog_failed)} 筆" if len(livelog_failed) > 10 else "")
+        note = ll_note if note is None else f"{note}；{ll_note}"
+        log.error(ll_note)
+
     total = sum(t for _, t, _ in recent)
     completed = sum(comp for _, _, comp in recent)
     detail = {
@@ -1211,10 +1255,11 @@ def main() -> None:
         "standings": standings, "standings_failures": standings_failed,
         "splits_built": splits_built, "incremental_detail": detail_inc, "pa_build": pa_build_result,
         "pitch_type": pitch_type_result, "derived": derived_result, "gamelog_gaps": _GAMELOG_GAPS,
+        "livelog_check": livelog_check_result,
         "recent": [{"date": d.isoformat(), "total": t, "completed": comp} for d, t, comp in recent],
     }
     failed = bool(_GAMELOG_GAPS or standings_failed or pitch_type_failed or derived_failed
-                  or postseason_failed)
+                  or postseason_failed or livelog_failed)
     _log_refresh("recent-games", yesterday, today, total, completed, detail,
                  ok=not failed, note=note)
 

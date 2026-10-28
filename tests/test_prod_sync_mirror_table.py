@@ -18,7 +18,8 @@ from tests.test_prod_sync_revision_seq import SCRIPT, _payload_containing, _run_
 
 ROOT = Path(__file__).parents[1]
 
-MIRROR_TABLES = {"championship_members": False, "box_pitching_revisions": True}
+MIRROR_TABLES = {"championship_members": False, "box_pitching_revisions": True,
+                 "game_livelog_extra": False}
 
 # 新增 sync_table 的表 → 定義該表的 migration（CI 無 DB，欄位一致性以 migration DDL 對照）。
 NEW_SYNC_TABLES = {
@@ -103,6 +104,38 @@ def test_mirror_refuses_when_local_count_is_unreadable(tmp_path: Path) -> None:
 
     assert result.returncode == 67
     assert not [c for c in calls if "_mirror_stg" in c["stdin"]]
+
+
+# ── #357 game_livelog_extra：完整鏈、緊接 game_livelog；本機 0 列略過不清空 ──────────
+def test_livelog_extra_mirror_follows_livelog_in_detail_chain(baseline_run) -> None:
+    _, calls = baseline_run
+    i_ll = next(i for i, c in enumerate(calls)
+                if "INSERT INTO cpbl.game_livelog AS tgt SELECT * FROM _stg " in c["stdin"])
+    i_x = next(i for i, c in enumerate(calls) if "TRUNCATE cpbl.game_livelog_extra;" in c["stdin"])
+    assert i_ll < i_x
+
+
+def test_livelog_extra_not_mirrored_without_detail(tmp_path: Path) -> None:
+    result, calls = _run_refresh(tmp_path, with_detail=False)
+    assert result.returncode == 0, result.stderr
+    assert not [c for c in calls if "game_livelog_extra" in c["stdin"]]
+
+
+def test_livelog_extra_empty_local_is_skipped_not_truncated(tmp_path: Path) -> None:
+    """本機 0 列（回補前／當日無同號組）：略過、不 TRUNCATE prod，整條鏈照常跑完。"""
+    result, calls = _run_refresh(tmp_path, STUB_COUNT_game_livelog_extra="0")
+    assert result.returncode == 0, result.stderr
+    assert "game_livelog_extra：本機 0 列，略過（不清空 prod）" in result.stdout
+    assert not [c for c in calls if "game_livelog_extra" in c["stdin"]]
+    assert _payload_containing(calls, "TRUNCATE cpbl.championship_members;")
+
+
+def test_livelog_extra_unreadable_count_still_fails_closed(tmp_path: Path) -> None:
+    """列數讀不到≠0 列：交給 mirror_table 的 exit 67，不略過。"""
+    result, calls = _run_refresh(tmp_path, STUB_COUNT_game_livelog_extra="")
+    assert result.returncode == 67
+    assert "mirror_table game_livelog_extra" in result.stderr
+    assert not [c for c in calls if "TRUNCATE cpbl.game_livelog_extra;" in c["stdin"]]
 
 
 def _sync_table_calls() -> dict[str, tuple[list[str], list[str]]]:
