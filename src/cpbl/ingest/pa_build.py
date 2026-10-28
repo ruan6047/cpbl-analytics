@@ -1092,6 +1092,230 @@ def controlled_restoration(
 
 
 # ===========================================================================
+# 官方改值接受閘門（#383 段 1，PLAN §2.1 C 條件 1–6）
+# ===========================================================================
+# 為什麼需要它：官方事後改「非最後一個事件」時，`reconcile()` 判 changed、保留舊 published
+# （fail closed），官方新值永遠傳不進 PA。需求方裁定（#383 issuecomment-6440067804 第 1 項）：
+# 另立閘門、**不算放寬** `reconcile()`——`reconcile()`、:func:`controlled_restoration`、
+# `ACCEPTED_RECONCILIATIONS`、pins 全部原樣；本閘門只在它們都判「reconcile」之後才評估，
+# 六條**全部**成立才 publish，否則照舊 reconciliation_required（由每日鏈出 69）。
+#   1. 不變式為空（違反永遠勝出）。
+#   2. 歸因：該場最新一筆官方 livelog 原文 revision（`game_source_revisions`，outcome=available，
+#      依 last_seen_at）的 `fetched_at`（＝首次看到）晚於現行 published 的 `built_at`。
+#   3. 來源綁定：那筆 revision 在寫入當下記錄的 manifest（`cpbl_gamelog._write_livelog` 同交易
+#      讀回）＝現行 `game_livelog` 的 manifest，且寫入當下沒有殘列、寫入規則版本＝現行。
+#   4. 同次原文對帳：差異 PA 涉及的打者／投手（新舊 build 都算），以新 build 推得的單場計數
+#      ＝官方 box。欄位由 #383 WP0 B4 固定（⛔ 不增減）：打者 PA、H、HR、BB（含 IBB）、IBB、
+#      HBP、SO；投手 H、HR、IBB、HBP、SO。歸屬：打者＝hitter_acnt、投手＝end_pitcher_acnt。
+#   5. 內部一致性：livelog 末事件比分＝`game_scoreboard` 逐局加總＝`games` 比分。
+#   6. 與 #357 組合：差異含末事件時，末事件那部分必須恰好是 1.6.0 結束標記還原的型態
+#      （以 END_MARKER_CONTENTS 重建舊指紋；⛔ 不改 1.6.0 謂詞）；黃金值清單場次不經本條放行。
+# ⛔ 不得刪條件、放寬欄位或改成「多數成立即可」；殘留風險見 #383 PLAN §2.1（官方 box 與 livelog
+# 同時錯／一致地改到一半，條件 4 擋不住——需求方已接受的主風險範圍）。
+ACCEPT_SHAPE_OFFICIAL_REVISION = "official_revision"
+# 寫入規則版本：`cpbl_gamelog` 寫 livelog 主列的規則（#357 B1 主列選取）。規則一改就進位，
+# 舊 revision 的 manifest 便不再被條件 3 承認（那些列是舊規則的產物）。
+LIVELOG_WRITER_VERSION = "livelog-writer-357b1.1"
+
+OFFICIAL_CONDITIONS: tuple[str, ...] = (
+    "1_invariants", "2_attribution", "3_source_binding", "4_box", "5_score", "6_final_event",
+)
+BOX_BATTING_FIELDS: dict[str, str] = {
+    "PA": "plate_appearances", "H": "hits", "HR": "home_runs", "BB": "bb",
+    "IBB": "ibb", "HBP": "hbp", "SO": "so",
+}
+BOX_PITCHING_FIELDS: dict[str, str] = {
+    "H": "hits", "HR": "home_runs", "IBB": "ibb", "HBP": "hbp", "SO": "so",
+}
+_HOME_RUN_ACTIONS = frozenset({"全壘打", "場內全壘打"})
+_IBB_ACTION = "故意四壞球"
+
+
+@dataclass
+class OfficialRevisionFacts:
+    """閘門的 DB 事實（薄 DB 層 :func:`_official_revision_facts` 讀出，純函式只看這裡）。"""
+    published_built_at: Any = None
+    revision: dict[str, Any] | None = None          # id, fetched_at, last_seen_at, detail
+    current_manifest_sha256: str | None = None
+    box_batting: dict[str, dict[str, Any]] = field(default_factory=dict)
+    box_pitching: dict[str, dict[str, Any]] = field(default_factory=dict)
+    scoreboard_runs: dict[str, Any] = field(default_factory=dict)   # visiting_home_type → 加總
+    games_scores: list[tuple[Any, Any]] = field(default_factory=list)  # (away, home)
+    published_pas: dict[str, dict[str, Any]] = field(default_factory=dict)
+    published_event_fps: dict[str, str] = field(default_factory=dict)
+    golden_game: bool = False
+
+
+def _is_strikeout(action: str | None, taxonomy: Taxonomy) -> bool:
+    if action is None:
+        return False
+    entry = taxonomy.entry(action)
+    return (action.startswith("三振") or action == "裁定三振"
+            or (entry is not None and entry["outcome_family"] == "uncaught_third_strike"))
+
+
+def box_counts_from_pas(
+    rows: list[tuple[Any, Any, Any]], taxonomy: Taxonomy,
+) -> tuple[dict[str, Counter], dict[str, Counter]]:
+    """(hitter_acnt, end_pitcher_acnt, result_action) → (打者計數, 投手計數)。
+
+    判準照 #383 WP0 B4 預先登記的腳本（b4_box_calib.preregistered.py）：完成 PA＝result_action
+    的 taxonomy role 為 pa_terminal；BB＝family walk（含故意四壞）。
+    """
+    bat: dict[str, Counter] = defaultdict(Counter)
+    pit: dict[str, Counter] = defaultdict(Counter)
+    for hitter, pitcher, action in rows:
+        entry = taxonomy.entry(action) if action else None
+        if not entry or entry["role"] != "pa_terminal":
+            continue
+        family = entry["outcome_family"]
+        inc = {"PA": 1, "H": family == "hit", "HR": action in _HOME_RUN_ACTIONS,
+               "BB": family == "walk", "IBB": action == _IBB_ACTION, "HBP": family == "hbp",
+               "SO": _is_strikeout(action, taxonomy)}
+        for key, value in inc.items():
+            bat[_clean(hitter)][key] += int(value)
+            if key != "PA":
+                pit[_clean(pitcher)][key] += int(value)
+    return bat, pit
+
+
+def _iso(value: Any) -> Any:
+    return value.isoformat() if hasattr(value, "isoformat") else value
+
+
+def _cond_invariants(violations: Any, **_: Any) -> dict[str, Any]:
+    return {"ok": not violations, "violations": violations or []}
+
+
+def _cond_attribution(facts: OfficialRevisionFacts, **_: Any) -> dict[str, Any]:
+    rev, built = facts.revision, facts.published_built_at
+    fetched = rev.get("fetched_at") if rev else None
+    ok = fetched is not None and built is not None and fetched > built
+    return {"ok": ok, "revision_id": rev.get("id") if rev else None,
+            "revision_first_seen": _iso(fetched), "published_built_at": _iso(built)}
+
+
+def _cond_source_binding(facts: OfficialRevisionFacts, **_: Any) -> dict[str, Any]:
+    detail = (facts.revision or {}).get("detail") or {}
+    recorded = detail.get("livelog_manifest_sha256")
+    residual = detail.get("livelog_residual_rows")
+    writer = detail.get("livelog_writer")
+    ok = (recorded is not None and recorded == facts.current_manifest_sha256
+          and residual == 0 and writer == LIVELOG_WRITER_VERSION)
+    return {"ok": ok, "recorded_manifest": recorded, "current_manifest": facts.current_manifest_sha256,
+            "residual_rows": residual, "writer": writer}
+
+
+def _cond_box(new_pas: list[PlateAppearance], rec: ReconcileResult, facts: OfficialRevisionFacts,
+              taxonomy: Taxonomy, **_: Any) -> dict[str, Any]:
+    diff_ids = set(rec.changed_pa_ids) | set(rec.added_pa_ids) | set(rec.removed_pa_ids)
+    batters: set[str] = set()
+    pitchers: set[str] = set()
+    sources = [{"hitter_acnt": pa.hitter_acnt, "end_hitter_acnt": pa.end_hitter_acnt,
+                "start_pitcher_acnt": pa.start_pitcher_acnt, "end_pitcher_acnt": pa.end_pitcher_acnt}
+               for pa in new_pas if str(pa.pa_id) in diff_ids]
+    sources += [row for pid, row in facts.published_pas.items() if pid in diff_ids]
+    for row in sources:
+        batters |= {h for h in (_clean(row.get("hitter_acnt")), _clean(row.get("end_hitter_acnt"))) if h}
+        pitchers |= {p for p in (_clean(row.get("start_pitcher_acnt")),
+                                 _clean(row.get("end_pitcher_acnt"))) if p}
+    bat, pit = box_counts_from_pas(
+        [(pa.hitter_acnt, pa.end_pitcher_acnt, pa.result_action) for pa in new_pas], taxonomy)
+    mismatches: list[dict[str, Any]] = []
+    for side, players, derived, box, fields in (
+        ("bat", batters, bat, facts.box_batting, BOX_BATTING_FIELDS),
+        ("pit", pitchers, pit, facts.box_pitching, BOX_PITCHING_FIELDS),
+    ):
+        for player in sorted(players):
+            row = box.get(player) or {}
+            for key, col in fields.items():
+                want = row.get(col)
+                want = 0 if want is None else int(want)
+                got = derived.get(player, Counter())[key]
+                if got != want:
+                    mismatches.append({"side": side, "player": player, "field": key,
+                                       "pa_derived": got, "box": want})
+    has_box = bool(facts.box_batting or facts.box_pitching)
+    ok = has_box and bool(diff_ids) and not mismatches
+    return {"ok": ok, "has_box": has_box, "batters": sorted(batters), "pitchers": sorted(pitchers),
+            "mismatches": mismatches[:50]}
+
+
+def _cond_score(events: list[Event], facts: OfficialRevisionFacts, **_: Any) -> dict[str, Any]:
+    final = max(events, key=event_sort_key) if events else {}
+    livelog = (_clean(final.get("visiting_score")), _clean(final.get("home_score")))
+    board = (_clean(facts.scoreboard_runs.get("1")), _clean(facts.scoreboard_runs.get("2")))
+    games = [(_clean(a), _clean(h)) for a, h in facts.games_scores]
+    ok = (None not in livelog and len(games) == 1
+          and livelog == board == games[0])
+    return {"ok": ok, "livelog": list(livelog), "scoreboard": list(board),
+            "games": [list(g) for g in games]}
+
+
+def _cond_final_event(new_pas: list[PlateAppearance], events: list[Event],
+                      facts: OfficialRevisionFacts, **_: Any) -> dict[str, Any]:
+    if not events:
+        return {"ok": False, "reason": "no_events"}
+    final = max(events, key=event_sort_key)
+    final_no = str(final.get("main_event_no"))
+    new_fp = event_fingerprint(final)
+    pub = facts.published_event_fps
+    pub_final = max(pub, key=lambda no: event_sort_key({"main_event_no": no})) if pub else None
+    base = {"event_no": final_no, "published_final_event_no": pub_final}
+    if pub_final != final_no:
+        return {**base, "ok": False, "reason": "final_event_no_changed"}
+    if pub[final_no] == new_fp:
+        return {**base, "ok": True, "final_in_diff": False}
+    if facts.golden_game:
+        return {**base, "ok": False, "reason": "golden_list_game"}
+    if _is_end_marker_content(final.get("content")):
+        return {**base, "ok": False, "reason": "new_final_is_end_marker"}
+    for old_content in END_MARKER_CONTENTS:
+        for old_special in (True, False):
+            if event_fingerprint({**final, "content": old_content,
+                                  "is_special_event": old_special}) == pub[final_no]:
+                return {**base, "ok": True, "final_in_diff": True,
+                        "shape": ACCEPT_SHAPE_END_MARKER, "old_content": old_content,
+                        "old_is_special_event": old_special}
+    return {**base, "ok": False, "reason": "final_diff_not_end_marker_shape"}
+
+
+# 逐條評估、**不短路**（一次看到全部拒收原因）。測試以替換本表任一項驗證每條都承重（變異自證）。
+OFFICIAL_CONDITION_CHECKS: dict[str, Any] = {
+    "1_invariants": _cond_invariants,
+    "2_attribution": _cond_attribution,
+    "3_source_binding": _cond_source_binding,
+    "4_box": _cond_box,
+    "5_score": _cond_score,
+    "6_final_event": _cond_final_event,
+}
+
+
+def official_revision_gate(
+    new_pas: list[PlateAppearance], events: list[Event], rec: ReconcileResult,
+    facts: OfficialRevisionFacts, taxonomy: Taxonomy, *, invariant_violations: Any = None,
+) -> dict[str, Any]:
+    """純函式：六條全部成立才 ``accepted=True``。回傳值寫進 ``validation_summary.reconcile``。"""
+    results = {
+        cid: OFFICIAL_CONDITION_CHECKS[cid](
+            new_pas=new_pas, events=events, rec=rec, facts=facts, taxonomy=taxonomy,
+            violations=invariant_violations)
+        for cid in OFFICIAL_CONDITIONS
+    }
+    failed = [cid for cid in OFFICIAL_CONDITIONS if not results[cid]["ok"]]
+    applicable = rec.action == "reconcile" and not rec.builder_upgrade
+    if not applicable:
+        failed = ["0_not_applicable", *failed]
+    return {
+        "shape": ACCEPT_SHAPE_OFFICIAL_REVISION,
+        "accepted": applicable and not failed,
+        "failed": failed,
+        "official_revision_id": (facts.revision or {}).get("id"),
+        "conditions": results,
+    }
+
+
+# ===========================================================================
 # 受控接受路徑：碼內封閉清單 ＋ 不變式硬拒（DATA-PA-REBUILD-GAP1 Q2／Q6）
 # ===========================================================================
 # 為什麼需要它：``reconcile()`` 對任一 changed／added／removed 一律產出
@@ -1587,13 +1811,93 @@ def _repair_same_source_demotion(
     return False
 
 
+def _official_revision_facts(
+    cur: Any, year: int, kind: str, game: int, *, published_build_id: str, current_manifest: str,
+) -> OfficialRevisionFacts:
+    """官方改值閘門的 DB 事實（唯讀；在 :func:`build_game` 的同場鎖內呼叫）。"""
+    key = (year, kind, game)
+    cur.execute("SELECT built_at FROM cpbl.game_recap_builds WHERE build_id=%s",
+                (published_build_id,))
+    row = cur.fetchone()
+    built_at = row["built_at"] if row else None
+    cur.execute(
+        """
+        SELECT id, fetched_at, last_seen_at, detail FROM cpbl.game_source_revisions
+        WHERE year=%s AND kind_code=%s AND game_sno=%s AND source='livelog' AND outcome='available'
+        ORDER BY last_seen_at DESC, id DESC LIMIT 1
+        """,
+        key,
+    )
+    rev = cur.fetchone()
+    cur.execute(
+        "SELECT hitter_acnt, plate_appearances, hits, home_runs, bb, ibb, hbp, so "
+        "FROM cpbl.batting_gamelog WHERE year=%s AND kind_code=%s AND game_sno=%s", key)
+    box_bat = {_clean(r["hitter_acnt"]): dict(r) for r in cur.fetchall()}
+    cur.execute(
+        "SELECT pitcher_acnt, hits, home_runs, ibb, hbp, so "
+        "FROM cpbl.pitching_gamelog WHERE year=%s AND kind_code=%s AND game_sno=%s", key)
+    box_pit = {_clean(r["pitcher_acnt"]): dict(r) for r in cur.fetchall()}
+    cur.execute(
+        "SELECT visiting_home_type, sum(score_cnt) AS runs FROM cpbl.game_scoreboard "
+        "WHERE year=%s AND kind_code=%s AND game_sno=%s GROUP BY visiting_home_type", key)
+    board = {str(r["visiting_home_type"]): (None if r["runs"] is None else int(r["runs"]))
+             for r in cur.fetchall()}
+    cur.execute(
+        "SELECT away_score, home_score FROM cpbl.games WHERE year=%s AND kind_code=%s AND game_sno=%s",
+        key)
+    games_scores = [(r["away_score"], r["home_score"]) for r in cur.fetchall()]
+    cur.execute(
+        """
+        SELECT pa.pa_id, pa.hitter_acnt, pa.end_hitter_acnt, pa.start_pitcher_acnt, pa.end_pitcher_acnt
+        FROM cpbl.game_plate_appearances pa
+        JOIN cpbl.game_recap_builds b ON b.build_id = pa.build_id AND b.state = 'published'
+        WHERE pa.year=%s AND pa.kind_code=%s AND pa.game_sno=%s
+        """,
+        key,
+    )
+    published_pas = {str(r["pa_id"]): dict(r) for r in cur.fetchall()}
+    cur.execute(
+        """
+        SELECT e.event_no, e.event_fingerprint
+        FROM cpbl.game_pa_events e
+        JOIN cpbl.game_plate_appearances pa ON pa.pa_row_id = e.pa_row_id
+        JOIN cpbl.game_recap_builds b ON b.build_id = pa.build_id AND b.state = 'published'
+        WHERE pa.year=%s AND pa.kind_code=%s AND pa.game_sno=%s AND e.event_fingerprint IS NOT NULL
+        """,
+        key,
+    )
+    event_fps = {str(r["event_no"]): r["event_fingerprint"] for r in cur.fetchall()}
+    return OfficialRevisionFacts(
+        published_built_at=built_at, revision=dict(rev) if rev else None,
+        current_manifest_sha256=current_manifest, box_batting=box_bat, box_pitching=box_pit,
+        scoreboard_runs=board, games_scores=games_scores, published_pas=published_pas,
+        published_event_fps=event_fps,
+        golden_game=f"{year}-{kind}-{game}" in change_player_golden(),
+    )
+
+
+def _official_gate_reevaluable(existing: dict[str, Any] | None) -> bool:
+    """等價短路的唯一例外：本閘門拒收過、且無不變式違反的 reconciliation build。
+
+    為什麼不能 noop：閘門的輸入不只 livelog——官方「改到一半」時 box 晚一步才改對，
+    livelog revision 不變、等價 build 存在，短路會讓這場永遠卡在拒收。重評只讀不寫：
+    仍拒收就照樣 noop（:func:`build_game`），通過才寫新 build。不變式違反的 build 走原
+    noop＋降級修復路徑（同 livelog 重算必然同一違反，重評沒有意義）。
+    """
+    if not existing or existing.get("state") != STATE_RECONCILIATION:
+        return False
+    summary = existing.get("validation_summary") or {}
+    gate = (summary.get("reconcile") or {}).get("official_revision")
+    return isinstance(gate, dict) and not summary.get("invariant_violations")
+
+
 @dataclass
 class GameBuildResult:
     year: int
     kind_code: str
     game_sno: int
     build_id: str | None
-    action: str  # publish | reconcile | noop | skip_no_events | accept_publish | shape_publish
+    action: str  # publish | reconcile | noop | skip_no_events | accept_publish | shape_publish | official_publish
     build_state: str | None
     summary: dict[str, Any] = field(default_factory=dict)
     # 接受路徑實際收尾掉的 build（**鎖內查核過的那一組**，不是收尾時符合場次條件的任意列）。
@@ -1705,6 +2009,10 @@ def build_game(
          同一組由 ``resolved_builds`` 回傳。
     ⚠️ 不變式違反永遠勝出：違反時 rec 已被強制為 ``reconcile``，此處**不覆寫**，
     且閘門會再拒一次。
+
+    預設路徑另有 #383 官方改值接受閘門（:func:`official_revision_gate`）：只在 reconcile()
+    與受控接受都判 reconcile 時評估，六條全過才 publish，並收掉鎖內讀到的待收尾 build。
+    閘門拒收過的等價 build 不走 noop 短路而是重評（只讀不寫，見 :func:`_official_gate_reevaluable`）。
     """
     # ⭐ R2-001：**任何判定或讀取之前**先鎖住這一場。正常與接受路徑都必經這一行，
     # 於是同場的兩個 build 交易不可能越過彼此。位置是承重的——鎖必須早於
@@ -1774,7 +2082,9 @@ def build_game(
     existing = None if accept_reconciliation else _existing_equivalent_build(
         cur, year=year, kind=kind, game=game, livelog_rev=livelog_rev, tracking_rev=tracking_rev
     )
-    if existing:  # 同一來源重跑 → 完全相同，冪等 no-op（含不一致狀態的自癒修復）
+    # #383：官方改值閘門拒收過的等價 reconciliation build 要重評（見 _official_gate_reevaluable）。
+    reevaluate = _official_gate_reevaluable(existing)
+    if existing and not reevaluate:  # 同一來源重跑 → 完全相同，冪等 no-op（含不一致狀態的自癒修復）
         repaired = _repair_same_source_demotion(cur, year=year, kind=kind, game=game,
                                                 existing=existing, livelog_rev=livelog_rev)
         return GameBuildResult(
@@ -1855,6 +2165,39 @@ def build_game(
         )
         accepted = True
 
+    # #383 官方改值接受閘門：只在 reconcile()、受控接受（型態／黃金值）都判 reconcile、且非
+    # 人工清單路徑時評估；不變式違反時條件 1 必拒（rec 已被強制 reconcile）。
+    official: dict[str, Any] | None = None
+    official_resolve: list[str] = []
+    if (not accept_reconciliation and not restored and rec.action == "reconcile"
+            and published_meta and published):
+        facts = _official_revision_facts(
+            cur, year, kind, game, published_build_id=str(published_meta["build_id"]),
+            current_manifest=ll_sha)
+        official = official_revision_gate(pas, events, rec, facts, taxonomy,
+                                          invariant_violations=violations)
+        if official["accepted"]:
+            # 鎖內讀到的待收尾 build＝本次要收掉的那一組（以 build_id 列舉，同 R2-001）。
+            official_resolve = [str(b["build_id"])
+                                for b in outstanding_reconciliations(cur, year, kind, game)]
+            official["resolved_builds"] = official_resolve
+            rec = ReconcileResult(
+                action="publish", changed_pa_ids=rec.changed_pa_ids,
+                added_pa_ids=rec.added_pa_ids, removed_pa_ids=rec.removed_pa_ids,
+            )
+            log.warning("accepted official revision for %s/%s/%s: revision=%s changed=%d added=%d",
+                        year, kind, game, official["official_revision_id"],
+                        len(rec.changed_pa_ids), len(rec.added_pa_ids))
+        else:
+            log.warning("official revision gate rejected %s/%s/%s: %s",
+                        year, kind, game, official["failed"])
+    if reevaluate and rec.action != "publish":
+        # 重評仍拒收：不寫新 build（等價的拒收 build 已在），只回報本次重評結果。
+        return GameBuildResult(
+            year, kind, game, str(existing["build_id"]), "noop", existing["state"],
+            summary={"official_revision": official, "official_reevaluated": True},
+        )
+
     apply_reconciliation_states(pas, rec)
 
     build_id = str(uuid.uuid4())
@@ -1871,7 +2214,12 @@ def build_game(
         "resolved_builds": reviewed_build_ids if accepted else [],
         # #357：型態受控接受的留痕（None＝不是這個型態）。與 accepted_reconciliation
         # （人工清單）分開，published 視圖裡兩者才分得出來。
-        "accepted_shape": restored,
+        "accepted_shape": restored or (
+            {"shape": ACCEPT_SHAPE_OFFICIAL_REVISION,
+             "official_revision_id": official["official_revision_id"]}
+            if official and official["accepted"] else None),
+        # #383：官方改值閘門的逐條結果（None＝未評估）。拒收時 failed 列條件號，供每日鏈 69 note。
+        "official_revision": official,
     }
     summary["invariant_violations"] = violations
     summary["published_demoted_same_source"] = demote_published
@@ -1898,6 +2246,14 @@ def build_game(
         cur.execute("UPDATE cpbl.game_recap_builds SET state='published' WHERE build_id=%s",
                     (build_id,))
         build_state = "published"
+        if official_resolve:
+            # #383：官方改值通過後，鎖內查核過的待收尾 build 一併收尾（列保留供稽核，不刪），
+            # 否則 reconciliation_outstanding 不會歸零、每日鏈的 69 永遠亮著。
+            cur.execute(
+                "UPDATE cpbl.game_recap_builds SET state='superseded' "
+                "WHERE build_id = ANY(%s::uuid[]) AND state='reconciliation_required'",
+                (official_resolve,),
+            )
         if accepted:
             # 收尾：把**鎖內查核過的那一組** reconciliation_required 降級，否則
             # `_pa_build_coverage` 的 reconciliation_outstanding 永遠不會歸零——
@@ -1934,7 +2290,8 @@ def build_game(
     # action 自描述：published 視圖看不出「乾淨等價」與「受控接受」的差別，回傳值要看得出。
     return GameBuildResult(
         year, kind, game, build_id,
-        "accept_publish" if accepted else ("shape_publish" if restored else rec.action),
+        "accept_publish" if accepted else ("shape_publish" if restored else (
+            "official_publish" if official and official["accepted"] else rec.action)),
         build_state, summary, resolved_builds=reviewed_build_ids if accepted else [],
     )
 
