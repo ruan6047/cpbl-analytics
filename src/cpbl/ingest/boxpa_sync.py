@@ -180,13 +180,6 @@ class Psql:
             raise self._fail(proc.returncode, proc.stderr)
         return proc.stdout
 
-    def send_file(self, path: Path) -> None:
-        """把 ``path`` 原樣當 stdin 送出（#353 r4：每批 payload 由本模組送，不再經 shell 重導）。"""
-        with path.open("rb") as fh:
-            proc = subprocess.run(self.argv, stdin=fh, capture_output=True, check=False)
-        if proc.returncode != 0:
-            raise self._fail(proc.returncode, proc.stderr.decode("utf-8", "replace"))
-
     def read(self, sql: str) -> list[list[str]]:
         script = ("\\set QUIET on\n\\set ON_ERROR_STOP on\n\\pset tuples_only on\n"
                   "\\pset format unaligned\n\\pset fieldsep '\\t'\nBEGIN TRANSACTION READ ONLY;\n"
@@ -305,10 +298,10 @@ _TIMEOUT_RE = re.compile(r"^\d+(ms|s|min)$")
 
 def write_pa_payload(local: Psql, out: TextIO, *, scope: str, closure_sql: str | None,
                      statement_timeout: str = "300s") -> None:
-    """:func:`build_pa_payload` 的串流版本，也是 #353 每日增量／全量模式每一批的同一個產生器。
+    """:func:`build_pa_payload` 的串流版本，也是 #353 每日增量／全量模式的同一個產生器。
 
-    ``scope``＝SQL 條件（目標鍵 ``IN (…)``）；``closure_sql`` 為 None 時不嵌 production 端閉包守衛
-    （只在 scope 涵蓋全部場時合理）。#353 r4 起全量模式也逐批呼叫、每批都帶閉包守衛，已沒有呼叫端傳 None。
+    ``scope``＝SQL 條件（目標鍵 ``IN (…)``，或全量模式的 ``TRUE``）；``closure_sql`` 為 None 時不嵌
+    production 端閉包守衛（只在 scope 涵蓋全部場時合理：沒有 scope 外的列可被波及）。
     ``scope`` 與 ``closure_sql`` 只接受本模組／``pa_incremental`` 由已驗證的鍵產生的字串。"""
     if not _TIMEOUT_RE.fullmatch(statement_timeout):
         raise SyncError(EXIT_SELF_CHECK, f"statement_timeout 格式不符：{statement_timeout!r}")

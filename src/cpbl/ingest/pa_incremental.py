@@ -57,6 +57,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import subprocess
 import sys
 import time
 from collections.abc import Callable, Mapping, Sequence
@@ -188,6 +189,22 @@ class Sender(Protocol):
     def send_file(self, path: Path) -> None: ...
 
 
+class FileSender:
+    """把每批 payload 檔原樣當 stdin 交給 ``psql``（``-v ON_ERROR_STOP=1 --single-transaction``）。
+
+    沿用 :class:`boxpa_sync.Psql` 的 argv 與失敗分類（ssh rc 255 ⇒ 72、其餘 ⇒ 74）；放在本模組而不是
+    ``Psql`` 上，讓晚間鏈共用的 ``boxpa_sync`` 不因 #353 r4 改動。"""
+
+    def __init__(self, psql: Psql):
+        self.psql = psql
+
+    def send_file(self, path: Path) -> None:
+        with path.open("rb") as fh:
+            proc = subprocess.run(self.psql.argv, stdin=fh, capture_output=True, check=False)
+        if proc.returncode != 0:
+            raise self.psql._fail(proc.returncode, proc.stderr.decode("utf-8", "replace"))
+
+
 def _span(keys: Sequence[GameKey]) -> str:
     return f"{keys[0].text}..{keys[-1].text}" if keys else "-"
 
@@ -281,7 +298,7 @@ def main(argv: list[str] | None = None) -> int:
     target = Psql(args.target_psql, label="target")
     try:
         if args.command == "apply":
-            apply(local, target, Psql(args.apply_psql, label="target"), Path(args.workdir), full=args.full,
+            apply(local, target, FileSender(Psql(args.apply_psql, label="target")), Path(args.workdir), full=args.full,
                   batch_games=args.batch_games, pause_ratio=args.pause_ratio, pause_min=args.pause_min,
                   log=lambda line: print(line, flush=True))
             return 0

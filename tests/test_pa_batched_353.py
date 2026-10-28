@@ -354,15 +354,20 @@ def test_guard_failure_on_a_batch_payload_sends_nothing_of_that_batch(tmp_path: 
 def test_send_file_maps_ssh_and_psql_failures(tmp_path: Path) -> None:
     f = tmp_path / "p.sql"
     f.write_text("SELECT 1;\n", encoding="utf-8")
-    bs.Psql(["sh", "-c", "cat >/dev/null"], label="target").send_file(f)
+    pi.FileSender(bs.Psql(["sh", "-c", "cat >/dev/null"], label="target")).send_file(f)
     for rc, code in ((255, bs.EXIT_TARGET), (3, bs.EXIT_TARGET_SQL)):
         with pytest.raises(bs.SyncError) as e:
-            bs.Psql(["sh", "-c", f"cat >/dev/null; exit {rc}"], label="target").send_file(f)
+            pi.FileSender(bs.Psql(["sh", "-c", f"cat >/dev/null; exit {rc}"], label="target")).send_file(f)
         assert e.value.code == code
 
 
 def test_send_file_streams_the_file_as_stdin(tmp_path: Path) -> None:
     f, got = tmp_path / "p.sql", tmp_path / "got"
     f.write_bytes(b"line1\n\\.\nline3\n")
-    bs.Psql(["sh", "-c", f"cat > {got}"], label="target").send_file(f)
+    pi.FileSender(bs.Psql(["sh", "-c", f"cat > {got}"], label="target")).send_file(f)
     assert got.read_bytes() == f.read_bytes()
+
+
+def test_evening_chain_module_is_untouched_by_r4() -> None:
+    """r4 不改晚間鏈共用的 boxpa_sync（產生器、守衛、Psql 都不動）；送出端住在 pa_incremental。"""
+    assert not hasattr(bs.Psql, "send_file")
