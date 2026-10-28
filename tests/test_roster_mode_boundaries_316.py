@@ -72,9 +72,14 @@ def _outside_roster(data):
 # #357 WP2-f（只改「區塊之後」基準、保護不減，待需求方追認）：區塊之後新增 sync_livelog_extra（附加表
 # game_livelog_extra 整表鏡像、本機 0 列略過）並在完整鏈 sync_box_game_livelog 之後呼叫（76701 → 77968 bytes）；
 # 區塊之前未變。舊值：區塊之後 714cfc0c…854e（76701 bytes，origin/main 53f0bd93）。ROSTER_ONLY 區塊未動。
+# #353 規劃 r4（全量／超過一批的增量改逐批小交易＋限速；只改基準、保護不減，待需求方追認）：區塊之前 --help
+# 新增 PA_BATCH_* 說明、PA_FULL_RESYNC 與離開碼改寫成逐批語意（22468 → 22949 bytes）；區塊之後 sync_pa_build
+# 改呼叫 pa_incremental apply（逐批送出、批間暫停、中途失敗即停）、本機端 ssh 連線重用、上方註解改寫
+# （77968 → 80410 bytes）。ROSTER_ONLY 區塊未動（下方第二個斷言仍以 #316 合併結果比對）。
+# 舊值：區塊之前 2e54518d…ab92f（22468 bytes）、區塊之後 93b123af…682df（77968 bytes，origin/main d63ca987）。
 OUTSIDE_ROSTER_SHA256 = (
-    "2e54518d330e9d3b804dd61e76b837a149172676547a1898bde2021d952ab92f",   # 區塊之前（22468 bytes）
-    "93b123afaf144e4ae07f9f53c4349f3c6e498a3300da24d6ff9e95f8d84682df",   # 區塊之後（77968 bytes）
+    "b82423327ff579de41b44d08f1c4b09bfbe94bde80530f996c097ba14e6e0d51",   # 區塊之前（22949 bytes）
+    "51ecd63ca96caa79a1bb2a3289c62ccfe511dd28ab4fc44d6bbfe556da6a424b",   # 區塊之後（80410 bytes）
 )
 # #316 的成果（ROSTER_ONLY 區塊本身）以 main 上合併後的版本為準：#293 不得改動它。
 ROSTER_RESULT = "a473695dfca536e365b08c44aa2e85374e8f3e69"
