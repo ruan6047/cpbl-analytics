@@ -61,7 +61,8 @@ def test_daily_chain_uses_only_the_daily_helper() -> None:
     code = src.read_text(encoding="utf-8")
     assert re.findall(r"(?<!daily_chain_)completed_games_sql\(", code) == []
     # 既有 7 個選場點＋#237 季後缺明細選場點恰一處（只在 _missing_postseason_detail_snos）
-    assert code.count("daily_chain_completed_games_sql(") == 8
+    # ＋#383 兩處（_pa_manifest_drift_count 衍生訊號、_pa_reconciliation_alerts 69 清單）
+    assert code.count("daily_chain_completed_games_sql(") == 10
     helper = code.split("def _missing_postseason_detail_snos(", 1)[1].split("\ndef ", 1)[0]
     assert helper.count("daily_chain_completed_games_sql(") == 1
 
