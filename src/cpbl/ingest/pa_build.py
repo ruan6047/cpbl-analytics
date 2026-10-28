@@ -71,7 +71,10 @@ Pitch = dict[str, Any]
 # （:func:`end_marker_change_player_restoration`）——同樣改變預設路徑的 reconcile 決策，必須進位。
 # 1.6.0（#357 WP2 審核 1 項 2）：清單內場次改為只走逐場判定、黃金值加鎖新值——收緊 1.5.0 的
 # 接受集合，仍屬預設路徑 reconcile 決策變更，依判準進位（1.5.0 只在隔離庫測試跑過）。
-BUILDER_VERSION = "pa-build-1.6.0"
+# 1.7.0（#383 WP1-c）：預設路徑新增官方改值接受閘門（:func:`official_revision_gate`）與拒收 build
+# 的重評——改變預設路徑的 reconcile 決策與 noop 短路，依判準進位（不進位時 1.6.0 的 reconcile
+# build 會被當成等價而 noop，閘門永遠不會被評估）。
+BUILDER_VERSION = "pa-build-1.7.0"
 EVENT_ORDER_VERSION = "evord-1.0"  # main_event_no::bigint 嚴格全序
 # 固定 UUIDv5 namespace（勿更動：更動會使全部 pa_id 漂移）。
 PA_ID_NAMESPACE = uuid.UUID("5f3b9d2a-1c47-5e60-9a8b-6d2f0c1e7a44")

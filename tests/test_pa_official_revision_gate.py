@@ -415,6 +415,31 @@ def _fake_world(*, recon_builder: str | None, revision: dict | None = None, box_
                       rev_ids={sha_old: 100, sha_new: 101}, box_bat=box_bat)
 
 
+def test_builder_bump_makes_160_recon_build_non_equivalent_and_gate_runs() -> None:
+    """PM 指定：1.6.0 的 reconcile build 在 1.7.0 下不是等價 build → 不 noop、進入新閘門。"""
+    assert pb.BUILDER_VERSION != "pa-build-1.6.0"
+    cur = _fake_world(recon_builder="pa-build-1.6.0")
+    assert pb._existing_equivalent_build(cur, year=2026, kind="A", game=1,
+                                         livelog_rev=101, tracking_rev=None) is None
+    res = pb.build_game(cur, *KEY)
+    assert res.action == "official_publish" and res.build_state == "published"
+    summary = res.summary["reconcile"]
+    assert summary["official_revision"]["accepted"] is True
+    assert summary["accepted_shape"] == {"shape": "official_revision", "official_revision_id": 777}
+    states = [b["state"] for b in cur.builds]
+    # 舊 published 與 1.6.0 recon build 都轉 superseded；新 build published；無殘留待收尾
+    assert states.count("published") == 1 and "reconciliation_required" not in states
+    assert summary["official_revision"]["resolved_builds"] == [cur.builds[1]["build_id"]]
+
+
+def test_equivalent_160_build_under_160_would_have_been_noop(monkeypatch) -> None:
+    """對照組：版本不進位時同一場是 noop，閘門永遠不會被評估（這就是進版的理由）。"""
+    monkeypatch.setattr(pb, "BUILDER_VERSION", "pa-build-1.6.0")
+    cur = _fake_world(recon_builder="pa-build-1.6.0")
+    res = pb.build_game(cur, *KEY)
+    assert res.action == "noop" and not [w for w in cur.writes if w[0] == "insert_build"]
+
+
 def test_rejected_writes_recon_build_with_failed_conditions_then_reevaluates_without_writing() -> None:
     bad_box = {**BOX_BAT, "H2": {**BOX_BAT["H2"], "hits": 0}}   # 官方 box 尚未改（改到一半）
     cur = _fake_world(recon_builder=None, box_bat=bad_box)

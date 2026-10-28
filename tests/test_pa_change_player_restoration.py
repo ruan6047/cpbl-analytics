@@ -234,7 +234,7 @@ def test_negative_invariant_violation_wins():
 
 
 def test_builder_version_bumped():
-    assert pa_build.BUILDER_VERSION == "pa-build-1.6.0"
+    assert pa_build.BUILDER_VERSION == "pa-build-1.7.0"
 
 
 # ── 全量：WP1 原文 20 場＋黃金值可重生（證據目錄不在時 skip）────────────────────────────
