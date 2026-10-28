@@ -10,12 +10,14 @@ from __future__ import annotations
 import copy
 import json
 import uuid
-from datetime import UTC, datetime
+from contextlib import contextmanager
+from datetime import UTC, date, datetime
 from typing import Any
 
 import pytest
 
 from cpbl.ingest import pa_build as pb
+from cpbl.ingest import run_refresh_recent as rr
 
 TAX = pb.load_taxonomy()
 KEY = (2026, "A", 1)
@@ -479,3 +481,87 @@ def test_reevaluable_only_for_gate_rejected_builds_without_invariants() -> None:
     assert pb._official_gate_reevaluable({**gated, "validation_summary": {
         **gated["validation_summary"], "invariant_violations": [{"x": 1}]}}) is False
     assert pb._official_gate_reevaluable(None) is False
+
+
+# ============================================================ 每日路徑端到端（選場第四條 → 閘門 → 69）
+class _DriftRows:
+    def __init__(self, rows):
+        self._rows = rows
+
+    def fetchall(self):
+        return self._rows
+
+
+class _DriftConn:
+    """`rr._pa_manifest_drift_targets` 的替身連線：published sha 查詢＋livelog 串流。"""
+
+    def __init__(self, published_rows, events):
+        self.published_rows, self.events = published_rows, events
+
+    def execute(self, sql, params=None):
+        return _DriftRows(self.published_rows)
+
+    def cursor(self, **_kw):
+        conn = self
+
+        class _C:
+            itersize = None
+
+            def execute(self, *_a, **_k):
+                pass
+
+            def __iter__(self):
+                return iter([dict(e) for e in conn.events])
+
+        return _C()
+
+
+def _daily_selects(monkeypatch, current_events) -> list:
+    published_sha = pb._livelog_manifest(old_events())[0]
+    holder = _DriftConn([(2026, "A", 1, published_sha)], current_events)
+
+    @contextmanager
+    def fake_conn():
+        yield holder
+
+    monkeypatch.setattr(rr, "conn", fake_conn)
+    return rr._pa_manifest_drift_targets(2026, ["A"])
+
+
+def test_e2e_b_unofficial_in_place_edit_is_selected_rejected_and_alerts_69(monkeypatch) -> None:
+    """(b) 非官方 writer 原地改一列非末事件（detail 沒有新 manifest）→ 第四條選中 → 條件 2／3 拒收 → 69。"""
+    tampered = old_events()
+    tampered[1] = {**tampered[1], "content": "手動 SQL 改的內容"}
+    assert _daily_selects(monkeypatch, tampered) == [KEY]          # WP2-A F1：舊實作此處為空
+
+    publish_time_revision = {"id": 5, "fetched_at": datetime(2026, 6, 30, tzinfo=UTC),
+                             "last_seen_at": datetime(2026, 6, 30, tzinfo=UTC),
+                             "detail": {"phase": "getlive", "event_rows": 5}}
+    old_pas = _pas(old_events())
+    cur = FakeCursor(events=tampered, old_pas=old_pas, builds=[
+        {"build_id": str(uuid.uuid4()), "state": "published", "builder_version": "pa-build-1.6.0",
+         "taxonomy_version": TAX.version, "livelog_revision_id": 100, "tracking_revision_id": None,
+         "built_at": T_BUILT, "validation_summary": {}}],
+        revision=publish_time_revision, rev_ids={pb._livelog_manifest(old_events())[0]: 100})
+    res = pb.build_game(cur, *KEY)
+    assert res.build_state == "reconciliation_required"
+    failed = res.summary["reconcile"]["official_revision"]["failed"]
+    assert "2_attribution" in failed and "3_source_binding" in failed
+    assert sum(1 for b in cur.builds if b["state"] == "published") == 1   # 舊 published 保留
+
+    monkeypatch.setattr(rr, "_build_pa_daily", lambda *_a, **_k: {
+        "games": 1, "actions": {"reconcile": 1}, "build_states": {}, "errors": [],
+        "coverage": {"A": {"gap": 0, "reconciliation_outstanding": 1, "oldest_days": 0}},
+        "reconciliation_alerts": [{"game": "2026/A/1", "days": 0, "failed": failed}]})
+    step = rr._pa_build_step(2026, [date(2026, 10, 28)], include_farm=True)
+    note = rr._pa_alert_note(step["reconciliation_alerts"])
+    assert note.startswith("PA 對帳待收尾：2026/A/1(") and "3_source_binding" in note
+
+
+def test_e2e_c_official_revision_with_matching_box_is_selected_and_published(monkeypatch) -> None:
+    """(c) 官方新 revision（detail 有 manifest、box 一致）→ 第四條選中 → 閘門通過 → publish。"""
+    assert _daily_selects(monkeypatch, new_events()) == [KEY]
+    cur = _fake_world(recon_builder=None)
+    res = pb.build_game(cur, *KEY)
+    assert res.action == "official_publish" and res.build_state == "published"
+    assert res.summary["reconcile"]["official_revision"]["failed"] == []

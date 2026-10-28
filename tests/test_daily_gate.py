@@ -574,6 +574,7 @@ def _stub_refresh_main(monkeypatch, rr, ran: list[str], *, new_pitches: int = 0,
             "_active_kinds": lambda year, kinds: ["A"],
             # 與真 SQL 同語意的假集合：當日窗（此處無）∪ 全域缺口（完成但無 published）
             "_pa_build_targets": lambda year, kinds, days: sorted(completed - published),
+            "_pa_manifest_drift_targets": lambda year, kinds: [],   # #383 第四條：替身＝無漂移
             "build_scope": build_scope,
             "_pa_build_coverage": lambda year, kinds: {
                 "A": {"gap": len(completed - published), "reconciliation_outstanding": 0}},

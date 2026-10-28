@@ -1,6 +1,6 @@
 """#383 段 1 WP1-a／d：選場第四條（manifest 比對）、daily_gate 衍生訊號、PA 對帳 69 訊號。
 
-全部無 DB（替身 conn／替身步驟）。第四條的判準在純函式 `manifest_drift_selected`；SQL 只預篩。
+全部無 DB（替身 conn／替身步驟）。第四條＝現行 livelog 以 builder 同一函式重算 manifest ≠ published。
 """
 
 from __future__ import annotations
@@ -12,6 +12,7 @@ import pytest
 
 from cpbl.ingest import cpbl_gamelog
 from cpbl.ingest import daily_gate as dg
+from cpbl.ingest import pa_build as pb
 from cpbl.ingest import run_refresh_recent as rr
 
 
@@ -24,60 +25,115 @@ class _Rows:
         return self._rows
 
 
-class _TargetsConn:
-    def __init__(self, rows):
-        self.rows, self.calls = rows, []
+class _StreamCursor:
+    """伺服器端具名 cursor 的替身：execute 後可逐列迭代。"""
+
+    def __init__(self, conn):
+        self.conn, self.itersize = conn, None
+
+    def execute(self, sql, params=None):
+        self.conn.calls.append((sql, params))
+
+    def __iter__(self):
+        return iter(self.conn.events)
+
+
+class DriftConn:
+    """`_pa_manifest_drift_targets` 的替身連線：第一支查 published sha，第二支串流 livelog。"""
+
+    def __init__(self, published_rows, events):
+        self.published_rows, self.events, self.calls = published_rows, events, []
+        self.cursor_kwargs = None
 
     def execute(self, sql, params=None):
         self.calls.append((sql, params))
-        return _Rows(self.rows if len(self.calls) == 1 else [])
+        return _Rows(self.published_rows)
+
+    def cursor(self, **kwargs):
+        self.cursor_kwargs = kwargs
+        return _StreamCursor(self)
 
 
-def _targets_with(monkeypatch, rows):
-    holder = _TargetsConn(rows)
+def install_drift_conn(monkeypatch, published_rows, events) -> DriftConn:
+    holder = DriftConn(published_rows, events)
 
     @contextmanager
     def fake_conn():
         yield holder
 
     monkeypatch.setattr(rr, "conn", fake_conn)
-    return rr._pa_build_targets(2026, ["A", "D"], [date(2026, 10, 27), date(2026, 10, 28)]), holder
+    return holder
 
 
-def test_fourth_branch_selects_zero_of_4500_published_games_without_manifest(monkeypatch) -> None:
-    """PM 指定大量形狀：4,500 場已 published、最新 revision 沒有 manifest → 第四條入選數＝0。"""
-    rows = [(2026, "A" if i % 2 else "D", i, False, False, f"pub{i:04d}", None) for i in range(4500)]
-    selected, holder = _targets_with(monkeypatch, rows)
+def game_events(kind: str, sno: int, n: int = 3, *, content: str = "x") -> list[dict]:
+    base = {"year": 2026, "kind_code": kind, "game_sno": sno, "inning_seq": 1,
+            "visiting_home_type": "1", "pitcher_acnt": "P1", "is_strike": True}
+    return [{**base, "main_event_no": f"{i:010d}", "hitter_acnt": f"H{i}", "pitch_cnt": i,
+             "content": content} for i in range(1, n + 1)]
+
+
+def test_fourth_branch_selects_zero_of_4500_published_games_matching_current_livelog(monkeypatch) -> None:
+    """共同主 PM 必驗：約 4,500 場已 published、現行 manifest＝published sha → 第四條入選數＝0。"""
+    games = [("A" if i % 2 else "D", i) for i in range(1, 4501)]
+    events, published = [], []
+    for kind, sno in games:
+        ev = game_events(kind, sno)
+        events.extend(ev)
+        published.append((2026, kind, sno, pb._livelog_manifest(ev)[0]))
+    events.sort(key=lambda e: (e["kind_code"], e["game_sno"]))
+    install_drift_conn(monkeypatch, published, events)
+    selected = rr._pa_manifest_drift_targets(2026, ["A", "D"])
     assert len(selected) == 0
+
+
+def test_fourth_branch_selects_games_whose_current_livelog_differs(monkeypatch) -> None:
+    same, changed, unpublished = game_events("A", 1), game_events("A", 2), game_events("A", 3)
+    published = [(2026, "A", 1, pb._livelog_manifest(same)[0]),
+                 (2026, "A", 2, pb._livelog_manifest(changed)[0])]
+    changed_now = [*changed[:1], {**changed[1], "content": "非官方 writer 改的"}, *changed[2:]]
+    install_drift_conn(monkeypatch, published, [*same, *changed_now, *unpublished])
+    assert rr._pa_manifest_drift_targets(2026, ["A"]) == [(2026, "A", 2)]
+
+
+def test_fourth_branch_sql_uses_builder_columns_published_sha_and_streams(monkeypatch) -> None:
+    holder = install_drift_conn(monkeypatch, [(2026, "A", 1, "x")], [])
+    rr._pa_manifest_drift_targets(2026, ["A", "D"])
+    pub_sql = " ".join(holder.calls[0][0].split())
+    assert "pb.state = 'published'" in pub_sql and "sr.source_sha256" in pub_sql
+    assert rr.daily_chain_completed_games_sql("g") in pub_sql
+    assert f"g.game_date IS DISTINCT FROM {rr.TAIPEI_TODAY_SQL}" in pub_sql
+    assert "livelog_manifest_sha256" not in pub_sql            # ⛔ 不讀寫入端 detail
+    ll_sql = " ".join(holder.calls[1][0].split())
+    assert f"SELECT {pb._EVENT_COLS} FROM cpbl.game_livelog" in ll_sql   # 口徑＝builder
+    assert "game_livelog_extra" not in ll_sql
+    assert holder.cursor_kwargs.get("name")                    # 伺服器端串流，不整季載入
+
+
+def test_fourth_branch_short_circuits_without_published(monkeypatch) -> None:
+    holder = install_drift_conn(monkeypatch, [], game_events("A", 1))
+    assert rr._pa_manifest_drift_targets(2026, ["A"]) == []
     assert len(holder.calls) == 1
+    assert rr._pa_manifest_drift_targets(2026, []) == []
 
 
-def test_fourth_branch_selects_recorded_mismatch_only(monkeypatch) -> None:
-    rows = [
-        (2026, "A", 1, False, False, "pubA", "newA"),   # 有 manifest 且不符 → 入選
-        (2026, "A", 2, False, False, "same", "same"),   # 有 manifest 且相符 → 不入選
-        (2026, "A", 3, False, False, "pubC", None),     # 沒有 manifest → 不入選
-        (2026, "A", 4, False, False, None, "newD"),     # 沒有 published → 不由第四條入選
-        (2026, "A", 5, False, True, "pubE", None),      # 前三條命中 → 照舊入選
-    ]
-    selected, _ = _targets_with(monkeypatch, rows)
-    assert selected == [(2026, "A", 1), (2026, "A", 5)]
+def test_build_pa_daily_unions_fourth_branch(monkeypatch) -> None:
+    monkeypatch.setattr(rr, "_active_kinds", lambda *_a, **_k: ["A"])
+    monkeypatch.setattr(rr, "_pa_build_targets", lambda *_a, **_k: [(2026, "A", 5)])
+    monkeypatch.setattr(rr, "_pa_manifest_drift_targets", lambda *_a, **_k: [(2026, "A", 2), (2026, "A", 5)])
+    monkeypatch.setattr(rr, "_pa_build_coverage", lambda *_a, **_k: {})
+    calls = []
+    monkeypatch.setattr(rr, "build_scope", lambda *a, **k: calls.append(k) or {
+        "games": 2, "actions": {}, "build_states": {}, "errors": []})
+    rr._build_pa_daily(2026, [], include_farm=False)
+    assert calls == [{"only_games": [(2026, "A", 2), (2026, "A", 5)]}]
 
 
-def test_fourth_branch_sql_reads_recorded_manifest_from_latest_available_revision(monkeypatch) -> None:
-    _sel, holder = _targets_with(monkeypatch, [])
-    sql = " ".join(holder.calls[0][0].split())
-    assert "detail ->> 'livelog_manifest_sha256'" in sql
-    assert "gs.source = 'livelog' AND gs.outcome = 'available'" in sql
-    assert "ORDER BY gs.last_seen_at DESC, gs.id DESC LIMIT 1" in sql
-    assert "t.published_sha IS NOT NULL AND t.recorded_manifest IS NOT NULL" in sql
-    assert holder.calls[0][1] == (2026, ["A", "D"], [date(2026, 10, 27), date(2026, 10, 28)])
-
-
-@pytest.mark.parametrize("rec,pub,want", [
-    (None, None, False), (None, "a", False), ("a", None, False), ("a", "a", False), ("a", "b", True)])
-def test_manifest_drift_predicate(rec, pub, want) -> None:
-    assert rr.manifest_drift_selected(rec, pub) is want
+def test_drift_count_is_the_same_function(monkeypatch) -> None:
+    seen = []
+    monkeypatch.setattr(rr, "_pa_manifest_drift_targets",
+                        lambda year, kinds: seen.append((year, kinds)) or [(2026, "A", 1)] * 3)
+    assert rr._pa_manifest_drift_count(2026) == 3
+    assert seen == [(2026, ["A", "C", "E", "D"])]
 
 
 # ============================================================ daily_gate 衍生訊號
@@ -117,6 +173,7 @@ def test_step_attaches_count_alert_when_only_coverage_counts(monkeypatch) -> Non
 def test_build_pa_daily_queries_alerts_only_when_outstanding(monkeypatch) -> None:
     monkeypatch.setattr(rr, "_active_kinds", lambda *_a, **_k: ["A"])
     monkeypatch.setattr(rr, "_pa_build_targets", lambda *_a, **_k: [])
+    monkeypatch.setattr(rr, "_pa_manifest_drift_targets", lambda *_a, **_k: [])
     calls = []
     monkeypatch.setattr(rr, "_pa_reconciliation_alerts",
                         lambda y, k: calls.append((y, k)) or [{"game": "2026/A/1", "days": 1,

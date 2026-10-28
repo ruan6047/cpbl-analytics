@@ -486,50 +486,70 @@ def _active_kinds(year: int, candidate_kinds: tuple[str, ...]) -> list[str]:
     return sorted(r[0] for r in rows)
 
 
-# #383 第四條（PLAN §2.2）：published build 的 livelog manifest 對照「該場最新官方 livelog revision
-# 寫入當下記錄的 manifest」（`cpbl_gamelog` 同交易讀回、記在 game_source_revisions.detail）。
-# ⛔ 只比有記錄的場次：WP1 之前寫入的 revision 都沒有 manifest，缺值**一律不入選**（不得因缺值全選，
-# 否則合併後第一次每日鏈會把全庫已 published 場次選進來）。外層別名必須是 `g`。
-_MANIFEST_DRIFT_LATERAL_SQL = """
-            LEFT JOIN LATERAL (
-              SELECT
-                (SELECT sr.source_sha256
-                 FROM cpbl.game_recap_builds pb
-                 JOIN cpbl.game_recap_source_revisions sr ON sr.id = pb.livelog_revision_id
-                 WHERE pb.year = g.year AND pb.kind_code = g.kind_code AND pb.game_sno = g.game_sno
-                   AND pb.state = 'published'
-                 LIMIT 1) AS published_sha,
-                (SELECT gs.detail ->> 'livelog_manifest_sha256'
-                 FROM cpbl.game_source_revisions gs
-                 WHERE gs.year = g.year AND gs.kind_code = g.kind_code AND gs.game_sno = g.game_sno
-                   AND gs.source = 'livelog' AND gs.outcome = 'available'
-                 ORDER BY gs.last_seen_at DESC, gs.id DESC
-                 LIMIT 1) AS recorded_manifest
-            ) drift ON TRUE
-"""
+# #383 第四條（PLAN §2.2）：當季完成場「現行 game_livelog 直接重算的 manifest ≠ published build 的
+# livelog revision sha256」。口徑＝builder 的 `pa_build._livelog_manifest`（同一函式、同一欄位常數
+# `_EVENT_COLS`、只讀主表——published sha 就是 builder 用這個口徑算的；附加表不進 builder 的 manifest，
+# 納入會讓每一場都與 published 不同）。⛔ 不讀寫入端 detail：那只給閘門條件 3 用；PLAN 明文不採
+# 「寫入端標記」，否則 #357 重放、手動 SQL 等其他 writer 的改動會被漏看（WP2-A F1）。
+# 當日場不由本條選（當日窗已涵蓋，且要經官方 final 過濾）。
+def _pa_manifest_drift_targets(year: int, kinds: list[str]) -> list[tuple[int, str, int]]:
+    """當季完成場中現行 livelog manifest ≠ published sha 的場次（逐場串流計算，不整季載入）。"""
+    if not kinds:
+        return []
+    from psycopg.rows import dict_row
 
+    from cpbl.ingest import pa_build
 
-def manifest_drift_selected(recorded_manifest: str | None, published_sha: str | None) -> bool:
-    """第四條的判準（純函式）：兩者都有值且不同才入選；任一缺值＝不入選。"""
-    return (recorded_manifest is not None and published_sha is not None
-            and recorded_manifest != published_sha)
+    with conn() as c:
+        published = {
+            (r[0], r[1], r[2]): r[3]
+            for r in c.execute(
+                f"""
+                SELECT g.year, g.kind_code, g.game_sno, sr.source_sha256
+                FROM cpbl.games g
+                JOIN cpbl.game_recap_builds pb
+                  ON pb.year = g.year AND pb.kind_code = g.kind_code AND pb.game_sno = g.game_sno
+                 AND pb.state = 'published'
+                JOIN cpbl.game_recap_source_revisions sr ON sr.id = pb.livelog_revision_id
+                WHERE g.year = %s AND g.kind_code = ANY(%s) AND {daily_chain_completed_games_sql('g')}
+                  AND g.game_date IS DISTINCT FROM {TAIPEI_TODAY_SQL}
+                """,
+                (year, kinds),
+            ).fetchall()
+        }
+        if not published:
+            return []
+        cur = c.cursor(name="pa_manifest_drift", row_factory=dict_row)
+        cur.itersize = 20000
+        cur.execute(
+            f"SELECT {pa_build._EVENT_COLS} FROM cpbl.game_livelog "  # noqa: S608 — 固定欄位常數
+            "WHERE year = %s AND kind_code = ANY(%s) ORDER BY kind_code, game_sno",
+            (year, kinds),
+        )
+        drifted: list[tuple[int, str, int]] = []
+        key: tuple[int, str, int] | None = None
+        events: list[dict[str, Any]] = []
+
+        def _close() -> None:
+            if key in published and pa_build._livelog_manifest(events)[0] != published[key]:
+                drifted.append(key)
+
+        for row in cur:
+            k = (int(row["year"]), row["kind_code"], int(row["game_sno"]))
+            if k != key:
+                if key is not None:
+                    _close()
+                key, events = k, []
+            events.append(dict(row))
+        if key is not None:
+            _close()
+    return sorted(drifted, key=lambda g: (g[1], g[2]))
 
 
 def _pa_manifest_drift_count(year: int) -> int:
-    """當季完成場中第四條會入選的場數（daily_gate 衍生訊號用；與選場同一判準、同一段 SQL）。"""
+    """daily_gate 衍生訊號用：與第四條同一個計數（同一函式）。"""
     kinds = [k for tier in _PA_BUILD_TIER_KINDS.values() for k in tier]
-    with conn() as c:
-        rows = c.execute(
-            f"""
-            SELECT drift.recorded_manifest, drift.published_sha
-            FROM cpbl.games g
-            {_MANIFEST_DRIFT_LATERAL_SQL}
-            WHERE g.year = %s AND g.kind_code = ANY(%s) AND {daily_chain_completed_games_sql('g')}
-              AND drift.published_sha IS NOT NULL AND drift.recorded_manifest IS NOT NULL
-            """,
-            (year, kinds),
-        ).fetchall()
-    return sum(1 for rec, pub in rows if manifest_drift_selected(rec, pub))
+    return len(_pa_manifest_drift_targets(year, kinds))
 
 
 def _pa_build_targets(year: int, kinds: list[str], days: list[date]) -> list[tuple[int, str, int]]:
@@ -554,11 +574,10 @@ def _pa_build_targets(year: int, kinds: list[str], days: list[date]) -> list[tup
 
     ⚠️ 這條**抓得到增長、抓不到原地修改**：列數不變的官方改判（同列改內容）在
     ``row_count`` 上看不出來。該盲區原由 `#109` 名義承接；#109 已關閉，依需求方裁定
-    （#383 issuecomment-6440067804 第 5 項）由 #383 以第四條補上（見下）。
-    - ⭐ **第四條（#383）**：已 published，且該場最新官方 livelog revision 在寫入當下記錄的
-      manifest ≠ published build 的 livelog manifest（:func:`manifest_drift_selected`）。
-      沒有記錄 manifest 的 revision（#383 WP1 之前寫入的全部）**不因第四條入選**。
-      被官方改值閘門拒收的場次會天天被這條選到：``build_game`` 對它只重評、不寫新 build。
+    （#383 issuecomment-6440067804 第 5 項）由 #383 補上：第四條
+    :func:`_pa_manifest_drift_targets`（現行 livelog 直接重算 manifest ≠ published），
+    由 :func:`_build_pa_daily` 併入本函式結果。刻意不放進本函式的單一查詢：manifest 要用
+    builder 同一個 Python 函式算，SQL 重寫一份會漂移。
 
     ⚠️ 它是**一次性觸發器不是持續告警**：`build_game` 的順序是「先 upsert revision →
     再判等價 → 再 reconcile」，build 一跑 ``row_count`` 就被更新、條件從此不命中。
@@ -593,12 +612,10 @@ def _pa_build_targets(year: int, kinds: list[str], days: list[date]) -> list[tup
     with conn() as c:
         rows = c.execute(
             f"""
-            WITH cand AS (
-              SELECT g.* FROM cpbl.games g
-              WHERE g.year = %s AND g.kind_code = ANY(%s) AND {daily_chain_completed_games_sql('g')}
-            ), t AS (
-            SELECT g.year, g.kind_code, g.game_sno, (g.game_date = {TAIPEI_TODAY_SQL}) AS same_day,
-              (
+            SELECT g.year, g.kind_code, g.game_sno, (g.game_date = {TAIPEI_TODAY_SQL}) AS same_day
+            FROM cpbl.games g
+            WHERE g.year = %s AND g.kind_code = ANY(%s) AND {daily_chain_completed_games_sql('g')}
+              AND (
                 g.game_date = ANY(%s)
                 OR NOT EXISTS (
                   SELECT 1 FROM cpbl.game_recap_builds b
@@ -621,22 +638,11 @@ def _pa_build_targets(year: int, kinds: list[str], days: list[date]) -> list[tup
                       AND l.game_sno = g.game_sno
                   )
                 )
-              ) AS first_three,
-              drift.published_sha, drift.recorded_manifest
-            FROM cand g
-            {_MANIFEST_DRIFT_LATERAL_SQL}
-            )
-            SELECT * FROM t
-            WHERE t.first_three
-               OR (t.published_sha IS NOT NULL AND t.recorded_manifest IS NOT NULL)
-            ORDER BY t.kind_code, t.game_sno
+              )
+            ORDER BY g.kind_code, g.game_sno
             """,
             (year, kinds, days),
         ).fetchall()
-        # 第四條（#383）由純函式判：SQL 只預篩「有 published 且有記錄 manifest」的場次。
-        # 4 欄列＝只有前三條資訊的舊形狀（測試替身）；照原語意視同前三條命中。
-        rows = [r for r in rows
-                if (bool(r[4]) if len(r) > 4 else True) or manifest_drift_selected(r[6], r[5])]
         same_day = [(r[0], r[1], r[2]) for r in rows if r[3]]
         phases = _official_phases(c, same_day) if same_day else {}
     kept, dropped = _drop_unfinished_same_day(
@@ -756,6 +762,9 @@ def _build_pa_daily(year: int, days: list[date], *, include_farm: bool) -> dict[
         candidates += list(_PA_BUILD_TIER_KINDS["farm"])
     kinds = _active_kinds(year, tuple(candidates))
     games = _pa_build_targets(year, kinds, days)
+    # #383 第四條：現行 livelog 與 published 不一致的當季完成場（不論哪個 writer 改的）。
+    games = sorted(set(games) | set(_pa_manifest_drift_targets(year, kinds)),
+                   key=lambda g: (g[1], g[2]))
     if games:
         # build_scope 的 only_games=[]（空清單，非 None）會被 `if only_games:` 判 falsy，
         # 退化成「全範圍」查詢（陷阱）——games 非空才呼叫，用短路取代空清單保護。

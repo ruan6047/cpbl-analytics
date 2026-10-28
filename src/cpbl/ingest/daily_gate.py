@@ -695,7 +695,7 @@ def weekly_signals(connection: Any | None = None, *, j3_status: Path = DEFAULT_J
 
 
 def pa_manifest_drift_signal(count: Callable[[], int]) -> DerivedSignal:
-    """#383 PLAN §2.2：當季完成場中 livelog 已被官方改寫、published PA 還沒跟上的場數。
+    """#383 PLAN §2.2：當季完成場中現行 livelog（不論哪個 writer 改的）與 published PA 不一致的場數。
 
     ``count`` 由呼叫端給（與 PA 選場第四條同一個計數，``run_refresh_recent._pa_manifest_drift_count``）。
     算不出來 → None（判斷不了就跑，fail open）。被閘門拒收的場次會讓本訊號持續為 True，
