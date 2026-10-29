@@ -7,6 +7,7 @@ const router={back(){},forward(){},push(){},replace(){},refresh(){},hmrRefresh()
 const renderToStaticMarkup=(node:ReactElement)=>render(<AppRouterContext.Provider value={router}>{node}</AppRouterContext.Provider>);
 
 import DailyHub from "./daily-hub.tsx";
+import { SeasonClosedCard } from "./season-closed-card.tsx";
 import { seasonClosedView, type DailySummary, type LeagueClosure } from "@/lib/daily-summary.ts";
 
 // #391 首頁「球季結束」：值取自 2026 真實收官（`python -m cpbl.season_close` 本機唯讀輸出：
@@ -65,6 +66,9 @@ test("一軍收官：首頁左欄是球季結束卡，含總冠軍、決勝場�
     assert.ok(html.includes(`href="${href}"`), href);
   }
   assert.doesNotMatch(html, /href="\/games\/7/, "G7 不給任何入口");
+  // UI_UX_SYSTEM §2.3 強制界線：新碼字級只用角色（Tailwind 內建級距），⛔ arbitrary text-[Npx]。
+  const card = renderToStaticMarkup(<SeasonClosedCard view={seasonClosedView(summary({ major: MAJOR, farm: FARM }))!} />);
+  assert.doesNotMatch(card, /text-\[/);
 });
 
 test("兩軍都收官：二軍總冠軍一行出現（無單場頁連結）", () => {

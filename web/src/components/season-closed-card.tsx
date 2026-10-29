@@ -14,14 +14,14 @@ function ChampionRow({ label, champion, farm = false }: { label: string; champio
     <div data-testid={farm ? "season-closed-farm" : "season-closed-major"} className="flex items-center gap-3">
       <TeamLogo code={champion.teamCode} name={name} size={farm ? 28 : 40} />
       <div className="min-w-0">
-        <p className="text-[12.5px] text-muted">{label}</p>
+        <p className="text-xs text-muted">{label}</p>
         <p className={`${farm ? "text-base" : "text-xl"} font-bold leading-tight text-ink break-words`}>{name}</p>
         {champion.decidedLabel && (
           champion.decidedHref ? (
-            <Link href={champion.decidedHref} className="inline-flex min-h-11 items-center text-[12.5px] text-accent hover:underline">
+            <Link href={champion.decidedHref} className="inline-flex min-h-11 items-center text-xs text-accent hover:underline">
               {champion.decidedLabel} 封王 →
             </Link>
-          ) : <p className="text-[12.5px] text-muted">{champion.decidedLabel} 封王</p>
+          ) : <p className="text-xs text-muted">{champion.decidedLabel} 封王</p>
         )}
       </div>
     </div>
@@ -36,7 +36,7 @@ export function SeasonClosedCard({ view }: { view: SeasonClosedView }) {
         {view.farm && <ChampionRow label={`${view.season} 二軍總冠軍`} champion={view.farm} farm />}
       </div>
       <nav aria-label="本季回顧" className="mt-3 border-t border-line pt-2">
-        <p className="text-[12.5px] text-muted">本季回顧</p>
+        <p className="text-xs text-muted">本季回顧</p>
         <ul className="flex flex-wrap gap-x-4">
           {view.links.map((l) => (
             <li key={l.href}>
