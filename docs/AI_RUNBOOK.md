@@ -286,6 +286,19 @@ docker compose exec -T db psql -U cpbl -d cpbl -c \
 （預設 `trigger=manual`）；若爬取已成功、只有 sync 失敗，修正 production 原因後應以
 `SKIP_SCRAPE=1 WITH_DETAIL=1 scripts/refresh-cpbl-prod.sh` 重試，**不可再次冷啟動 crawler**。
 
+### 聯盟收官（#391）：總冠軍確定後自動切到球季結束
+
+- **判定只有一處**：`src/cpbl/season_close.py`（唯讀；`uv run python -m cpbl.season_close` 印兩軍狀態、`… closed-leagues` 印一行）。
+  一軍＝`postseason_contract` 的台灣大賽 `series_status=decided`（§63／§60；2027 起規則 `sourced_assumed`，R1 甲）；
+  二軍＝二軍總冠軍賽 F 完賽列先達 3 勝、無和局（有和局＝`undecided_tie` 不切，等人判斷）；判不出來一律不切（繼續爬）。
+  決勝後仍未完賽的列（如 2026/C/7）＝`not_needed`：首頁／月曆／季後頁／單場頁與今日賽程檔都不當成待打或待更新。
+- **球季**＝該軍已有完賽例行賽的最大年份（不是今天的年份）⇒ 收官會一直維持到開季切回（#392）上線。
+- **排程**：每日鏈 `decide` 印 `CLOSED_LEAGUES=` → `DAILY_CLOSED_LEAGUES` 讓 `cpbl-refresh-recent` 略過該軍爬蟲（`--plan` 會列出略過／照跑清單）；
+  兩軍皆收官時日型不探測 stats、不套「上次 J1 未成功 → 乙型重試」，依未同步寫入走 `sync_only`／`skip`（狀態照寫成功、照 ping）。
+  週跑（box 深抓、全季逐球）略過已收官的 kind。晚間鏈：同步成功後重算收官（`league_closed`，只對同一晚）→ 同晚後續喚醒 quiet；
+  二軍 F 夜抓見 §10。補缺 gamelog、季後 E／C 明細補齊、總冠軍成員重建、衍生、同步、備份**照跑**（R3）。
+- **休賽期人工指示更新**：`DAILY_FORCE_FULL=1 scripts/scrape-daily.sh`（不判日型、不帶收官）；週跑／其他唯讀判定可用 `CPBL_SEASON_CLOSE=open` 暫時視為未收官。
+
 ### 官方 box 逐投手快照：每週深度重抓近 30 天（DATA-BOX-REVISION-SNAPSHOT1）
 
 `cpbl.box_pitching_revisions`（append-only、與**該場該投手最近一次觀測**比較的內容
@@ -875,6 +888,10 @@ GitHub 會自動標記。判斷是否經 PR 合併要看 `gh api repos/.../commi
   與 #293 A7 的先後（#365 規劃 4 §5.4）：**分支 A**（#365 先於 A7 合併）＝不 bootout、不重新 bootstrap，`effective_from` 維持 2026-10-14，A7 不翻回休眠、只收尾；
   **分支 B**（A7 先於 #365 合併）＝A7 照原授權 bootout 並翻回休眠，#365 合併後在授權窗口重新 bootstrap，登記翻回 `true`、`effective_from`＝重新安裝日。
   休賽季狀態檔可能很久不更新（plan 回 `quiet` 不寫檔），偵測器不因此告警。
+- 聯盟收官（#391，見 §3〈聯盟收官〉）：今日賽程檔 `closed_leagues` 與狀態檔 `league_closed`（同一晚）所含軍的賽別不算排定場；
+  `record-sync` 成功後重算收官。**二軍總冠軍賽 F 夜抓**（R2）：該晚今日賽程檔有 F 列、二軍未收官 → 台北 23:00 起（沿用 #342 的 23:00 常數）
+  以 `_farm_final_games_step` 抓一次 F（www，`WWW_REQ card=391`）→ 結果同步 → 重算收官；每晚成功一次即止，失敗 ≤3 次、間隔 ≥20 分，
+  共用讓位 10:10／挑戰停。F ⛔ 不探 stats、⛔ 不寫異動訊號；晚間告警對 F 不武裝（R4）。
 - 賽別：`POSTSEASON_EVENING_KINDS`（預設 `A,E,C`；只收不重複的 A／E／C，含 D 或其他值 exit 64）。晚間 scrape 讀它，⛔ 不讀 plist 的 `REFRESH_POSTSEASON_KINDS`（那是每日鏈／live worker 的設定，plist 裡保留不動）。
 - 每次喚醒：
   0. **動作條件**（#365）：「一晚」＝台北 12:00 起到次日 09:45（延長賽跨 24:00 仍屬同一晚；09:45–12:00 不屬任何一晚）。

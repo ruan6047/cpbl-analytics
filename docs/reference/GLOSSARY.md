@@ -45,6 +45,14 @@ DB 實證（2026-07-26，本機 `cpbl.games` 全史 GROUP BY；場次數／起�
 
 - SSoT：`src/cpbl/api/helpers.py` `official_status`（含逐組合證據與可重跑查詢）；`/games/{sno}/status` 與 `/daily/summary` 的 `unresolved_games[].status` 共用這一份，勿在任一側重寫。canonical phase 字彙與 live worker `_STATUS_PHASE` 同一組（`final`／`scheduled`／`postponed`／`reserved`／`live`），勿另立。
 
+### 聯盟收官／`not_needed`／先達 3 勝（#391）
+
+- **聯盟收官** [league closure]：該軍總冠軍已由正式資料推導確定（一軍台灣大賽 `series_status=decided`；二軍 F 先達 3 勝且無和局）。
+  SSoT：`src/cpbl/season_close.py`；判不出來＝未收官（繼續爬）。收官後該軍爬蟲停、非爬蟲工作照跑。
+- **`not_needed`**：系列已 decided 後仍未完賽的列（規章 §63「剩餘比賽取消」），如 2026/C/7。官方沒有「取消」欄位，⛔ 不刪列、不當待打／待更新。
+  判準：`postseason_contract.is_not_needed`（與 `arrange` 的 `display_status=not_needed` 同一語意）。
+- **先達 3 勝**：二軍總冠軍賽的收官判準（需求方裁定 #11；無官方條文，2014–2025 歷年資料推論）；常數 `season_close.FARM_WINS_NEEDED`。
+
 ### 完成場判定
 
 `home_score + away_score > 0 AND game_date <= CURRENT_DATE`。**缺日期界線會誤判**：保留賽會掛未來補賽日卻已帶比分。
