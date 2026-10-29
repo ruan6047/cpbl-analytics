@@ -197,3 +197,19 @@ def test_closure_json_shape():
     assert body["decided_by"] == {"year": 2026, "kind_code": "C", "game_sno": 6}
     assert body["not_needed"] == [{"year": 2026, "kind_code": "C", "game_sno": 7}]
     assert body["decided_game_date"] == "2026-10-26"
+
+
+# —— 驗收 7：不刪既有 games 列 ——
+
+def test_no_code_path_deletes_games_rows():
+    """全 repo 的 src／scripts 沒有任何 DELETE／TRUNCATE cpbl.games；收官判定模組只有 SELECT。
+    真實列數前後相等的唯讀證據另存 ~/.wf-evidence/cpbl-analytics/391/exec-2/acc7-games-count-2026.json。"""
+    import re
+
+    root = Path(__file__).resolve().parents[1]
+    pattern = re.compile(r"(DELETE\s+FROM|TRUNCATE[^;\n]*)\s+cpbl\.games\b", re.IGNORECASE)
+    hits = [str(p.relative_to(root)) for base in ("src", "scripts") for p in (root / base).rglob("*")
+            if p.suffix in (".py", ".sh", ".sql") and pattern.search(p.read_text(encoding="utf-8", errors="ignore"))]
+    assert hits == []
+    source = (root / "src" / "cpbl" / "season_close.py").read_text(encoding="utf-8")
+    assert not re.search(r"\b(INSERT|UPDATE|DELETE|TRUNCATE)\b", source.split('"""', 2)[2])
