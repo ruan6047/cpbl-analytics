@@ -57,6 +57,9 @@ scripts/scrape-daily.sh — 每日本機自動爬取，成功後同步 productio
     甲型   skip      其餘 → 不爬、不備份、不同步；狀態寫成功＋skipped=true
   判定程式本身失敗 → 完整鏈（現況）。每次都寫今日賽程檔 logs/daily-schedule-today.json。
   `cpbl-refresh-recent --plan` 可先看今天會跑哪些步驟（唯讀）。
+  聯盟收官（#391，判定在 src/cpbl/season_close.py）：總冠軍確定後該軍收官 → 日型不看該軍賽別、
+    cpbl-refresh-recent 略過該軍爬蟲（DAILY_CLOSED_LEAGUES）；兩軍皆收官 → 不探測、不重試，只依
+    未同步寫入走 sync_only／skip。休賽期人工指示更新：DAILY_FORCE_FULL=1（不判日型、不帶收官）。
 
 環境變數
   REFRESH_TRIGGER   manual（預設）或 launchd；其他值一律 exit 64
@@ -166,6 +169,8 @@ fi
 # 日型（#364）：預設 full＝現況。判定讀不到／判定程式失敗一律退回 full（fail closed＝多跑）。
 DAY_TYPE=full
 DAY_REASON="未判定"
+# #391 聯盟收官：decide 印的 CLOSED_LEAGUES（major,farm）；判定失敗／逃生閥＝空（照常爬，fail open）。
+CLOSED_LEAGUES=""
 SYNC_MARKER="logs/daily-sync-marker.json"
 TODAY_FILE="logs/daily-schedule-today.json"
 
@@ -189,6 +194,7 @@ else
       0:full|0:light|0:sync_only|0:skip)
         DAY_TYPE="$GATE_TYPE"
         DAY_REASON="$(printf '%s\n' "$GATE_OUT" | sed -n 's/^REASON=//p' | tr '\n' ';' | sed 's/;$//')"
+        CLOSED_LEAGUES="$(printf '%s\n' "$GATE_OUT" | sed -n 's/^CLOSED_LEAGUES=//p' | tail -n 1)"
         ;;
       *)
         # 判定失敗時 decide 沒能保證今日賽程檔是這次寫的；刪掉，免得同日稍早的舊檔被當成有效（F4）。
@@ -197,7 +203,7 @@ else
         ;;
     esac
   fi
-  echo "[$(date '+%F %T')] day type=${DAY_TYPE}（${DAY_REASON}）" | tee -a "$LOG"
+  echo "[$(date '+%F %T')] day type=${DAY_TYPE}（${DAY_REASON}）closed_leagues=${CLOSED_LEAGUES:-none}" | tee -a "$LOG"
 
   case "$DAY_TYPE" in
     skip)
@@ -210,10 +216,11 @@ else
       # 來源訊號（J3／J4 週回補）跑衍生；light 爬取後同樣依訊號決定衍生（⛔ 不依日型直接略過）。
       # --group scrape：官網爬蟲需 playwright（scrape group）。uv run 為 inexact sync
       # 不會主動剪套件，但顯式帶 group 可防有人跑過 `uv sync`（exact）剪掉後靜默失敗。
+      # #391：DAILY_CLOSED_LEAGUES 讓 cpbl-refresh-recent 略過已收官軍的 www／stats 爬取（非爬蟲步驟照跑）。
       if [ -n "$ARGS" ]; then
-        DAILY_DAY_TYPE="$DAY_TYPE" "$UV" run --group scrape cpbl-refresh-recent "$ARGS" >>"$LOG" 2>&1
+        DAILY_DAY_TYPE="$DAY_TYPE" DAILY_CLOSED_LEAGUES="$CLOSED_LEAGUES" "$UV" run --group scrape cpbl-refresh-recent "$ARGS" >>"$LOG" 2>&1
       else
-        DAILY_DAY_TYPE="$DAY_TYPE" "$UV" run --group scrape cpbl-refresh-recent >>"$LOG" 2>&1
+        DAILY_DAY_TYPE="$DAY_TYPE" DAILY_CLOSED_LEAGUES="$CLOSED_LEAGUES" "$UV" run --group scrape cpbl-refresh-recent >>"$LOG" 2>&1
       fi
       CODE=$?
       if [ "$DAY_TYPE" != sync_only ]; then

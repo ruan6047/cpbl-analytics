@@ -146,3 +146,20 @@ def pytest_sessionstart(session) -> None:  # noqa: ANN001 — pytest hook 簽名
         if reporter is not None:
             for line in _location_header() + _schedule_alert_header():
                 reporter.write_line(line)
+
+
+# ---------------------------------------------- #391 聯盟收官的讀取隔離
+#
+# 每日閘門與晚間鏈會在執行中讀 `cpbl.season_close`（另開唯讀交易）。腳本化／替身測試若剛好跑在 DB
+# 可達的機器上，這一讀會拿到**本機共享 DB 的當下收官狀態**（例：2026 一軍已收官），讓「2026-10-21 有賽型」
+# 這類固定日期的測試隨牆鐘與資料漂移。預設一律回 None（＝讀不到＝未收官的舊行為）；要測收官的測試自己再
+# monkeypatch 成指定值。
+import pytest  # noqa: E402
+
+
+@pytest.fixture(autouse=True)
+def _isolate_season_closure(monkeypatch):
+    from cpbl.ingest import daily_gate, postseason_evening
+
+    monkeypatch.setattr(daily_gate, "read_closure", lambda at=None: None)
+    monkeypatch.setattr(postseason_evening, "read_closure", lambda now=None: None)

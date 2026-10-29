@@ -35,7 +35,9 @@
   7. 當季有待收尾的 PA 對帳（#383；含官方改值閘門拒收）→ note 列出
      `PA 對帳待收尾：場次(拒收條件號;天數)`、detail.pa_build.reconciliation_alerts；
      舊 published 照常服務，只在 pa_build 有跑的那次執行結清。
-  七者都記 refresh_log ok=false；`scripts/scrape-daily.sh` 對這個碼仍會執行生產同步
+  8. 二軍總冠軍賽 F 賽程更新失敗（#391；二軍未收官時每日抓一次）→ note 列出 `二軍總冠軍賽賽程更新失敗`、
+     detail.games_farm_final.errors；其餘照跑。
+  八者都記 refresh_log ok=false；`scripts/scrape-daily.sh` 對這個碼仍會執行生產同步
   （Q3 裁定＝甲-2：擋同步只是把「靜默失敗」換成「生產靜默落後」）。
 - 1：硬失敗（含取 token 階段失敗＝整批一場都沒抓），同步不執行。
 
@@ -51,6 +53,12 @@
   ⛔ 不依日型略過，而是依來源變動訊號決定——任一訊號（含判斷不了）就跑與完整鏈同一組，全為 0 才略過。
 - ``sync_only``（甲型但本機有未同步寫入）：不爬，只依同一套訊號（主要是 J3／J4 週回補）跑衍生。
 - 甲型略過日 scrape-daily.sh 根本不呼叫本程式。
+
+聯盟收官（#391；判定在 ``cpbl.season_close``）：``DAILY_CLOSED_LEAGUES``（``major``／``farm``，逗號分隔；由
+``daily_gate decide`` 印出、``scripts/scrape-daily.sh`` 轉交）略過該軍的 www／stats 爬取——major：A 賽程、季後 E／C
+賽程、投打／團隊／一軍守備、一軍增量明細與逐球自癒；farm：D／F 賽程、二軍守備、二軍增量明細與逐球自癒；兩軍皆收官
+另略過戰績與升降。**照跑**：總冠軍成員重建、補缺 gamelog 與季後 E／C 明細補齊（已完賽場明細補齊，R3 裁定保留）、
+衍生步驟、同步。未設定（手動直呼、``DAILY_FORCE_FULL=1``）＝不略過任何爬取（人工指示更新的路徑）。值打錯 exit 64。
 """
 
 from __future__ import annotations
@@ -107,6 +115,19 @@ _PA_BUILD_TIER_KINDS: dict[str, tuple[str, ...]] = {
     "major": ("A", "C", "E"),
     "farm": ("D",),
 }
+
+
+def _farm_final_games_step(year: int, scrape=None) -> dict[str, Any]:
+    """#391：二軍總冠軍賽 F 賽程／結果（既有 ``scrape_games(year, year, "F")``，getgamedatas 一次一整年）。
+
+    二軍收官判定（先達 3 勝）的資料前提；非季後期間官方回空＝寫 0 列。只寫 games＋排程 revision，
+    ⛔ 不接 gamelog／PA（PA build 明確排除 F，見 ``_PA_BUILD_TIER_KINDS``）。失敗只記帳不外拋（不連坐 A／D）。"""
+    scrape = scrape or scrape_games
+    try:
+        return {"games": scrape(year, year, "F"), "errors": []}
+    except Exception as exc:  # noqa: BLE001 — 單一賽別失敗不連坐，見 docstring
+        log.exception("二軍總冠軍賽賽程更新失敗")
+        return {"games": {}, "errors": [{"kind": "F", "error": str(exc)}]}
 
 
 def _postseason_games_step(year: int, kinds: tuple[str, ...], scrape=None) -> dict[str, Any]:
@@ -1059,9 +1080,15 @@ def _farm_detail(year: int, days: list[date], delay: float = 1.2) -> dict:
             "matchup_rows": m, "advanced": adv_result.rows, "pitches": pitches}
 
 
-def _incremental_detail(year: int, days: list[date], delay: float = 1.2) -> dict:
-    """更新當日上場選手的 對戰/分項/逐球（一軍）+ 二軍賽況/逐球。回傳摘要。"""
-    farm = _farm_detail(year, days, delay)          # 二軍獨立跑（一軍無場也要更新二軍）
+def _incremental_detail(year: int, days: list[date], delay: float = 1.2, *,
+                        major: bool = True, farm_open: bool = True) -> dict:
+    """更新當日上場選手的 對戰/分項/逐球（一軍）+ 二軍賽況/逐球。回傳摘要。
+
+    #391：``major``／``farm_open``＝False 時該軍已收官，整段（含逐球落後自癒）不爬。"""
+    farm = (_farm_detail(year, days, delay) if farm_open     # 二軍獨立跑（一軍無場也要更新二軍）
+            else {"skipped": "二軍已收官（#391）"})
+    if not major:
+        return {"skipped": "一軍已收官（#391）", "farm": farm}
     snos = _completed_snos(year, days, "A")
     if not snos:
         # 同 `_farm_detail`：窗空仍跑 lagging 自癒（F2）。farm 已於上一行獨立處理完畢。
@@ -1182,6 +1209,18 @@ def main() -> None:
     if day_type not in (gate.FULL, gate.LIGHT, gate.SYNC_ONLY):
         log.error("DAILY_DAY_TYPE 只接受 full／light／sync_only：%s", day_type)
         sys.exit(64)
+    # #391 聯盟收官：逃生閥一律不帶收官（人工指示更新＝照常爬）。
+    from cpbl import season_close
+
+    try:
+        closed = frozenset() if gate.force_full() else season_close.parse_leagues(os.environ.get(gate.CLOSED_ENV))
+    except ValueError as exc:
+        log.error("%s", exc)
+        sys.exit(64)
+    major_open, farm_open = season_close.MAJOR not in closed, season_close.FARM not in closed
+    if closed:
+        log.info("聯盟收官：%s → 略過爬取 %s", season_close.format_leagues(closed),
+                 "、".join(gate.closed_crawl_skips(closed)))
     gated = day_type in (gate.LIGHT, gate.SYNC_ONLY)
     derive_only = day_type == gate.SYNC_ONLY
     log.info("日型＝%s（gated=%s，derive_only=%s）", day_type, gated, derive_only)
@@ -1203,6 +1242,7 @@ def main() -> None:
     pitch_type_result: dict[str, Any] = {"skipped": True, "errors": []}
     derived_result: dict[str, Any] = {"skipped": True, "errors": []}
     postseason_result: dict[str, Any] = {"games": {}, "errors": []}
+    farm_final_result: dict[str, Any] = {"games": {}, "errors": []}
     derived_gate: dict[str, Any] = {"gated": False}
     livelog_check_result: dict[str, Any] = {"games": 0, "errors": []}
     try:
@@ -1213,21 +1253,37 @@ def main() -> None:
             trans = 0
             detail_inc: dict = {}
         else:
-            games = scrape_games(year, year)              # 一軍例行賽賽程/結果
-            games_farm = scrape_games(year, year, "D")    # 二軍賽程/結果（供二軍成績卡/逐球/戰績）
+            closed_note = {"skipped": "已收官（#391）"}
+            # 一軍例行賽賽程/結果
+            games = scrape_games(year, year) if major_open else closed_note
+            # 二軍賽程/結果（供二軍成績卡/逐球/戰績）＋二軍總冠軍賽 F（#391 二軍收官的資料前提）
+            games_farm = scrape_games(year, year, "D") if farm_open else closed_note
+            if farm_open:
+                farm_final_result = _farm_final_games_step(year)
+            else:
+                farm_final_result = {**farm_final_result, **closed_note}
             # 2026+ 季後 E／C 賽程/結果（明確設定才開；fail-closed）
-            postseason_result = _postseason_games_step(year, postseason_kinds)
-            stats = scrape_all(year, year, year)          # 投打/團隊 + 守備一軍(A)+二軍(D)
+            if major_open:
+                postseason_result = _postseason_games_step(year, postseason_kinds)
+            else:
+                postseason_result = {**postseason_result, **closed_note}
+            stat_kinds = tuple(k for k, ok in (("A", major_open), ("D", farm_open)) if ok)
+            # 投打/團隊 + 守備一軍(A)+二軍(D)；已收官的軍不爬
+            stats = scrape_all(year, year, year, kinds=stat_kinds) if stat_kinds else closed_note
             # 官方球隊戰績（含和局/勝差/上下半季），輕量每次更新。
             # ⚠️ 對帳失敗（拿到別的球季／空表）刻意**不外拋**：外拋會讓底下 transactions／
             # championships／PA build／splits 重算／改名同步全部不跑，只是把靜默失敗換成
             # 生產靜默落後（DATA-STANDINGS-YEAR-IGNORED1 岔路 1 裁定，與 #131 Q3 同判準）。
             # 但它也**不得只留一行 log**——落進 refresh_log 的 detail 與 ok、並反映在退出碼。
-            standings = scrape_standings(year)
-            standings_failed = standings_failures()
-            trans = scrape_transactions([year])  # 升降一/二軍事件（輕量；供一/二軍選手判定）
+            if major_open or farm_open:
+                standings = scrape_standings(year)
+                standings_failed = standings_failures()
+                trans = scrape_transactions([year])  # 升降一/二軍事件（輕量；供一/二軍選手判定）
+            else:
+                standings, trans = dict(closed_note), 0   # 兩軍皆收官：聯盟無關的輕量抓取也停
             build_championships()  # 由更新後 games 重建年度總冠軍成員（純 SQL、賽季末才會變）
-            detail_inc = {} if skip_detail else _incremental_detail(year, [yesterday, today])
+            detail_inc = {} if skip_detail else _incremental_detail(
+                year, [yesterday, today], major=major_open, farm_open=farm_open)
             # 補齊任何完成卻無 gamelog 的場（延賽補賽/漏跑）；本季 gap 通常少，故廉價
             for kc in ("A", "D"):
                 miss = _missing_gamelog_snos(year, kc)
@@ -1361,6 +1417,13 @@ def main() -> None:
         note = ps_note if note is None else f"{note}；{ps_note}"
         log.error(ps_note)
 
+    # #391 二軍總冠軍賽 F 賽程更新失敗同理：其餘照跑，結清成 ok=false＋69。
+    farm_final_failed = farm_final_result.get("errors") or []
+    if farm_final_failed:
+        ff_note = "二軍總冠軍賽賽程更新失敗"
+        note = ff_note if note is None else f"{note}；{ff_note}"
+        log.error(ff_note)
+
     # #357 livelog 同號檢查未過同理：資料已寫進去（下次重爬自然收斂），結清成 ok=false＋69。
     livelog_failed = livelog_check_result.get("errors") or []
     if livelog_failed:
@@ -1382,7 +1445,9 @@ def main() -> None:
     completed = sum(comp for _, _, comp in recent)
     detail = {
         "day_type": day_type, "derived_gate": derived_gate,
+        "closed_leagues": season_close.format_leagues(closed),
         "games": games, "games_farm": games_farm, "games_postseason": postseason_result,
+        "games_farm_final": farm_final_result,
         "stats": stats, "transactions": trans,
         "standings": standings, "standings_failures": standings_failed,
         "splits_built": splits_built, "incremental_detail": detail_inc, "pa_build": pa_build_result,
@@ -1391,7 +1456,7 @@ def main() -> None:
         "recent": [{"date": d.isoformat(), "total": t, "completed": comp} for d, t, comp in recent],
     }
     failed = bool(_GAMELOG_GAPS or standings_failed or pitch_type_failed or derived_failed
-                  or postseason_failed or livelog_failed or pa_alerts)
+                  or postseason_failed or livelog_failed or pa_alerts or farm_final_failed)
     _log_refresh("recent-games", yesterday, today, total, completed, detail,
                  ok=not failed, note=note)
 
