@@ -12,14 +12,21 @@ postmaster 的容器內，孤兒行程被 postmaster 收養，之後一被 TERM�
 3. start 記下的 pid 只用來報告 ``skip_stale``，不被當成 kill 的對象。
 4. DB 端只 terminate ``application_name`` 等於本次 tag 的 session。
 
-行為證據（容器上的負控：修正前版本重現誤殺；修正後同情境只記 skip_stale）在
-``~/.wf-evidence/cpbl-analytics/353/exec-2/``；macOS 沒有 /proc，這裡不跑行為測試。
+停止程序的行為證據（容器上的負控：修正前版本重現誤殺；修正後同情境只記 skip_stale）在
+``~/.wf-evidence/cpbl-analytics/353/exec-2/``；macOS 沒有 /proc，這裡不跑停止的行為測試。
+
+另有一條行為測試釘住 pg 那一路（L353-VPS1 乾跑發現 pg.tsv 0 列、``./.env: No such file``）：預設 PG_EXEC
+是 ``cd $DEPLOY_PATH && . ./.env && docker exec …``，迴圈裡的 ``printf … | ${PG_EXEC}`` 管線只包住 ``cd``，
+``. ./.env`` 在原本目錄執行。測試以本機 ``sh -c`` 當 REMOTE、PATH 上放假 docker、在假部署目錄放 .env，
+從另一個目錄啟動：只有 cd 對 ``. ./.env`` 生效時 pg.tsv 才會有輸出。⛔ 不碰 docker／DB／VPS。
 """
 
 from __future__ import annotations
 
+import os
 import re
 import subprocess
+import time
 from pathlib import Path
 
 TOOL = Path(__file__).resolve().parents[1] / "docs" / "research" / "ISSUE-353" / "e1_sampler.sh"
@@ -65,3 +72,32 @@ def test_db_side_terminates_only_this_runs_application_name() -> None:
     assert len(lines) == 1
     assert "WHERE application_name = '${tag}'" in lines[0]
     assert "export PGAPPNAME=${tag}" in TOOL.read_text(encoding="utf-8")
+
+
+def test_pg_stream_sources_env_inside_deploy_path(tmp_path: Path) -> None:
+    deploy = tmp_path / "deploy"
+    deploy.mkdir()
+    (deploy / ".env").write_text("DB_USER=from_deploy_env\nDB_NAME=fake\n", encoding="utf-8")
+    bindir = tmp_path / "bin"
+    bindir.mkdir()
+    fake = bindir / "docker"
+    fake.write_text('#!/bin/sh\ncat >/dev/null\nprintf "%s\\t%s\\n" "$DB_USER" "$PGAPPNAME"\n', encoding="utf-8")
+    fake.chmod(0o755)
+    elsewhere = tmp_path / "elsewhere"  # 啟動目錄：沒有 .env（⛔ 不能從 repo 根目錄跑，那裡可能有真的 .env）
+    elsewhere.mkdir()
+    out = tmp_path / "out"
+    env = {"PATH": f"{bindir}:{os.environ['PATH']}", "HOME": str(tmp_path), "REMOTE": "sh -c",
+           "DEPLOY_PATH": str(deploy), "API_IPS": "127.0.0.1", "MAX_SECONDS": "3"}
+    subprocess.run(["bash", str(TOOL), "start", str(out)], cwd=elsewhere, env=env, check=True,
+                   capture_output=True, timeout=30)
+    tsv = out / "pg.tsv"
+    deadline = time.time() + 15
+    while time.time() < deadline and not tsv.read_text(encoding="utf-8").strip():
+        time.sleep(0.2)
+    time.sleep(4)  # 各路都以 MAX_SECONDS=3 自行結束（本機沒有 timeout／vmstat 的路會立刻結束）
+    rows = [ln for ln in tsv.read_text(encoding="utf-8").splitlines() if ln.strip()]
+    err = (out / "pg.err").read_text(encoding="utf-8")
+    assert rows, f"pg.tsv 沒有輸出；pg.err={err!r}"
+    run_id = (out / "run_id").read_text(encoding="utf-8").strip()
+    assert rows[0] == f"from_deploy_env\te1s-{run_id}", rows[0]
+    assert ".env" not in err, err
