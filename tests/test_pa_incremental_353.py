@@ -5,7 +5,8 @@
 父→子 INSERT」（與晚間鏈 ``boxpa_sync.build_pa_payload`` 同一個產生器），事後全族對帳 fail-closed。
 
 本檔零 DB：以假 Psql 驗判定、形狀與守衛。可拋棄 DB 上的「同步交易進行中讀者 1s 內返回」證據
-在 ``~/.wf-evidence/cpbl-analytics/353/exec-1/``（規劃 §6 E0）。
+在 ``~/.wf-evidence/cpbl-analytics/353/exec-1/``（規劃 §6 E0）。r4 的分批／限速／失敗即停在
+``tests/test_pa_batched_353.py``。
 """
 
 from __future__ import annotations
@@ -93,8 +94,11 @@ def test_signature_rows_with_unexpected_keys_fail_closed(row) -> None:
 
 
 def _incremental(local_sigs, prod_sigs) -> tuple[str, FakePsql]:
+    """增量 ≤ 一批：選鍵後產生該批 payload（r4 起由 ``pi.apply`` 逐批呼叫同一個產生器）。"""
     local, prod, out = FakePsql(local_sigs), FakePsql(prod_sigs), io.StringIO()
-    pi.write_payload(local, prod, out)
+    keys = pi.select_keys(local, prod, full=False)
+    if keys:
+        pi.write_batch_payload(local, keys, out)
     return out.getvalue(), local
 
 
@@ -136,23 +140,24 @@ def test_more_than_seven_games_and_d_games_are_allowed_without_touching_parse_ga
 def test_runaway_difference_refuses_instead_of_becoming_an_implicit_full_resync() -> None:
     """差異場異常多＝簽章失準的訊號；⛔ 不得在每日鏈自動變成等同全量模式的大量 DELETE。"""
     local = {K(2026, "A", n): "x" for n in range(pi.MAX_INCREMENTAL_GAMES + 1)}
-    local_db, prod_db, out = FakePsql(local), FakePsql({}), io.StringIO()
+    local_db, prod_db = FakePsql(local), FakePsql({})
     with pytest.raises(bs.SyncError) as e:
-        pi.write_payload(local_db, prod_db, out)
+        pi.select_keys(local_db, prod_db, full=False)
     assert e.value.code == bs.EXIT_SELF_CHECK
-    assert out.getvalue() == "" and local_db.copies == []
+    assert local_db.copies == []
 
 
-def test_full_mode_uses_the_same_generator_without_truncate() -> None:
-    local, prod, out = FakePsql({K(2026, "A", 1): "s"}), FakePsql({K(2026, "A", 1): "s"}), io.StringIO()
-    pi.write_payload(local, prod, out, full=True)
+def test_full_mode_uses_the_same_generator_per_batch_without_truncate() -> None:
+    """r4：全量也是逐批呼叫同一個產生器，每批 scope＝該批鍵（不再有 ``WHERE TRUE`` 的單一交易）。"""
+    keys = [K(2026, "A", 1), K(2026, "D", 3)]
+    out = io.StringIO()
+    pi.write_batch_payload(FakePsql(), keys, out)
     payload = out.getvalue()
-    bs.assert_pa_lines(payload.splitlines(), pi.FULL_SCOPE)
-    assert "TRUNCATE" not in payload and "CASCADE" not in payload
-    assert [f"DELETE FROM cpbl.{t} WHERE TRUE;" for t in reversed(bs.PA_TABLES)] == \
+    bs.assert_pa_lines(payload.splitlines(), bs.keys_sql(keys))
+    assert "TRUNCATE" not in payload and "CASCADE" not in payload and "WHERE TRUE" not in payload
+    assert [f"DELETE FROM cpbl.{t} WHERE {bs.keys_sql(keys)};" for t in reversed(bs.PA_TABLES)] == \
         [ln for ln in payload.splitlines() if ln.startswith("DELETE ")]
-    assert f"SET LOCAL statement_timeout = '{pi.FULL_STATEMENT_TIMEOUT}';" in payload
-    assert prod.reads == [], "全量模式不需比對簽章"
+    assert "SET LOCAL statement_timeout = '300s';" in payload
 
 
 def test_assert_rejects_unscoped_delete_and_truncate() -> None:

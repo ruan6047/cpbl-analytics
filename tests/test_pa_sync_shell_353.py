@@ -1,8 +1,9 @@
 """#353 WP1：``refresh-cpbl-prod.sh`` 的 ``sync_pa_build`` 接線（跑真腳本＋假 ssh／docker／uv，零 DB 零網路）。
 
-payload 的內容與守衛由 ``tests/test_pa_incremental_353.py`` 驗；這裡只驗殼層的順序與成敗：
-payload 檔原樣以單交易送出、空 payload 不送、對帳不等 fail-closed（不寫 refresh 標記）、
-全量模式只能人工指定、任何路徑都不再 TRUNCATE PA 五表、同步前後印時戳。
+payload 的內容、分批、限速與失敗即停由 ``tests/test_pa_incremental_353.py``／``tests/test_pa_batched_353.py``
+驗；這裡只驗殼層的順序與成敗：r4 起 payload 由 ``pa_incremental apply`` 逐批以單交易送出（shell 不再自己
+ssh 送 payload）、任一批失敗即停且不對帳、對帳不等 fail-closed（不寫 refresh 標記）、全量模式只能人工指定、
+任何路徑都不再 TRUNCATE PA 五表、同步前後印時戳、本機端 ssh 連線重用有開有關。
 """
 
 from __future__ import annotations
@@ -23,7 +24,7 @@ from tests.test_prod_sync_revision_seq import (
     _write_exec,
 )
 
-PA_MARKER = "-- stub pa payload 353"
+APPLY_OK = "PA_BATCHES_COMMITTED=1/1"
 
 _UV_STUB = '''\
 import json, os, sys
@@ -36,12 +37,15 @@ log.mkdir(parents=True, exist_ok=True)
 joined = " ".join(argv)
 if "cpbl.completion" in joined:
     print("home_score + away_score > 0")
-elif "cpbl.ingest.pa_incremental" in argv and "payload" in argv:
-    out = argv[argv.index("--out") + 1]
-    Path(out).write_text(os.environ.get("STUB_PA_PAYLOAD", ""), encoding="utf-8")
-    rc = int(os.environ.get("STUB_PA_PAYLOAD_RC", "0"))
+elif "cpbl.ingest.pa_incremental" in argv and "apply" in argv:
+    workdir = Path(argv[argv.index("--workdir") + 1])
+    assert workdir.is_dir(), workdir
+    rc = int(os.environ.get("STUB_PA_APPLY_RC", "0"))
     if rc:
-        Path(out).write_text("", encoding="utf-8")
+        (workdir / "pa-batch-0002-of-0004.sql").write_text("-- kept\\n", encoding="utf-8")
+        print(f"✗ PA_BATCH_FAILED 2/4 rc={rc} committed=1/4", file=sys.stderr)
+    else:
+        print(os.environ.get("STUB_PA_APPLY_OUT", "PA_BATCHES_COMMITTED=1/1"))
     raise SystemExit(rc)
 elif any(a.endswith("prod_availability.py") for a in argv):
     # #353 WP4a 哨兵樁：等到停止檔出現（≤10s）才結束，記下是否被 EXIT trap 正常停下。
@@ -82,7 +86,6 @@ def _run(tmp_path: Path, *, logs_is_file: bool = False,
         "API_INFO_URL": "http://127.0.0.1:1/api/info",
         "SKIP_SCRAPE": "1",
         "WITH_DETAIL": "1",
-        "STUB_PA_PAYLOAD": f"SET LOCAL lock_timeout = '10s';\n{PA_MARKER}\n",
     }
     for k, v in env_extra.items():
         if v is None:
@@ -101,26 +104,44 @@ def _pa_uv(uv: list[list[str]], command: str) -> list[list[str]]:
     return [a for a in uv if "cpbl.ingest.pa_incremental" in a and command in a]
 
 
-def test_payload_file_is_sent_once_in_a_single_transaction_then_reconciled(tmp_path: Path) -> None:
+def test_apply_sends_in_single_transactions_then_reconciles_once(tmp_path: Path) -> None:
     result, ssh, uv = _run(tmp_path)
     assert result.returncode == 0, result.stderr
-    sent = [c for c in ssh if PA_MARKER in c["stdin"]]
-    assert len(sent) == 1
-    assert "--single-transaction" in sent[0]["argv"][-1] and "ON_ERROR_STOP=1" in sent[0]["argv"][-1]
-    payload_calls, reconcile_calls = _pa_uv(uv, "payload"), _pa_uv(uv, "reconcile")
-    assert len(payload_calls) == 1 and len(reconcile_calls) == 1
-    assert "--full" not in payload_calls[0], "日常路徑不得帶全量旗標"
-    assert uv.index(payload_calls[0]) < uv.index(reconcile_calls[0])
+    apply_calls, reconcile_calls = _pa_uv(uv, "apply"), _pa_uv(uv, "reconcile")
+    assert len(apply_calls) == 1 and len(reconcile_calls) == 1
+    argv = apply_calls[0]
+    sender = argv[argv.index("--apply-psql") + 1]
+    assert "--single-transaction" in sender and "ON_ERROR_STOP=1" in sender, "每批＝一個交易"
+    assert "--single-transaction" not in argv[argv.index("--target-psql") + 1], "唯讀查詢端不帶交易旗標"
+    assert "--full" not in argv, "日常路徑不得帶全量旗標"
+    assert uv.index(apply_calls[0]) < uv.index(reconcile_calls[0])
+    assert APPLY_OK in result.stdout
     assert "PA 同步開始" in result.stdout and "PA 同步結束" in result.stdout, "WP1-7：同步前後時戳"
     assert not any("TRUNCATE cpbl.game_recap" in c["stdin"] for c in ssh)
-    assert not list((tmp_path / "tmp").glob("cpbl-pa-sync.*")), "成功後不留 payload"
+    assert not list((tmp_path / "tmp").glob("cpbl-pa-sync.*")), "成功後不留 payload 目錄"
 
 
-def test_empty_payload_sends_nothing_but_still_reconciles(tmp_path: Path) -> None:
-    result, ssh, uv = _run(tmp_path, STUB_PA_PAYLOAD="")
+def test_ssh_connection_reuse_is_opened_used_and_closed(tmp_path: Path) -> None:
+    """r4 §6 第 3 項：本機端 ControlMaster；查詢與送出都走同一個 ControlPath，結束時 -O exit。"""
+    result, ssh, uv = _run(tmp_path)
     assert result.returncode == 0, result.stderr
-    assert not any(PA_MARKER in c["stdin"] for c in ssh)
-    assert "沒有要替換的場" in result.stdout
+    masters = [c for c in ssh if "ControlMaster=yes" in c["argv"]]
+    assert len(masters) == 1 and "-fN" in masters[0]["argv"]
+    path_opt = next(a for a in masters[0]["argv"] if a.startswith("ControlPath="))
+    argv = _pa_uv(uv, "apply")[0]
+    for flag in ("--target-psql", "--apply-psql"):
+        assert f"-o {path_opt}" in argv[argv.index(flag) + 1], flag
+    closes = [c for c in ssh if "-O" in c["argv"] and "exit" in c["argv"]]
+    assert len(closes) == 1 and f"{path_opt}" in " ".join(closes[0]["argv"])
+    assert ssh.index(masters[0]) < ssh.index(closes[0])
+    ctl_dir = path_opt.split("=", 1)[1].rsplit("/", 1)[0]
+    assert not Path(ctl_dir).exists(), "ControlPath 目錄已清掉"
+
+
+def test_empty_difference_sends_nothing_but_still_reconciles(tmp_path: Path) -> None:
+    result, ssh, uv = _run(tmp_path, STUB_PA_APPLY_OUT="PA_INCREMENTAL_GAMES=0")
+    assert result.returncode == 0, result.stderr
+    assert "PA_INCREMENTAL_GAMES=0" in result.stdout
     assert len(_pa_uv(uv, "reconcile")) == 1
 
 
@@ -132,17 +153,22 @@ def test_reconcile_mismatch_stops_the_chain_before_the_refresh_marker(tmp_path: 
     assert not any("cpbl-train-outcome" in " ".join(c["argv"]) for c in ssh), "對帳不等不得進第 4 步"
 
 
-def test_payload_guard_failure_sends_nothing(tmp_path: Path) -> None:
-    result, ssh, uv = _run(tmp_path, STUB_PA_PAYLOAD_RC="67")
-    assert result.returncode == 67
-    assert not any(PA_MARKER in c["stdin"] for c in ssh)
-    assert _pa_uv(uv, "reconcile") == []
+@pytest.mark.parametrize("rc", [67, 72, 74])
+def test_batch_failure_stops_without_reconcile_and_keeps_the_failed_payload(tmp_path: Path, rc: int) -> None:
+    result, ssh, uv = _run(tmp_path, STUB_PA_APPLY_RC=str(rc))
+    assert result.returncode == rc
+    assert _pa_uv(uv, "reconcile") == [], "中途失敗不做對帳"
+    assert "PA_BATCH_FAILED 2/4" in result.stderr and "後續批未送" in result.stderr
+    assert not any("refresh_log" in " ".join(c["argv"]) for c in ssh)
+    kept = list((tmp_path / "tmp").glob("cpbl-pa-sync.*/pa-batch-*.sql"))
+    assert len(kept) == 1, "失敗批 payload 保留供查"
+    assert any("-O" in c["argv"] and "exit" in c["argv"] for c in ssh), "失敗也關掉連線重用"
 
 
 def test_full_resync_is_manual_only_and_passes_the_flag(tmp_path: Path) -> None:
     result, _, uv = _run(tmp_path / "manual", PA_FULL_RESYNC="1")
     assert result.returncode == 0, result.stderr
-    assert "--full" in _pa_uv(uv, "payload")[0]
+    assert "--full" in _pa_uv(uv, "apply")[0]
     assert "全量" in result.stdout
 
 
@@ -153,7 +179,7 @@ def test_full_resync_refused_from_the_daily_chain_before_any_remote_call(tmp_pat
         result, ssh, uv = _run(tmp_path / name, **extra)
         assert result.returncode == 64, (name, result.stderr)
         assert ssh == [], f"{name}：未備份、未寫入"
-        assert _pa_uv(uv, "payload") == []
+        assert _pa_uv(uv, "apply") == []
 
 
 def test_no_path_in_the_script_truncates_the_pa_family() -> None:
@@ -162,7 +188,8 @@ def test_no_path_in_the_script_truncates_the_pa_family() -> None:
     assert "TRUNCATE cpbl.game_recap" not in code
     body = source.split("sync_pa_build() {\n", 1)[1].split("\n}\n", 1)[0]
     assert "_stage " not in body and "TRUNCATE" not in body
-    assert '< "$payload"' in body and "} | ssh" not in body, "payload 先落地成檔，不以管線直送"
+    assert "pa_incremental apply" in body and "--apply-psql" in body, "payload 由 apply 逐批落地、斷言後送出"
+    assert '< "$payload"' not in body and "} | ssh" not in body, "shell 不再自己送一份全量 payload"
 
 
 def test_fix1_invariants_are_rewritten_not_deleted() -> None:
@@ -200,7 +227,7 @@ def test_sentinel_runs_once_per_full_chain_and_is_stopped_by_the_exit_trap(tmp_p
     assert (tmp_path / "calls" / "sentinel-stopped").read_text() == "stopped"
 
 
-@pytest.mark.parametrize(("extra", "rc"), [({"STUB_PA_RECONCILE_RC": "68"}, 68), ({"STUB_PA_PAYLOAD_RC": "67"}, 67)])
+@pytest.mark.parametrize(("extra", "rc"), [({"STUB_PA_RECONCILE_RC": "68"}, 68), ({"STUB_PA_APPLY_RC": "67"}, 67)])
 def test_sentinel_never_changes_the_chain_exit_code(tmp_path: Path, extra, rc) -> None:
     result, _, uv = _run(tmp_path, **extra)
     assert result.returncode == rc
@@ -224,6 +251,6 @@ def test_sentinel_setup_failure_never_changes_the_chain_result(tmp_path: Path) -
     result, ssh, uv = _run(tmp_path, logs_is_file=True)
     assert result.returncode == 0, result.stderr
     assert "logs 目錄建立失敗" in result.stderr
-    assert any(PA_MARKER in c["stdin"] for c in ssh), "後續同步必須照常執行"
+    assert len(_pa_uv(uv, "apply")) == 1 and len(_pa_uv(uv, "reconcile")) == 1, "後續同步必須照常執行"
     argv = _sentinel_calls(uv)[0]
     assert argv[argv.index("--out") + 1].startswith(str(tmp_path / "tmp")), "紀錄改寫 TMPDIR"

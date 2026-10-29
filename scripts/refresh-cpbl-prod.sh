@@ -90,12 +90,16 @@ scripts/refresh-cpbl-prod.sh — 把本機 CPBL 資料同步到 production（四
   DAILY_FORCE_FULL
                 1＝不套 §3.5 閘門，四步照跑（逃生閥）
   PA_FULL_RESYNC
-                1＝PA 五表改跑全量模式（全部場 DELETE＋重灌，不 TRUNCATE；需 WITH_DETAIL）。
+                1＝PA 五表改跑全量模式（全部場逐批 DELETE＋重灌，不 TRUNCATE；需 WITH_DETAIL）。
                 只在全族對帳不等、經需求方個案授權時人工指定（#353 D5）；帶 DAILY_DAY_TYPE 一律拒絕
+  PA_BATCH_GAMES／PA_BATCH_PAUSE_RATIO／PA_BATCH_PAUSE_MIN_S
+                PA 五表每批場數（預設 50）、批間暫停＝前一批送出耗時×比例（預設 1.0）、最短暫停秒數
+                （預設 2）。全量與超過一批的增量才會分批；增量 ≤ 一批時一個交易、不暫停（#353 r4）
 
 離開碼
   0 成功 · 64 參數錯 · 65 取不到本機 freshness 基準 · 67 同步 payload 驗證失敗
-  完整鏈 PA 五表（#353）：67 簽章／payload 守衛不過（未送） · 68 全族對帳不等 · 72 ssh 失敗 · 74 prod psql 錯誤
+  完整鏈 PA 五表（#353）：67 簽章／payload 守衛不過（該批未送） · 68 全族對帳不等 · 72 ssh 失敗 · 74 prod psql 錯誤
+               （72／74／67 發生在第 k 批時，第 1…k−1 批已提交、不做對帳；見 stderr 的 PA_BATCH_FAILED）
   68 POSTSEASON_RESULTS_ONLY 的 data-only 對帳不等（季後晚間鏈：停止當晚）
   ROSTER_ONLY：67 本機名單自檢失敗 · 69 production 尚無名單表（待部署窗口）
                70 同 scope 內容不同拒絕（不寫、不重試） · 71 事後對帳不等 · 72 目標 psql／ssh 失敗
@@ -679,58 +683,80 @@ sync_advanced_snapshot() {
 # 連線（每日鏈期間正式站無回應的主因）。DELETE 只取 ROW EXCLUSIVE，讀者走 MVCC 看到交易前快照。
 #
 # 現行流程（cpbl.ingest.pa_incremental，與晚間鏈 boxpa_sync 同一個 payload 產生器與守衛）：
-#   1) 本機與 prod 各算每場簽章（builds 全列含 state ＋ source_revisions id 集合）；差異場＝簽章不同
-#      ∪ 只在一邊。0 場不送。差異場超過上限＝簽章失準，拒絕（67），⛔ 不自動降級成全量。
-#   2) 只對差異場送單交易 payload：交易內 lock／statement timeout、prod 端 FK 閉包守衛、子→父 DELETE
-#      目標鍵、父→子 OVERRIDING SYSTEM VALUE 插入、寫入後列數自檢；送出前逐行斷言無 TRUNCATE／
-#      CASCADE／setval 且 DELETE 只限目標鍵（payload 先落地成檔再斷言，不是管線過濾器）。
-#   3) 全族對帳：五表總列數＋各表 max(identity)＋published build 集合，本機與 prod 必須相等；
-#      不等 ⇒ 68，整條鏈停在這裡（fail-closed），交需求方決定是否授權全量模式。
-#   全量模式 PA_FULL_RESYNC=1：同一產生器、scope＝全部場（WHERE TRUE），不 TRUNCATE、讀者不被擋，
-#   但寫入量與 WAL 約為 TRUNCATE 的 1.5 倍、表暫時膨脹約 2 倍（規劃 r2 P1），只能人工指定；每日鏈
-#   （帶 DAILY_DAY_TYPE）一律拒絕。跑完建議 VACUUM (ANALYZE) 五表（不取強鎖）。
+#   1) 選場：增量＝本機與 prod 每場簽章（builds 全列含 state ＋ source_revisions id 集合）不同 ∪ 只在一邊，
+#      0 場不送；差異場超過上限＝簽章失準，拒絕（67），⛔ 不自動降級成全量。全量＝兩端五表各自
+#      DISTINCT 場次鍵的聯集（含只在子表的孤兒場，保住舊 WHERE TRUE 的覆蓋範圍）。
+#   2) 逐批送（每批 PA_BATCH_GAMES 場，預設 50）：每批就是一份單交易 payload——交易內 lock／statement
+#      timeout（300s）、prod 端 FK 閉包守衛、子→父 DELETE 該批鍵、父→子 OVERRIDING SYSTEM VALUE 插入、
+#      寫入後列數自檢；送出前逐行斷言無 TRUNCATE／CASCADE／setval 且 DELETE 只限該批鍵（payload 先落地
+#      成檔再斷言，不是管線過濾器）。批後暫停＝該批送出耗時×PA_BATCH_PAUSE_RATIO（不少於
+#      PA_BATCH_PAUSE_MIN_S），最後一批後不停。增量 ≤ 一批時就是一個交易、不暫停（與 34aa6dd4 逐位元相同）。
+#   3) 全族對帳（全部批次成功後一次）：五表總列數＋各表 max(identity)＋published build 集合，本機與 prod
+#      必須相等；不等 ⇒ 68，整條鏈停在這裡（fail-closed），交需求方決定是否授權全量模式。
+#
+# 為何分批（#353 研究 3，規劃 r4）：10/28 全量是 4,513 場、1,445,834,586 bytes 的**單一**交易，套用期間
+# 1 vCPU 被吃滿（sar %user 93.78、%idle 0），哨兵量到 recap-wp 6.21s。不擋讀者還不夠，還要把 CPU 讓出來：
+# 批與批之間不送資料，管線與 backend 同時閒置。
+# 原子性單位因此由「全族」變成「每批」（每場內部一致）：第 k 批失敗（74 prod psql／72 ssh／67 守衛）
+# ⇒ 立即停止，不送後續批、不做對帳；prod 是「第 1…k−1 批已換成本機版本、其餘仍是舊版本」，跨場新舊
+# 並存只出現在本來就要更新的場（與增量模式本來就允許的狀態同一種形狀）。stderr 的 PA_BATCH_FAILED
+# 印出已提交範圍與失敗批的場次鍵、失敗批 payload 保留在 workdir。恢復＝重跑同一個指令（冪等），或剩餘
+# 差異 ≤ 上限時由下一次每日增量收斂並由對帳確認；⛔ 不自動重跑。
+#   全量模式 PA_FULL_RESYNC=1：只能人工指定；每日鏈（帶 DAILY_DAY_TYPE）一律拒絕。每批 payload 在送出前
+#   才從本機產生，所以全量窗內本機 PA builder（每日鏈、晚間鏈）不得執行——由共同主 PM 排窗口互斥。
+#   跑完建議 VACUUM (ANALYZE) 五表（不取強鎖）。
 #
 # 刪除的連帶效果：FK 的 ON DELETE CASCADE 因子表先刪而無列可波及；FK 閉包守衛在交易內先擋下任何跨場
 # 參照（DELETE 目標場會讓別場列失去參照的情形）。已 grep 全部 migrations：除這 5 表彼此互相參照外，
 # 沒有其他表對它們建 FK（INGEST-PA-DAILY1-FIX1 驗證留痕）。
 sync_pa_build() {
-  local payload rc mode="增量" full_args=() local_psql target_psql
+  local rc mode="增量" full_args=() local_psql target_psql apply_psql workdir ssh_ctl ssh_opts
   if [ "${PA_FULL_RESYNC:-0}" = 1 ]; then
     mode="全量（PA_FULL_RESYNC=1，人工指定）"
     full_args=(--full)
   fi
+  # 分批會有多次 ssh：開一條本機端的連線重用（ControlMaster），每批不再各做一次握手。只改本機端參數、
+  # ⛔ 不動 VPS sshd 設定。建不起來就照舊逐次連線（不影響結果）。socket 路徑放 /tmp：macOS 的 TMPDIR
+  # 太長，Unix socket 路徑上限 104 bytes。
+  ssh_ctl="$(mktemp -d /tmp/cpbl-pa-ssh.XXXXXX)"
+  ssh_opts="-o BatchMode=yes -o ControlPath=${ssh_ctl}/%C"
+  # shellcheck disable=SC2086
+  ssh ${ssh_opts} -o ControlMaster=yes -o ControlPersist=900 -fN "$VPS" </dev/null >/dev/null 2>&1 \
+    || echo "    · PA：ssh 連線重用未建立（改為每次各自連線）"
   local_psql="docker exec -i ${LOCAL_DB} psql -X -U cpbl -d cpbl"
-  target_psql="ssh -o BatchMode=yes ${VPS} 'cd ${DEPLOY_PATH} && set -a && . ./.env && docker exec -i prod_pg psql -X -U \"\$DB_USER\" -d \"\$DB_NAME\"'"
+  target_psql="ssh ${ssh_opts} ${VPS} 'cd ${DEPLOY_PATH} && set -a && . ./.env && docker exec -i prod_pg psql -X -U \"\$DB_USER\" -d \"\$DB_NAME\"'"
+  apply_psql="ssh ${ssh_opts} ${VPS} 'cd ${DEPLOY_PATH} && set -a && . ./.env && docker exec -i prod_pg psql -X -v ON_ERROR_STOP=1 -q --single-transaction -U \"\$DB_USER\" -d \"\$DB_NAME\"'"
   echo "    ⓘ PA 同步開始 $(date '+%F %T')（${mode}）"
-  payload="$(mktemp "${TMPDIR:-/tmp}/cpbl-pa-sync.XXXXXX")"
-  # 非零（67 守衛不過／72 ssh／74 prod psql）在 set -e 下原碼結束：未送出任何寫入。
-  uv run python -m cpbl.ingest.pa_incremental payload --local-psql "$local_psql" \
-    --target-psql "$target_psql" --out "$payload" ${full_args[@]+"${full_args[@]}"}
-  if [ -s "$payload" ]; then
-    rc=0
-    ssh -o BatchMode=yes "$VPS" \
-        "cd ${DEPLOY_PATH} && set -a && . ./.env && docker exec -i prod_pg psql \
-          -v ON_ERROR_STOP=1 -q --single-transaction -U \"\$DB_USER\" -d \"\$DB_NAME\"" \
-        < "$payload" || rc=$?
-    if [ "$rc" -ne 0 ]; then
-      echo "FATAL: PA 五表替換失敗 rc=${rc}（單交易已回滾；payload 保留於 ${payload}）" >&2
-      [ "$rc" -eq 255 ] && exit 72
-      exit 74
-    fi
-  else
-    echo "    · PA：本機與 production 每場簽章相同，沒有要替換的場（未送）"
+  workdir="$(mktemp -d "${TMPDIR:-/tmp}/cpbl-pa-sync.XXXXXX")"
+  rc=0
+  # 產生、斷言、單交易送出、批間暫停都在這一步；印出每批 PA_BATCH 行（epoch 時刻，供與哨兵對齊）。
+  uv run python -m cpbl.ingest.pa_incremental apply --local-psql "$local_psql" \
+    --target-psql "$target_psql" --apply-psql "$apply_psql" --workdir "$workdir" \
+    ${full_args[@]+"${full_args[@]}"} || rc=$?
+  if [ "$rc" -ne 0 ]; then
+    echo "FATAL: PA 五表替換於某一批失敗 rc=${rc}（該批已回滾、後續批未送、未對帳；已提交範圍見上方" \
+         "PA_BATCH_FAILED；失敗批 payload 保留於 ${workdir}）" >&2
+    echo "       ⛔ 不自動重跑；恢復＝重跑同一指令，或剩餘差異 ≤ 上限時由下一次每日增量收斂。" >&2
+    _pa_ssh_close "$ssh_ctl"
+    exit "$rc"
   fi
-  rm -f "$payload"
+  rm -rf "$workdir"
   rc=0
   uv run python -m cpbl.ingest.pa_incremental reconcile --local-psql "$local_psql" \
     --target-psql "$target_psql" || rc=$?
+  _pa_ssh_close "$ssh_ctl"
   echo "    ⓘ PA 同步結束 $(date '+%F %T')"
   if [ "$rc" -ne 0 ]; then
     echo "FATAL: PA 五表全族對帳未通過 rc=${rc}（已寫入的場保留；見上方 PA_RECONCILE）。" >&2
     echo "       ⛔ 不自動重跑；交需求方決定是否授權 PA_FULL_RESYNC=1（規劃 r2 D5）。" >&2
     exit "$rc"
   fi
-  echo "    ✓ canonical PA build（${mode}：逐場替換＋全族對帳相等）"
+  echo "    ✓ canonical PA build（${mode}：逐批替換＋全族對帳相等）"
+}
+
+_pa_ssh_close() {  # $1=ControlPath 目錄：關掉 sync_pa_build 開的連線重用（沒建起來也無妨）
+  ssh -o ControlPath="$1/%C" -O exit "$VPS" </dev/null >/dev/null 2>&1 || true
+  rm -rf "$1"
 }
 
 # 官方狀態觀測軌跡兩表（`game_schedule_status_revisions`／`game_source_revisions`）。
