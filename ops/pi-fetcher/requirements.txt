@@ -1,0 +1,2 @@
+# #393 WP3 樹莓派取源器：只依賴 Playwright（版本對齊本 repo uv.lock）
+playwright==1.60.0
