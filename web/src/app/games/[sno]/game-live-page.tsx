@@ -17,7 +17,7 @@
 import Link from "next/link";
 import { playoffsGameHref } from "@/lib/playoffs-selection";
 import { recapReportLink } from "@/lib/between-games";
-import { arrangedSlotForGame, slotWhen } from "@/lib/postseason-journey";
+import { arrangedSlotForGame, POSTSEASON_COPY, slotWhen } from "@/lib/postseason-journey";
 import { reportEntry } from "@/lib/postseason-game-name";
 import type { PostseasonSummaryResponse } from "@/lib/api";
 import { useParams, useSearchParams } from "next/navigation";
@@ -355,6 +355,8 @@ export default function GameLivePage() {
   const season = Number(g.year ?? year);
   const postseasonSlot = (gameKind === "E" || gameKind === "C")
     ? arrangedSlotForGame(seriesContext, gameKind, Number(sno)) : null;
+  // #391：系列已 decided 後仍未完賽的列（後端 `display_status=not_needed`，§63 剩餘比賽取消）——不是「尚未開賽」。
+  const notNeeded = postseasonSlot?.display_status === "not_needed";
   const startText = taipeiTime(liveSnapshot?.starts_at ?? null) ?? postseasonSlot?.start ?? null;
   const postseasonInfo = (gameKind === "E" || gameKind === "C") && Number.isInteger(season) ? (
     <div data-testid="postseason-pregame-info" className="space-y-1.5 rounded-md bg-surface px-4 py-3 text-sm text-ink">
@@ -362,7 +364,9 @@ export default function GameLivePage() {
         {KIND_LABEL[gameKind]}{postseasonSlot ? ` G${postseasonSlot.seq}` : ""}
         <span className="ml-2 font-normal">{g.game_date ? slotWhen({ date: String(g.game_date), start: null }) : "日期未取得"} {startText ? `${startText} 開打` : "開賽時間未取得"}{g.venue ? ` · ${String(g.venue)}` : ""}</span>
       </p>
-      {postseasonSlot?.conditional && <p className="text-muted"><b className="font-bold text-ink">如有必要</b>：系列若提前分出勝負，這一場就不舉行。</p>}
+      {notNeeded
+        ? <p data-testid="postseason-not-needed" className="text-muted">系列已分出勝負，依規章「剩餘比賽取消」，這一場不舉行。</p>
+        : postseasonSlot?.conditional && <p className="text-muted"><b className="font-bold text-ink">如有必要</b>：系列若提前分出勝負，這一場就不舉行。</p>}
       <Link href={playoffsGameHref(season, gameKind, Number(sno))} className="inline-flex min-h-11 items-center font-semibold text-accent underline">季後賽專頁：本場詳情 →</Link>
     </div>
   ) : null;
@@ -473,12 +477,14 @@ export default function GameLivePage() {
           <p className="flex items-center gap-2 text-sm text-muted">
             {liveSnapshot
               ? <StatusBadge tone={phaseTone(liveSnapshot.phase)}>{phaseLabel(liveSnapshot.phase)}</StatusBadge>
-              : unconfirmedStarted
+              : notNeeded
+                ? <StatusBadge tone="done">{POSTSEASON_COPY.status.not_needed}</StatusBadge>
+                : unconfirmedStarted
                 ? <StatusBadge tone={phaseTone("unknown")}>{phaseLabel("unknown")}</StatusBadge>
                 : <span>尚未開賽</span>}
           </p>
           {liveSnapshot && <LiveGameLineups snapshot={liveSnapshot} />}
-          {pregame && !unconfirmedStarted && <PregameCard model={pregame} homeName={String(g.home_team_name)} />}
+          {pregame && !unconfirmedStarted && !notNeeded && <PregameCard model={pregame} homeName={String(g.home_team_name)} />}
         </div>
       )}
 

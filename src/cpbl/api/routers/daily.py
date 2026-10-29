@@ -23,6 +23,7 @@ artifact，模型缺席時仍回傳賽程。首頁不放區間（模型敏感度
 
 from __future__ import annotations
 
+import logging
 from datetime import UTC, date, datetime
 from zoneinfo import ZoneInfo
 
@@ -50,6 +51,7 @@ from cpbl.db import conn
 from cpbl.models.outcome_simple import ORIENT, load_outcome_rows
 
 router = APIRouter()
+log = logging.getLogger(__name__)
 
 # 完成場判準（證據感知），以呼叫端的 as_of 參數為日期界線：
 # 0:0 真和局需外部證據才算完成，否則「最近比賽日」會跳過那一天（DATA-TIE-REMEDY1）。
@@ -165,6 +167,23 @@ def _serialize(row: dict, as_of: date) -> dict:
 
 
 _TAIPEI = ZoneInfo("Asia/Taipei")
+
+
+def _season_closure(season: int | None) -> dict | None:
+    """#391 聯盟收官（:mod:`cpbl.season_close`，唯一判定來源）。讀不到 ⇒ None（fail-open：照舊顯示，不排除任何列）。
+
+    另開一條唯讀交易，不佔用本端點既有的查詢序（查詢預算測試只量本端點自己的 cursor）。"""
+    from cpbl import season_close
+
+    try:
+        return season_close.league_closure(season)
+    except Exception:  # noqa: BLE001 — 收官判定失敗不得讓首頁 500；退回「未收官」的舊行為
+        log.warning("聯盟收官判定讀不到，首頁照未收官顯示", exc_info=True)
+        return None
+
+
+def _key_text(row: dict) -> str:
+    return f"{row['season']}-{row['kind_code']}-{row['game_sno']}"
 
 
 def _now() -> datetime:
@@ -542,6 +561,12 @@ def daily_summary(
     # 「今日賽事」單獨走台北日界；`as_of` 的語意一字不改（`taipei_today` 說明了為什麼
     # 同一支 response 裡會有兩個「今天」，以及為什麼那不是漏改）。
     game_day = taipei_today(_now())
+    # #391：系列已分勝負後的未舉行列（§63 剩餘比賽取消，如 2026/C/7）不是待打、也不是待更新——
+    # 從日期界線、今日／下一批、未定案與 coverage 一律排除。判定只讀 `cpbl.season_close`。
+    closure = _season_closure(season)
+    not_needed = sorted(f"{year}-{kind}-{sno}"
+                        for league in (closure or {}).values()
+                        for year, kind, sno in league.not_needed_keys if kind in kinds)
     with conn() as c:
         cur = c.cursor()
         cur.execute(
@@ -552,13 +577,14 @@ def daily_summary(
                 FROM cpbl.games
                 WHERE kind_code = ANY(%(kinds)s)
                   AND (%(season)s::int IS NULL OR year = %(season)s)
+                  AND NOT ((year::text || '-' || kind_code || '-' || game_sno::text) = ANY(%(not_needed)s))
             )
             SELECT (SELECT max(game_date) FROM scoped WHERE completed),
                    (SELECT min(game_date) FROM scoped
                      WHERE NOT completed AND game_date >= %(as_of)s),
                    (SELECT count(*) FROM scoped)
             """,
-            {"kinds": kinds, "season": season, "as_of": as_of},
+            {"kinds": kinds, "season": season, "as_of": as_of, "not_needed": not_needed},
         )
         latest_day, next_day, scoped_games = cur.fetchone()
 
@@ -581,7 +607,10 @@ def daily_summary(
             """,
             (kinds, days, season, season),
         )
+        skip = set(not_needed)
         for row in _dicts(cur):
+            if _key_text(row) in skip:
+                continue
             # setdefault 而非索引：查詢已限定在 days 內，但用索引的話任何意料外的日期
             # 都會讓首頁 500。多出來的桶沒有人讀，退化成沉默優於整頁掛掉。
             by_day.setdefault(row["game_date"], []).append(row)
@@ -604,7 +633,7 @@ def daily_summary(
         # 本機今日實測命中 0 筆（那 5 場真和局最近一場是 2025-08-01，落在 30 天窗外），
         # 所以這一行現在防的是未來，不是現況。
         # 2026 起的季後 E／C 帶比分也可能未定案（賽中部分比分，#237），故不受「比分為 0」限制。
-        unresolved =[row for row in _dicts(cur) if not _completed(row, as_of)]
+        unresolved = [row for row in _dicts(cur) if not _completed(row, as_of) and _key_text(row) not in skip]
         # #268 coverage 的日界缺口：上面那支查詢以容器本地日 `as_of` 為界（`< as_of`），容器跑
         # UTC 時台北 00:00–08:00 的 `as_of` 仍是前一天，於是「台北昨天」的未完成場次（10/12 E4
         # 在 10/13 00:40）既不在 unresolved、也還沒被任何人說成待更新。這一段只補
@@ -695,6 +724,8 @@ def daily_summary(
                 for row in unresolved
             ],
         },
+        # #391：兩軍收官狀態（向下相容新增；讀不到為 None）。呈現端只在 closed=true 時改畫「球季結束」。
+        "season_close": None if closure is None else {lg: cl.to_json() for lg, cl in closure.items()},
         "availability": {
             "schedule": schedule_status,
             "results": results_status,

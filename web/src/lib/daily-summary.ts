@@ -146,12 +146,77 @@ export type DailySummary = {
     coverage?: Coverage;
     unresolved_games: (DailyGame & { status: string })[];
   };
+  /** #391 兩軍聯盟收官（`cpbl.season_close` 唯一判定）。舊版 API 沒有、或後端讀不到時為 null／缺席＝未收官。 */
+  season_close?: { major?: LeagueClosure; farm?: LeagueClosure } | null;
   availability: {
     schedule: AxisStatus;
     results: AxisStatus;
     pregame_model: PregameModelAxis;
   };
 };
+
+type ClosureGameKey = { year: number; kind_code: string; game_sno: number };
+
+/** #391：一軍（major）／二軍（farm）收官狀態。`closed` 只在系列以正式資料推導為 decided 時才為 true。 */
+export type LeagueClosure = {
+  league: "major" | "farm";
+  season: number | null;
+  closed: boolean;
+  status: "decided" | "undecided" | "undecided_tie" | "unknown" | "no_data";
+  champion_team_code: string | null;
+  decided_by: ClosureGameKey | null;
+  decided_game_date: string | null;
+  not_needed: ClosureGameKey[];
+  basis: string;
+  reason: string | null;
+  override: string | null;
+};
+
+const CLOSURE_SERIES: Record<string, string> = { C: "台灣大賽", F: "二軍總冠軍賽" };
+
+export type SeasonClosedChampion = {
+  teamCode: string;
+  /** 決勝場（「台灣大賽 G6・10/26」）；沒有決勝場資訊時 null。 */
+  decidedLabel: string | null;
+  /** 決勝場單場頁；二軍總冠軍賽沒有單場頁（2018 前資料粒度同理）時 null。 */
+  decidedHref: string | null;
+};
+
+export type SeasonClosedView = {
+  season: number;
+  major: SeasonClosedChampion;
+  /** 二軍尚未收官（含和局待判、資料未入庫）時 null——不猜冠軍。 */
+  farm: SeasonClosedChampion | null;
+  links: { label: string; href: string }[];
+};
+
+function closedChampion(c: LeagueClosure | undefined): SeasonClosedChampion | null {
+  if (!c || !c.closed || !c.champion_team_code) return null;
+  const by = c.decided_by;
+  const series = by ? CLOSURE_SERIES[by.kind_code] : undefined;
+  const md = c.decided_game_date ? `${Number(c.decided_game_date.slice(5, 7))}/${Number(c.decided_game_date.slice(8, 10))}` : null;
+  return {
+    teamCode: c.champion_team_code,
+    decidedLabel: series && by ? `${series} G${by.game_sno}${md ? `・${md}` : ""}` : null,
+    decidedHref: by && by.kind_code === "C" ? `/games/${by.game_sno}?kind=C&year=${by.year}` : null,
+  };
+}
+
+/** 首頁「球季結束」呈現（#391 驗收 1）：一軍收官才回值；回顧入口只連既有頁，不新造路由。
+ *  二軍一行只在二軍也收官時出現；一軍未收官時整張卡不出現（二軍先收官不改首頁主位）。 */
+export function seasonClosedView(summary: DailySummary): SeasonClosedView | null {
+  if (summary.scope.kind_code !== "A") return null;
+  const major = closedChampion(summary.season_close?.major);
+  const season = summary.season_close?.major?.season;
+  if (!major || season == null) return null;
+  const links = [
+    { label: "季後賽總覽", href: "/playoffs" },
+    { label: "季後賽戰績", href: `/standings?seg=3&year=${season}` },
+    { label: "本季戰績", href: `/standings?year=${season}` },
+    { label: "歷代總冠軍", href: "/records#dynasty" },
+  ];
+  return { season, major, farm: closedChampion(summary.season_close?.farm), links };
+}
 
 export {
   pregameServingNotice,

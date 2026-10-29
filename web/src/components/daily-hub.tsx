@@ -5,6 +5,7 @@ import Link from "next/link";
 import { EmptyState, StatusBadge, TeamLogo } from "@/components/ui";
 import { Scoreline, SectionTitle, Serial } from "@/components/postmark";
 import { TodayGameCard, orderedTodayGames } from "@/components/today-slate";
+import { SeasonClosedCard } from "@/components/season-closed-card";
 import { clientGet } from "@/lib/client";
 import { methodologyHref } from "@/lib/methodology-anchors";
 import type { CalendarGame } from "@/lib/api";
@@ -25,6 +26,7 @@ import {
   latestGameStatus,
   latestGameDateNote,
   latestDayPendingCount,
+  seasonClosedView,
   LATEST_STATUS_COPY,
   TODAY_COPY,
   type DailySummary,
@@ -355,6 +357,8 @@ export default function DailyHub({ summary: initial, calendar, postseason = null
   const prevGames = prevDay?.games ?? [];
   const pendingCount = latestDayPendingCount(prevGames);
   const rows = Math.max(1, leftGames.length, prevGames.length);
+  // #391：一軍已收官（台灣大賽以正式資料推導為 decided）＝球季結束；左欄沒有場次時改畫球季結束卡。
+  const closed = seasonClosedView(summary);
 
   return (
     <section className="space-y-6">
@@ -376,7 +380,7 @@ export default function DailyHub({ summary: initial, calendar, postseason = null
                 </Link>
               </span>
             }>
-            {hasToday ? TODAY_COPY.title : "下一批賽事"}
+            {hasToday ? TODAY_COPY.title : closed && leftGames.length === 0 ? `${closed.season} 球季結束` : "下一批賽事"}
           </SectionTitle>
           {/* 資料新鮮度（維護者 fail-fast 安全網；各 status 文案分立）＝全頁唯一一個資料時間。
               即時來源訊號併在這一條（藍圖 §8.1）：**恆常渲染**（含「今日無賽程」這個正常態），
@@ -405,7 +409,8 @@ export default function DailyHub({ summary: initial, calendar, postseason = null
           {notice && leftHasPregame && <PregameNotice text={notice} />}
         </div>
 
-        <section className="pm-split-l" aria-label={hasToday ? "今日場次，每張票上客下主" : "下一批賽事，每張票上客下主"}>
+        <section className="pm-split-l" aria-label={hasToday ? "今日場次，每張票上客下主"
+          : closed && leftGames.length === 0 ? "球季結束：總冠軍與本季回顧" : "下一批賽事，每張票上客下主"}>
           {leftGames.length > 0 ? (
             <div className="pm-rows">
               {leftGames.map((g) => (
@@ -417,7 +422,9 @@ export default function DailyHub({ summary: initial, calendar, postseason = null
             </div>
           ) : (
             <div className="pm-rows">
-              {postseason ? (
+              {closed ? (
+                <SeasonClosedCard view={closed} />
+              ) : postseason ? (
                 <PostseasonNextSlate p={postseason} />
               ) : (
                 <EmptyState className="rounded-md bg-surface py-6">
