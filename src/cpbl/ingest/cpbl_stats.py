@@ -338,17 +338,22 @@ def upsert_team(records: list[tuple]) -> int:
     return len(records)
 
 
-def scrape_all(start_year: int, end_year: int, current_year: int) -> dict:
-    """投手 + 打者 + 守備 + 團隊（皆當季全名單）。"""
+def scrape_all(start_year: int, end_year: int, current_year: int,
+               kinds: tuple[str, ...] = ("A", "D")) -> dict:
+    """投手 + 打者 + 守備 + 團隊（皆當季全名單）。
+
+    ``kinds``（#391）：一軍 ``A``＝投打／團隊／一軍守備；二軍 ``D``＝二軍守備。已收官的軍由每日鏈剔除（不爬）。
+    預設兩者皆抓＝原行為。"""
     out: dict = {"pitching": {}, "batting": 0, "fielding": 0, "team": 0}
-    for year in range(start_year, end_year + 1):
-        out["pitching"][year] = upsert_pitching(fetch_pitching(year))
-        log.info("pitching %s done", year)
-    out["batting"] = upsert_batting(fetch_batting(current_year))
+    if "A" in kinds:
+        for year in range(start_year, end_year + 1):
+            out["pitching"][year] = upsert_pitching(fetch_pitching(year))
+            log.info("pitching %s done", year)
+        out["batting"] = upsert_batting(fetch_batting(current_year))
     # 守備當季一軍(A) + 二軍(D)：同端點帶 KindCode，分別入庫（PK 含 kind_code）
-    out["fielding"] = (upsert_fielding(fetch_fielding(current_year, "A"))
-                       + upsert_fielding(fetch_fielding(current_year, "D")))
-    out["team"] = upsert_team(fetch_team(current_year))
+    out["fielding"] = sum(upsert_fielding(fetch_fielding(current_year, k)) for k in ("A", "D") if k in kinds)
+    if "A" in kinds:
+        out["team"] = upsert_team(fetch_team(current_year))
     log.info("batting=%d fielding=%d team=%d (year %s)",
              out["batting"], out["fielding"], out["team"], current_year)
     return out

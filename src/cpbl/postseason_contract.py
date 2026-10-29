@@ -262,6 +262,8 @@ class SeasonRule:
     formats: tuple[SeriesFormat, SeriesFormat]
     announcement: AnnouncementRef | None = None
     arrangement: tuple[ArrangedSlot, ...] = ()
+    # #391 R1 甲：True＝本年沒有逐年核對條文，沿用 ``_REGS_2022`` 的假定（``rule_status=sourced_assumed``）。
+    assumed: bool = False
 
     def format(self, kind: str) -> SeriesFormat:
         return next(f for f in self.formats if f.kind == kind)
@@ -320,7 +322,7 @@ ARRANGEMENT_2026 = (
     ArrangedSlot("C7", "C", 7, "2026-10-25", "17:05", _EW, TeamSlot(_DRAGONS), VenueSpec("大巨蛋"), True),
 )
 
-#: 年度規則常數只服務 2022–2026（§60-1 修訂後，有條文依據；T3 裁定）。其他年份 ⇒ ``rule_unsourced``。
+#: 年度規則常數：2022–2026 逐年核對過條文（§60-1 修訂後；#283 T3 裁定）。
 SEASON_RULES: dict[int, SeasonRule] = {
     year: SeasonRule(
         year=year, rule_version=_REGS_2022, clauses=_CLAUSES, case_a_has_e=True, formats=_FORMATS,
@@ -329,6 +331,24 @@ SEASON_RULES: dict[int, SeasonRule] = {
     )
     for year in range(2022, 2027)
 }
+
+# #391 R1 甲（需求方裁定 issuecomment-6495237217，推翻 #283「其他年份 rule_unsourced」）：
+# 2027 起不再逐年加常數，一律**假定** §60@110-12-29／§63@106-02-09 未修訂、沿用 ``_REGS_2022``，
+# ``rule_status=sourced_assumed``（最後核對規章原文 ``docs/reference/聯盟規章.txt``：2026-10-29）。
+# 公告與安排仍是逐年選配（沒有就不建旅程）。⚠️ 規章若修訂，假定年會算錯讓一勝——那時要在
+# ``SEASON_RULES`` 加入新版本那一年的常數（逐年常數優先於假定）。2021 以前仍是 ``rule_unsourced``。
+RULE_ASSUMED_FROM_YEAR = 2027
+RULE_ASSUMPTION_CHECKED_ON = "2026-10-29"
+
+
+def season_rule(year: int) -> SeasonRule | None:
+    """該年的規則：逐年常數 → 2027 起的假定規則 → None（``rule_unsourced``）。"""
+    if year in SEASON_RULES:
+        return SEASON_RULES[year]
+    if year >= RULE_ASSUMED_FROM_YEAR:
+        return SeasonRule(year=year, rule_version=_REGS_2022, clauses=_CLAUSES, case_a_has_e=True,
+                          formats=_FORMATS, assumed=True)
+    return None
 
 
 # —— 戰績事實與規則推導（純函式） ——
@@ -616,6 +636,15 @@ def compute_series(rule: SeasonRule | None, standings: StandingsFacts | None,
     return {"E": e, "C": c}, plan
 
 
+def is_not_needed(series: dict, g: GameFact) -> bool:
+    """§63「任何一隊取得所須勝場時…即宣告結束，剩餘比賽取消」：該系列已 decided 且本列未完賽。
+
+    與 :func:`arrange` 的 ``status_of`` 同一判準（後者另含公告格）；``season_close``、``compute_series_context``
+    的 coverage 都只讀這一支。⛔ 不看日期、不看官方狀態（官方沒有「取消」欄位，#391 需求研究）。"""
+    s = series.get(g.kind_code)
+    return bool(s) and s["series_status"] == "decided" and not g.completed
+
+
 # —— 公告安排 × 真實列（原 TS ``buildPostseasonJourney`` 的歸併，改由 Python 唯一計算） ——
 
 _TAIPEI_OFFSET = "+08:00"
@@ -762,7 +791,7 @@ class SeriesInputs:
     live: dict = field(default_factory=dict)                # key → phase
     manifest: list[dict] = field(default_factory=list)
     rule: SeasonRule | None = None
-    rule_given: bool = False                                # True ⇒ 用 ``rule``（測試注入），否則查 SEASON_RULES
+    rule_given: bool = False                                # True ⇒ 用 ``rule``（測試注入），否則查 season_rule()
 
 
 def _hash(value) -> str:
@@ -774,16 +803,18 @@ def _hash(value) -> str:
 def compute_series_context(inputs: SeriesInputs, *, now: datetime) -> dict:
     """``postseason-series-context/v2``：同輸入＋同 now 必得同輸出（JSON-able）。"""
     year = inputs.year
-    rule = inputs.rule if inputs.rule_given else SEASON_RULES.get(year)
+    rule = inputs.rule if inputs.rule_given else season_rule(year)
     taipei_day = taipei_date(now)
     signal_keys = frozenset((int(s["year"]), s["kind_code"], int(s["game_sno"])) for s in inputs.change_signals)
     series, plan = compute_series(rule, inputs.standings, inputs.games, year=year, signal_keys=signal_keys)
 
     statuses = ({g.key: g.official_status for g in inputs.games} if inputs.statuses_ok else None)
+    # #391：系列已 decided 後仍未完賽的列＝§63「剩餘比賽取消」（與 ``arrange.status_of`` 的 not_needed 同一語意，
+    # 含 E 已分勝負後的剩餘 E 列），⛔ 不進 coverage——否則 G7 這類列過了日期就永遠是「待更新」。
     coverage = coverage_verdict(
         [{"year": g.year, "kind_code": g.kind_code, "game_sno": g.game_sno,
           "game_date": g.game_date.isoformat() if g.game_date else None}
-         for g in inputs.games if not g.completed and g.game_date],
+         for g in inputs.games if not g.completed and g.game_date and not is_not_needed(series, g)],
         statuses, taipei_day=taipei_day, change_signals=inputs.change_signals,
     )
     pending_keys = frozenset((int(p["year"]), p["kind_code"], int(p["game_sno"])) for p in coverage["pending_games"])
@@ -850,8 +881,11 @@ def compute_series_context(inputs: SeriesInputs, *, now: datetime) -> dict:
             missing.append(f"{m['source']}_unavailable")
 
     rule_version = rule.rule_version if rule else None
+    rule_status = "unsourced" if rule is None else "sourced_assumed" if rule.assumed else "sourced"
     manifest = [{"source": "rule_constant", "scope": str(year), "version_or_hash": rule_version,
-                 "observed_at": None, "status": "ok" if rule else "unsourced"}, *inputs.manifest]
+                 "observed_at": None,
+                 "status": {"sourced": "ok", "sourced_assumed": "assumed"}.get(rule_status, "unsourced")},
+                *inputs.manifest]
     context_version = _hash({"algorithm_version": SERIES_ALGO_VERSION, "rule_version": rule_version,
                              "sources": [{k: v for k, v in m.items() if k != "observed_at"} for m in manifest]})
     done = [g for g in inputs.games if g.completed]
@@ -860,7 +894,7 @@ def compute_series_context(inputs: SeriesInputs, *, now: datetime) -> dict:
         "algorithm_version": SERIES_ALGO_VERSION,
         "year": year,
         "rule_version": rule_version,
-        "rule_status": "sourced" if rule else "unsourced",
+        "rule_status": rule_status,
         "context_version": context_version,
         "source_manifest": manifest,
         "as_of": {
@@ -953,6 +987,27 @@ def _optional(cur, fn):
         return None
 
 
+def standings_rows(cur, year: int, taipei_day: date) -> tuple[str, list]:
+    """§60 推導用的一軍戰績列：官方 ``team_standings`` 優先，沒有才由 canonical 完賽列即時算。"""
+    cur.execute(OFFICIAL_STANDINGS_SQL, {"year": year})
+    official = cur.fetchall()
+    if official:
+        return "official", [(str(seg), *rest) for seg, *rest in official]
+    cur.execute(COMPUTED_STANDINGS_SQL, {"year": year, "as_of": taipei_day})
+    return "computed", cur.fetchall()
+
+
+def standings_facts(st: tuple[str, list] | None) -> StandingsFacts | None:
+    if not st:
+        return None
+    source, recs = st
+    seg: dict[str, list[TeamRecord]] = {"0": [], "1": [], "2": []}
+    for s, tc, w, l, t in recs:  # noqa: E741
+        seg.setdefault(str(s), []).append(TeamRecord(tc, int(w), int(l), int(t or 0)))
+    full = seg["0"] if source == "official" else _sum_records(seg)
+    return StandingsFacts(source, tuple(full), tuple(seg["1"]), tuple(seg["2"]))
+
+
 def registration_observations(cur, game_key: tuple[int, str, int]) -> list[dict]:
     """28 人登錄觀測讀取契約（來源與保存歸 S11 #292）。
 
@@ -983,23 +1038,8 @@ def read_series_inputs(cur, year: int, *, now: datetime, live_reader=None) -> Se
     manifest = [{"source": "games", "scope": f"{year}/E,C", "version_or_hash": _hash(rows),
                  "observed_at": observed, "status": "ok"}]
 
-    def standings_read():
-        cur.execute(OFFICIAL_STANDINGS_SQL, {"year": year})
-        official = cur.fetchall()
-        if official:
-            return "official", [(str(seg), *rest) for seg, *rest in official]
-        cur.execute(COMPUTED_STANDINGS_SQL, {"year": year, "as_of": taipei_day})
-        return "computed", cur.fetchall()
-
-    st = _optional(cur, standings_read)
-    standings = None
-    if st:
-        source, recs = st
-        seg = {"0": [], "1": [], "2": []}
-        for s, tc, w, l, t in recs:  # noqa: E741
-            seg.setdefault(str(s), []).append(TeamRecord(tc, int(w), int(l), int(t or 0)))
-        full = seg["0"] if source == "official" else _sum_records(seg)
-        standings = StandingsFacts(source, tuple(full), tuple(seg["1"]), tuple(seg["2"]))
+    st = _optional(cur, lambda: standings_rows(cur, year, taipei_day))
+    standings = standings_facts(st)
     manifest.append({"source": "standings", "scope": f"{year}/A/{st[0] if st else '-'}",
                      "version_or_hash": _hash(st[1]) if st else None, "observed_at": observed,
                      "status": "ok" if st else "unavailable"})

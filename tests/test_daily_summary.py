@@ -147,9 +147,11 @@ def _snapshot(sno: int, phase: str, *, away: int = 0, home: int = 0, inning: int
 
 
 def _run(monkeypatch, script, *, artifact=None, query="", snapshots=None,
-         now=_NOW, today_local=_TODAY) -> tuple[dict, _Cursor]:
+         now=_NOW, today_local=_TODAY, closure=None) -> tuple[dict, _Cursor]:
     cursor = _Cursor(script)
     monkeypatch.setattr(daily, "conn", lambda: _Conn(cursor))
+    # #391：收官判定另開唯讀交易；腳本化測試一律注入（預設 None＝讀不到＝舊行為），不得碰本機 DB。
+    monkeypatch.setattr(daily, "_season_closure", lambda season: closure)
     # 時鐘與容器本地日**一律注入**（預設 `_NOW`／`_TODAY`），不是「有給才注入」：
     # 受測碼讀兩個不同日界，任何一個漏注入就等於把該日界綁回跑測試那台機器的時區，
     # 於是同一份程式在台北綠、在 UTC runner 的台北凌晨紅。要測日界窗內就明著把
@@ -1497,3 +1499,60 @@ def test_change_signal_query_failure_never_breaks_the_homepage(monkeypatch):
     ))
     assert body["freshness"]["coverage"]["status"] == "covered"
     assert body["freshness"]["last_refresh"]["ok"] is True
+
+
+# --- #391 聯盟收官 ------------------------------------------------------------
+
+def _closure_g7() -> dict:
+    """真實 2026/C/7（G6 已決勝後的未舉行列）＝not_needed；其餘欄位照 season_close 的形狀。"""
+    from cpbl import season_close as sc
+
+    major = sc.LeagueClosure("major", 2026, True, "decided", champion_team_code="AAA011",
+                             decided_by=(2026, "C", 6), decided_game_date=date(2026, 10, 26),
+                             not_needed_keys=frozenset({(2026, "C", 7)}), basis="§63/§60")
+    farm = sc.LeagueClosure("farm", 2026, False, "no_data", basis="farm_first_to_3", reason="no_f_rows")
+    return {"major": major, "farm": farm}
+
+
+def _g7(day: date) -> tuple:
+    row = list(_game(7, day, kind="C"))
+    row[6], row[8] = "中信兄弟", "味全龍"   # 名稱欄只為可讀；判定只看鍵
+    return tuple(row)
+
+
+def test_not_needed_g7_is_neither_unresolved_nor_pending(monkeypatch):
+    """#391 驗收 1：G6 決勝後的 G7（日期已過、0:0、官方仍 scheduled）不得出現在待更新／coverage。"""
+    g7_day = _TODAY - timedelta(days=2)
+    script = _script(latest=_TODAY - timedelta(days=3), next_day=None, scoped=7,
+                     games=[_game(6, _TODAY - timedelta(days=3), home=6, away=0, kind="C", official_final=True)],
+                     unresolved=[_g7(g7_day)],
+                     revisions=[_revision(7, 1, "", g7_day, kind="C")])
+    # 收官時 G7 被排除 ⇒ 沒有未定案場次 ⇒ 官方狀態那一輪不會被查：從腳本拿掉，免得後面錯位。
+    script = [step for step in script if step[0] is not _REVISION_COLS]
+    body, _ = _run(monkeypatch, script, closure=_closure_g7())
+    assert body["freshness"]["unresolved_games"] == []
+    assert body["freshness"]["coverage"]["status"] == "covered"
+    assert body["season_close"]["major"]["closed"] is True
+    assert body["season_close"]["major"]["not_needed"] == [{"year": 2026, "kind_code": "C", "game_sno": 7}]
+
+
+def test_without_closure_the_same_g7_stays_pending(monkeypatch):
+    """收官判定讀不到（None）＝舊行為：G7 照舊是待更新（fail-open，不吞掉真的待更新）。"""
+    g7_day = _TODAY - timedelta(days=2)
+    body, _ = _run(monkeypatch, _script(
+        latest=_TODAY - timedelta(days=3), next_day=None, scoped=7,
+        games=[_game(6, _TODAY - timedelta(days=3), home=6, away=0, kind="C", official_final=True)],
+        unresolved=[_g7(g7_day)], revisions=[_revision(7, 1, "", g7_day, kind="C")]))
+    assert [g["game_sno"] for g in body["freshness"]["unresolved_games"]] == [7]
+    assert body["freshness"]["coverage"]["status"] == "pending_update"
+    assert body["season_close"] is None
+
+
+def test_not_needed_g7_on_today_is_not_a_today_game(monkeypatch):
+    """G7 排在今天（10/27 情境）：收官後今天沒有比賽，today 區塊為 None、不輪詢。"""
+    body, _ = _run(monkeypatch, _script(
+        latest=_TODAY - timedelta(days=1), next_day=None, scoped=7,
+        games=[_game(6, _TODAY - timedelta(days=1), home=6, away=0, kind="C", official_final=True), _g7(_TODAY)],
+    ), closure=_closure_g7())
+    assert body["today"] is None
+    assert body["freshness"]["coverage"]["status"] == "covered"

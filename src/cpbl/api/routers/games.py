@@ -206,7 +206,23 @@ def games_calendar(
             """,
             (season, kinds),
         )
-        return {"season": season, "items": _dicts(cur)}
+        items = _dicts(cur)
+    # #391 審核 F1：該軍已收官時，決勝後未舉行的列（§63 剩餘比賽取消）標 not_needed（新增欄位、向下相容）。
+    # 一軍另有公告旅程；二軍（F）只有這一條路徑。判定只讀 cpbl.season_close；讀不到＝全部 False（fail-open）。
+    skip = {key for league in (_season_closure(season) or {}).values() for key in league.not_needed_keys}
+    for row in items:
+        row["not_needed"] = (row["year"], row["kind_code"], row["game_sno"]) in skip
+    return {"season": season, "items": items}
+
+
+def _season_closure(season: int) -> dict | None:
+    """#391：該季兩軍收官（:mod:`cpbl.season_close`，另開唯讀交易）。讀不到 ⇒ None，月曆照未收官顯示。"""
+    from cpbl import season_close
+
+    try:
+        return season_close.league_closure(season)
+    except Exception:  # noqa: BLE001 — 收官判定失敗不得讓月曆 500
+        return None
 
 
 @router.get("/api/v1/games/recent")

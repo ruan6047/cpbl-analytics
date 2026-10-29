@@ -480,7 +480,8 @@ def test_daily_chain_default_setting_is_exactly_a_and_d(monkeypatch: pytest.Monk
 
     rr.main()
 
-    assert scrape_calls == [(2026, 2026), (2026, 2026, "D")]
+    # #391：二軍總冠軍賽 F 隨 D 每日抓一次（二軍收官判定的資料前提）；不碰 E／C。
+    assert scrape_calls == [(2026, 2026), (2026, 2026, "D"), (2026, 2026, "F")]
     assert calls == ["pa_build"]  # 旗標空：不呼叫季後明細
     assert logged["ok"] is True
     assert logged["detail"]["games_postseason"] == {"games": {}, "errors": []}
@@ -508,8 +509,9 @@ def test_daily_chain_keeps_a_d_calls_and_adds_postseason(monkeypatch: pytest.Mon
 
     rr.main()  # 不得拋 SystemExit
 
-    # A 仍是原本的 2-arg 呼叫、D 原樣，季後只多 E／C 兩次
-    assert scrape_calls == [(2026, 2026), (2026, 2026, "D"), (2026, 2026, "E"), (2026, 2026, "C")]
+    # A 仍是原本的 2-arg 呼叫、D 原樣（#391 其後接 F），季後只多 E／C 兩次
+    assert scrape_calls == [(2026, 2026), (2026, 2026, "D"), (2026, 2026, "F"),
+                            (2026, 2026, "E"), (2026, 2026, "C")]
     assert logged["ok"] is True and logged["note"] is None
     # #237：明細在 PA build 之前、fast 只補缺（full=False）；A／D 的 scrape 呼叫維持原樣
     assert calls == ["detail:E,C:full=False", "pa_build"]

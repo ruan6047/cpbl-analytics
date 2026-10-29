@@ -34,6 +34,7 @@
     "cadence.kind = interval（{kind, seconds}）對應 plist 的 StartInterval（#268 晚間鏈；#365 起常設）。",
     "固定間隔、無事件即退出且不寫歷史、Mac 睡眠時不醒，故**不做週期缺席判定**；",
     "休賽季與無賽日靠動作條件靜默（plan 回 quiet：不連 DB／stats、不寫狀態檔），不靠 bootout。",
+    "動作條件含聯盟收官（#391，cpbl.season_close）：總冠軍確定後該軍賽別不算排定場；每日鏈與週跑同樣略過已收官軍的爬蟲（非爬蟲工作照跑、狀態照寫）。",
     "只做 plist 對帳、安裝狀態（JOB_NOT_INSTALLED／REGISTRY_CONFLICT）與狀態檔 halted（FAILED）。",
     "plist 可放在 ops/launchd/（不被清冊當成已安裝排程）；該目錄同樣受 REGISTRY_INCOMPLETE 掃描。"
   ],

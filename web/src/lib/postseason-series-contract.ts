@@ -171,7 +171,7 @@ export type PostseasonSeriesContextV2 = {
   algorithm_version: string;
   year: number;
   rule_version: string | null;
-  rule_status: "sourced" | "unsourced";
+  rule_status: "sourced" | "sourced_assumed" | "unsourced";   // #391 R1 甲：2027 起沿用 2022 規則＝sourced_assumed
   context_version: string;
   source_manifest: { source: string; scope: string; version_or_hash: string | null; observed_at: string | null; status: string }[];
   as_of: PostseasonSeriesContractV1["as_of"] & { now: string };

@@ -366,10 +366,11 @@ def _run_daily(tmp_path: Path, *, gate_type: str, extra_env: dict | None = None)
     _executable(fake_bin / "docker", "#!/bin/sh\nprintf 'cpbl-analytics-db-1\\n'\n")
     _executable(fake_bin / "uv", f"""#!/bin/sh
 case "$*" in
-  *"daily_gate decide"*) echo "REASON=fixture"; echo "DAY_TYPE={gate_type}" ;;
+  *"daily_gate decide"*) echo "REASON=fixture"; echo "CLOSED_LEAGUES=$STUB_CLOSED"; echo "DAY_TYPE={gate_type}" ;;
   *"daily_gate mark-synced"*) echo "mark-synced" >> "{calls}" ;;
   *"daily_gate today-schedule"*) echo "today-schedule $*" >> "{calls}"; [ "$STUB_TODAY_FAIL" = 1 ] && exit 1 ;;
-  *cpbl-refresh-recent*) echo "refresh-recent DAILY_DAY_TYPE=$DAILY_DAY_TYPE" >> "{calls}" ;;
+  *cpbl-refresh-recent*) echo "refresh-recent DAILY_DAY_TYPE=$DAILY_DAY_TYPE" >> "{calls}"
+                         echo "refresh-closed DAILY_CLOSED_LEAGUES=$DAILY_CLOSED_LEAGUES" >> "{calls}" ;;
   *cpbl-build-team-comparison*) echo "team-comparison" >> "{calls}" ;;
   *) echo "uv $*" >> "{calls}" ;;
 esac
@@ -419,6 +420,21 @@ def test_c_jia_day_writes_no_backup_and_succeeded_skipped_status(tmp_path: Path)
                / "com.cpbl.scrape-daily.jsonl").read_text(encoding="utf-8").splitlines()]
     assert [h["state"] for h in history] == ["running", "succeeded"]
     assert history[-1]["skipped"] is True and "skipped" in history[-1]["note"]
+
+
+@pytest.mark.parametrize("closed", ["major", "major,farm", ""])
+def test_c_scrape_daily_forwards_closed_leagues_to_refresh(tmp_path: Path, closed: str) -> None:
+    """#391：decide 印的 CLOSED_LEAGUES 原樣交給 cpbl-refresh-recent（空＝未收官）。"""
+    result, _status, calls, _repo = _run_daily(tmp_path, gate_type="light", extra_env={"STUB_CLOSED": closed})
+    assert result.returncode == 0, result.stderr
+    assert f"refresh-closed DAILY_CLOSED_LEAGUES={closed}" in calls
+
+
+def test_c_scrape_daily_force_full_never_forwards_closure(tmp_path: Path) -> None:
+    result, _status, calls, _repo = _run_daily(tmp_path, gate_type="light",
+                                               extra_env={"STUB_CLOSED": "major,farm", "DAILY_FORCE_FULL": "1"})
+    assert result.returncode == 0, result.stderr
+    assert "refresh-closed DAILY_CLOSED_LEAGUES=" in calls
 
 
 def test_c_checker_reports_ok_for_skipped_day(tmp_path: Path) -> None:
@@ -1076,8 +1092,10 @@ def test_today_schedule_file_shape(fake_db, tmp_path: Path) -> None:
     on_disk = json.loads(out.read_text(encoding="utf-8"))
     assert on_disk == payload
     assert payload["schema_version"] == 1 and payload["date"] == "2026-10-21"
-    assert payload["timezone"] == "Asia/Taipei" and payload["kinds"] == ["A", "D", "E", "C"]
-    assert payload["counts"] == {"A": 0, "D": 0, "E": 0, "C": 1}
+    # #391：F（二軍總冠軍賽）納入今日賽程檔；closed_leagues 為純新增鍵（此處未收官＝空）。
+    assert payload["timezone"] == "Asia/Taipei" and payload["kinds"] == ["A", "D", "E", "C", "F"]
+    assert payload["counts"] == {"A": 0, "D": 0, "E": 0, "C": 1, "F": 0}
+    assert payload["closed_leagues"] == []
     assert payload["games"][0]["key"] == "2026-C-4" and payload["stage"] == "after_scrape"
 
 
@@ -1095,6 +1113,26 @@ def test_decide_writes_today_file_even_on_jia_day(fake_db, tmp_path: Path, monke
     payload = json.loads(today.read_text(encoding="utf-8"))
     assert payload["date"] == "2026-10-15" and payload["games"] == [] and payload["day_type"] == "skip"
     assert payload["stage"] == "decide"
+
+
+def test_decide_prints_closed_leagues_and_skips_retry_when_both_closed(fake_db, tmp_path: Path, monkeypatch,
+                                                                        capsys) -> None:
+    """#391：兩軍皆收官＋上次 J1 為 69（#383 常態）⇒ 不升級乙型重試、不探測；印 CLOSED_LEAGUES 給 shell。"""
+    from test_season_close_schedule import BOTH
+
+    history = _ok_history(tmp_path, date(2026, 10, 29), previous_state="failed")
+    marker = tmp_path / "m.json"
+    marker.write_text(json.dumps({"write_counter": 0, "synced_at": "x"}), encoding="utf-8")
+    today = tmp_path / "today.json"
+    monkeypatch.setattr(dg, "taipei_today", lambda: date(2026, 10, 29))
+    monkeypatch.setattr(dg, "read_closure", lambda at=None: BOTH)
+    monkeypatch.delenv(dg.FORCE_ENV, raising=False)
+    rc = dg.main(["decide", "--history", str(history), "--sync-marker", str(marker),
+                  "--today-file", str(today), "--assume-probe", "new"])
+    lines = capsys.readouterr().out.strip().splitlines()
+    assert rc == 0 and lines[-1] == "DAY_TYPE=skip"
+    assert "CLOSED_LEAGUES=major,farm" in lines
+    assert json.loads(today.read_text(encoding="utf-8"))["closed_leagues"] == ["major", "farm"]
 
 
 def test_cli_help_is_side_effect_free() -> None:

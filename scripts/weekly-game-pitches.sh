@@ -185,7 +185,17 @@ if ! docker ps --format '{{.Names}}' 2>/dev/null | grep -q cpbl-analytics-db; th
 fi
 
 CODE=0
+# #391 聯盟收官（判定在 src/cpbl/season_close.py，唯讀）：已收官的軍不爬（A＝major、D＝farm）；判定讀不到＝
+# 空字串＝照常爬（fail open）。休賽期人工指示更新：CPBL_SEASON_CLOSE=open。skip 的 kind 不算失敗，狀態檔照寫成功。
+CLOSED_LEAGUES="$("$UV" run python -m cpbl.season_close closed-leagues 2>>"$LOG")" || CLOSED_LEAGUES=""
+echo "[$(date '+%F %T')] closed_leagues=${CLOSED_LEAGUES:-none}" | tee -a "$LOG"
 for KIND in A D; do
+  case "${KIND}:,${CLOSED_LEAGUES}," in
+    A:*,major,*|D:*,farm,*)
+      echo "[$(date '+%F %T')] kind=${KIND} skip（該軍已收官，#391）" | tee -a "$LOG"
+      continue
+      ;;
+  esac
   echo "[$(date '+%F %T')] kind=${KIND}" | tee -a "$LOG"
   # stats.cpbl 無反爬（httpx 直連），不需 playwright/scrape group。
   "$UV" run cpbl-scrape-game-pitches "$YEAR" "$KIND" >>"$LOG" 2>&1

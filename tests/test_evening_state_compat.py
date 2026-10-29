@@ -36,10 +36,12 @@ def test_pre_merge_state_file_is_carried_forward(tmp_path):
     for key, value in RAW.items():
         assert state[key] == value, key
     new = set(pe.empty_state()) - set(RAW)
-    # #342 另加 starter_watch（先發觀察窗；空 dict＝尚無紀錄）。
-    assert new == {"gate", "a_fetch_gate", "night_backup", "backup_uses", "a_stats_rows", "starter_watch"}
+    # #342 另加 starter_watch（先發觀察窗；空 dict＝尚無紀錄）；#391 另加 league_closed／farm_final（None＝尚無）。
+    assert new == {"gate", "a_fetch_gate", "night_backup", "backup_uses", "a_stats_rows", "starter_watch",
+                   "league_closed", "farm_final"}
     assert {k: state[k] for k in new} == {"gate": None, "a_fetch_gate": None, "night_backup": None,
-                                         "backup_uses": [], "a_stats_rows": None, "starter_watch": {}}
+                                         "backup_uses": [], "a_stats_rows": None, "starter_watch": {},
+                                         "league_closed": None, "farm_final": None}
     assert pe.backup_plan(state, NO_GAME_NIGHT) == ("backup", "", ""), "沒有 night_backup ⇒ 第一次同步照常備份"
 
 

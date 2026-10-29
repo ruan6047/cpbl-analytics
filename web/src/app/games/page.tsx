@@ -13,6 +13,7 @@ import { LiveCalendarGame } from "@/components/live-calendar-game";
 import { PostseasonExplainer, slotGameLabel } from "@/components/postseason-series";
 import { AnnouncedCompact, AnnouncedMobile, PostseasonCalendarLegend } from "@/components/postseason-calendar";
 import { announcementFor } from "@/lib/postseason-announcement";
+import { calendarNotNeeded } from "@/lib/calendar-status";
 import { COVERAGE_COPY, hasScheduleChange, scheduleChangeCopy, scheduleChanges } from "@/lib/daily-summary";
 import {
   POSTSEASON_COPY, liveEntryProbes, liveEntryResults, postseasonJourneyFromContext, slotMayInvolve, withLiveEntries,
@@ -257,7 +258,11 @@ export default async function GamesPage({
                     // 打完就是「完賽」（延賽/保留性質改以「補賽／續賽」文字保留）；未打才顯示延賽/保留/未開打
                     // 季後正式場次（#237）：已過公告開賽時間仍無賽果 → 賽果待更新。
                     const js = slotByRow.get(`${g.kind_code}-${g.game_sno}`);
-                    const st = !done && changedRow(g) ? changeStatus
+                    // #391：系列已分勝負後的未舉行列（§63 剩餘比賽取消，如台灣大賽 G7；二軍 F 讀 calendar 端點的
+                    // not_needed）——不是未開打、也不給單場連結。
+                    const notNeeded = calendarNotNeeded(g, js?.status, done);
+                    const st = notNeeded ? { label: POSTSEASON_COPY.status.not_needed, tone: "done" as StatusTone }
+                      : !done && changedRow(g) ? changeStatus
                       : !done && js?.status === "result_pending"
                       ? { label: POSTSEASON_COPY.status.result_pending, tone: "warn" as StatusTone }
                       : statusOf(done, g.delay_kind, g, todayStr);
@@ -268,7 +273,7 @@ export default async function GamesPage({
                     const body = (
                       <>
                         {POST_LABEL[g.kind_code] && <div className="mb-0.5 text-center text-xs font-bold leading-none text-ink">{POST_LABEL[g.kind_code]}{js ? ` ${slotGameLabel(js)}` : ""}</div>}
-                        {isCurrent && c.key === todayStr ? (
+                        {isCurrent && c.key === todayStr && !notNeeded ? (
                           <LiveCalendarGame game={g} variant="compact" startsAt={js?.start ? `${js.date}T${js.start}:00+08:00` : null} />
                         ) : <div className="flex items-center justify-between gap-1 leading-none">
                           <span className="flex items-center gap-1">
@@ -290,7 +295,7 @@ export default async function GamesPage({
                       </>
                     );
                     const cls = "block rounded-sm bg-surface-2 px-1.5 py-1";
-                    return hasDetail ? (
+                    return hasDetail && !notNeeded ? (
                       <Link key={`${g.kind_code}-${g.game_sno}`} href={`/games/${g.game_sno}?kind=${g.kind_code}&year=${g.year}`}
                         className={`${cls} transition-colors hover:bg-band`}>{body}</Link>
                     ) : (
@@ -331,7 +336,9 @@ export default async function GamesPage({
                 const awayWin = done && g.away_score > g.home_score;
                 const homeWin = done && g.home_score > g.away_score;
                 const js = slotByRow.get(`${g.kind_code}-${g.game_sno}`);
-                const st = !done && changedRow(g) ? changeStatus
+                const notNeeded = calendarNotNeeded(g, js?.status, done);   // #391，同桌機
+                const st = notNeeded ? { label: POSTSEASON_COPY.status.not_needed, tone: "done" as StatusTone }
+                  : !done && changedRow(g) ? changeStatus
                   : !done && js?.status === "result_pending"
                   ? { label: POSTSEASON_COPY.status.result_pending, tone: "warn" as StatusTone }
                   : statusOf(done, g.delay_kind, g, todayStr);
@@ -341,7 +348,7 @@ export default async function GamesPage({
                 const extra = slotExtra(js, done);
                 // 今天格整塊換成即時卡：季後標籤（G 序）與開賽時刻另起一行，與桌面同一格一致。
                 // 用 <p> 不用 <div>，避免吃到外層 Link 的 [&>div]:hover。
-                const body = isCurrent && c.key === todayStr ? (
+                const body = isCurrent && c.key === todayStr && !notNeeded ? (
                   <>
                     {POST_LABEL[g.kind_code] && (
                       <p className="mb-1.5 flex flex-wrap gap-1.5 leading-none">
@@ -380,7 +387,7 @@ export default async function GamesPage({
                     {info && <div className="mt-0.5 text-xs text-muted">{info}</div>}
                   </div>
                 );
-                return hasDetail ? (
+                return hasDetail && !notNeeded ? (
                   <Link key={`${g.kind_code}-${g.game_sno}`} href={`/games/${g.game_sno}?kind=${g.kind_code}&year=${g.year}`} className="block transition-colors [&>div]:hover:bg-band">
                     {body}
                   </Link>

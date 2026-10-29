@@ -56,7 +56,9 @@ def test_calendar_exposes_the_canonical_completed_column(monkeypatch) -> None:
 
     body = games.games_calendar(season=2026, kind_code="A")
 
-    assert body["items"] == [{"year": 2026, "kind_code": "E", "game_sno": 1, "completed": False}]
+    # #391：not_needed 為新增欄位（收官判定讀不到＝False，conftest 預設隔離）。
+    assert body["items"] == [{"year": 2026, "kind_code": "E", "game_sno": 1, "completed": False,
+                              "not_needed": False}]
     expected = " ".join(f"COALESCE({completed_games_sql_with_evidence('g')}, false) AS completed".split())
     assert expected in cur.queries[0]
 

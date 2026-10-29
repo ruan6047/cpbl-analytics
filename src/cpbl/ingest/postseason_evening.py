@@ -55,6 +55,17 @@
   ``scrape`` 動作抓目標賽別（與事件同賽別合併成一次，共用冷卻／挑戰停／讓位／錯誤即停）。時點規則見
   :mod:`cpbl.ingest.starter_checkpoints`；旗標關時行為與 #268 基準相同。
 
+#391 聯盟收官（判定只在 :mod:`cpbl.season_close`）：
+
+* **動作條件排除已收官的軍**：今日賽程檔的 ``closed_leagues``（每日鏈寫入）與狀態檔 ``league_closed``（本晚同步後重算，
+  只對同一晚有效）所含的軍，其賽別不算「排定場」；待辦（box／PA、未結事件、待同步）照常讓鏈醒——決勝場當晚的
+  box／PA／同步不受影響。
+* **當晚切換**：``record-sync`` 成功後重算收官，新收官的軍記進 ``league_closed``，同晚後續喚醒即 quiet。
+* **二軍總冠軍賽 F 夜抓**（R2 裁定）：今日賽程檔該晚有 F 列、二軍未收官 → 台北 23:00 起以既有
+  ``_farm_final_games_step``（www getgamedatas kind=F，一次）更新 games，接既有結果同步，同步後重算收官。
+  共用讓位 10:10／挑戰停／錯誤即停；每晚成功一次即止，失敗依同一組上限（≤3 次、間隔 ≥20 分）。www 標記 ``card=391``。
+  ⛔ F 不進 stats 探測、⛔ 不寫異動訊號（074–076 的表只收 E／C）；晚間告警對 F 不武裝（R4）。
+
 狀態檔（預設 ``logs/postseason-evening-state.json``）是唯一的跨次記憶；最終狀態另寫
 ``logs/last-postseason-evening.json``。prod 不寫任何 refresh 標記；本機 ``refresh_log`` 以 scope
 ``postseason-evening`` 記一列（只在實際嘗試 www 或同步時）。
@@ -331,7 +342,9 @@ def empty_state() -> dict[str, Any]:
             "gate": None, "a_fetch_gate": None, "night_backup": None, "backup_uses": [],
             "a_stats_rows": None,
             # #342：先發 23:00 時點（旗標 logs/starter-watch.enabled；見 starter_watch 模組）。舊碼載入時原樣保留不讀。
-            "starter_watch": {}}
+            "starter_watch": {},
+            # #391：本晚同步後重算出的已收官軍（只對同一晚有效）、二軍總冠軍賽 F 夜抓紀錄。舊碼載入時原樣保留不讀。
+            "league_closed": None, "farm_final": None}
 
 
 def _starts(g: Mapping) -> datetime | None:
@@ -945,6 +958,7 @@ class ScheduledGame:
 class TodaySchedule:
     date: str
     games: tuple[ScheduledGame, ...]
+    closed_leagues: tuple[str, ...] = ()   # #391：每日鏈判定的已收官軍（缺鍵＝無）
 
 
 def today_schedule_path() -> Path:
@@ -979,9 +993,12 @@ def read_today_schedule(path: Path) -> tuple[TodaySchedule | None, str]:
                 return None, "schedule_invalid"
             games.append(ScheduledGame(year, str(g["kind_code"]), sno,
                                        date.fromisoformat(str(g["game_date"])).isoformat()))
+        closed = raw.get("closed_leagues", [])
+        if not isinstance(closed, list) or any(c not in ("major", "farm") for c in closed):
+            return None, "schedule_invalid"
     except (KeyError, TypeError, ValueError):
         return None, "schedule_invalid"
-    return TodaySchedule(day, tuple(games)), ""
+    return TodaySchedule(day, tuple(games), tuple(closed)), ""
 
 
 def _kind_order(kinds: Iterable[str]) -> tuple[str, ...]:
@@ -1012,6 +1029,26 @@ def pending_work(state: Mapping, now: datetime) -> tuple[list[str], set[str]]:
     return reasons, kinds
 
 
+def closed_tonight(state: Mapping, schedule: TodaySchedule | None, night: date | None) -> frozenset[str]:
+    """#391：該晚已收官的軍＝今日賽程檔 ``closed_leagues``（日期須是該晚）∪ 狀態檔 ``league_closed``（同一晚才算）。"""
+    if night is None:
+        return frozenset()
+    closed: set[str] = set()
+    if schedule is not None and schedule.date == night.isoformat():
+        closed |= set(schedule.closed_leagues)
+    rec = state.get("league_closed") or {}
+    if isinstance(rec, Mapping) and rec.get("night") == night.isoformat():
+        closed |= set(rec.get("leagues") or ())
+    return frozenset(closed)
+
+
+def _open_evening_kinds(kinds: Iterable[str], closed: Iterable[str]) -> set[str]:
+    from cpbl.season_close import KIND_LEAGUE
+
+    closed = set(closed)
+    return {k for k in kinds if KIND_LEAGUE.get(k) not in closed}
+
+
 def evening_gate(state: Mapping, now: datetime, schedule: TodaySchedule | None, *,
                  problem: str = "", kinds: Iterable[str] = EVENING_KINDS,
                  db_lookup: Callable[[date], set[str]] | None = None) -> tuple[str, str, tuple[str, ...]]:
@@ -1036,14 +1073,18 @@ def evening_gate(state: Mapping, now: datetime, schedule: TodaySchedule | None, 
         return run("run", "outside_night", set())
     if schedule is not None and schedule.date != night.isoformat():
         schedule, problem = None, "schedule_stale"
+    # #391：已收官軍的賽別不算排定場（G6 決勝後的 G7 殘留列、收官後的同晚喚醒）；待辦照常讓鏈醒。
+    closed = closed_tonight(state, schedule, night)
+    scheduled_ok = _open_evening_kinds(allowed, closed)
+    note = f"（收官：{','.join(sorted(closed))}）" if closed else ""
     if schedule is not None:
         scheduled = {g.kind_code for g in schedule.games
-                     if g.kind_code in allowed and g.game_date == night.isoformat()}
-        return run("run", f"schedule {schedule.date}", scheduled)
+                     if g.kind_code in scheduled_ok and g.game_date == night.isoformat()}
+        return run("run", f"schedule {schedule.date}{note}", scheduled)
     problem = problem or "schedule_missing"
     if db_lookup is None:
         return "fallback_db", f"{problem}；dry 不查 DB", _kind_order(pending_kinds)
-    return run("fallback_db", f"{problem}；本機 DB {night.isoformat()}", set(db_lookup(night)) & set(allowed))
+    return run("fallback_db", f"{problem}；本機 DB {night.isoformat()}{note}", set(db_lookup(night)) & scheduled_ok)
 
 
 def gate_targets(schedule: TodaySchedule | None, now: datetime,
@@ -1055,6 +1096,125 @@ def gate_targets(schedule: TodaySchedule | None, now: datetime,
     allowed = _kind_order(kinds)
     games = [g for g in schedule.games if g.kind_code in allowed and g.game_date == night.isoformat()]
     return [g.key for g in sorted(games, key=lambda g: (allowed.index(g.kind_code), g.game_sno))]
+
+
+# =========================================================================== #391 二軍總冠軍賽 F 夜抓＋當晚收官
+
+FARM_FINAL_KIND = "F"
+# R2 裁定「晚間鏈 23:00 抓一次 F」：沿用既有 #342 先發 23:00 時點（同一常數，不另設鐘點）。這是**起點**不是截止：
+# 23:00 之後到該晚結束（次日 09:45）都可抓（失敗依上限重試）。
+FARM_FINAL_FETCH_AT = sw.FIRE_AT
+
+
+def farm_final_due(state: Mapping, now: datetime, schedule: TodaySchedule | None, *,
+                   db_lookup: Callable[[date], bool] | None = None) -> tuple[bool, str]:
+    """這次喚醒要不要抓 F（純函式；``db_lookup``＝賽程檔不可用時查本機該晚有無 F 列）。
+
+    條件：該晚（:func:`night_of`）台北 23:00 起、該晚有 F 排定、二軍未收官、本晚尚未成功抓過、嘗試 < 3 次且距上次 ≥20 分；
+    並受讓位 10:10、挑戰停、對帳不等停、halted 約束。"""
+    night = night_of(now)
+    if night is None:
+        return False, "outside_night"
+    if taipei(now) < datetime.combine(night, FARM_FINAL_FETCH_AT, tzinfo=TAIPEI):
+        return False, "before_23"
+    if "farm" in closed_tonight(state, schedule, night):
+        return False, "farm_closed"
+    if schedule is not None and schedule.date == night.isoformat():
+        has_f = any(g.kind_code == FARM_FINAL_KIND and g.game_date == night.isoformat() for g in schedule.games)
+    elif db_lookup is not None:
+        try:
+            has_f = bool(db_lookup(night))
+        except Exception:  # noqa: BLE001 — 退路讀不到 DB：這次不抓（隔日 10:10 每日鏈照抓 F），不讓晚間鏈 exit 70
+            log.warning("F 夜抓退路查本機失敗（這次不抓）", exc_info=True)
+            return False, "schedule_lookup_error"
+    else:
+        return False, "schedule_unavailable"
+    if not has_f:
+        return False, "no_f_tonight"
+    rec = state.get("farm_final") or {}
+    same = isinstance(rec, Mapping) and rec.get("night") == night.isoformat()
+    attempts = [a for a in (rec.get("attempts") or []) if a] if same else []
+    if same and rec.get("done_at"):
+        return False, "done_tonight"
+    if len(attempts) >= WWW_MAX_ATTEMPTS:
+        return False, "attempts_exhausted"
+    if state.get("halted"):
+        return False, "halted"
+    if sync_blocked(state, now):
+        return False, "sync_blocked"
+    if in_daily_guard(now):
+        return False, "yield_to_daily"
+    if www_blocked(state, now):
+        return False, "www_blocked"
+    last = max((_parse(a) for a in attempts), default=None)
+    if last is not None and now - last < WWW_COOLDOWN:
+        return False, "cooldown"
+    return True, "farm_final_23"
+
+
+def mark_farm_final_inflight(state: dict, now: datetime) -> None:
+    night = night_of(now)
+    rec = state.get("farm_final") or {}
+    if not isinstance(rec, dict) or rec.get("night") != (night.isoformat() if night else None):
+        rec = {"night": night.isoformat() if night else None, "attempts": [], "done_at": None}
+    rec["inflight"] = True
+    state["farm_final"] = rec
+
+
+def record_farm_final(state: dict, now: datetime, *, errors: list[dict], changed: bool) -> str:
+    """一次 F 夜抓入帳。回 changed／unchanged／failed。挑戰類失敗與結果鏈共用「當晚兩次即停」。"""
+    rec = state.get("farm_final") or {}
+    rec.setdefault("attempts", []).append(_iso(now))
+    rec["inflight"] = False
+    state["farm_final"] = rec
+    note_challenge(state, now, errors)
+    state.setdefault("www_requests", {})[FARM_FINAL_KIND] = _iso(now)
+    if errors:
+        rec["last_error"] = str(errors[0].get("error"))[:200]
+        return "failed"
+    rec["done_at"] = _iso(now)
+    if changed:
+        state["pending_sync"] = True
+        return "changed"
+    return "unchanged"
+
+
+def note_league_closed(state: dict, now: datetime, closure: Mapping | None) -> list[str]:
+    """同步成功後重算的收官入帳（只對同一晚有效）：同晚後續喚醒的動作條件據此排除該軍賽別。回本晚已收官的軍。"""
+    night = night_of(now)
+    if night is None or not closure:
+        return []
+    from cpbl.season_close import LEAGUES, closed_leagues
+
+    closed = closed_leagues(closure)
+    rec = state.get("league_closed") or {}
+    prev = set(rec.get("leagues") or ()) if isinstance(rec, Mapping) and rec.get("night") == night.isoformat() else set()
+    leagues = [lg for lg in LEAGUES if lg in closed | prev]
+    if leagues:
+        state["league_closed"] = {"night": night.isoformat(), "leagues": leagues,
+                                  "at": rec.get("at") if prev else _iso(now)}
+    return leagues
+
+
+def read_closure(now: datetime | None = None) -> dict | None:
+    """:func:`cpbl.season_close.league_closure`；讀不到 ⇒ None（fail open：不切）。"""
+    from cpbl import season_close
+
+    try:
+        return season_close.league_closure(now=now)
+    except Exception:  # noqa: BLE001 — 收官判定失敗不得讓晚間鏈 exit 70；方向＝不切
+        log.exception("聯盟收官判定讀不到（視為未收官）")
+        return None
+
+
+def local_farm_final_scheduled(night: date) -> bool:
+    """F 夜抓的退路（賽程檔不可用時，且只在 23:00 後問）：本機該晚有無 F 列（唯讀）。"""
+    from cpbl.db import conn
+
+    with conn() as c:
+        rows = c.execute("SELECT 1 FROM cpbl.games WHERE kind_code = ANY(%s) AND game_date = %s LIMIT 1",
+                         ([FARM_FINAL_KIND], night)).fetchall()
+    return bool(rows)
 
 
 # =========================================================================== #365 每晚首次同步前備份一次（P-EVENING-BACKUP）
@@ -1732,6 +1892,31 @@ def evening_games_step(year: int, kinds: Iterable[str]) -> dict[str, Any]:
     return out
 
 
+def scrape_farm_final(state: dict, now: datetime, year: int) -> str:
+    """#391 F 夜抓（只有 ``scrape`` 子命令會呼叫；這裡才 import 爬蟲）：既有 ``_farm_final_games_step``，
+    www 標記 ``card=391``（區塊內第一個導頁記 event，本晚已試過則 retry）。回 changed／unchanged／failed。"""
+    import importlib
+
+    from cpbl.ingest._browser import www_marker
+
+    rr = importlib.import_module("cpbl.ingest.run_refresh_recent")
+    rec = state.get("farm_final") or {}
+    first = "retry" if rec.get("attempts") else "event"
+    before = local_signature(year, (FARM_FINAL_KIND,))
+    try:
+        with www_marker(first, "391", f"{year}/{FARM_FINAL_KIND}/-", card="391"):
+            res = rr._farm_final_games_step(year)
+    except Exception as exc:  # noqa: BLE001 — 失敗照實入帳，不連坐結果鏈
+        log.exception("二軍總冠軍賽 F 夜抓失敗")
+        res = {"errors": [{"kind": FARM_FINAL_KIND, "error": str(exc)}]}
+    errors = list(res.get("errors") or [])
+    after = local_signature(year, (FARM_FINAL_KIND,)) if not errors else before
+    outcome = record_farm_final(state, now, errors=errors, changed=before != after)
+    state["farm_final"]["errors_last"] = errors
+    log.info("二軍總冠軍賽 F 夜抓：%s（games=%s）", outcome, res.get("games"))
+    return outcome
+
+
 def boxpa_game_dates(keys: Iterable[str]) -> list[str]:
     from cpbl.db import conn
 
@@ -1798,13 +1983,21 @@ def load_local_games(year: int, now: datetime,
 
 
 def local_scheduled_kinds(night: date, kinds: Iterable[str] | None = None) -> set[str]:
-    """#365 動作條件的退路：本機 ``cpbl.games`` 在該晚（台北日期）有排定場的晚間賽別。"""
+    """#365 動作條件的退路：本機 ``cpbl.games`` 在該晚（台北日期）有排定場的晚間賽別。
+
+    #391：已收官軍的賽別不算排定場（與今日賽程檔同一語意）；收官判定讀不到 ⇒ 不排除（fail open）。
+    not_needed 列只出現在已 decided 的系列：C decided＝一軍已收官（整軍排除）；E decided 而 C 未決時 E 殘留列
+    仍會讓鏈醒（C 也在進行，無額外成本）。"""
+    from cpbl import season_close
     from cpbl.db import conn
 
+    closure = read_closure()
+    closed = season_close.closed_leagues(closure) if closure else frozenset()
+    wanted = [k for k in _kinds_list(kinds) if season_close.KIND_LEAGUE.get(k) not in closed]
     with conn() as c:
         rows = c.execute(
             "SELECT DISTINCT kind_code FROM cpbl.games WHERE game_date = %s AND kind_code = ANY(%s)",
-            (night, _kinds_list(kinds))).fetchall()
+            (night, wanted)).fetchall()
     return {r[0] for r in rows}
 
 
@@ -2059,21 +2252,41 @@ def main(argv: list[str] | None = None) -> int:
             if decision == "quiet":
                 decision, why = "run", f"starter_watch:{''.join(_kind_order(wk))}"
             gate_kinds = _kind_order(set(gate_kinds) | wk)
-        if decision == "quiet":
+        # #391：二軍總冠軍賽 F 夜抓（23:00 起；F ⛔ 不進動作條件的 stats 賽別）。
+        farm_due, farm_why = farm_final_due(state, now, today, db_lookup=local_farm_final_scheduled)
+        if decision == "quiet" and not farm_due:
             print("quiet")
             return 0
-        log.info("動作條件：%s（%s）stats 賽別=%s", decision, why, ",".join(gate_kinds))
-        state["gate"] = {"at": _iso(now), "decision": decision, "reason": why, "kinds": list(gate_kinds)}
-        enabled = sc.flag_path().exists()
-        action, reason = plan(
-            state, now,
-            probe=lambda: stats_probe(year, _months(now, state), kinds=gate_kinds),
-            load_local=lambda: load_local_games(year, now),
-            local_first_seen=lambda: local_first_seen(year),
-            starter_enabled=enabled,
-            www_starts=lambda: local_www_starts(year),
-            watch_enabled=watch_enabled,
-        )
+        if decision == "quiet":
+            # 只有 F 要抓：不讀 stats、不跑 plan()；清掉上一次喚醒殘留的抓取目標，避免 scrape 誤抓其他賽別。
+            log.info("動作條件：farm_final（%s）", farm_why)
+            state["gate"] = {"at": _iso(now), "decision": "farm_final", "reason": farm_why, "kinds": []}
+            state["scrape_kinds"], state["starter_inflight"] = [], []
+            if isinstance(state.get("starter_watch"), dict):
+                state["starter_watch"]["inflight"], state["starter_watch"]["watch_only"] = [], []
+            action, reason = "idle", "farm_final_only"
+        else:
+            log.info("動作條件：%s（%s）stats 賽別=%s", decision, why, ",".join(gate_kinds))
+            state["gate"] = {"at": _iso(now), "decision": decision, "reason": why, "kinds": list(gate_kinds)}
+            enabled = sc.flag_path().exists()
+            action, reason = plan(
+                state, now,
+                probe=lambda: stats_probe(year, _months(now, state), kinds=gate_kinds),
+                load_local=lambda: load_local_games(year, now),
+                local_first_seen=lambda: local_first_seen(year),
+                starter_enabled=enabled,
+                www_starts=lambda: local_www_starts(year),
+                watch_enabled=watch_enabled,
+            )
+        if farm_due and action in ("idle", "scrape"):
+            # 結果鏈閒置時 F 自成一次 scrape；結果鏈本來就要抓時併在同一次（同鎖、同冷卻帳本）。
+            if action == "idle":
+                state["scrape_kinds"] = []
+                action, reason = "scrape", "farm_final"
+            mark_farm_final_inflight(state, now)
+            log.info("二軍總冠軍賽 F 夜抓：%s", farm_why)
+        elif isinstance(state.get("farm_final"), dict):
+            state["farm_final"]["inflight"] = False
         if watch_enabled:
             if (state.get("starter_watch") or {}).get("inflight"):
                 sw.say(f"plan {action} inflight={','.join(state['starter_watch']['inflight'])} "
@@ -2103,7 +2316,8 @@ def main(argv: list[str] | None = None) -> int:
         kinds = tuple(k for k in evening_kinds if k in (state.get("scrape_kinds") or ()))
         cps = state.setdefault("starter_checkpoints", {})
         inflight = state.get("starter_inflight") or []
-        if not kinds:
+        farm_inflight = bool((state.get("farm_final") or {}).get("inflight"))
+        if not kinds and not farm_inflight:
             sc.note_wait(cps, inflight, "kind_not_configured")   # #292 A1：沒抓就不計次
             state["last_run"] = {"at": _iso(now), "action": "scrape", "outcome": "unchanged", "errors": []}
             save_json(path, state)
@@ -2128,16 +2342,25 @@ def main(argv: list[str] | None = None) -> int:
             result["games"].update({f"starter_watch:{k}": v for k, v in extra["games"].items()})
             result["errors"] = (result.get("errors") or []) + extra["errors"]
         after = local_signature(year)
+        farm_outcome = None
+        if farm_inflight:
+            farm_outcome = scrape_farm_final(state, now, year)
+            result["errors"] = (result.get("errors") or []) + (state["farm_final"].get("errors_last") or [])
         stats_has_c = any(g.get("kind_code") == "C" for g in state.get("schedule") or [])
         local_c = sum(1 for k in load_local_games(year, now) if k.split("-")[1] == "C")
         errors = result.get("errors") or []
-        outcome = record_scrape(state, now, errors=errors,
+        regular_errors = [e for e in errors if e.get("kind") != FARM_FINAL_KIND]
+        outcome = record_scrape(state, now, errors=regular_errors,
                                 changed=before != after, stats_has_c=stats_has_c,
                                 local_c_rows=local_c, kinds=regular)
+        if farm_outcome is not None:
+            # 任一邊有變化就同步；兩邊都沒變而有一邊失敗才算 failed。
+            outcome = ("changed" if "changed" in (outcome, farm_outcome)
+                       else "failed" if "failed" in (outcome, farm_outcome) else "unchanged")
         for kind in watch_only:   # 共用賽別冷卻帳本（未結事件不計嘗試：23:00 抓取不處理事件）
             state.setdefault("www_requests", {})[kind] = _iso(now)
         # #292 A1：本次抓取併入的先發時點入帳。
-        failed, challenged = scrape_failures(errors, kinds)
+        failed, challenged = scrape_failures(regular_errors, kinds)
         sc.record_attempt(cps, [i for i in inflight if sc.kind_of(i) in regular], now,
                           changed=before != after, failed_kinds=failed, challenge_kinds=challenged)
         if watch.get("inflight"):
@@ -2238,6 +2461,11 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "record-sync":
         apply_backup_record(state, now, _backup_record_path())   # #365：同步前的備份（新／沿用）入帳
         outcome = record_sync(state, now, args.code)
+        if outcome == "synced":
+            # #391 當晚切換：同步成功後重算收官，新收官的軍記進 league_closed（同晚後續喚醒即排除其賽別）。
+            closed = note_league_closed(state, now, read_closure(now))
+            if closed:
+                log.info("聯盟收官（本晚）：%s", ",".join(closed))
         sc.record_sync(state.setdefault("starter_checkpoints", {}),
                        state.get("starter_inflight") or [], args.code)   # #292 A1
         sw.record_sync(state, now, args.code)                             # #342：先發送達時刻

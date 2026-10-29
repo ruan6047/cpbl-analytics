@@ -28,6 +28,12 @@
 
 逃生閥（§3.2.4）：``DAILY_FORCE_FULL=1`` 一律走 ``full``，衍生與訓練都不套閘門。
 
+#391 聯盟收官（判定只在 :mod:`cpbl.season_close`）：``decide`` 先讀兩軍收官狀態，印 ``CLOSED_LEAGUES=``
+（shell 以環境變數 ``DAILY_CLOSED_LEAGUES`` 交給 ``cpbl-refresh-recent``，略過該軍的 www／stats 爬取）；日型只看
+**未收官**軍的賽別，兩軍皆收官時不探測 stats、也不套「上次 J1 未成功 → 乙型重試」（沒有可重試的爬取），
+依未同步標記回 ``sync_only``／``skip``。今日賽程檔排除已收官軍的賽別與 not_needed 列，並帶 ``closed_leagues``。
+收官判定讀不到 ⇒ 視為未收官（fail open＝照常爬）。逃生閥 ``DAILY_FORCE_FULL=1`` 不跑 ``decide``，所以也不帶收官。
+
 ⚠️ fail closed 的方向一律是「多跑」：任何一項判定讀不到或讀不懂（歷史檔缺、同步標記缺、stats
 回應不明、refresh_log 讀不到、正式站模型讀不到）都不得判成「可以略過」。判定程式本身失敗時
 scrape-daily.sh 退回 ``full``（現況）。
@@ -47,7 +53,7 @@ from typing import Any
 
 # —— 參數（PLAN-r2 §3.8；技術參數，執行時可調，不涉成果方向）——
 # P-DAYTYPE-KINDS：日型判定看的賽別。
-DAYTYPE_KINDS: tuple[str, ...] = ("A", "D", "E", "C")
+DAYTYPE_KINDS: tuple[str, ...] = ("A", "D", "E", "C", "F")   # #391：F（二軍總冠軍賽）只查本機 DB
 # P-PROBE-AHEAD：甲型探測看 [今天, 今天＋N 天]。
 PROBE_AHEAD_DAYS = 7
 # P-OFFSEASON-D：stats 不提供 D 時的退路。2026-10-23 實測 stats 賽程 API 對 kindCode=D 回
@@ -65,6 +71,7 @@ DAY_LABELS = {
 }
 FORCE_ENV = "DAILY_FORCE_FULL"
 DAY_TYPE_ENV = "DAILY_DAY_TYPE"
+CLOSED_ENV = "DAILY_CLOSED_LEAGUES"   # #391：decide 印出的已收官軍（major,farm），shell 原樣轉給 cpbl-refresh-recent
 DEFAULT_HISTORY = Path("logs/schedule-history/com.cpbl.scrape-daily.jsonl")
 DEFAULT_SYNC_MARKER = Path("logs/daily-sync-marker.json")
 # 今日賽程檔（PLAN-r2 §3.1 J1 → J2、§3.3 動作條件、§3.6 J1 甲型列「只寫狀態與今日賽程檔」）。
@@ -72,7 +79,7 @@ DEFAULT_SYNC_MARKER = Path("logs/daily-sync-marker.json")
 # :func:`today_schedule_payload`；⛔ 改欄位名或語意須同步 #365。
 DEFAULT_TODAY_FILE = Path("logs/daily-schedule-today.json")
 TODAY_FILE_SCHEMA = 1
-TODAY_FILE_KINDS: tuple[str, ...] = ("A", "D", "E", "C")
+TODAY_FILE_KINDS: tuple[str, ...] = ("A", "D", "E", "C", "F")   # #391：F 給晚間鏈 23:00 夜抓（R2）
 TERMINAL_OK = ("succeeded", "skipped")
 
 
@@ -98,6 +105,7 @@ class DayInputs:
     unsynced_writes: bool | None = None           # None＝讀不到（無同步標記）
     unsynced_detail: str = ""
     force: bool = False
+    closed_leagues: frozenset[str] = frozenset()   # #391：已收官的軍（season_close）
 
 
 @dataclass(frozen=True)
@@ -105,14 +113,25 @@ class Decision:
     day_type: str
     reasons: tuple[str, ...]
     probe: ProbeResult = field(default_factory=lambda: ProbeResult("not_run"))
+    closed_leagues: frozenset[str] = frozenset()
 
     @property
     def label(self) -> str:
         return DAY_LABELS[self.day_type]
 
 
-def _games_on(scheduled: Mapping[date, Mapping[str, int]], day: date) -> dict[str, int]:
-    return {k: n for k, n in (scheduled.get(day) or {}).items() if k in DAYTYPE_KINDS and n > 0}
+def _games_on(scheduled: Mapping[date, Mapping[str, int]], day: date,
+              kinds: Iterable[str] = DAYTYPE_KINDS) -> dict[str, int]:
+    kinds = set(kinds)
+    return {k: n for k, n in (scheduled.get(day) or {}).items() if k in kinds and n > 0}
+
+
+def open_kinds(closed: Iterable[str], kinds: Iterable[str] = DAYTYPE_KINDS) -> tuple[str, ...]:
+    """#391：未收官軍的賽別（依 ``kinds`` 原順序）。"""
+    from cpbl.season_close import KIND_LEAGUE
+
+    closed = set(closed)
+    return tuple(k for k in kinds if KIND_LEAGUE.get(k) not in closed)
 
 
 def _fmt_games(games: Mapping[str, int]) -> str:
@@ -121,22 +140,39 @@ def _fmt_games(games: Mapping[str, int]) -> str:
 
 def classify(inputs: DayInputs, probe: Callable[[], ProbeResult]) -> Decision:
     """PLAN-r2 §3.2 表。``probe`` 只在前四項都指向甲型時才呼叫（省下不必要的 stats 請求）。"""
+    from cpbl.season_close import LEAGUES, format_leagues
+
+    closed = frozenset(() if inputs.force else inputs.closed_leagues)
+    kinds = open_kinds(closed)
     yesterday = inputs.day - timedelta(days=1)
-    y_games, t_games = _games_on(inputs.scheduled, yesterday), _games_on(inputs.scheduled, inputs.day)
+    y_games, t_games = _games_on(inputs.scheduled, yesterday, kinds), _games_on(inputs.scheduled, inputs.day, kinds)
     reasons = [
-        f"昨天 {yesterday} 本機排定場：{_fmt_games(y_games)}（看 {','.join(DAYTYPE_KINDS)}）",
+        f"昨天 {yesterday} 本機排定場：{_fmt_games(y_games)}（看 {','.join(kinds) or '無'}）",
         f"今天 {inputs.day} 本機排定場：{_fmt_games(t_games)}",
     ]
+    if closed:
+        reasons.insert(0, f"聯盟收官（#391 season_close）：{format_leagues(closed)} 已收官 → 不看其賽別、不爬")
+
+    def decision(day_type: str, probe_result: ProbeResult | None = None) -> Decision:
+        return Decision(day_type, tuple(reasons), probe_result or ProbeResult("not_run"), closed)
+
     if inputs.force:
-        return Decision(FULL, (f"{FORCE_ENV}=1：強制完整鏈（§3.2.3 逃生閥）", *reasons))
+        reasons.insert(0, f"{FORCE_ENV}=1：強制完整鏈（§3.2.3 逃生閥）")
+        return decision(FULL)
     if y_games:
-        return Decision(FULL, tuple(reasons))
+        return decision(FULL)
     if t_games:
-        return Decision(LIGHT, tuple(reasons))
+        return decision(LIGHT)
+    if closed >= set(LEAGUES):
+        # 兩軍皆收官：沒有任何該爬的賽事；「上次 J1 未成功 → 乙型重試」與 stats 探測都不適用
+        # （重試的對象就是爬取）。非爬蟲工作（同步、備份）仍依未同步標記走 sync_only。
+        reasons.append("兩軍皆收官 → 不探測 stats、不套上次 J1 重試")
+        reasons.append(f"本機自上次正式站同步後寫入：{inputs.unsynced_detail or '未知'}")
+        return decision(SKIP if inputs.unsynced_writes is False else SYNC_ONLY)
     reasons.append(f"上次 J1：{inputs.last_j1_detail or '未知'}")
     if inputs.last_j1_ok is not True:
         reasons.append("上次 J1 未確認成功 → 依乙型跑（兼任重試）")
-        return Decision(LIGHT, tuple(reasons))
+        return decision(LIGHT)
     result = probe()
     reasons.append(f"stats 探測 [{inputs.day}, {inputs.day + timedelta(days=PROBE_AHEAD_DAYS)}]："
                    + {"clean": "無新場／日期異動", "new": "有本機沒有的場次或日期異動",
@@ -144,11 +180,11 @@ def classify(inputs: DayInputs, probe: Callable[[], ProbeResult]) -> Decision:
                    + (f"（{'；'.join(result.detail)}）" if result.detail else ""))
     if result.status != "clean":
         reasons.append("探測未證明無新場 → 升級乙型跑一次 www")
-        return Decision(LIGHT, tuple(reasons), result)
+        return decision(LIGHT, result)
     reasons.append(f"本機自上次正式站同步後寫入：{inputs.unsynced_detail or '未知'}")
     if inputs.unsynced_writes is not False:
-        return Decision(SYNC_ONLY, tuple(reasons), result)
-    return Decision(SKIP, tuple(reasons), result)
+        return decision(SYNC_ONLY, result)
+    return decision(SKIP, result)
 
 
 # —— 步驟清單（PLAN-r2 §3.2 表逐列；--plan 印出、pytest 逐列比對）——
@@ -232,12 +268,41 @@ def plan_steps(day_type: str, *, force: bool = False) -> list[tuple[str, str, st
     return [(key, name, *table[key]) for key, name in STEPS]
 
 
+# #391：收官後 cpbl-refresh-recent 依 ``DAILY_CLOSED_LEAGUES`` 略過的爬取（www／stats）。
+# ⛔ 非爬蟲步驟照跑（總冠軍成員重建、PA build、球種、衍生、分項、改名同步、同步生產）；
+# 「補缺 gamelog」與「季後 E／C 明細補齊」屬已完賽場明細補齊，依 R3 裁定保留（穩態為空集合）。
+CLOSED_CRAWL_SKIPS: dict[str, tuple[str, ...]] = {
+    "major": ("一軍 A 賽程", "季後 E／C 賽程", "一軍季累計／一軍守備／團隊（stats）", "一軍增量明細＋逐球自癒"),
+    "farm": ("二軍 D 賽程", "二軍總冠軍賽 F 賽程", "二軍守備（stats）", "二軍增量明細＋逐球自癒"),
+}
+CLOSED_BOTH_SKIPS: tuple[str, ...] = ("戰績", "升降")
+CLOSED_KEPT: tuple[str, ...] = ("總冠軍成員重建", "補缺 gamelog（已完賽場明細補齊，R3）",
+                                "季後 E／C 明細補齊（已完賽場，R3）", "衍生步驟（PA build／球種／當季衍生／分項／改名同步）",
+                                "備份與同步生產")
+
+
+def closed_crawl_skips(closed: Iterable[str]) -> list[str]:
+    from cpbl.season_close import LEAGUES
+
+    closed = set(closed)
+    out = [name for lg in LEAGUES if lg in closed for name in CLOSED_CRAWL_SKIPS[lg]]
+    if closed >= set(LEAGUES):
+        out += list(CLOSED_BOTH_SKIPS)
+    return out
+
+
 def render_plan(decision: Decision, *, force: bool = False) -> str:
     lines = [f"日型：{decision.label}（{decision.day_type}）", "判定依據："]
     lines += [f"  - {r}" for r in decision.reasons]
     lines.append("步驟：")
     for _, name, action, note in plan_steps(decision.day_type, force=force):
         lines.append(f"  [{action}] {name}" + (f"——{note}" if note else ""))
+    if decision.closed_leagues and decision.day_type in (FULL, LIGHT):
+        from cpbl.season_close import format_leagues
+
+        lines.append(f"聯盟收官（{CLOSED_ENV}={format_leagues(decision.closed_leagues)}）：")
+        lines += [f"  [略過] {name}——該軍已收官（#391）" for name in closed_crawl_skips(decision.closed_leagues)]
+        lines += [f"  [照跑] {name}" for name in CLOSED_KEPT]
     return "\n".join(lines)
 
 
@@ -464,15 +529,18 @@ def probe_rows(body: Any) -> list[Any]:
 
 def stats_probe(day: date, *, fetch: Callable[[str, dict], Mapping] | None = None,
                 local_lookup: Callable[[list[Any]], Mapping[str, str | None]],
-                timeout: float = 10.0) -> ProbeResult:
-    """唯讀 GET stats 賽程（``PROBE_KINDS`` × 窗口涵蓋月份，約 4–8 請求），失敗 fail closed。"""
+                timeout: float = 10.0, kinds: Iterable[str] = PROBE_KINDS) -> ProbeResult:
+    """唯讀 GET stats 賽程（``kinds``（預設 ``PROBE_KINDS``）× 窗口涵蓋月份，約 4–8 請求），失敗 fail closed。
+
+    #391：已收官軍的賽別由呼叫端剔除（``open_kinds``），不探測——例：C-7 在 stats 端可能永遠是 SCHEDULED。"""
+    kinds = tuple(k for k in kinds if k in PROBE_KINDS)
     from cpbl.ingest.postseason_evening import SCHEDULE_PATH, _httpx_fetch
 
     fetch = fetch or _httpx_fetch(timeout)
     games: list[Any] = []
     try:
         for year, month in probe_months(day):
-            for kind in PROBE_KINDS:
+            for kind in kinds:
                 body = fetch(SCHEDULE_PATH, {"kindCode": kind, "year": str(year), "month": str(month)})
                 games += parse_probe_rows(probe_rows(body), year, (kind,), strict=True)
     except Exception as exc:  # noqa: BLE001 — 逾時／HTTP／JSON／形狀漂移一律 fail closed
@@ -716,23 +784,48 @@ def taipei_today() -> date:
     return datetime.now(ZoneInfo("Asia/Taipei")).date()
 
 
-def today_games(connection: Any, day: date) -> list[dict[str, Any]]:
+def read_closure(at: datetime | None = None) -> dict | None:
+    """#391：兩軍收官（:func:`cpbl.season_close.league_closure`，``at`` 決定完賽判準的日界；--plan 回放用該日 10:10）。
+
+    讀不到 ⇒ None（fail open：視為未收官、照常爬），原因印到 stderr。"""
+    from cpbl import season_close
+
+    try:
+        return season_close.league_closure(now=at)
+    except Exception as error:  # noqa: BLE001 — 收官判定失敗不得擋日型判定；方向＝多跑
+        print(f"WARN 聯盟收官判定讀不到（視為未收官）：{type(error).__name__}: {error}", file=sys.stderr)
+        return None
+
+
+def closure_sets(closure: Mapping | None) -> tuple[frozenset[str], frozenset[tuple[int, str, int]]]:
+    """收官判定 → (已收官的軍, not_needed 場鍵)。None ⇒ 兩者皆空。"""
+    from cpbl import season_close
+
+    if not closure:
+        return frozenset(), frozenset()
+    return season_close.closed_leagues(closure), season_close.not_needed_keys(closure)
+
+
+def today_games(connection: Any, day: date, *, closed: Iterable[str] = (),
+                not_needed: Iterable[tuple[int, str, int]] = ()) -> list[dict[str, Any]]:
+    """今日賽程檔的列。#391：已收官軍的賽別與 not_needed 列（如 G6 決勝後的 G7）不列——它們不是「排定場」。"""
+    skip = set(not_needed)
     rows = connection.execute(
         "SELECT year, kind_code, game_sno, game_date, venue, away_team_code, home_team_code, "
         "present_status FROM cpbl.games WHERE game_date = %s AND kind_code = ANY(%s) "
         "ORDER BY kind_code, game_sno",
-        (day, list(TODAY_FILE_KINDS)),
+        (day, list(open_kinds(closed, TODAY_FILE_KINDS))),
     ).fetchall()
     return [
         {"key": f"{y}-{k}-{s}", "year": y, "kind_code": k, "game_sno": s,
          "game_date": d.isoformat() if d else None, "venue": venue,
          "away_team_code": away, "home_team_code": home, "present_status": status}
-        for y, k, s, d, venue, away, home, status in rows
+        for y, k, s, d, venue, away, home, status in rows if (y, k, s) not in skip
     ]
 
 
 def today_schedule_payload(day: date, games: list[dict[str, Any]], *, day_type: str | None,
-                           stage: str) -> dict[str, Any]:
+                           stage: str, closed_leagues: Iterable[str] = ()) -> dict[str, Any]:
     """今日賽程檔內容（#364 → #365 介面）。
 
     - ``date``：**台北日期** ``YYYY-MM-DD``（``timezone`` 固定 ``Asia/Taipei``）。消費端只在
@@ -741,7 +834,11 @@ def today_schedule_payload(day: date, games: list[dict[str, Any]], *, day_type: 
       ``present_status`` 原樣帶出，是否算「排定場」由消費端決定）。空清單＝本機今天無場。
     - ``counts``：各賽別列數（``kinds`` 每個都有鍵，0 也寫）。
     - ``stage``：``decide``（J1 開頭、爬取前）或 ``after_scrape``（J1 爬完賽程後覆寫）。
+    - ``closed_leagues``（#391，純新增鍵、``schema_version`` 不升）：已收官的軍（``major``／``farm``）；
+      其賽別與 not_needed 列已不在 ``games``。舊消費端不讀此鍵；缺鍵＝無收官。
     """
+    from cpbl.season_close import LEAGUES
+
     counts = {k: 0 for k in TODAY_FILE_KINDS}
     for g in games:
         counts[g["kind_code"]] = counts.get(g["kind_code"], 0) + 1
@@ -756,6 +853,7 @@ def today_schedule_payload(day: date, games: list[dict[str, Any]], *, day_type: 
         "kinds": list(TODAY_FILE_KINDS),
         "counts": counts,
         "games": games,
+        "closed_leagues": [lg for lg in LEAGUES if lg in set(closed_leagues)],
     }
 
 
@@ -767,7 +865,8 @@ def invalidate_today_schedule(path: Path) -> None:
         print(f"WARN 今日賽程檔刪除失敗：{path}（{error}）", file=sys.stderr)
 
 
-def write_today_schedule(path: Path, day: date, *, day_type: str | None, stage: str) -> dict[str, Any]:
+def write_today_schedule(path: Path, day: date, *, day_type: str | None, stage: str,
+                         closure: Mapping | None = None) -> dict[str, Any]:
     """寫今日賽程檔；查詢或寫檔任何一步失敗都先刪掉舊檔再外拋（#364 審核 F4）。
 
     為什麼刪：同一天稍早（decide 階段、或稍早一次手動執行）寫下的檔 ``date`` 也是今天，消費端會
@@ -775,9 +874,10 @@ def write_today_schedule(path: Path, day: date, *, day_type: str | None, stage: 
     缺檔＝消費端退回 DB，是唯一安全的失敗形狀。
     """
     try:
+        closed, not_needed = closure_sets(closure if closure is not None else read_closure())
         with _readonly_conn() as c:
-            games = today_games(c, day)
-        payload = today_schedule_payload(day, games, day_type=day_type, stage=stage)
+            games = today_games(c, day, closed=closed, not_needed=not_needed)
+        payload = today_schedule_payload(day, games, day_type=day_type, stage=stage, closed_leagues=closed)
         _write_json(path, payload)
     except BaseException:
         invalidate_today_schedule(path)
@@ -918,8 +1018,9 @@ def _readonly_conn():
 
 def build_decision(day: date, *, history: Path, marker: Path, exclude_started_at: str | None,
                    before: datetime | None, probe_mode: str, unsynced_override: str | None,
-                   env: Mapping[str, str] | None = None) -> Decision:
+                   env: Mapping[str, str] | None = None, closure: Mapping | None = None) -> Decision:
     force = force_full(env)
+    closed, _not_needed = closure_sets(closure)
     yesterday = day - timedelta(days=1)
     with _readonly_conn() as c:
         scheduled = local_schedule(c, [yesterday, day])
@@ -934,9 +1035,10 @@ def build_decision(day: date, *, history: Path, marker: Path, exclude_started_at
     def probe() -> ProbeResult:
         if probe_mode != "live":
             return ProbeResult(probe_mode, ("--assume-probe",))
-        return stats_probe(day, local_lookup=lambda games: _local_lookup_db(games, day))
+        return stats_probe(day, local_lookup=lambda games: _local_lookup_db(games, day),
+                           kinds=open_kinds(closed, PROBE_KINDS))
 
-    return classify(DayInputs(day, scheduled, last_ok, last_detail, unsynced, unsynced_detail, force),
+    return classify(DayInputs(day, scheduled, last_ok, last_detail, unsynced, unsynced_detail, force, closed),
                     probe)
 
 
@@ -986,9 +1088,11 @@ def main(argv: list[str] | None = None) -> int:
         else:
             day, before = taipei_today(), None
             started = getattr(args, "started_at", None)
+        closure = read_closure(before)
         decision = build_decision(
             day, history=args.history, marker=args.sync_marker, exclude_started_at=started,
             before=before, probe_mode=args.assume_probe, unsynced_override=args.assume_unsynced,
+            closure=closure,
         )
         if args.command == "plan":
             print(f"cpbl-refresh-recent --plan  日期 {day}")
@@ -996,8 +1100,12 @@ def main(argv: list[str] | None = None) -> int:
         else:
             for reason in decision.reasons:
                 print(f"REASON={reason}")
+            from cpbl.season_close import format_leagues
+
+            print(f"CLOSED_LEAGUES={format_leagues(decision.closed_leagues)}")
             try:
-                write_today_schedule(args.today_file, day, day_type=decision.day_type, stage="decide")
+                write_today_schedule(args.today_file, day, day_type=decision.day_type, stage="decide",
+                                     closure=closure)
                 print(f"TODAY_FILE={args.today_file}")
             except Exception as error:  # noqa: BLE001 — 已刪檔，消費端退回 DB；不擋日型判定
                 print(f"WARN 今日賽程檔寫入失敗（已刪檔）：{type(error).__name__}: {error}", file=sys.stderr)
