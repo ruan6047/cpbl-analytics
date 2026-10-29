@@ -163,3 +163,11 @@ def _isolate_season_closure(monkeypatch):
 
     monkeypatch.setattr(daily_gate, "read_closure", lambda at=None: None)
     monkeypatch.setattr(postseason_evening, "read_closure", lambda now=None: None)
+
+
+@pytest.fixture(autouse=True)
+def _isolate_calendar_closure(monkeypatch):
+    """#391 審核 F1：月曆端點的收官判定同理（預設讀不到＝不標 not_needed）。"""
+    from cpbl.api.routers import games
+
+    monkeypatch.setattr(games, "_season_closure", lambda season: None)

@@ -13,6 +13,7 @@ import { LiveCalendarGame } from "@/components/live-calendar-game";
 import { PostseasonExplainer, slotGameLabel } from "@/components/postseason-series";
 import { AnnouncedCompact, AnnouncedMobile, PostseasonCalendarLegend } from "@/components/postseason-calendar";
 import { announcementFor } from "@/lib/postseason-announcement";
+import { calendarNotNeeded } from "@/lib/calendar-status";
 import { COVERAGE_COPY, hasScheduleChange, scheduleChangeCopy, scheduleChanges } from "@/lib/daily-summary";
 import {
   POSTSEASON_COPY, liveEntryProbes, liveEntryResults, postseasonJourneyFromContext, slotMayInvolve, withLiveEntries,
@@ -257,8 +258,9 @@ export default async function GamesPage({
                     // 打完就是「完賽」（延賽/保留性質改以「補賽／續賽」文字保留）；未打才顯示延賽/保留/未開打
                     // 季後正式場次（#237）：已過公告開賽時間仍無賽果 → 賽果待更新。
                     const js = slotByRow.get(`${g.kind_code}-${g.game_sno}`);
-                    // #391：系列已分勝負後的未舉行列（§63 剩餘比賽取消，如台灣大賽 G7）——不是未開打、也不給單場連結。
-                    const notNeeded = !done && js?.status === "not_needed";
+                    // #391：系列已分勝負後的未舉行列（§63 剩餘比賽取消，如台灣大賽 G7；二軍 F 讀 calendar 端點的
+                    // not_needed）——不是未開打、也不給單場連結。
+                    const notNeeded = calendarNotNeeded(g, js?.status, done);
                     const st = notNeeded ? { label: POSTSEASON_COPY.status.not_needed, tone: "done" as StatusTone }
                       : !done && changedRow(g) ? changeStatus
                       : !done && js?.status === "result_pending"
@@ -334,7 +336,7 @@ export default async function GamesPage({
                 const awayWin = done && g.away_score > g.home_score;
                 const homeWin = done && g.home_score > g.away_score;
                 const js = slotByRow.get(`${g.kind_code}-${g.game_sno}`);
-                const notNeeded = !done && js?.status === "not_needed";   // #391，同桌機
+                const notNeeded = calendarNotNeeded(g, js?.status, done);   // #391，同桌機
                 const st = notNeeded ? { label: POSTSEASON_COPY.status.not_needed, tone: "done" as StatusTone }
                   : !done && changedRow(g) ? changeStatus
                   : !done && js?.status === "result_pending"

@@ -260,6 +260,8 @@ export type CalendarGame = {
   orig_date: string | null;
   /** 後端 canonical 完賽判定（#237 新增；舊 API 沒有）。前端只對 2026 起的 E／C 讀它。 */
   completed?: boolean;
+  /** #391：該軍已收官、本列為決勝後未舉行（`cpbl.season_close` 的 not_needed）。舊 API 沒有＝false。 */
+  not_needed?: boolean;
 };
 export type GamesCalendarResponse = { season: number; items: CalendarGame[] };
 
