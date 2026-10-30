@@ -44,6 +44,7 @@ import {
   buildDecisions, buildMilestoneChips, delayNoteOf, num, summaryLine,
 } from "./game-summary";
 import { gameHighlightsSource } from "@/lib/game-highlights-source";
+import { liveViewFor } from "@/lib/not-needed-game";
 import { isProvisional, isRecapReady, type GameFacts } from "@/lib/game-facts";
 import {
   applyLiveSnapshot,
@@ -101,6 +102,8 @@ export default function GameLivePage() {
   // #345：快照 final 但終場比分待確認（`final_pending`）；與最近一次完整 /live 的時刻（定期重抓用）。
   const finalPendingRef = useRef(false);
   const lastFullAtRef = useRef(0);
+  // #391：false＝本場依條件不需進行，停止即時輪詢（由 series_context 推得後更新；見下方 effect）。
+  const pollRef = useRef(true);
   // #345 plan-2：DB 原始列（覆蓋前）的比分；輪詢時比分與 DB 不同的 final 快照不接回。
   const dbScoreRef = useRef<{ away_score?: unknown; home_score?: unknown }>({});
   const [idx, setIdx] = useState(0);
@@ -176,6 +179,8 @@ export default function GameLivePage() {
 
     const schedule = () => {
       clearTimer();
+      // #391：依條件不需進行的場次不會再有賽況，⛔ 不再排即時輪詢（liveViewFor 的 poll=false）。
+      if (!pollRef.current) return;
       const delay = nextPollDelay(snapshotRef.current, document.visibilityState === "visible", finalPendingRef.current);
       if (delay !== null) timer = setTimeout(() => void refresh(false), delay);
     };
@@ -183,6 +188,8 @@ export default function GameLivePage() {
     const refresh = async (initial: boolean) => {
       clearTimer();
       if (document.visibilityState !== "visible") return;
+      // #391：series_context 晚於首次 /live 到達時，先前排下的那一次輪詢在這裡作廢（不發 /status）。
+      if (!initial && !pollRef.current) return;
       try {
         if (initial) {
           await loadFull();
@@ -254,6 +261,13 @@ export default function GameLivePage() {
     return () => { disposed = true; };
   }, [kind, year]);
 
+  // #391：series_context 推得本場 not_needed 後停止即時輪詢（與呈現同一支 liveViewFor 判定）。
+  const notNeededSlot = (kind === "E" || kind === "C")
+    && arrangedSlotForGame(seriesContext, kind, Number(sno))?.display_status === "not_needed";
+  useEffect(() => {
+    pollRef.current = liveViewFor(notNeededSlot, null, null).poll;
+  }, [notNeededSlot]);
+
   // 「下一場觀戰報告」只在可靠 Y（既有 journey 正式列且定位回本場）時取代場間報告入口；無 target 不顯示。
   const backendFinal = data?.game ? officialCompletionOf(data.game) === true : false;
   useEffect(() => {
@@ -281,8 +295,17 @@ export default function GameLivePage() {
   if (!data.game) return <EmptyState>查無此場比賽。</EmptyState>;
 
   const g = data.game;
-  const liveSnapshot = (data as Live & { live_snapshot?: LiveSnapshot | null }).live_snapshot ?? null;
-  const liveInterrupted = refreshIssue !== null || liveSnapshot?.freshness === "stale";
+  const gameKind = String(g.kind_code ?? kind);
+  const season = Number(g.year ?? year);
+  const postseasonSlot = (gameKind === "E" || gameKind === "C")
+    ? arrangedSlotForGame(seriesContext, gameKind, Number(sno)) : null;
+  // #391：系列已 decided 後仍未完賽的列（後端 `display_status=not_needed`，§63 剩餘比賽取消）——不是「尚未開賽」。
+  // 這種場次的即時快照（開賽前觀測窗留下、可能已停更）不得再決定狀態章、更新中斷提示與先發名單（liveViewFor）。
+  const notNeeded = postseasonSlot?.display_status === "not_needed";
+  const liveView = liveViewFor(notNeeded, (data as Live & { live_snapshot?: LiveSnapshot | null }).live_snapshot ?? null,
+    refreshIssue);
+  const liveSnapshot = liveView.snapshot;
+  const liveInterrupted = liveView.interrupted;
   const hs = num(g.home_score);
   const aw = num(g.away_score);
   // 頁面層完賽觸發（既有語意，形式化進 spec）；資料層由後端 facts 的 render_state 表達。
@@ -351,12 +374,7 @@ export default function GameLivePage() {
   if (delayNote) info.push([String(g.delay_kind), delayNote]);
 
   // #273 R2／N36：季後未開賽頁講清楚何時、何地、可能不舉行，並給觀戰報告入口（落點由報告頁自己核實是否為下一場）。
-  const gameKind = String(g.kind_code ?? kind);
-  const season = Number(g.year ?? year);
-  const postseasonSlot = (gameKind === "E" || gameKind === "C")
-    ? arrangedSlotForGame(seriesContext, gameKind, Number(sno)) : null;
-  // #391：系列已 decided 後仍未完賽的列（後端 `display_status=not_needed`，§63 剩餘比賽取消）——不是「尚未開賽」。
-  const notNeeded = postseasonSlot?.display_status === "not_needed";
+  // gameKind／season／postseasonSlot／notNeeded 於上方（快照呈現之前）算好。
   const startText = taipeiTime(liveSnapshot?.starts_at ?? null) ?? postseasonSlot?.start ?? null;
   const postseasonInfo = (gameKind === "E" || gameKind === "C") && Number.isInteger(season) ? (
     <div data-testid="postseason-pregame-info" className="space-y-1.5 rounded-md bg-surface px-4 py-3 text-sm text-ink">
