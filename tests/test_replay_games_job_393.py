@@ -26,6 +26,7 @@ def body(root, rows):
 
 @pytest.fixture
 def job(tmp_path, monkeypatch):
+    monkeypatch.setenv("DATABASE_URL", "postgresql://x:x@127.0.0.1:1/x")
     shutil.copytree(FIXTURE, tmp_path / "input")
     root = tmp_path / "input"
     body(root, [ROW])
