@@ -77,8 +77,11 @@ def _outside_roster(data):
 # 改呼叫 pa_incremental apply（逐批送出、批間暫停、中途失敗即停）、本機端 ssh 連線重用、上方註解改寫
 # （77968 → 80410 bytes）。ROSTER_ONLY 區塊未動（下方第二個斷言仍以 #316 合併結果比對）。
 # 舊值：區塊之前 2e54518d…ab92f（22468 bytes）、區塊之後 93b123af…682df（77968 bytes，origin/main d63ca987）。
+# #398 WP1（只改「區塊之前」基準、保護不減，待需求方追認）：--help 新增 DAILY_SENTINEL_MARKER 說明、
+# start_availability_sentinel 在變數存在時寫 marker（22949 → 23828 bytes）；區塊之後未變。
+# 舊值：區塊之前 b8242332…0d51（22949 bytes，origin/main 14c0c6b4）。ROSTER_ONLY 區塊未動。
 OUTSIDE_ROSTER_SHA256 = (
-    "b82423327ff579de41b44d08f1c4b09bfbe94bde80530f996c097ba14e6e0d51",   # 區塊之前（22949 bytes）
+    "fd979e90da07f89a8ddecb3ab54078c31d47fd8b6bccd2b6521badc21d28dfd3",   # 區塊之前（23828 bytes）
     "51ecd63ca96caa79a1bb2a3289c62ccfe511dd28ab4fc44d6bbfe556da6a424b",   # 區塊之後（80410 bytes）
 )
 # #316 的成果（ROSTER_ONLY 區塊本身）以 main 上合併後的版本為準：#293 不得改動它。

@@ -6,8 +6,36 @@ import sys
 from datetime import datetime, timedelta
 from pathlib import Path
 
+import pytest
+
 ROOT = Path(__file__).parents[1]
 SYSTEM_PYTHON = "/usr/bin/python3" if Path("/usr/bin/python3").exists() else sys.executable
+
+
+# #398 python3 樁：攔 prod_availability.py（記 argv、停止檔是否已預建、當下狀態檔內容），
+# 其餘一律 exec 系統 python3。FAIL_STATUS_START=1 讓 refresh_status.py start 失敗（B6 exit 70）。
+_PYTHON3_STUB = r"""#!/bin/sh
+case "$1" in
+  */prod_availability.py)
+    n=$(ls "$SENTINEL_CALL_DIR" | grep -c '^call-')
+    f="$SENTINEL_CALL_DIR/call-$n.txt"
+    : > "$f"
+    prev=""
+    for a in "$@"; do
+      printf '%s\n' "$a" >> "$f"
+      if [ "$prev" = "--stop-file" ] && [ -e "$a" ]; then echo '#stop-file-present' >> "$f"; fi
+      prev="$a"
+    done
+    if [ -f logs/last-status.json ]; then cp logs/last-status.json "$SENTINEL_CALL_DIR/status-at-call-$n.json"; fi
+    if [ -n "${SENTINEL_STUB_TERM_PARENT:-}" ]; then kill -TERM "$PPID"; fi
+    exit "${SENTINEL_STUB_RC:-0}"
+    ;;
+  */refresh_status.py)
+    if [ "$2" = start ] && [ -n "${FAIL_STATUS_START:-}" ]; then exit 1; fi
+    ;;
+esac
+exec @SYSTEM_PYTHON@ "$@"
+"""
 
 
 def _executable(path: Path, content: str) -> None:
@@ -24,6 +52,11 @@ def _run_daily(
     trigger: str = "manual",
     active_lock_pid: int | None = None,
     announcement_lock: bool = False,
+    day_type: str | None = None,
+    sync_body: str | None = None,
+    sync_prod: str = "1",
+    extra_env: dict[str, str] | None = None,
+    uv_body: str | None = None,
 ) -> tuple[subprocess.CompletedProcess[str], dict[str, object]]:
     repo = tmp_path / "repo"
     scripts = repo / "scripts"
@@ -37,8 +70,25 @@ def _run_daily(
 
     docker_output = "cpbl-analytics-db-1\n" if docker_running else ""
     _executable(fake_bin / "docker", f"#!/bin/sh\nprintf '{docker_output}'\n")
-    _executable(fake_bin / "uv", f"#!/bin/sh\nexit {uv_exit}\n")
-    _executable(scripts / "refresh-cpbl-prod.sh", f"#!/bin/sh\nexit {sync_exit}\n")
+    if uv_body is not None:
+        _executable(fake_bin / "uv", uv_body)
+    elif day_type is not None:
+        # 日型判定樁：decide 印出指定日型；其餘 uv 呼叫照 uv_exit。
+        _executable(
+            fake_bin / "uv",
+            "#!/bin/sh\n"
+            f'case "$*" in *"daily_gate decide"*) printf \'DAY_TYPE={day_type}\\nREASON=test\\n\'; exit 0;; esac\n'
+            f"exit {uv_exit}\n",
+        )
+    else:
+        _executable(fake_bin / "uv", f"#!/bin/sh\nexit {uv_exit}\n")
+    _executable(scripts / "refresh-cpbl-prod.sh", sync_body or f"#!/bin/sh\nexit {sync_exit}\n")
+    # #398：每次執行都裝上 python3 樁。prod_availability.py 的呼叫只記錄、⛔ 不打任何端點；
+    # 其餘（refresh_status.py）交回系統 python3。
+    sentinel_calls = tmp_path / "sentinel-calls"
+    sentinel_calls.mkdir()
+    _executable(fake_bin / "python3", _PYTHON3_STUB.replace("@SYSTEM_PYTHON@", SYSTEM_PYTHON))
+    (tmp_path / "tmp").mkdir()
 
     lock_dir = tmp_path / "refresh.lock"
     if active_lock_pid is not None:
@@ -54,9 +104,15 @@ def _run_daily(
             "PATH": f"{fake_bin}:/usr/bin:/bin",
             "REFRESH_TRIGGER": trigger,
             "REFRESH_LOCK_DIR": str(lock_dir),
-            "SYNC_PROD": "1",
+            "SYNC_PROD": sync_prod,
+            "TMPDIR": str(tmp_path / "tmp"),
+            "SENTINEL_CALL_DIR": str(sentinel_calls),
+            # fail-safe：樁沒攔到也打不到正式站、送不出 ping。
+            "API_INFO_URL": "http://127.0.0.1:9/api/info",
+            **(extra_env or {}),
         }
     )
+    env.pop("CPBL_AVAILABILITY_PING_URL", None)
     result = subprocess.run(
         ["/bin/bash", str(scripts / "scrape-daily.sh")],
         cwd=repo,
@@ -395,3 +451,172 @@ def test_natural_daily_queues_for_transient_announcement_owner_then_runs_entire_
     assert result.returncode==0
     assert status["state"]=="succeeded" and status["scrape_ok"] and status["sync_ok"]
     assert status["trigger"]=="launchd"  # 合成wrapper證據，不當實際10:10自然run。
+
+
+# ============================================ #398 非同步日的可用性補位（B1–B7）
+
+
+def _sentinel_calls(tmp_path: Path) -> list[list[str]]:
+    """python3 樁錄下的 prod_availability.py 呼叫（每次一個檔，依序號排序）。"""
+    files = sorted((tmp_path / "sentinel-calls").glob("call-*.txt"), key=lambda p: int(p.stem.split("-")[1]))
+    return [p.read_text(encoding="utf-8").splitlines() for p in files]
+
+
+def _assert_one_fallback_with_existing_sentinel_args(tmp_path: Path) -> list[str]:
+    calls = _sentinel_calls(tmp_path)
+    assert len(calls) == 1, f"補位應剛好 1 次，實際 {len(calls)} 次：{calls}"
+    argv = calls[0]
+    repo = tmp_path / "repo"
+    assert argv[0] == str(repo / "scripts" / "prod_availability.py")
+    assert argv[1] == "sentinel", "必須是既有哨兵子命令（不是 probe、不是第二套判準）"
+    assert argv[argv.index("--base-url") + 1] == "http://127.0.0.1:9", "base 由 API_INFO_URL 去掉 /api/info"
+    assert argv[argv.index("--env-file") + 1] == str(repo / ".env")
+    out = argv[argv.index("--out") + 1]
+    assert out.startswith(str(repo / "logs" / "availability-sentinel-")) and out.endswith(".tsv")
+    assert "#stop-file-present" in argv, "停止檔須預先建好（取樣一輪後再量 120 秒即判定）"
+    assert not list((tmp_path / "tmp").glob("cpbl-daily-sentinel-*")), "停止檔與 marker 須清掉"
+    return argv
+
+
+def _assert_status_untouched_by_fallback(tmp_path: Path) -> None:
+    """補位在狀態檔寫完之後才跑，且不改它：補位當下的內容＝最終內容。"""
+    snapshot = tmp_path / "sentinel-calls" / "status-at-call-0.json"
+    final = tmp_path / "repo" / "logs" / "last-status.json"
+    assert snapshot.exists() and final.exists()
+    assert json.loads(snapshot.read_text(encoding="utf-8")) == json.loads(final.read_text(encoding="utf-8"))
+    assert json.loads(final.read_text(encoding="utf-8"))["state"] != "running", "補位須在 finish 寫完之後"
+
+
+def _log_text(tmp_path: Path) -> str:
+    return next((tmp_path / "repo" / "logs").glob("refresh-*.log")).read_text(encoding="utf-8")
+
+
+# 補位本身成功或失敗（樁回 0／1）都不得改變離開碼與狀態檔。
+_SENTINEL_RC = [{}, {"SENTINEL_STUB_RC": "1"}]
+_SENTINEL_RC_IDS = ["sentinel-rc0", "sentinel-rc1"]
+
+
+@pytest.mark.parametrize("extra", _SENTINEL_RC, ids=_SENTINEL_RC_IDS)
+def test_b1_skip_day_runs_fallback_once_and_keeps_exit_code(tmp_path: Path, extra) -> None:
+    result, status = _run_daily(tmp_path, trigger="launchd", day_type="skip", extra_env=extra)
+
+    assert result.returncode == 0
+    assert status["state"] == "succeeded" and status["skipped"] is True
+    assert status["sync_attempted"] is False
+    _assert_one_fallback_with_existing_sentinel_args(tmp_path)
+    _assert_status_untouched_by_fallback(tmp_path)
+    log = _log_text(tmp_path)
+    assert "可用性補位" in log and "day_type=skip" in log
+
+
+@pytest.mark.parametrize("extra", _SENTINEL_RC, ids=_SENTINEL_RC_IDS)
+def test_b2_missing_local_database_runs_fallback_once(tmp_path: Path, extra) -> None:
+    result, status = _run_daily(tmp_path, docker_running=False, extra_env=extra)
+
+    assert result.returncode == 127
+    assert status["failed_phase"] == "scrape" and status["sync_attempted"] is False
+    _assert_one_fallback_with_existing_sentinel_args(tmp_path)
+    _assert_status_untouched_by_fallback(tmp_path)
+
+
+@pytest.mark.parametrize("extra", _SENTINEL_RC, ids=_SENTINEL_RC_IDS)
+def test_b3_scrape_failure_runs_fallback_once(tmp_path: Path, extra) -> None:
+    result, status = _run_daily(tmp_path, uv_exit=9, extra_env=extra)
+
+    assert result.returncode == 9
+    assert status["failed_phase"] == "scrape" and status["sync_attempted"] is False
+    _assert_one_fallback_with_existing_sentinel_args(tmp_path)
+    _assert_status_untouched_by_fallback(tmp_path)
+
+
+@pytest.mark.parametrize("extra", _SENTINEL_RC, ids=_SENTINEL_RC_IDS)
+def test_b4_sync_disabled_runs_fallback_once(tmp_path: Path, extra) -> None:
+    result, status = _run_daily(tmp_path, sync_prod="0", extra_env=extra)
+
+    assert result.returncode == 0
+    assert status["state"] == "succeeded" and status["sync_attempted"] is False
+    _assert_one_fallback_with_existing_sentinel_args(tmp_path)
+    _assert_status_untouched_by_fallback(tmp_path)
+
+
+@pytest.mark.parametrize("extra", _SENTINEL_RC, ids=_SENTINEL_RC_IDS)
+def test_b5_sync_attempted_but_refresh_ended_before_sentinel_runs_fallback_once(tmp_path: Path, extra) -> None:
+    """refresh 在啟動哨兵前結束（例：exit 65 取不到 freshness 基準）＝沒寫 marker ⇒ 要補。"""
+    result, status = _run_daily(tmp_path, sync_exit=65, extra_env=extra)
+
+    assert result.returncode == 65
+    assert status["failed_phase"] == "sync" and status["sync_attempted"] is True
+    assert status["sync_exit_code"] == 65
+    _assert_one_fallback_with_existing_sentinel_args(tmp_path)
+    _assert_status_untouched_by_fallback(tmp_path)
+
+
+@pytest.mark.parametrize("extra", _SENTINEL_RC, ids=_SENTINEL_RC_IDS)
+def test_b6_start_status_write_failure_runs_fallback_once(tmp_path: Path, extra) -> None:
+    result, status = _run_daily(tmp_path, extra_env={"FAIL_STATUS_START": "1", **extra})
+
+    assert result.returncode == 70
+    assert status == {}, "start 失敗時本來就沒有狀態檔；補位不得補寫"
+    _assert_one_fallback_with_existing_sentinel_args(tmp_path)
+    log = _log_text(tmp_path)
+    assert "無法寫入 refresh running 狀態" in log and "exit=70" in log
+
+
+def test_b7_trapped_signal_runs_fallback_once_and_keeps_signal_exit_code(tmp_path: Path) -> None:
+    """爬取中收到 SIGTERM（launchd 停止）：照原碼 143 離開，補位仍跑一次。"""
+    uv = (
+        "#!/bin/sh\n"
+        'case "$*" in *cpbl-refresh-recent*) kill -TERM "$PPID";; esac\n'
+        "exit 0\n"
+    )
+    result, status = _run_daily(tmp_path, trigger="launchd", uv_body=uv)
+
+    assert result.returncode == 143
+    assert status["state"] == "running", "訊號中斷時狀態檔本來就停在 running（不由補位改寫）"
+    _assert_one_fallback_with_existing_sentinel_args(tmp_path)
+
+
+def test_signal_during_fallback_still_releases_lock_and_keeps_exit_code(tmp_path: Path) -> None:
+    """補位期間收到 SIGTERM：放鎖、照原碼離開（狀態檔在補位前已定案），不留 stale lock。"""
+    result, status = _run_daily(tmp_path, day_type="skip", extra_env={"SENTINEL_STUB_TERM_PARENT": "1"})
+
+    assert result.returncode == 0
+    assert status["state"] == "succeeded"
+    assert len(_sentinel_calls(tmp_path)) == 1
+    assert not (tmp_path / "refresh.lock").exists(), "中斷補位不得留下 refresh lock"
+    assert not list((tmp_path / "tmp").glob("cpbl-daily-sentinel-*")), "停止檔與 marker 須清掉"
+
+
+_MARKING_REFRESH = '#!/bin/sh\n: > "$DAILY_SENTINEL_MARKER"\nexit {rc}\n'
+
+
+@pytest.mark.parametrize("rc", [0, 17], ids=["sync-ok", "sync-failed-after-sentinel"])
+def test_sync_day_with_marker_runs_no_fallback(tmp_path: Path, rc: int) -> None:
+    """同步日：refresh 已啟動哨兵（寫了 marker）⇒ 補位 0 次，離開碼與狀態照舊（#398 驗收 3）。"""
+    result, status = _run_daily(tmp_path, trigger="launchd", sync_body=_MARKING_REFRESH.format(rc=rc))
+
+    assert result.returncode == rc
+    assert status["sync_attempted"] is True and status["sync_ok"] is (rc == 0)
+    assert _sentinel_calls(tmp_path) == []
+    assert not list((tmp_path / "tmp").glob("cpbl-daily-sentinel-*")), "marker 用完須清掉"
+    assert "可用性補位" not in _log_text(tmp_path)
+
+
+def test_lock_contention_exit_does_not_run_fallback(tmp_path: Path) -> None:
+    """75（取鎖失敗）屬「鏈本身沒執行」（#398 D1）：不補位，也不碰別人的 marker。"""
+    result, _ = _run_daily(tmp_path, active_lock_pid=os.getpid())
+
+    assert result.returncode == 75
+    assert _sentinel_calls(tmp_path) == []
+
+
+def test_fallback_has_no_success_path_of_its_own() -> None:
+    """主風險（無條件送成功）：補位只呼叫既有 sentinel，自己不送 ping、不讀 ping URL、不判定。"""
+    source = (ROOT / "scripts" / "scrape-daily.sh").read_text(encoding="utf-8")
+    body = source.split("availability_fallback() {", 1)[1].split("\n}\n", 1)[0]
+    assert body.count("prod_availability.py") == 1
+    assert 'prod_availability.py" sentinel ' in body
+    for forbidden in ("curl", "CPBL_AVAILABILITY_PING_URL", " probe", "/fail", "urllib"):
+        assert forbidden not in body, forbidden
+    trap_lines = [ln.strip() for ln in source.splitlines() if ln.strip().startswith("trap ") and "EXIT" in ln]
+    assert trap_lines == ["trap on_exit EXIT"], trap_lines
