@@ -17,6 +17,7 @@
 # 用法：scripts/scrape-daily.sh --help   # 只印用法，不碰任何東西
 #       scripts/scrape-daily.sh          # 完整增量（games+累計+對戰+分項+逐球…）
 #       scripts/scrape-daily.sh fast     # 只更新 games+累計，跳過耗時細項
+#       scripts/scrape-daily.sh --jobs-features  # jobs 單次特徵建置（受保護 DATABASE_URL）
 set -uo pipefail
 
 # ============================================================== argv 守衛
@@ -51,7 +52,10 @@ scripts/scrape-daily.sh — 每日本機自動爬取，成功後同步 productio
   scripts/scrape-daily.sh          # 完整增量（games+累計+對戰+分項+逐球…）
   scripts/scrape-daily.sh fast     # 只更新 games+累計，跳過耗時細項
   SYNC_PROD=0 scripts/scrape-daily.sh   # 只爬本機，不同步 production
-  位置參數只接受 fast；其餘一律 exit 64。launchd 以無參數呼叫。
+  scripts/scrape-daily.sh --jobs-features  # 只建 game_features；不爬、不同步、不 migrate、不訓練
+  jobs 需明確 DATABASE_URL、cwd 不得有 .env；schema 已由部署備妥，調度端負責單 writer 互斥。
+  jobs 只回報特徵步驟，不代表推論／發布／每日整鏈完成；不讀寫 Mac 狀態檔或送 ping。
+  Mac 位置參數只接受 fast；其餘一律 exit 64。launchd 以無參數呼叫。
 
 日型閘門（#364；PLAN-r2 §3.2，判定在 src/cpbl/ingest/daily_gate.py）
   取鎖後先判日型（只讀本機 games＋狀態檔；甲型候選另唯讀查 stats 賽程）：
@@ -87,6 +91,14 @@ EOF
 
 if [ "$#" -gt 0 ]; then
   case "$1" in
+    --jobs-features)
+      if [ "$#" -ne 1 ]; then
+        echo '--jobs-features 不接受其他參數' >&2
+        exit 64
+      fi
+      # 在 Mac 路徑、日期、鎖、狀態檔與控制操作之前分流；由 jobs 映像 PATH 選 Python。
+      exec python -m cpbl.features.run_build_features --jobs
+      ;;
     -h|--help)
       usage
       exit 0
