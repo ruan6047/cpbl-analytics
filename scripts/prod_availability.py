@@ -62,6 +62,17 @@ PROBE_FIRST: tuple[tuple[str, str], ...] = (
 )
 
 
+class SentinelTerminated(BaseException):  # noqa: N818 — 名稱沿用規劃 r2 §1
+    """呼叫端以 SIGTERM 結束本程序（#398 規劃 r2 §1）。
+
+    ⛔ 刻意繼承 BaseException、不得改回 Exception：``curl_sample()``／``send()`` 都以 ``except Exception``
+    把「量不到／送不出」轉成結果；訊號例外若是 Exception，落在取樣中會被吞成一筆 000 樣本、量測繼續
+    （#398 審核第 2 輪 F1-R2：每日鏈補位逾時的 SIGTERM 被吞，持鎖到 6 小時保險絲）。BaseException 一路
+    傳到 ``main()`` 的偵測器失敗路徑，照樣送告警。``subprocess.run`` 在任何例外下都會先 kill 子程序，
+    正在跑的 curl 不會成為孤兒。
+    """
+
+
 @dataclass(frozen=True)
 class Sample:
     at: float
@@ -217,9 +228,18 @@ def main(argv: list[str] | None = None) -> int:
     base = args.base_url.rstrip("/")
 
     def _terminated(signum, _frame):  # 呼叫端等待逾時而結束本程序：走下方「偵測器自身失敗」照樣告警
-        raise RuntimeError(f"terminated by signal {signum}")
+        # 第一次觸發就忽略後續 SIGTERM：接著要送偵測器失敗告警，再來一個訊號會把它打斷（每程序最多一個訊號）。
+        signal.signal(signal.SIGTERM, signal.SIG_IGN)
+        raise SentinelTerminated(f"terminated by signal {signum}")
 
-    signal.signal(signal.SIGTERM, _terminated)
+    previous = signal.signal(signal.SIGTERM, _terminated)
+    try:
+        return _run(args, base)
+    finally:
+        signal.signal(signal.SIGTERM, previous)  # 行程內呼叫（測試）不殘留本函式的處理器
+
+
+def _run(args: argparse.Namespace, base: str) -> int:
     try:
         if args.command == "sentinel":
             parent = os.getppid()
@@ -233,17 +253,21 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"probe {s.label} http={s.code} connect={s.connect:.3f}s "
                       f"starttransfer={s.starttransfer:.3f}s total={s.seconds:.3f}s", flush=True)
             verdict = judge(samples, labels={"info"})
+        # 結果已判定、開始送出：此後忽略 SIGTERM（#398 規劃 r2 §1-3）。否則送成功途中被訊號打斷，會再走
+        # 下方失敗路徑多送一個告警＝同一次兩個矛盾訊號（驗收 3／D4）。送出本身受 urlopen timeout=10 限制，
+        # 呼叫端（每日鏈補位）的寬限 ≥ 這個值，逾寬限仍以 SIGKILL 收尾。
+        signal.signal(signal.SIGTERM, signal.SIG_IGN)
         text = summary_text(args.command, verdict)
         print(f"    ⓘ {text}", flush=True)
         print(f"    ⓘ {send(ping_url(args.env_file), verdict['ok'], text)}", flush=True)
-    except Exception as exc:  # noqa: BLE001 — 偵測器自身失敗：不改變呼叫端成敗，但照樣告警
+    except (Exception, SentinelTerminated) as exc:  # noqa: BLE001 — 偵測器自身失敗：不改變呼叫端成敗，但照樣告警
         # fail-closed：量測沒完成＝沒有「全部合格」的證據，與 0 樣本同等處理。
         print(f"    ⚠ prod_availability {args.command} 自身失敗（{type(exc).__name__}）；"
               "不影響呼叫端", file=sys.stderr, flush=True)
         try:
             text = f"cpbl prod availability {args.command} FAIL: detector error {type(exc).__name__}"
             print(f"    ⓘ {send(ping_url(args.env_file), False, text)}", flush=True)
-        except Exception:  # noqa: BLE001
+        except (Exception, SentinelTerminated):  # noqa: BLE001 — 告警本身送不出也不得改變呼叫端成敗
             pass
     return 0
 

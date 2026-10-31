@@ -1,6 +1,7 @@
 import json
 import os
 import shutil
+import signal
 import subprocess
 import sys
 from datetime import datetime, timedelta
@@ -65,6 +66,8 @@ def _run_daily(
     extra_env: dict[str, str] | None = None,
     uv_body: str | None = None,
     extra_bin: dict[str, str] | None = None,
+    real_sentinel: bool = False,
+    timeout: float | None = None,
 ) -> tuple[subprocess.CompletedProcess[str], dict[str, object]]:
     repo = tmp_path / "repo"
     scripts = repo / "scripts"
@@ -93,9 +96,14 @@ def _run_daily(
     _executable(scripts / "refresh-cpbl-prod.sh", sync_body or f"#!/bin/sh\nexit {sync_exit}\n")
     # #398：每次執行都裝上 python3 樁。prod_availability.py 的呼叫只記錄、⛔ 不打任何端點；
     # 其餘（refresh_status.py）交回系統 python3。
+    # real_sentinel=True：不裝樁，複製**真** prod_availability.py，由 PATH 上的系統 python3 執行（T4）；
+    # 呼叫端須自備假 curl 與假收件端（只連 127.0.0.1）。
     sentinel_calls = tmp_path / "sentinel-calls"
     sentinel_calls.mkdir()
-    _executable(fake_bin / "python3", _PYTHON3_STUB.replace("@SYSTEM_PYTHON@", SYSTEM_PYTHON))
+    if real_sentinel:
+        shutil.copy2(ROOT / "scripts" / "prod_availability.py", scripts / "prod_availability.py")
+    else:
+        _executable(fake_bin / "python3", _PYTHON3_STUB.replace("@SYSTEM_PYTHON@", SYSTEM_PYTHON))
     (tmp_path / "tmp").mkdir()
     for name, body in (extra_bin or {}).items():
         _executable(fake_bin / name, body)
@@ -109,6 +117,7 @@ def _run_daily(
             _executable(fake_bin / "sleep", f"#!/bin/sh\nrm '{lock_dir}/pid' '{lock_dir}/kind'\nrmdir '{lock_dir}'\n")
 
     env = os.environ.copy()
+    env.pop("CPBL_AVAILABILITY_PING_URL", None)  # 先清掉外部值；測試要用假收件端時由 extra_env 帶入
     env.update(
         {
             "PATH": f"{fake_bin}:/usr/bin:/bin",
@@ -122,15 +131,18 @@ def _run_daily(
             **(extra_env or {}),
         }
     )
-    env.pop("CPBL_AVAILABILITY_PING_URL", None)
-    result = subprocess.run(
+    proc = subprocess.Popen(
         ["/bin/bash", str(scripts / "scrape-daily.sh")],
-        cwd=repo,
-        env=env,
-        text=True,
-        capture_output=True,
-        check=False,
+        cwd=repo, env=env, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+        start_new_session=True,
     )
+    try:
+        out, err = proc.communicate(timeout=timeout)
+    except subprocess.TimeoutExpired:
+        os.killpg(proc.pid, signal.SIGKILL)  # 整個程序群組收尾（含背景哨兵），⛔ 不留孤兒
+        out, err = proc.communicate()
+        pytest.fail(f"每日鏈 {timeout}s 內沒有結束（補位無界？）\nstdout={out}\nstderr={err}")
+    result = subprocess.CompletedProcess(proc.args, proc.returncode, out, err)
     status_path = repo / "logs" / "last-status.json"
     status = json.loads(status_path.read_text(encoding="utf-8")) if status_path.exists() else {}
     return result, status
@@ -651,34 +663,85 @@ def test_f1_unusable_tmpdir_moves_stop_file_to_logs_so_fallback_stays_short(tmp_
     assert not (tmp_path / "refresh.lock").exists()
 
 
-def test_f1_stop_file_creation_failure_is_bounded_and_releases_lock(tmp_path: Path) -> None:
-    """停止檔建不起來（審核 F1 的失效）：補位在上限內 SIGTERM 收尾、放鎖，離開碼與狀態不變。
+_FAILING_STOP_TOUCH = (
+    '#!/bin/sh\ncase "$*" in *cpbl-daily-sentinel-stop*) exit 1;; esac\nexec /usr/bin/touch "$@"\n'
+)
 
-    假 `touch` 只對停止檔失敗；python3 樁仿真真哨兵「停止檔不出現就一直量」。沒有上限時本測試會卡到
-    pytest 逾時（真哨兵是 6 小時）。上限以 DAILY_SENTINEL_WAIT_MAX 縮成 2 秒。
+
+def test_t4_stop_file_failure_with_real_sentinel_ends_bounded_with_one_detector_alert(tmp_path: Path) -> None:
+    """T4（#398 規劃 r2；Codex F1-R2 探針形狀）：真每日鏈＋**真** prod_availability.py（系統 python3）。
+
+    停止檔建不起來（假 touch）、假 curl 每筆睡 8 秒、等待上限縮成 2 秒：逾時 SIGTERM 必落在取樣中
+    （修正前會被 curl_sample() 吞掉、持鎖繼續量）。期望：Python 自己送一筆偵測器失敗告警後結束（不需
+    SIGKILL）、整支鏈有界結束並放鎖，離開碼與狀態不變。
     """
+    import time
+
+    from tests.test_prod_availability_353 import _FAKE_CURL, Receiver
+
+    receiver = Receiver()
+    try:
+        started = time.monotonic()
+        result, status = _run_daily(
+            tmp_path, day_type="skip", real_sentinel=True, timeout=60,
+            extra_env={"DAILY_SENTINEL_WAIT_MAX": "2", "CPBL_AVAILABILITY_PING_URL": receiver.url,
+                       "FAKE_CURL_CALLS": str(tmp_path / "curl-calls"), "FAKE_CURL_SLEEP": "8"},
+            extra_bin={"touch": _FAILING_STOP_TOUCH, "curl": _FAKE_CURL},
+        )
+        elapsed = time.monotonic() - started
+    finally:
+        receiver.close()
+
+    assert elapsed < 2 + 20 + 15, f"每日鏈 {elapsed:.1f}s 才結束"
+    assert result.returncode == 0
+    assert status["state"] == "succeeded" and status["skipped"] is True
+    assert not (tmp_path / "refresh.lock").exists(), "補位收尾後必須放鎖"
+    assert receiver.oks() == [], receiver.posts
+    assert len(receiver.fails()) == 1, receiver.posts
+    assert "detector error SentinelTerminated" in receiver.fails()[0]
+    log = _log_text(tmp_path)
+    assert "停止檔建立失敗" in log and "已送 SIGTERM" in log
+    assert "SIGKILL" not in log, "真哨兵應在寬限內自己結束，不需 SIGKILL"
+    assert receiver.url not in log, "log 不得含 ping URL"
+    assert not list((tmp_path / "repo" / "logs").glob("cpbl-daily-sentinel-*"))
+
+
+_TERM_IGNORING_PYTHON3 = f"""#!/bin/sh
+case "$1" in
+  */prod_availability.py)
+    echo $$ > "$SENTINEL_CALL_DIR/ignoring-pid"
+    trap '' TERM
+    exec /bin/sleep 600
+    ;;
+esac
+exec {SYSTEM_PYTHON} "$@"
+"""
+
+
+def test_t5_sentinel_ignoring_sigterm_is_sigkilled_after_grace(tmp_path: Path) -> None:
+    """T5：哨兵（樁）忽略 SIGTERM 時，鏈端在寬限後 SIGKILL，鎖照放、離開碼不變。只驗後備上限。"""
     import time
 
     started = time.monotonic()
     result, status = _run_daily(
-        tmp_path, day_type="skip",
-        extra_env={"SENTINEL_STUB_WAIT_STOP": "1", "DAILY_SENTINEL_WAIT_MAX": "2"},
-        extra_bin={"touch": '#!/bin/sh\ncase "$*" in *cpbl-daily-sentinel-stop*) exit 1;; esac\n'
-                            'exec /usr/bin/touch "$@"\n'},
+        tmp_path, day_type="skip", timeout=60,
+        extra_env={"DAILY_SENTINEL_WAIT_MAX": "2"},
+        extra_bin={"python3": _TERM_IGNORING_PYTHON3},
     )
     elapsed = time.monotonic() - started
 
-    assert elapsed < 30, f"補位沒有被上限收尾（{elapsed:.1f}s）"
+    assert elapsed < 2 + 20 + 15, f"每日鏈 {elapsed:.1f}s 才結束"
     assert result.returncode == 0
-    assert status["state"] == "succeeded" and status["skipped"] is True
-    calls = _sentinel_calls(tmp_path)
-    assert len(calls) == 1
-    assert "#stop-file-present" not in calls[0], "前提：停止檔確實沒建起來"
-    assert "#terminated" in calls[0], "逾時須送 SIGTERM（真哨兵據此以偵測器失敗告警）"
-    _assert_status_untouched_by_fallback(tmp_path)
-    assert not (tmp_path / "refresh.lock").exists(), "補位收尾後必須放鎖"
-    log = _log_text(tmp_path)
-    assert "停止檔建立失敗" in log and "已送 SIGTERM" in log
+    assert status["state"] == "succeeded"
+    assert not (tmp_path / "refresh.lock").exists()
+    assert "已送 SIGKILL" in _log_text(tmp_path)
+    pid = int((tmp_path / "sentinel-calls" / "ignoring-pid").read_text())
+    try:
+        os.kill(pid, 0)
+        alive = True
+    except ProcessLookupError:
+        alive = False
+    assert not alive, "忽略 TERM 的哨兵必須被 SIGKILL 收掉"
 
 
 def test_f1_fallback_wait_bound_matches_refresh_sentinel_bound() -> None:

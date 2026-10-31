@@ -183,6 +183,11 @@ export DAILY_SENTINEL_MARKER
 # 取樣 3×(10+5)s＝165s，給到 240s；逾時（例：停止檔仍建不起來）就送 SIGTERM，哨兵以「偵測器自身失敗」
 # 告警（fail-closed），⛔ 補位不得無界持鎖。DAILY_SENTINEL_WAIT_MAX 只供測試縮短，正式排程不設。
 FALLBACK_WAIT_MAX="${DAILY_SENTINEL_WAIT_MAX:-240}"
+# SIGTERM 後的寬限（#398 規劃 r2 §2）：哨兵收到 SIGTERM 會送偵測器失敗告警（urlopen timeout 10 秒）
+# ＋一輪 curl 收尾餘裕（CURL_MAX_TIME 10 秒）＝20 秒；⛔ 不得小於送出逾時，否則告警會被 SIGKILL 截斷。
+# 仍未結束（例：DNS 等不可中斷的阻塞）才 SIGKILL——鎖一定在 240＋20 秒左右釋放。Python 修正保證「語意」
+# （TERM 一定變告警），這一層保證「時間」，兩者互補、不是重複守衛。
+FALLBACK_KILL_GRACE=20
 FALLBACK_PID=""
 availability_fallback() {  # $1＝本腳本即將使用的離開碼（只寫進 log，不改它）
   local rc="$1" out="${LOG:-/dev/stderr}" waited=0 sentinel_rc=0
@@ -204,8 +209,17 @@ availability_fallback() {  # $1＝本腳本即將使用的離開碼（只寫進 
       waited=$((waited + 1))
     done
     if kill -0 "$FALLBACK_PID" 2>/dev/null; then
-      echo "[$(date '+%F %T')] ⚠ 可用性補位 ${FALLBACK_WAIT_MAX} 秒內未結束，已送 SIGTERM（哨兵以自身失敗告警）"
+      echo "[$(date '+%F %T')] ⚠ 可用性補位 ${FALLBACK_WAIT_MAX} 秒內未結束，已送 SIGTERM（哨兵以偵測器失敗告警；寬限 ${FALLBACK_KILL_GRACE} 秒）"
       kill "$FALLBACK_PID" 2>/dev/null || true
+      waited=0
+      while kill -0 "$FALLBACK_PID" 2>/dev/null && [ "$waited" -lt "$FALLBACK_KILL_GRACE" ]; do
+        sleep 1
+        waited=$((waited + 1))
+      done
+      if kill -0 "$FALLBACK_PID" 2>/dev/null; then
+        echo "[$(date '+%F %T')] ⚠ 可用性補位寬限 ${FALLBACK_KILL_GRACE} 秒內仍未結束，已送 SIGKILL（本次沒有告警，由 check 逾時涵蓋）"
+        kill -KILL "$FALLBACK_PID" 2>/dev/null || true
+      fi
     fi
     wait "$FALLBACK_PID" 2>/dev/null || sentinel_rc=$?
     FALLBACK_PID=""
