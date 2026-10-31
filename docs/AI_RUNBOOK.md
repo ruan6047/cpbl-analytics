@@ -245,6 +245,32 @@ v2在同一交易鎖兩隊後追加；任一隊失敗全rollback，同內容重�
 
 **每日刷新現況（最後驗證 2026-07-19）**：本機 launchd 10:10 已成功完成爬取與 production 同步（`sync_ok=true`）。仍必須每天以 `refresh_status.py check --scheduled` 檢查；成功同步不等於資料語意正確——目前 `BUG-HELD-GAME-FRESHNESS1` 已證實未完成保留賽會污染 `last_game_date`，修復前不得僅以 freshness gate 判定資料正確。
 
+### jobs 單次賽果特徵建置（#393）
+
+既有每日入口的 `scripts/scrape-daily.sh --jobs-features` 在 Mac 控制操作前，直接執行
+`python -m cpbl.features.run_build_features --jobs`。jobs 只委派原
+`cpbl.features.outcome.materialize()`：由既有正式來源表重建一軍例行賽的全史賽果特徵
+`cpbl.game_features`（原函式在交易內 TRUNCATE＋INSERT），不是季打擊 projection。
+不執行 migrate、取源、Mac→VPS 同步、備份、重訓／走查回測、狀態檔或 ping。
+無參數／`fast` 的 Mac 每日鏈、無 `--jobs` 的特徵 CLI 與手動訓練語義不變。
+
+jobs 接線介面（由 PersonalWebsite 承接部署，不以程式入口代表已部署）：
+
+- 命令：映像內 `python -m cpbl.features.run_build_features --jobs`；有原每日腳本的來源環境可用
+  `bash scripts/scrape-daily.sh --jobs-features`，兩者是同一路徑。現有 API Dockerfile 不封裝
+  `scripts/`；若使用 shell 命令，另提供與套件同版的唯讀腳本，不能退回 Mac 同步鏈。
+- 設定：由受保護環境注入明確 `DATABASE_URL`；工作目錄不得有 `.env`，不接受程式先前載入的
+  不同 DB 設定。沿 `cpbl.db.conn()`，不自行建庫、套 schema 或修權限。
+- 前置：部署完成與本來源版本相容的 schema／特徵來源資料；DB 角色需既有來源表的 SELECT
+  與 `game_features` 的 TRUNCATE／INSERT／UPDATE 權限。調度端須序列化同表 writer；本入口
+  不取 Mac 共享鎖。正式執行仍依核定資源租用，不沿用其他操作窗口。
+- 輸出：單行 JSON，scope 固定 `game_features`、stage、row_count、errors、ok；只有步驟及關池
+  成功且 errors 空才 rc0，其餘 rc1。失敗可能發生於特徵交易提交後的關池，不宣稱整體回滾。
+- 消費方：既有 `/api/v1/outcome/pregame` 與每日摘要沿 `load_outcome_rows()` 讀新特徵，
+  使用 `ARTIFACT_DIR/outcome_simple.joblib` 在請求時推論；API 保持既有 serving／降級語義。
+  特徵 job 不讀寫模型工件、不因工件缺席自動訓練；API 端仍需相容的受信任唯讀工件。
+  特徵成功只代表該步完成，推論可讀／發布與正式切換仍須對部署版本留下端到端收據。
+
 ### 本機每日爬取（launchd 每日觸發，時刻見 `docs/SCHEDULE_TIMELINE.md`；手動為 fallback）
 
 launchd 在使用者登入態每日觸發 `scripts/scrape-daily.sh`（時刻以 `scripts/schedule-registry.json` 為準，說明見 `docs/SCHEDULE_TIMELINE.md` §1.1）；腳本先寫
