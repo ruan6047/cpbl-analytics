@@ -42,6 +42,10 @@ scripts/scrape-daily.sh — 每日本機自動爬取，成功後同步 productio
   · production PostgreSQL：由步驟 3 的同步鏈寫入（SYNC_PROD=0 可關閉）
   · 本機檔案系統：logs/refresh-YYYYMMDD-HHMMSS.log（只留最近 30 份）、
     logs/last-status.json、logs/last-launchd-status.json
+  · 正式站 HTTP 檢查＋可用性 ping（#398）：沒走到同步收尾哨兵的執行（甲型 skip、爬取失敗、
+    DB 容器沒開、SYNC_PROD=0 等）結束前，以 scripts/prod_availability.py sentinel 對正式站量約
+    2 分鐘，寫 logs/availability-sentinel-*.tsv，依結果對 .env 的 CPBL_AVAILABILITY_PING_URL 送
+    成功 ping 或告警；同步日由 refresh-cpbl-prod.sh 的哨兵送，同一次執行只送一個。不影響離開碼
 
 怎麼呼叫
   scripts/scrape-daily.sh          # 完整增量（games+累計+對戰+分項+逐球…）
@@ -147,7 +151,94 @@ if ! mkdir "$LOCK_DIR" 2>/dev/null; then
   fi
 fi
 printf '%s\n' "$$" > "$LOCK_DIR/pid"
-trap release_lock EXIT
+
+# —— #398 非同步日的可用性補位 ——
+# 正式站可用性 check（healthchecks `cpbl-prod-availability`，週期 1 天）原本只由同步收尾哨兵
+# （refresh-cpbl-prod.sh 的 start_availability_sentinel，#353 WP4a）回報。凡是鏈有跑、卻沒走到那一步
+# 的日子（甲型 skip、本機 DB 容器沒開 127、爬取失敗、SYNC_PROD=0、已嘗試同步但 refresh 在啟動哨兵前
+# 就結束、start 狀態寫入失敗 70、可攔到的訊號中斷），check 收不到任何結果：休季時正常站台被誤報 DOWN，
+# 而真停機也被一個停在 DOWN 的 check 蓋掉（#398 需求）。
+# 做法：refresh 先寫 marker（路徑由這裡經 DAILY_SENTINEL_MARKER 傳入），**寫成功才**啟動它自己的哨兵；
+# 寫不進去就不啟動、交給這裡補位（marker 是唯一送出者的判定，同一次執行只有一個哨兵，#398 審核 F2）。
+# EXIT trap 看不到 marker 就以**同一支** prod_availability.py sentinel 跑一次（停止檔預先建好＝取樣一輪後
+# 再量 120 秒，約 2 分鐘）。⛔ 刻意不另寫判準或改用 probe：判準、端點、送法必須與同步日的哨兵逐字相同，
+# 否則就是第二套監測（#398 限制）。⛔ 刻意不看 SYNC_ATTEMPTED：已嘗試同步但沒到哨兵的出口也要補。
+# 刻意走系統 python3（同 refresh_status.py）：DB 容器沒開或 uv 起不來的日子也要能量。
+# ⛔ 補位的任何結果都不改本腳本的離開碼與狀態檔（狀態檔在補位之前就已寫完，daily check 的 ping 不延後）。
+# 鎖取不到（75）、參數錯（64）、--help 都在這之前結束、不補位：屬「鏈本身沒執行」（#398 D1 裁定）。
+# 停用＝把 EXIT trap 改回只呼叫 release_lock（#398 規劃 §5 回復方式＝revert）。
+# marker 與停止檔的目錄：TMPDIR 不存在或不可寫時改用 repo 的 logs/（每日鏈本來就要寫那裡）。⛔ 不可
+# 無條件用 TMPDIR：停止檔建不起來時哨兵要等 6 小時保險絲才停（#398 審核 F1），refresh 的 marker 也會
+# 寫不進去而讓整次改由補位量測。
+SENTINEL_TMP="${TMPDIR:-/tmp}"
+if ! { [ -d "$SENTINEL_TMP" ] && [ -w "$SENTINEL_TMP" ]; }; then
+  SENTINEL_TMP="$REPO_DIR/logs"
+  mkdir -p "$SENTINEL_TMP" 2>/dev/null || true
+fi
+DAILY_SENTINEL_MARKER="$SENTINEL_TMP/cpbl-daily-sentinel-started.$$"
+DAILY_SENTINEL_STOP="$SENTINEL_TMP/cpbl-daily-sentinel-stop.$$"
+rm -f "$DAILY_SENTINEL_MARKER" "$DAILY_SENTINEL_STOP" 2>/dev/null || true
+export DAILY_SENTINEL_MARKER
+# 補位等待上限（#398 審核 F1）：與 refresh 的 SENTINEL_WAIT_MAX 同值同理——停止後最長＝tail 120s＋一輪
+# 取樣 3×(10+5)s＝165s，給到 240s；逾時（例：停止檔仍建不起來）就送 SIGTERM，哨兵以「偵測器自身失敗」
+# 告警（fail-closed），⛔ 補位不得無界持鎖。DAILY_SENTINEL_WAIT_MAX 只供測試縮短，正式排程不設。
+FALLBACK_WAIT_MAX="${DAILY_SENTINEL_WAIT_MAX:-240}"
+# SIGTERM 後的寬限（#398 規劃 r2 §2）：哨兵收到 SIGTERM 會送偵測器失敗告警（urlopen timeout 10 秒）
+# ＋一輪 curl 收尾餘裕（CURL_MAX_TIME 10 秒）＝20 秒；⛔ 不得小於送出逾時，否則告警會被 SIGKILL 截斷。
+# 仍未結束（例：DNS 等不可中斷的阻塞）才 SIGKILL——鎖一定在 240＋20 秒左右釋放。Python 修正保證「語意」
+# （TERM 一定變告警），這一層保證「時間」，兩者互補、不是重複守衛。
+FALLBACK_KILL_GRACE=20
+FALLBACK_PID=""
+availability_fallback() {  # $1＝本腳本即將使用的離開碼（只寫進 log，不改它）
+  local rc="$1" out="${LOG:-/dev/stderr}" waited=0 sentinel_rc=0
+  if [ -e "$DAILY_SENTINEL_MARKER" ]; then
+    rm -f "$DAILY_SENTINEL_MARKER" 2>/dev/null || true
+    return 0
+  fi
+  local api_info_url="${API_INFO_URL:-https://cpbl.ruan-ruan.com/api/info}"
+  {
+    echo "[$(date '+%F %T')] 可用性補位：本次未啟動同步收尾哨兵（day_type=${DAY_TYPE:-未判定} scrape_code=${CODE:-未執行} sync_attempted=${SYNC_ATTEMPTED:-0} exit=${rc}）→ 單獨跑一次 prod_availability sentinel（約 2 分鐘）"
+    touch "$DAILY_SENTINEL_STOP" 2>/dev/null \
+      || echo "[$(date '+%F %T')] ⚠ 可用性補位：停止檔建立失敗，${FALLBACK_WAIT_MAX} 秒後以 SIGTERM 收尾（哨兵以偵測器失敗告警）"
+    python3 "$REPO_DIR/scripts/prod_availability.py" sentinel --stop-file "$DAILY_SENTINEL_STOP" \
+      --base-url "${api_info_url%/api/info}" --env-file "$REPO_DIR/.env" \
+      --out "$REPO_DIR/logs/availability-sentinel-$(date +%Y%m%d-%H%M%S).tsv" </dev/null &
+    FALLBACK_PID=$!
+    while kill -0 "$FALLBACK_PID" 2>/dev/null && [ "$waited" -lt "$FALLBACK_WAIT_MAX" ]; do
+      sleep 1
+      waited=$((waited + 1))
+    done
+    if kill -0 "$FALLBACK_PID" 2>/dev/null; then
+      echo "[$(date '+%F %T')] ⚠ 可用性補位 ${FALLBACK_WAIT_MAX} 秒內未結束，已送 SIGTERM（哨兵以偵測器失敗告警；寬限 ${FALLBACK_KILL_GRACE} 秒）"
+      kill "$FALLBACK_PID" 2>/dev/null || true
+      waited=0
+      while kill -0 "$FALLBACK_PID" 2>/dev/null && [ "$waited" -lt "$FALLBACK_KILL_GRACE" ]; do
+        sleep 1
+        waited=$((waited + 1))
+      done
+      if kill -0 "$FALLBACK_PID" 2>/dev/null; then
+        echo "[$(date '+%F %T')] ⚠ 可用性補位寬限 ${FALLBACK_KILL_GRACE} 秒內仍未結束，已送 SIGKILL（本次沒有告警，由 check 逾時涵蓋）"
+        kill -KILL "$FALLBACK_PID" 2>/dev/null || true
+      fi
+    fi
+    wait "$FALLBACK_PID" 2>/dev/null || sentinel_rc=$?
+    FALLBACK_PID=""
+    [ "$sentinel_rc" -eq 0 ] || echo "[$(date '+%F %T')] ⚠ 可用性補位 exit=${sentinel_rc}（不影響本次離開碼）"
+  } >>"$out" 2>&1
+  rm -f "$DAILY_SENTINEL_STOP" "$DAILY_SENTINEL_MARKER" 2>/dev/null || true
+}
+# 單一 EXIT trap（bash 一個訊號只有一個 trap）：先補位、再放鎖，最後照原碼離開。
+# 補位期間若收到 INT／TERM／HUP，原本的 `exit 130/143` trap 會在 EXIT trap 裡直接結束、跳過
+# release_lock，留下待下次回收的 stale lock；所以這裡改成「結束補位哨兵（SIGTERM→哨兵以偵測器失敗
+# 告警，fail-closed）、清檔、放鎖後照原碼離開」——狀態檔與離開碼在補位前就已定案，中斷只影響補位本身。
+on_exit() {
+  local rc=$?
+  trap '[ -z "$FALLBACK_PID" ] || kill "$FALLBACK_PID" 2>/dev/null; rm -f "$DAILY_SENTINEL_STOP" "$DAILY_SENTINEL_MARKER" 2>/dev/null; release_lock; exit "$rc"' INT TERM HUP
+  availability_fallback "$rc" || true
+  release_lock
+  exit "$rc"
+}
+trap on_exit EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM HUP
 
