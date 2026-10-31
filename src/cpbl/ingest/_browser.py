@@ -27,8 +27,12 @@ import re
 from collections.abc import Iterator
 from contextlib import contextmanager
 from datetime import datetime
+from typing import TYPE_CHECKING
 from urllib.parse import urlencode, urlsplit
 from zoneinfo import ZoneInfo
+
+if TYPE_CHECKING:
+    from cpbl.ingest._replay import ReplaySession
 
 log = logging.getLogger("cpbl.browser")
 # #293 r3：官網 www 導頁的固定標記（預設不作用；只有 www_marker() 區塊內才寫）。
@@ -337,8 +341,15 @@ class _Session:
 _session: _Session | None = None
 
 
-def session() -> _Session:
+def session() -> _Session | ReplaySession:
     """取得（或建立）共用瀏覽器 session。"""
+    manifest = os.environ.get("CPBL_REPLAY_MANIFEST")
+    bundle = os.environ.get("CPBL_REPLAY_BUNDLE")
+    if manifest is not None or bundle is not None:
+        from cpbl.ingest._replay import ReplayError, replay_session
+        if not manifest or not bundle:
+            raise ReplayError("回放需同時指定 CPBL_REPLAY_MANIFEST 與 CPBL_REPLAY_BUNDLE")
+        return replay_session(manifest, bundle)
     global _session
     if _session is None:
         log.info("啟動 Playwright 瀏覽器以過官網反爬挑戰…")
