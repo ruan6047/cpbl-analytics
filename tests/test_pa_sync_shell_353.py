@@ -278,10 +278,11 @@ def test_manual_refresh_without_marker_env_writes_no_marker(tmp_path: Path) -> N
 
 
 def test_marker_write_failure_never_changes_the_chain_result(tmp_path: Path) -> None:
-    """marker 寫不進去只警告（set -e 下必須隔離）；同步照跑、退出碼不變。"""
+    """marker 寫不進去：警告、**不啟動**這裡的哨兵（交給每日鏈補位，#398 審核 F2），同步照跑、退出碼不變。"""
     marker = tmp_path / "no-such-dir" / "cpbl-daily-sentinel-started.test"
     result, _, uv = _run(tmp_path, DAILY_SENTINEL_MARKER=str(marker))
     assert result.returncode == 0, result.stderr
     assert "marker 寫入失敗" in result.stderr
     assert not marker.exists()
+    assert _sentinel_calls(uv) == [], "marker 沒寫成就不得啟動同步哨兵，否則同一次鏈會有兩個"
     assert len(_pa_uv(uv, "apply")) == 1 and len(_pa_uv(uv, "reconcile")) == 1, "後續同步必須照常執行"

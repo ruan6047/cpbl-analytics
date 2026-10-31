@@ -90,8 +90,9 @@ scripts/refresh-cpbl-prod.sh — 把本機 CPBL 資料同步到 production（四
   DAILY_FORCE_FULL
                 1＝不套 §3.5 閘門，四步照跑（逃生閥）
   DAILY_SENTINEL_MARKER
-                每日鏈（scrape-daily.sh）帶入的檔案路徑（#398）：可用性哨兵啟動後寫一個空檔，每日鏈
-                據此不在收尾補跑哨兵。未設定＝手動直呼，不寫任何檔
+                每日鏈（scrape-daily.sh）帶入的檔案路徑（#398）：啟動可用性哨兵前先寫一個空檔，每日鏈
+                據此不在收尾補跑；寫不進去＝本次不啟動哨兵、由每日鏈補位（同一次只送一個）。
+                未設定＝手動直呼，不寫任何檔、照舊啟動哨兵
   PA_FULL_RESYNC
                 1＝PA 五表改跑全量模式（全部場逐批 DELETE＋重灌，不 TRUNCATE；需 WITH_DETAIL）。
                 只在全族對帳不等、經需求方個案授權時人工指定（#353 D5）；帶 DAILY_DAY_TYPE 一律拒絕
@@ -175,6 +176,15 @@ SENTINEL_STOP=""
 # 若外洩，就會讓每日鏈以該碼結束。log 目錄建不起來就改寫 TMPDIR；呼叫端再以 `|| …` 兜底。
 start_availability_sentinel() {
   local out_dir="$REPO_DIR/logs"
+  # #398：每日鏈（scrape-daily.sh）經 DAILY_SENTINEL_MARKER 傳入 marker 路徑；marker 存在＝「本次由這裡的
+  # 哨兵送」，每日鏈收尾就不補跑。**先寫 marker、寫成功才啟動**（#398 審核 F2）：若先啟動再寫，寫入失敗
+  # 會讓同一次鏈有兩個哨兵、可能送出互相矛盾的兩個訊號。寫不進去＝這裡不啟動、交給每日鏈補位（仍只有
+  # 一個哨兵；量測窗改為同步結束後約 2 分鐘）。寫入錯誤在 set -e 下以 if 隔離，不讓同步失敗。
+  # ⛔ 刻意只在變數存在時寫：手動直呼本腳本不留任何檔，照舊啟動哨兵。
+  if [ -n "${DAILY_SENTINEL_MARKER:-}" ] && ! { : > "$DAILY_SENTINEL_MARKER"; } 2>/dev/null; then
+    echo "    ⚠ 可用性哨兵 marker 寫入失敗：本次不啟動同步哨兵，改由每日鏈收尾補位（同一次執行只送一個）" >&2
+    return 0
+  fi
   SENTINEL_STOP="${TMPDIR:-/tmp}/cpbl-sentinel-stop.$$"
   rm -f "$SENTINEL_STOP" 2>/dev/null || true
   if ! mkdir -p "$out_dir" 2>/dev/null; then
@@ -186,13 +196,6 @@ start_availability_sentinel() {
     --out "${out_dir}/availability-sentinel-$(date +%Y%m%d-%H%M%S).tsv" </dev/null &
   SENTINEL_PID=$!
   echo "    ⓘ 可用性哨兵已啟動（每 15 秒；結束後再量 120 秒）"
-  # #398：每日鏈（scrape-daily.sh）經 DAILY_SENTINEL_MARKER 傳入 marker 路徑，據此判斷「本次已有哨兵」，
-  # 不再於收尾補跑一次（同一次鏈執行只送一個可用性訊號）。⛔ 刻意只在變數存在時寫：手動直呼本腳本
-  # 不留任何檔。寫入失敗只警告（set -e 下必須隔離，否則會讓同步失敗）；代價是每日鏈會補跑一次哨兵。
-  if [ -n "${DAILY_SENTINEL_MARKER:-}" ]; then
-    { : > "$DAILY_SENTINEL_MARKER"; } 2>/dev/null \
-      || echo "    ⚠ 可用性哨兵 marker 寫入失敗（每日鏈收尾會再補跑一次哨兵）" >&2
-  fi
 }
 # 等待有上限（#353 審核 1 第 1 項）：哨兵停止後最長＝tail 120s＋一輪取樣 3×(10+5)s＝165s；
 # 給到 240s，逾時就送 SIGTERM（哨兵收到後以「偵測器自身失敗」告警），⛔ 每日鏈不得被哨兵卡住。

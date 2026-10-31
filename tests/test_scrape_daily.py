@@ -28,6 +28,13 @@ case "$1" in
     done
     if [ -f logs/last-status.json ]; then cp logs/last-status.json "$SENTINEL_CALL_DIR/status-at-call-$n.json"; fi
     if [ -n "${SENTINEL_STUB_TERM_PARENT:-}" ]; then kill -TERM "$PPID"; fi
+    if [ -n "${SENTINEL_STUB_WAIT_STOP:-}" ]; then
+      # 仿真哨兵：停止檔不出現就一直量（真哨兵是 6 小時保險絲）；收到 SIGTERM 記下並結束。
+      stop=$(sed -n '/^--stop-file$/{n;p;}' "$f")
+      trap 'echo "#terminated" >> "$f"; exit 0' TERM
+      while [ ! -e "$stop" ]; do sleep 0.1; done
+      echo '#stopped-by-file' >> "$f"
+    fi
     exit "${SENTINEL_STUB_RC:-0}"
     ;;
   */refresh_status.py)
@@ -57,6 +64,7 @@ def _run_daily(
     sync_prod: str = "1",
     extra_env: dict[str, str] | None = None,
     uv_body: str | None = None,
+    extra_bin: dict[str, str] | None = None,
 ) -> tuple[subprocess.CompletedProcess[str], dict[str, object]]:
     repo = tmp_path / "repo"
     scripts = repo / "scripts"
@@ -89,6 +97,8 @@ def _run_daily(
     sentinel_calls.mkdir()
     _executable(fake_bin / "python3", _PYTHON3_STUB.replace("@SYSTEM_PYTHON@", SYSTEM_PYTHON))
     (tmp_path / "tmp").mkdir()
+    for name, body in (extra_bin or {}).items():
+        _executable(fake_bin / name, body)
 
     lock_dir = tmp_path / "refresh.lock"
     if active_lock_pid is not None:
@@ -620,3 +630,121 @@ def test_fallback_has_no_success_path_of_its_own() -> None:
         assert forbidden not in body, forbidden
     trap_lines = [ln.strip() for ln in source.splitlines() if ln.strip().startswith("trap ") and "EXIT" in ln]
     assert trap_lines == ["trap on_exit EXIT"], trap_lines
+
+
+# ------------------------------------------- #398 審核第 1 輪 F1：補位必須有界、停止檔要建得起來
+
+
+def test_f1_unusable_tmpdir_moves_stop_file_to_logs_so_fallback_stays_short(tmp_path: Path) -> None:
+    """TMPDIR 不存在：停止檔與 marker 改放 logs/，補位照樣預建停止檔（不會等 6 小時保險絲）。"""
+    result, status = _run_daily(
+        tmp_path, day_type="skip",
+        extra_env={"TMPDIR": str(tmp_path / "no-such-tmp"), "SENTINEL_STUB_WAIT_STOP": "1"},
+    )
+
+    assert result.returncode == 0
+    assert status["state"] == "succeeded"
+    argv = _assert_one_fallback_with_existing_sentinel_args(tmp_path)
+    assert argv[argv.index("--stop-file") + 1].startswith(str(tmp_path / "repo" / "logs" / "cpbl-daily-sentinel-stop."))
+    assert "#stopped-by-file" in argv and "#terminated" not in argv
+    assert not list((tmp_path / "repo" / "logs").glob("cpbl-daily-sentinel-*")), "logs/ 裡的停止檔與 marker 須清掉"
+    assert not (tmp_path / "refresh.lock").exists()
+
+
+def test_f1_stop_file_creation_failure_is_bounded_and_releases_lock(tmp_path: Path) -> None:
+    """停止檔建不起來（審核 F1 的失效）：補位在上限內 SIGTERM 收尾、放鎖，離開碼與狀態不變。
+
+    假 `touch` 只對停止檔失敗；python3 樁仿真真哨兵「停止檔不出現就一直量」。沒有上限時本測試會卡到
+    pytest 逾時（真哨兵是 6 小時）。上限以 DAILY_SENTINEL_WAIT_MAX 縮成 2 秒。
+    """
+    import time
+
+    started = time.monotonic()
+    result, status = _run_daily(
+        tmp_path, day_type="skip",
+        extra_env={"SENTINEL_STUB_WAIT_STOP": "1", "DAILY_SENTINEL_WAIT_MAX": "2"},
+        extra_bin={"touch": '#!/bin/sh\ncase "$*" in *cpbl-daily-sentinel-stop*) exit 1;; esac\n'
+                            'exec /usr/bin/touch "$@"\n'},
+    )
+    elapsed = time.monotonic() - started
+
+    assert elapsed < 30, f"補位沒有被上限收尾（{elapsed:.1f}s）"
+    assert result.returncode == 0
+    assert status["state"] == "succeeded" and status["skipped"] is True
+    calls = _sentinel_calls(tmp_path)
+    assert len(calls) == 1
+    assert "#stop-file-present" not in calls[0], "前提：停止檔確實沒建起來"
+    assert "#terminated" in calls[0], "逾時須送 SIGTERM（真哨兵據此以偵測器失敗告警）"
+    _assert_status_untouched_by_fallback(tmp_path)
+    assert not (tmp_path / "refresh.lock").exists(), "補位收尾後必須放鎖"
+    log = _log_text(tmp_path)
+    assert "停止檔建立失敗" in log and "已送 SIGTERM" in log
+
+
+def test_f1_fallback_wait_bound_matches_refresh_sentinel_bound() -> None:
+    """預設上限與 refresh 的 SENTINEL_WAIT_MAX 同值，且涵蓋 tail＋一輪取樣（不是隨手選的數字）。"""
+    daily = (ROOT / "scripts" / "scrape-daily.sh").read_text(encoding="utf-8")
+    refresh = (ROOT / "scripts" / "refresh-cpbl-prod.sh").read_text(encoding="utf-8")
+    default = int(daily.split('FALLBACK_WAIT_MAX="${DAILY_SENTINEL_WAIT_MAX:-', 1)[1].split("}", 1)[0])
+    assert default == int(refresh.split("SENTINEL_WAIT_MAX=", 1)[1].split("\n", 1)[0])
+    assert default >= 120 + 3 * (10 + 5)
+
+
+# ------------------------------------------- #398 審核第 1 輪 F2：marker 失敗路徑也只有一個哨兵
+
+
+def _refresh_stub_with_real_sentinel_start() -> str:
+    """假 refresh：逐字嵌入真 `start_availability_sentinel`，只呼叫它（uv 是只記錄的樁）。
+
+    FORCE_MARKER_FAIL=1 把 refresh 這一側的 marker 路徑改到不存在的目錄＝模擬寫入失敗；每日鏈那一側
+    看的仍是原路徑，所以組合起來就是審核 F2 的情境。
+    """
+    source = (ROOT / "scripts" / "refresh-cpbl-prod.sh").read_text(encoding="utf-8")
+    start = source.index("start_availability_sentinel() {")
+    func = source[start:source.index("\n}\n", start) + 3]
+    return (
+        "#!/bin/bash\nset -euo pipefail\n"
+        'REPO_DIR="$(cd "$(dirname "$0")/.." && pwd)"\n'
+        'API_INFO_URL="${API_INFO_URL:-https://cpbl.ruan-ruan.com/api/info}"\n'
+        'SENTINEL_PID=""\nSENTINEL_STOP=""\n'
+        f"{func}"
+        'if [ -n "${FORCE_MARKER_FAIL:-}" ]; then DAILY_SENTINEL_MARKER="$DAILY_SENTINEL_MARKER.no-such-dir/x"; fi\n'
+        'start_availability_sentinel || echo "start failed" >&2\n'
+        '[ -z "$SENTINEL_PID" ] || wait "$SENTINEL_PID" || true\n'
+        "exit 0\n"
+    )
+
+
+_RECORDING_UV = (
+    "#!/bin/sh\n"
+    'case "$*" in *prod_availability.py*)\n'
+    '  n=$(ls "$SENTINEL_CALL_DIR" | grep -c \'^sync-\')\n'
+    '  printf \'%s\\n\' "$@" > "$SENTINEL_CALL_DIR/sync-$n.txt";;\n'
+    "esac\n"
+    "exit 0\n"
+)
+
+
+@pytest.mark.parametrize(
+    ("extra", "sync_launches", "fallback_launches"),
+    [({}, 1, 0), ({"FORCE_MARKER_FAIL": "1"}, 0, 1)],
+    ids=["marker-ok", "marker-write-fails"],
+)
+def test_f2_daily_chain_with_real_sentinel_start_launches_exactly_one(
+    tmp_path: Path, extra, sync_launches: int, fallback_launches: int
+) -> None:
+    """組合：真每日鏈＋真 start_availability_sentinel。marker 成敗兩路都只啟動一個哨兵。"""
+    result, status = _run_daily(
+        tmp_path, trigger="launchd", uv_body=_RECORDING_UV,
+        sync_body=_refresh_stub_with_real_sentinel_start(), extra_env=extra,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert status["sync_attempted"] is True and status["sync_ok"] is True
+    sync = list((tmp_path / "sentinel-calls").glob("sync-*.txt"))
+    assert len(sync) == sync_launches
+    assert len(_sentinel_calls(tmp_path)) == fallback_launches
+    assert len(sync) + len(_sentinel_calls(tmp_path)) == 1, "同一次鏈執行只能有一個哨兵（驗收 3、D4）"
+    if extra:
+        assert "marker 寫入失敗" in _log_text(tmp_path)
+    assert not list((tmp_path / "tmp").glob("cpbl-daily-sentinel-*"))
