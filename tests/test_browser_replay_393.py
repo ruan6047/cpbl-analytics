@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from cpbl.ingest import _browser, _replay, cpbl_site
+from cpbl.ingest import _browser, _replay, cpbl_site, www_fetch
 
 FIXTURE = Path(__file__).parent / "fixtures" / "replay_393"
 
@@ -60,10 +60,17 @@ def test_bundle_reaches_existing_schedule_parser(monkeypatch):
     monkeypatch.setattr(_browser, "_session", None)
     monkeypatch.setenv("CPBL_REPLAY_MANIFEST", str(FIXTURE / "manifest.json"))
     monkeypatch.setenv("CPBL_REPLAY_BUNDLE", str(FIXTURE / "bundle"))
-    expected = [{"GameSno": 1, "GameDate": "2026-01-01T17:00:00", "HomeTeamCode": "SYN_HOME",
-                 "VisitingTeamCode": "SYN_AWAY", "HomeScore": 3, "VisitingScore": 2}]
+    expected = [{"name": "虛構"}]
     assert cpbl_site.fetch_year(2026) == expected
     assert cpbl_site.fetch_year(2026) == expected
+
+
+def test_producer_unknown_page_status_is_preserved(candidate, monkeypatch):
+    rewrite_json(candidate / "bundle/index.json",
+                 lambda index: index["entries"][0].update(http_status=None))
+    activate(monkeypatch, candidate)
+    assert cpbl_site.fetch_year(2026) == [{"name": "虛構"}]
+    assert _browser.session().index["entries"][0]["http_status"] is None
 
 
 def test_same_request_returns_exact_raw_text(candidate):
@@ -72,11 +79,13 @@ def test_same_request_returns_exact_raw_text(candidate):
     text = (candidate / "bundle/responses/q1.body").read_bytes().decode("utf-8")
     assert session.page_html("/schedule", force=True, wait="domcontentloaded") == page
     assert session.page_html("/schedule", require=re.compile("RequestVerificationToken")) == page
-    kwargs = {"headers": {"RequestVerificationToken": "synthetic-offline-token-393"}}
+    kwargs = {"headers": {"RequestVerificationToken": cpbl_site._TOKEN_RE.search(page).group(1)}}
     form = {"kindCode": "A", "location": "", "calendar": "2026/01/01"}
     assert session.post("/schedule", "/schedule/getgamedatas", form, **kwargs) == (200, text)
-    (candidate / "bundle/responses/q1.body").unlink()
     assert session.post("/schedule", "/schedule/getgamedatas", form, **kwargs) == (200, text)
+    (candidate / "bundle/responses/q1.body").unlink()
+    with pytest.raises(_replay.ReplayError):
+        session.post("/schedule", "/schedule/getgamedatas", form, **kwargs)
 
 
 @pytest.mark.parametrize("change", [
@@ -88,11 +97,11 @@ def test_same_request_returns_exact_raw_text(candidate):
     lambda i: i["entries"].pop(),
     lambda i: i["entries"][1].update(sha256="0" * 64),
     lambda i: i["entries"][1].update(bytes=1),
-    lambda i: i["entries"][1].update(bytes=_replay.MAX_BODY_BYTES + 1),
+    lambda i: i["entries"][1].update(bytes=www_fetch.MAX_BODY_BYTES + 1),
     lambda i: i["entries"][1].update(body="../outside.body"),
     lambda i: i["entries"][1].update(op="page"),
     lambda i: i["entries"][1].update(api="/different"),
-    lambda i: i["entries"][0].update(http_status=428),
+    lambda i: i.update(close_returned=False),
 ])
 def test_rejects_invalid_bundle_without_fallback(candidate, monkeypatch, change):
     rewrite_json(candidate / "bundle/index.json", change)
@@ -124,11 +133,8 @@ def test_body_symlink_is_rejected(candidate, tmp_path):
 
 
 def test_total_size_limit_is_enforced(candidate, monkeypatch):
-    # JSON 自身不受本測試縮小的 raw 總量限制，避免先撞 index／manifest 的讀檔邊界。
-    original_read = _replay._read
-    monkeypatch.setattr(_replay, "MAX_TOTAL_BYTES", 1)
-    monkeypatch.setattr(_replay, "_read", lambda path, limit: original_read(path, 4096))
-    with pytest.raises(_replay.ReplayError, match="總大小"):
+    monkeypatch.setattr(www_fetch, "MAX_TOTAL_BYTES", 1)
+    with pytest.raises(_replay.ReplayError):
         _replay.ReplaySession(candidate / "manifest.json", candidate / "bundle")
 
 

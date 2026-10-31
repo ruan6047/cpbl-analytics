@@ -1,11 +1,11 @@
 {
   "schema": "cpbl-www-bundle/1",
-  "manifest_id": "offline-schedule-393",
-  "manifest_sha256": "58e40e56fd91c2501c56a46b8d61382edc24ccfef442207364242dcf131f0bb9",
-  "fetcher_version": "393-wp3.1",
-  "host": "offline-fixture",
-  "started_at": "2026-10-30T13:30:00+08:00",
-  "ended_at": "2026-10-30T13:30:02+08:00",
+  "manifest_id": "fixture-393",
+  "manifest_sha256": "2e9b20669514d97ee3ba0b204d772b493f8123714a00ce569e68af349668cb13",
+  "fetcher_version": "393-wp3-original.1",
+  "host": "ruanruandeMacBook-Pro.local",
+  "started_at": "2026-11-01T12:00:00+00:00",
+  "ended_at": "2026-11-01T12:00:00+00:00",
   "requests_sent": 2,
   "stopped": null,
   "complete": true,
@@ -13,32 +13,34 @@
     {
       "id": "p1",
       "op": "page",
-      "at": "2026-10-30T13:30:00+08:00",
-      "ms": 200,
-      "http_status": 200,
-      "body": "responses/p1.body",
-      "bytes": 86,
-      "sha256": "f0364933e9acbe2ea3cbb296288f7b176c5550c57040e57f2d3ad70439c7febb",
+      "at": "2026-11-01T12:00:00+00:00",
       "path": "/schedule",
-      "redirects": 0,
-      "error": null,
+      "http_status": 200,
       "require_ok": true,
-      "token_a": true,
-      "token_b": false
+      "ms": 0,
+      "body": "responses/p1.body",
+      "bytes": 92,
+      "sha256": "e8f69e8b79c3ec6f1f0517dbd70aa39ef59f5cb766ce05e0a5cbf205def30d05"
     },
     {
       "id": "q1",
       "op": "post",
-      "at": "2026-10-30T13:30:00+08:00",
-      "ms": 200,
-      "http_status": 200,
-      "body": "responses/q1.body",
-      "bytes": 200,
-      "sha256": "a9dbd13c1e9560dda32e2ddb0b460f68f379dc0757436f25315b08ff0d900903",
+      "at": "2026-11-01T12:00:00+00:00",
       "api": "/schedule/getgamedatas",
-      "resp_type": "basic",
-      "redirected": false,
-      "json_ok": true
+      "http_status": 200,
+      "ms": 0,
+      "body": "responses/q1.body",
+      "bytes": 54,
+      "sha256": "54960479a25b5509a5d1b0a36f5c3863ecd9fd062033002873c34f5f77b704b3"
     }
-  ]
+  ],
+  "observed": {
+    "request_events": 112,
+    "response_events": 112,
+    "redirect_responses": 10,
+    "page_websocket_events": 0,
+    "coverage": "SDK-visible lower bound"
+  },
+  "close_returned": true,
+  "original_browser_sha256": null
 }
