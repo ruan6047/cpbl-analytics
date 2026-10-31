@@ -39,7 +39,9 @@ grep -nE '^(DAILY_GUARD|BLOCK_RELEASE_AT|NIGHT_START|EVENING_GRACE|FALLBACK_DEAD
 - **registry 欄位**：`jobs[label=com.cpbl.scrape-daily].cadence`；外部期限 `.alert.schedule`、`.alert.grace_minutes`、`.alert.deadline`。
 - **服務的事件**：前一晚的完賽、box／livelog、stats 累計與逐球入庫，並同步正式站（E1–E3）。開頭依日型閘門（`src/cpbl/ingest/daily_gate.py`，#364）分流 full／light／sync_only／skip；聯盟收官後略過已收官軍別的爬蟲（#391，`src/cpbl/season_close.py`）。
 - **選這個時刻的理由**：時刻不受官方發布綁住。主要資料在終場後數分鐘到約半小時內就齊了（R1 §3 E2、E3〔M4〕），晚發布的 TrackMan 與賽後修訂以天、週計（E4、E5），每日鏈改到哪個時刻都抓不到它們，由週跑負責。實際約束有三個：Mac 醒著、本機 DB 容器開著、Runbook §3 的「時段紅線：勿改到深夜／凌晨」（官網深夜加嚴）（R1 §4.1）。
-- **資源足跡**：取 refresh lock；連本機 DB；full／light 日爬 www（Playwright）與 stats，sync_only 日只同步；同步日寫正式站。skip 日只判日型就結束（R1 §4.1〔M2b〕）。日型與各型做什麼以 `daily_gate.py` 為準。
+- **資源足跡**：取 refresh lock；連本機 DB；full／light 日爬 www（Playwright）與 stats，sync_only 日只同步；同步日寫正式站。日型與各型做什麼以 `daily_gate.py` 為準。
+  - 歷史觀測（R1，#399 合併前）：skip 日判完日型即結束（R1 §4.1〔M2b〕）。
+  - 現行程序（#399 起）：鏈有跑但沒走到同步收尾哨兵時（含 skip、爬取失敗、DB 容器沒開等），`scripts/scrape-daily.sh` 的 EXIT trap（`on_exit` → `availability_fallback`）會在狀態檔寫完後補跑一次 `scripts/prod_availability.py sentinel`，連正式站 `/api/info` 並送 healthchecks 的正式站可用性 check；補位跑完（或逾 `FALLBACK_WAIT_MAX`／`DAILY_SENTINEL_WAIT_MAX` 加 `FALLBACK_KILL_GRACE` 被終止）**之後才釋放 refresh lock**。所以 skip 日仍會持鎖一段時間並有網路活動；補位與同步哨兵以 `DAILY_SENTINEL_MARKER` 互斥（Runbook §11.1）。
   - 正在忙的訊號：refresh lock 存在；`logs/last-launchd-status.json`（只由 launchd 更新）或 `logs/last-status.json` 的 `state=running`。
 - **誰會看見失敗**：healthchecks check `daily`（registry `.alert`；失敗立即、缺席或延後在 `.alert.deadline`）；`schedule-watchdog` 依 `logs/schedule-history/com.cpbl.scrape-daily.jsonl` 判週期缺席。手動 fallback 不送 `daily` ping（Runbook §11.1）。
 
