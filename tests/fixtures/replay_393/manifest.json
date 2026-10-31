@@ -1,0 +1,35 @@
+{
+  "schema": "cpbl-www-manifest/1",
+  "manifest_id": "offline-schedule-393",
+  "window": {
+    "start": "2026-10-30T13:00:00+08:00",
+    "end": "2026-10-30T14:00:00+08:00"
+  },
+  "min_gap_s": 1.0,
+  "max_requests": 50,
+  "requests": [
+    {
+      "id": "p1",
+      "op": "page",
+      "path": "/schedule",
+      "wait": "networkidle",
+      "require": "RequestVerificationToken:\\s*'([^']+)'"
+    },
+    {
+      "id": "q1",
+      "op": "post",
+      "page": "p1",
+      "api": "/schedule/getgamedatas",
+      "form": {
+        "calendar": "2026/01/01",
+        "location": "",
+        "kindCode": "A"
+      },
+      "headers": {
+        "RequestVerificationToken": {
+          "$token": "A"
+        }
+      }
+    }
+  ]
+}

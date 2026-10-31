@@ -1,0 +1,44 @@
+{
+  "schema": "cpbl-www-bundle/1",
+  "manifest_id": "offline-schedule-393",
+  "manifest_sha256": "58e40e56fd91c2501c56a46b8d61382edc24ccfef442207364242dcf131f0bb9",
+  "fetcher_version": "393-wp3.1",
+  "host": "offline-fixture",
+  "started_at": "2026-10-30T13:30:00+08:00",
+  "ended_at": "2026-10-30T13:30:02+08:00",
+  "requests_sent": 2,
+  "stopped": null,
+  "complete": true,
+  "entries": [
+    {
+      "id": "p1",
+      "op": "page",
+      "at": "2026-10-30T13:30:00+08:00",
+      "ms": 200,
+      "http_status": 200,
+      "body": "responses/p1.body",
+      "bytes": 86,
+      "sha256": "f0364933e9acbe2ea3cbb296288f7b176c5550c57040e57f2d3ad70439c7febb",
+      "path": "/schedule",
+      "redirects": 0,
+      "error": null,
+      "require_ok": true,
+      "token_a": true,
+      "token_b": false
+    },
+    {
+      "id": "q1",
+      "op": "post",
+      "at": "2026-10-30T13:30:00+08:00",
+      "ms": 200,
+      "http_status": 200,
+      "body": "responses/q1.body",
+      "bytes": 200,
+      "sha256": "a9dbd13c1e9560dda32e2ddb0b460f68f379dc0757436f25315b08ff0d900903",
+      "api": "/schedule/getgamedatas",
+      "resp_type": "basic",
+      "redirected": false,
+      "json_ok": true
+    }
+  ]
+}
