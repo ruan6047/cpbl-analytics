@@ -3,7 +3,14 @@
 from __future__ import annotations
 
 import importlib.util
+import os
+import re
+import signal
+import subprocess
 import sys
+import threading
+import time
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 import pytest
@@ -282,3 +289,297 @@ def test_every_probe_path_passes_validation_and_reaches_its_reader(monkeypatch) 
         res = client.get(path)
         assert res.status_code != 422, (label, path, res.text)
         assert hits == [label], (label, path, hits)
+
+
+# =========================================== #398 規劃 r2：真 prod_availability.py 收到 SIGTERM（T1–T3、T6）
+#
+# 共同條件：子程序以系統 python3（3.9，launchd 每日鏈實際用的那支）執行**未修改的** scripts/prod_availability.py；
+# PATH 最前面放假 curl（Python 寫的，記下自己的 pid 後 sleep，再印 curl -w 格式）；告警收件端是本行程內
+# 127.0.0.1 的 http.server。⛔ 不連外、不讀真 .env；每個子程序 start_new_session，結束時整個程序群組收尾。
+
+SYSTEM_PYTHON = "/usr/bin/python3" if Path("/usr/bin/python3").exists() else sys.executable
+SCRIPT = ROOT / "scripts" / "prod_availability.py"
+
+_FAKE_CURL = f"""#!{SYSTEM_PYTHON}
+import os, sys, time
+from pathlib import Path
+calls = Path(os.environ["FAKE_CURL_CALLS"])
+calls.mkdir(parents=True, exist_ok=True)
+(calls / ("%03d-%d" % (len(list(calls.iterdir())), os.getpid()))).write_text(sys.argv[-1])
+time.sleep(float(os.environ.get("FAKE_CURL_SLEEP", "0")))
+print("200 0.001 0.002 0.003", end="")
+"""
+
+
+class Receiver:
+    """假告警收件端：記錄每筆 POST（路徑＋內容）。``hold`` 為真時，第一筆 POST 記下後等 ``release``。"""
+
+    def __init__(self, *, hold: bool = False) -> None:
+        self.posts: list[tuple[str, str]] = []
+        self.got_post = threading.Event()
+        self.release = threading.Event()
+        if not hold:
+            self.release.set()
+        outer = self
+
+        class Handler(BaseHTTPRequestHandler):
+            def do_POST(self):  # noqa: N802
+                body = self.rfile.read(int(self.headers.get("Content-Length") or 0)).decode("utf-8")
+                outer.posts.append((self.path, body))
+                outer.got_post.set()
+                outer.release.wait(15)
+                self.send_response(200)
+                self.end_headers()
+                self.wfile.write(b"OK")
+
+            def log_message(self, *a):  # 安靜
+                pass
+
+        self.server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+        self.url = f"http://127.0.0.1:{self.server.server_address[1]}/ping-test"
+        threading.Thread(target=self.server.serve_forever, daemon=True).start()
+
+    def close(self) -> None:
+        self.release.set()
+        self.server.shutdown()
+        self.server.server_close()
+
+    def fails(self) -> list[str]:
+        return [b for p, b in self.posts if p.endswith("/fail")]
+
+    def oks(self) -> list[str]:
+        return [b for p, b in self.posts if not p.endswith("/fail")]
+
+
+@pytest.fixture
+def receiver():
+    r = Receiver()
+    yield r
+    r.close()
+
+
+def _sentinel_env(tmp_path: Path, receiver: Receiver, curl_sleep: float) -> dict[str, str]:
+    fake_bin = tmp_path / "bin"
+    fake_bin.mkdir(exist_ok=True)
+    (fake_bin / "curl").write_text(_FAKE_CURL, encoding="utf-8")
+    (fake_bin / "curl").chmod(0o755)
+    return {
+        "PATH": f"{fake_bin}:/usr/bin:/bin",
+        "HOME": str(tmp_path),
+        "FAKE_CURL_CALLS": str(tmp_path / "curl-calls"),
+        "FAKE_CURL_SLEEP": str(curl_sleep),
+        "CPBL_AVAILABILITY_PING_URL": receiver.url,
+        "DATABASE_URL": "postgresql://nouser:nopw@127.0.0.1:9/none",
+    }
+
+
+def _start(cmd: list[str], env: dict[str, str]) -> subprocess.Popen:
+    return subprocess.Popen(cmd, env=env, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                            stdin=subprocess.DEVNULL, start_new_session=True)
+
+
+def _finish(proc: subprocess.Popen, timeout: float) -> tuple[int, str, str, float]:
+    started = time.monotonic()
+    try:
+        out, err = proc.communicate(timeout=timeout)
+    except subprocess.TimeoutExpired:
+        os.killpg(proc.pid, signal.SIGKILL)
+        out, err = proc.communicate()
+        pytest.fail(f"真哨兵收到 SIGTERM 後 {timeout}s 內沒有結束（訊號被吞？）\nstdout={out}\nstderr={err}")
+    return proc.returncode, out, err, time.monotonic() - started
+
+
+def _wait_for(pred, timeout: float = 10.0) -> None:
+    deadline = time.monotonic() + timeout
+    while not pred():
+        if time.monotonic() > deadline:
+            pytest.fail("等待前提逾時")
+        time.sleep(0.05)
+
+
+def _curl_calls(tmp_path: Path) -> list[Path]:
+    d = tmp_path / "curl-calls"
+    return sorted(d.iterdir()) if d.is_dir() else []
+
+
+def _alive(pid: int) -> bool:
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    return True
+
+
+def _sentinel_cmd(tmp_path: Path) -> list[str]:
+    # 停止檔刻意不存在：沒有 SIGTERM 時這支會一直量（真哨兵是 6 小時保險絲）。
+    return [SYSTEM_PYTHON, str(SCRIPT), "sentinel", "--stop-file", str(tmp_path / "no-stop"),
+            "--base-url", "http://127.0.0.1:9", "--out", str(tmp_path / "out.tsv")]
+
+
+def _assert_single_detector_failure(receiver: Receiver, rc: int, out: str, err: str) -> None:
+    assert rc == 0, err
+    assert receiver.oks() == [], f"收到 SIGTERM 不得送成功：{receiver.posts}"
+    assert len(receiver.fails()) == 1, receiver.posts
+    assert "detector error SentinelTerminated" in receiver.fails()[0]
+    assert out.count("已送告警（HTTP 200）") == 1, out
+    assert receiver.url not in out + err, "log 不得含 ping URL"
+
+
+def test_t1_sigterm_during_a_curl_sample_alerts_once_and_leaves_no_orphan_curl(tmp_path: Path, receiver) -> None:
+    """F1-R2 的落點：訊號落在 curl_sample() 的 try 裡。修正前會被吞成 000 樣本、量測繼續。"""
+    proc = _start(_sentinel_cmd(tmp_path), _sentinel_env(tmp_path, receiver, curl_sleep=8))
+    _wait_for(lambda: len(_curl_calls(tmp_path)) >= 1)
+    time.sleep(0.3)  # 假 curl 已在 sleep 8 中
+    proc.send_signal(signal.SIGTERM)
+    rc, out, err, elapsed = _finish(proc, timeout=15)
+
+    assert elapsed < 10, f"收到 SIGTERM 後 {elapsed:.1f}s 才結束"
+    _assert_single_detector_failure(receiver, rc, out, err)
+    assert len(_curl_calls(tmp_path)) == 1, "收到訊號後不得再啟動下一筆取樣"
+    curl_pid = int(_curl_calls(tmp_path)[0].name.split("-")[1])
+    assert not _alive(curl_pid), "正在跑的 curl 必須被一起收掉，不得成為孤兒"
+
+
+def test_t1b_second_sigterm_during_the_alert_does_not_interrupt_it(tmp_path: Path) -> None:
+    """處理器第一次觸發就忽略後續 SIGTERM：告警送出途中再來一個訊號，告警照樣送完（每程序一個訊號）。"""
+    receiver = Receiver(hold=True)
+    try:
+        proc = _start(_sentinel_cmd(tmp_path), _sentinel_env(tmp_path, receiver, curl_sleep=8))
+        _wait_for(lambda: len(_curl_calls(tmp_path)) >= 1)
+        time.sleep(0.3)
+        proc.send_signal(signal.SIGTERM)
+        assert receiver.got_post.wait(10), "第一個 SIGTERM 後沒有送出告警"
+        proc.send_signal(signal.SIGTERM)  # 告警正在送（收件端還沒回應）
+        time.sleep(0.5)
+        receiver.release.set()
+        rc, out, err, _ = _finish(proc, timeout=15)
+        _assert_single_detector_failure(receiver, rc, out, err)
+    finally:
+        receiver.close()
+
+
+def test_t2_sigterm_while_waiting_between_rounds_alerts_once(tmp_path: Path, receiver) -> None:
+    """訊號落在兩輪取樣之間的 time.sleep(0.5) 等待中。"""
+    proc = _start(_sentinel_cmd(tmp_path), _sentinel_env(tmp_path, receiver, curl_sleep=0))
+    _wait_for(lambda: len(_curl_calls(tmp_path)) >= 3)
+    time.sleep(1.5)  # 第一輪三筆已完成，下一輪在 15 秒後：此刻必在等待迴圈裡
+    assert len(_curl_calls(tmp_path)) == 3
+    proc.send_signal(signal.SIGTERM)
+    rc, out, err, elapsed = _finish(proc, timeout=15)
+
+    assert elapsed < 10
+    _assert_single_detector_failure(receiver, rc, out, err)
+    assert len(_curl_calls(tmp_path)) == 3
+
+
+_SHORT_TAIL_RUNNER = """
+import functools, importlib.util, sys
+spec = importlib.util.spec_from_file_location("prod_availability", sys.argv[1])
+pa = importlib.util.module_from_spec(spec); sys.modules["prod_availability"] = pa; spec.loader.exec_module(pa)
+pa.run_sentinel = functools.partial(pa.run_sentinel, tail=0.2)   # 只縮短收尾量測，判定與送出照原碼
+raise SystemExit(pa.main(sys.argv[2:]))
+"""
+
+
+def test_t3_sigterm_while_sending_the_result_is_ignored_single_signal(tmp_path: Path) -> None:
+    """送出成功途中收到 SIGTERM：忽略它，只有一筆成功、沒有告警（驗收 3／D4）。"""
+    receiver = Receiver(hold=True)
+    try:
+        (tmp_path / "stop").touch()
+        cmd = [SYSTEM_PYTHON, "-c", _SHORT_TAIL_RUNNER, str(SCRIPT), "sentinel",
+               "--stop-file", str(tmp_path / "stop"), "--base-url", "http://127.0.0.1:9",
+               "--out", str(tmp_path / "out.tsv")]
+        proc = _start(cmd, _sentinel_env(tmp_path, receiver, curl_sleep=0))
+        assert receiver.got_post.wait(15), "沒有送出判定結果"
+        proc.send_signal(signal.SIGTERM)  # 成功 ping 正在送（收件端還沒回應）
+        time.sleep(0.5)
+        receiver.release.set()
+        rc, out, err, _ = _finish(proc, timeout=15)
+
+        assert rc == 0, err
+        assert len(receiver.oks()) == 1 and receiver.fails() == [], receiver.posts
+        assert "sentinel OK" in receiver.oks()[0]
+        assert "已送成功 ping（HTTP 200）" in out
+    finally:
+        receiver.close()
+
+
+_ERROR_FIRST_RUNNER = """
+import importlib.util, sys
+spec = importlib.util.spec_from_file_location("prod_availability", sys.argv[1])
+pa = importlib.util.module_from_spec(spec); sys.modules["prod_availability"] = pa; spec.loader.exec_module(pa)
+def _boom(**kw):
+    raise ValueError("injected detector error")   # 一般錯誤先發生（不是訊號）
+pa.run_sentinel = _boom
+raise SystemExit(pa.main(sys.argv[2:]))
+"""
+
+
+def test_t7_sigterm_during_the_alert_of_an_ordinary_error_does_not_drop_it(tmp_path: Path) -> None:
+    """#398 審核第 3 輪 F3：一般錯誤先進失敗路徑（處理器尚未觸發），送告警途中第一次 SIGTERM——告警照樣送完。
+
+    修正前：SIGTERM 在 send() 途中拋 SentinelTerminated，被內層 except 吞掉，rc 0 卻沒有任何送出結果。
+    """
+    receiver = Receiver(hold=True)
+    try:
+        cmd = [SYSTEM_PYTHON, "-c", _ERROR_FIRST_RUNNER, str(SCRIPT), "sentinel",
+               "--stop-file", str(tmp_path / "no-stop"), "--base-url", "http://127.0.0.1:9",
+               "--out", str(tmp_path / "out.tsv")]
+        proc = _start(cmd, _sentinel_env(tmp_path, receiver, curl_sleep=0))
+        assert receiver.got_post.wait(15), "一般錯誤後沒有送出告警"
+        proc.send_signal(signal.SIGTERM)  # 告警正在送（收件端還沒回應）
+        time.sleep(0.5)
+        receiver.release.set()
+        rc, out, err, _ = _finish(proc, timeout=15)
+
+        assert rc == 0, err
+        assert receiver.oks() == [] and len(receiver.fails()) == 1, receiver.posts
+        assert "detector error ValueError" in receiver.fails()[0]
+        assert out.count("已送告警（HTTP 200）") == 1, f"告警被 SIGTERM 中止：stdout={out!r} stderr={err!r}"
+    finally:
+        receiver.close()
+
+
+def test_t1c_handler_ignores_further_sigterm_from_its_first_trigger(monkeypatch, tmp_path: Path) -> None:
+    """處理器第一次觸發的當下就忽略後續 SIGTERM——在例外往外傳（subprocess 收尾等）期間、還沒進失敗路徑
+    之前就已生效。失敗路徑開頭的忽略（F3）蓋不到這段窗口，所以這條直接在窗口內觀察（Md 變異用）。
+    """
+    seen = []
+
+    def fake_sentinel(**kw):
+        try:
+            signal.raise_signal(signal.SIGTERM)
+        except BaseException:
+            seen.append(signal.getsignal(signal.SIGTERM))   # 例外剛離開處理器、尚未到 main 的失敗路徑
+            raise
+        return []
+
+    monkeypatch.setattr(pa, "run_sentinel", fake_sentinel)
+    monkeypatch.setattr(pa, "send", lambda *a, **k: "logged")
+    assert pa.main(["sentinel", "--stop-file", str(tmp_path / "s"), "--out", str(tmp_path / "o.tsv")]) == 0
+    assert seen == [signal.SIG_IGN], seen
+
+
+def test_t6_daily_fallback_grace_is_at_least_the_send_timeout() -> None:
+    """鏈端寬限 ≥ send() 的送出逾時（兩個值都從原始碼讀，不手打），且不超過規劃停止條件的 60 秒。"""
+    import inspect
+
+    send_timeout = int(re.search(r"timeout=(\d+)", inspect.getsource(pa.send)).group(1))
+    daily = (ROOT / "scripts" / "scrape-daily.sh").read_text(encoding="utf-8")
+    grace = int(re.search(r"^FALLBACK_KILL_GRACE=(\d+)$", daily, re.M).group(1))
+    assert send_timeout <= grace <= 60
+    assert grace >= send_timeout + pa.CURL_MAX_TIME, "規劃 r2 §2：送出逾時＋一輪 curl 收尾"
+
+
+def test_sentinel_terminated_is_not_an_exception_subclass() -> None:
+    """⛔ 改回 Exception 就會再被 curl_sample()／send() 的 except Exception 吞掉（F1-R2）。"""
+    assert issubclass(pa.SentinelTerminated, BaseException)
+    assert not issubclass(pa.SentinelTerminated, Exception)
+
+
+def test_main_restores_the_previous_sigterm_handler(monkeypatch, tmp_path: Path) -> None:
+    monkeypatch.setattr(pa, "run_probe", lambda **kw: [])
+    monkeypatch.setattr(pa, "send", lambda *a, **k: "logged")
+    before = signal.getsignal(signal.SIGTERM)
+    assert pa.main(["probe"]) == 0
+    assert signal.getsignal(signal.SIGTERM) is before

@@ -254,3 +254,35 @@ def test_sentinel_setup_failure_never_changes_the_chain_result(tmp_path: Path) -
     assert len(_pa_uv(uv, "apply")) == 1 and len(_pa_uv(uv, "reconcile")) == 1, "後續同步必須照常執行"
     argv = _sentinel_calls(uv)[0]
     assert argv[argv.index("--out") + 1].startswith(str(tmp_path / "tmp")), "紀錄改寫 TMPDIR"
+
+
+# --------------------------------------------------------------------------- #398 哨兵 marker
+
+
+def test_daily_chain_marker_is_written_once_the_sentinel_starts(tmp_path: Path) -> None:
+    """每日鏈帶入 DAILY_SENTINEL_MARKER：哨兵啟動後寫空檔，scrape-daily 據此不補跑（#398 驗收 3）。"""
+    marker = tmp_path / "tmp" / "cpbl-daily-sentinel-started.test"
+    result, _, uv = _run(tmp_path, DAILY_SENTINEL_MARKER=str(marker))
+    assert result.returncode == 0, result.stderr
+    assert len(_sentinel_calls(uv)) == 1
+    assert marker.is_file() and marker.read_text(encoding="utf-8") == ""
+
+
+def test_manual_refresh_without_marker_env_writes_no_marker(tmp_path: Path) -> None:
+    """手動直呼（沒有 DAILY_SENTINEL_MARKER）：行為同現況，不留任何 marker 檔。"""
+    result, _, uv = _run(tmp_path, DAILY_SENTINEL_MARKER=None)
+    assert result.returncode == 0, result.stderr
+    assert len(_sentinel_calls(uv)) == 1, "手動完整鏈照舊啟動自己的哨兵"
+    leftovers = [p for p in tmp_path.rglob("*") if "sentinel-started" in p.name]
+    assert leftovers == []
+
+
+def test_marker_write_failure_never_changes_the_chain_result(tmp_path: Path) -> None:
+    """marker 寫不進去：警告、**不啟動**這裡的哨兵（交給每日鏈補位，#398 審核 F2），同步照跑、退出碼不變。"""
+    marker = tmp_path / "no-such-dir" / "cpbl-daily-sentinel-started.test"
+    result, _, uv = _run(tmp_path, DAILY_SENTINEL_MARKER=str(marker))
+    assert result.returncode == 0, result.stderr
+    assert "marker 寫入失敗" in result.stderr
+    assert not marker.exists()
+    assert _sentinel_calls(uv) == [], "marker 沒寫成就不得啟動同步哨兵，否則同一次鏈會有兩個"
+    assert len(_pa_uv(uv, "apply")) == 1 and len(_pa_uv(uv, "reconcile")) == 1, "後續同步必須照常執行"
