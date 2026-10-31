@@ -1014,8 +1014,8 @@ GitHub 會自動標記。判斷是否經 PR 合併要看 `gh api repos/.../commi
   `scrape-daily.sh` 的 EXIT trap 在狀態檔寫完後以同一支 `prod_availability.py sentinel` 補跑一次（約 2 分鐘、判準相同），log 有「可用性補位」一行。
   兩者以 refresh 寫的 marker（`DAILY_SENTINEL_MARKER`）互斥：refresh 寫成功才啟動自己的哨兵、寫不進去就交給補位，同一次執行只送一個；
   補位等待上限 240 秒：逾時送 SIGTERM（哨兵以偵測器失敗告警），寬限 20 秒仍未結束就 SIGKILL（該次沒有告警，由 check 逾時涵蓋），最壞持鎖約 4.5 分鐘；不改離開碼與狀態檔。75／64／`--help` 不補位（鏈本身沒執行）。
-- 四類對應：失敗（exit 非 0）立即 down；中斷（有 start、沒有結束）與整天沒跑在 11:00 down；延後＝11:00 先 down，之後成功 ping 到達時服務端再寄一則恢復通知。
-- 已知盲區：取鎖失敗（75）、參數錯誤（64）、start 寫入失敗（70）都發生在 `start` 之前，不立即送，由 11:00 期限涵蓋（規劃 2 §4.1）。
+- 四類對應：失敗（exit 非 0）立即 down；中斷（有 start、沒有結束）與整天沒跑在期限（registry `.alert.deadline`，見 `docs/SCHEDULE_TIMELINE.md` §1.1）down；延後＝期限先 down，之後成功 ping 到達時服務端再寄一則恢復通知。
+- 已知盲區：取鎖失敗（75）、參數錯誤（64）、start 寫入失敗（70）都發生在 `start` 之前，不立即送，由 `.alert.deadline` 期限涵蓋（規劃 2 §4.1）。
   ping 的結果只寫一行到 launchd stderr（`alert ping:<訊號> check=daily ok|failed|skipped`），金鑰與 URL 已遮罩。
 
 ### 11.2 本機服務（check `services`）與晚間鏈（check `evening`）
