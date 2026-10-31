@@ -245,9 +245,9 @@ v2在同一交易鎖兩隊後追加；任一隊失敗全rollback，同內容重�
 
 **每日刷新現況（最後驗證 2026-07-19）**：本機 launchd 10:10 已成功完成爬取與 production 同步（`sync_ok=true`）。仍必須每天以 `refresh_status.py check --scheduled` 檢查；成功同步不等於資料語意正確——目前 `BUG-HELD-GAME-FRESHNESS1` 已證實未完成保留賽會污染 `last_game_date`，修復前不得僅以 freshness gate 判定資料正確。
 
-### 本機每日爬取（launchd 每日 10:10；手動為 fallback）
+### 本機每日爬取（launchd 每日觸發，時刻見 `docs/SCHEDULE_TIMELINE.md`；手動為 fallback）
 
-launchd 在使用者登入態每日 **10:10** 觸發 `scripts/scrape-daily.sh`；腳本先寫
+launchd 在使用者登入態每日觸發 `scripts/scrape-daily.sh`（時刻以 `scripts/schedule-registry.json` 為準，說明見 `docs/SCHEDULE_TIMELINE.md` §1.1）；腳本先寫
 `state=running`，本機爬成功後才備份並同步 production。每日鏈（非 `fast`）另會整季重算
 球種推算（v1＋v2，一二軍；2026-09-23 起），失敗記為退出碼 69（其餘照跑、仍會同步）。**時段紅線**：勿改到深夜／凌晨，
 官網挑戰深夜加嚴會硬封鎖新訪客（SITE_MAP §2）。OrbStack 與本機 DB 必須已啟動；否則
@@ -273,7 +273,7 @@ Fail-fast：
 
 ```bash
 python3 scripts/refresh_status.py check                 # 最近一次完整流程
-python3 scripts/refresh_status.py check --scheduled     # 今日 11:00 後仍無 launchd 觸發即失敗
+python3 scripts/refresh_status.py check --scheduled     # 今日過了 --deadline（預設值見 refresh_status.py）仍無 launchd 觸發即失敗
 docker compose exec -T db psql -U cpbl -d cpbl -c \
   "SELECT refreshed_at, ok, note, detail->>'error' AS error FROM cpbl.refresh_log ORDER BY refreshed_at DESC LIMIT 3"
 ```
@@ -314,8 +314,8 @@ box 重抓一次，讓 30 天內的修正收斂進快照。**30 天是保守選�
 與每日窗完全分開，不改 `_incremental_detail` 的 2 天窗邏輯；獨立 CLI
 （`cpbl-refresh-box-deep`）+ 獨立 launchd job + 獨立狀態檔，落地方式比照上一節的
 逐球每週全季重跑：共用 refresh lock 且**忙碌即跳過**、失敗**不自動重試**（下週用同一個
-「近 30 天」窗從頭跑，不需要斷點續傳）、排在週一 14:10（距 weekly-game-pitches.sh 的
-13:10 一小時緩衝，降低撞期整週跳過的機率）。
+「近 30 天」窗從頭跑，不需要斷點續傳）、排在休兵日並與 weekly-game-pitches.sh 錯開（降低撞期整週跳過的機率；
+時刻與理由見 `docs/SCHEDULE_TIMELINE.md` §1.3）。
 
 ```bash
 ln -sf "$PWD/scripts/com.cpbl.weekly-box-revisions.plist" ~/Library/LaunchAgents/com.cpbl.weekly-box-revisions.plist
@@ -396,10 +396,10 @@ refresh 鏈的逐球抓取維度由 `CPBL_PITCH_INGEST` 控制（pydantic-settin
 字面 pin 住，改了會紅。舊的「本季曾達」判準是 recency-blind 的，已被實測推翻
 （大巨蛋 2026-03 覆蓋 98.4%、06-02 起連續全零，舊判準會讓它永久通過而被每日重抓）。
 
-**每週全季重跑**（週一 13:10，`scripts/weekly-game-pitches.sh`）：官方可在任何時點做賽後
+**每週全季重跑**（`scripts/weekly-game-pitches.sh`；時刻見 `docs/SCHEDULE_TIMELINE.md` §1.2）：官方可在任何時點做賽後
 修正，每日增量只看近幾天窗口不會回頭，故每週把全季完成場重跑一次使修正最遲七天內收斂。
 排程失敗**不得中斷每日 refresh**，落地方式三層：獨立 launchd job 與狀態檔（每日鏈不讀）、
-共用 refresh lock 且**忙碌即跳過**（不等待不搶佔）、排在週一休兵日且遠離 10:10。
+共用 refresh lock 且**忙碌即跳過**（不等待不搶佔）、排在休兵日且遠離每日鏈。
 
 **安裝現況**（2026-09-23）：**已安裝並運行**——2026-09-20 裝上、09-21 首次排程觸發；需求方
 09-23 決定保留，`scripts/schedule-registry.json` 的 `expected_installed` 已改為 `true`（原本是
@@ -453,7 +453,7 @@ production migration 由已部署的 `prod_cpbl_api` 映像執行；若 local ma
 production 映像尚未部署，先停止同步並完成正常 main deploy，不得跳過 migration 或臨時改 DB。
 
 > **#357 `game_livelog_extra`（migration 079）**：本機寫入端每場先刪後寫；它是本機衍生、
-> 正式站無獨立 writer。上線順序：本機先套 079 → 合併 → **同日下一次 10:10 每日鏈前完成主站部署**
+> 正式站無獨立 writer。上線順序：本機先套 079 → 合併 → **下一次每日鏈前完成主站部署**
 > → 部署成功後主 checkout 才跟上 main（主 checkout 一跟上，寫入端就寫附加表；正式站的表要等
 > 已部署映像在同步時建立）。同步：完整鏈（WITH_DETAIL）在 `game_livelog` 之後以 `mirror_table`
 > 整表鏡像（`sync_livelog_extra`）；本機 0 列時略過、**不清空 prod**（本機刻意清空要人工處理）；
@@ -882,7 +882,7 @@ GitHub 會自動標記。判斷是否經 PR 合併要看 `gh api repos/.../commi
 重新安裝（bootstrap）、清 `halted`、晚間 prod 資料還原仍屬共享操作，須需求方授權。
 
 - 入口：`bash scripts/postseason-evening.sh --help`（只印用法）；邏輯在 `src/cpbl/ingest/postseason_evening.py`。
-- launchd 樣板：`ops/launchd/com.cpbl.postseason-evening.plist`（`StartInterval` 300 秒；留在 `ops/` 不改變清冊對 `scripts/` 排程的分類）。
+- launchd 樣板：`ops/launchd/com.cpbl.postseason-evening.plist`（`StartInterval` 見 `docs/SCHEDULE_TIMELINE.md` §1.5；留在 `ops/` 不改變清冊對 `scripts/` 排程的分類）。
   已登記於 `scripts/schedule-registry.json`（cadence `interval`）：偵測器只對帳 plist、安裝狀態與狀態檔 `halted`，不做週期缺席判定。
   #365 起登記為**長期** `expected_installed=true`（授權：#365 需求完成卡 6361271444、Q4 裁定 6361900121）；不再有「系列結束 bootout、改回 `false`」的例行步驟。
   與 #293 A7 的先後（#365 規劃 4 §5.4）：**分支 A**（#365 先於 A7 合併）＝不 bootout、不重新 bootstrap，`effective_from` 維持 2026-10-14，A7 不翻回休眠、只收尾；
@@ -926,18 +926,18 @@ GitHub 會自動標記。判斷是否經 PR 合併要看 `gh api repos/.../commi
   回退：`touch logs/postseason-evening-backup-per-sync.enabled`＝每次同步都備份（`POSTSEASON_BACKUP_PER_SYNC_FLAG` 可改路徑；下次喚醒生效、不需重新 bootstrap），`rm` 即回每晚一次。
   代價（需求方已接受）：還原粒度變粗——同晚後面的同步若寫壞，只能退回該晚首次同步前。
 - 備份範圍：`backup-prod-db.sh` 備的是**整庫**（cpbl schema＋主站 public）。晚間鏈用獨立的 `POSTSEASON_BACKUP_DIR`（預設
-  `~/Library/Application Support/cpbl-analytics/backups-postseason-evening`，保留 3 份），**不輪替掉 10:10 的 7 份**；
+  `~/Library/Application Support/cpbl-analytics/backups-postseason-evening`，保留 3 份），**不輪替掉每日鏈的 7 份**；
   備份腳本自身在參數守衛後設 `umask 077`：新建目錄 0700、檔案 0600（每日與晚間共用；既有備份權限不回頭處理）。
   資料寫錯時只考慮還原 **cpbl schema**，⛔ 不還原主站 public；還原屬破壞性 prod 寫入，發生時交需求方決定。
 - 排他：與每日／每週排程共用 `/private/tmp/cpbl-analytics-refresh.lock`。公告 owner 持有時有界等待；其他一律 exit 75，**不刪、不搶**（即使 pid 已死）。
 - 紀錄：`logs/postseason-evening-state.json`（跨次狀態）、`logs/last-postseason-evening.json`（最終狀態與時點）、`logs/postseason-evening-YYYYMMDD.log`；
   本機 `refresh_log` 只在嘗試 www／同步時寫一列（scope `postseason-evening`）。
 - 時點：T1＝stats 首次觀測（官方發佈的上界近似）、T2＝本機狀態修訂表首見、T3＝三表（＋訊號表）同步＋對帳完成、T4＝使用者可見（只能以正式 Chrome 抽樣）。
-  跨過 24:00 照實記錄實際日期時刻，不改寫成賽事日；由隔日 10:10 補上的事件記 `unreached`（`resolved_outside_evening_chain`），**不算同晚達成**。
+  跨過 24:00 照實記錄實際日期時刻，不改寫成賽事日；由隔日每日鏈補上的事件記 `unreached`（`resolved_outside_evening_chain`），**不算同晚達成**。
 - 錯誤即停：data-only 對帳不等（refresh 回 68）→ 記失敗並**停止當晚**（`sync_blocked_at`，隔日 12:00 後重試未同步的變化）；
   其他同步非零（64–67、psql／schema 錯誤、備份失敗）→ 狀態檔 `halted`，launchd 觸發時另 `launchctl bootout`；之後每次喚醒直接退出，
   直到人工檢視後把 `logs/postseason-evening-state.json` 與 `logs/last-postseason-evening.json` 兩檔的 `halted` 都改回 `null`（偵測器讀後者，閒置喚醒不重寫它）。www 成功但本機 C 列仍為 0 → 只停該項（`needs_owner_decision`），交需求方，不換工具、不繞道。
-- 晚間跑過後隔日 10:10 若出現挑戰類失敗：具名本機角色 bootout 本 job 並回報（以 `logs/last-launchd-status.json` 核對；本鏈不自動判讀它）。
+- 晚間跑過後隔日每日鏈若出現挑戰類失敗：具名本機角色 bootout 本 job 並回報（以 `logs/last-launchd-status.json` 核對；本鏈不自動判讀它）。
 - **TM 重抓**（#365，P-TM-RECHECK）：本機首見完賽（`finished_first_seen` 的 `finished_at`，沒有時用 `first_seen_finished_at`）後滿 `POSTSEASON_TM_RECHECK_MIN`
   分（預設 45；非正整數 exit 64）→ 目標窗內已送達（或更正待同步）的場以 `reopened_tm_recheck` 重開，每場只做一次（box／PA 紀錄 `tm_recheck {due_at, fetched_at, outcome}`，
   outcome ∈ changed／unchanged／failed／quota_exhausted），跑一次既有 `boxpa-tracking`（只打 stats、不連 www、
@@ -955,7 +955,7 @@ GitHub 會自動標記。判斷是否經 PR 合併要看 `gh api repos/.../commi
 
 - 時點：每場 `F＝開賽前一天 23:00`（S＝狀態檔 stats `PreExeDate`；改期後新 S 的 F 自動成為新時點）。F 起第一次喚醒抓該賽別 getgamedatas 一次（同晚同賽別合併）；只對 stats `SCHEDULED` 的 A／E／C 場（⛔ 不含 D）；本機 games 已有先發**不算**已處理（可能是改期前舊日期的），每個 F 都抓一次、結局看這次抓到的目前賽前 entry。待抓期間最新賽程已改期或不再是 `SCHEDULED` ⇒ 記 `superseded`（不抓、不通知，新 S 的 F 另起一筆）。同晚 A 有事件／#292 時點時，A 也只走本路徑（既有晚間 A 抓取會在 `www_marker` 失敗，#365 既有行為）。共用賽別冷卻 20 分、挑戰停、`halted`、68 停當晚；被擋只延後、不計次，最遲 01:00，過了記 `missed`。休兵日也會醒（狀態檔賽程，或 23:00–01:00 唯讀查本機 `games` 當場比賽日）。
 - 只寫先發：目標場 `games.home_starter_id`／`away_starter_id` 設成目前賽前 entry 的值（與 `upsert_games` 對這兩欄同語意：官網空就寫空；本機已有比分或 `delay_kind='保留'` 的列不動、不新增列），修訂表只記目標場賽前 entry（同組有終局／保留／非零比分整組不碰）。因此不受 `P-A-FETCH-GATE` 約束（閘門判定未改）；有變化才走既有 `POSTSEASON_RESULTS_ONLY` 同步。
-- 失敗通知：抓取失敗（`failed`）、抓完先發仍空（`empty`）、01:00 前沒抓成（`missed`）、寫入後同步失敗（`sync_failed`）⇒ 本機通知（重用 `scripts/schedule_watch.py` 的 `notify`；⚠️ osascript rc=0 不是送達證據）＋持久檔 `logs/starter-watch-alert.json`（開賽後不再列）；由隔日 10:10 每日鏈補上。紀錄在狀態檔 `starter_watch`。
+- 失敗通知：抓取失敗（`failed`）、抓完先發仍空（`empty`）、01:00 前沒抓成（`missed`）、寫入後同步失敗（`sync_failed`）⇒ 本機通知（重用 `scripts/schedule_watch.py` 的 `notify`；⚠️ osascript rc=0 不是送達證據）＋持久檔 `logs/starter-watch-alert.json`（開賽後不再列）；由隔日每日鏈補上。紀錄在狀態檔 `starter_watch`。
 - log 辨識：本路徑寫進 `logs/postseason-evening-*.log` 的行以 `starter-watch ` 開頭；www 導頁記 `WWW_REQ card=342`／`WWW_NAV card=342`（src=342）。shell 既有的 `plan → scrape`、`scrape → changed`、`sync exit=` 等行照舊，`plan` 的理由為 `starter_watch` 時由 `starter-watch plan …` 行標出。
 - 旗標：`logs/starter-watch.enabled`（`POSTSEASON_STARTER_WATCH_FLAG` 改路徑；持久檔 `POSTSEASON_STARTER_WATCH_ALERT`）。存在＝開，`touch`／`rm` 下次喚醒生效。`plan --dry` 另印 `starter_watch`（`enabled`、此刻的 23:00 目標，不查 DB）。
 - 已知未解：開賽前 1 小時才公布等例外不處理（需求方 6405678916）。重播證據：`uv run python tests/starter_watch_replay_harness.py --out <報告.json>`（#342 exec-1 REPLAY）。
@@ -964,11 +964,11 @@ GitHub 會自動標記。判斷是否經 PR 合併要看 `gh api repos/.../commi
 ### 先發查核時點（#292 S11 A1；旗標預設關，啟用另需授權）
 
 官方先發投手（www getgamedatas `HomePitcherAcnt`／`VisitingPitcherAcnt` → `games.home_starter_id`／`away_starter_id`，原始 payload 進 `game_schedule_status_revisions`）
-除每日 10:10 鏈之外，由晚間鏈在下列時點再查一次（需求方裁定 #292 6184111089；容許窗 D9、重送 D2，規劃確認 6184976448）。邏輯在 `src/cpbl/ingest/starter_checkpoints.py`，接線在 `postseason_evening.plan`。
+除每日鏈之外，由晚間鏈在下列時點再查一次（需求方裁定 #292 6184111089；容許窗 D9、重送 D2，規劃確認 6184976448）。邏輯在 `src/cpbl/ingest/starter_checkpoints.py`，接線在 `postseason_evening.plan`。
 
 - 時點（S＝狀態檔中最近一次 stats `PreExeDate`；F＝本機觀測到該場「未完賽→完賽」轉變的時刻；**首次看到時就已完賽的場次沒有 F、不產生 F+60**，狀態檔 `finished_first_seen` 的舊字串值也不當錨點）：
   `S-60`（最遲 S−40，失敗不重送）、`S-30`（須早於開賽，開賽整點不算；失敗於 ≥20 分後重送 1 次，同樣須早於開賽）、`F+60`（最遲 F+90，失敗於 ≥20 分後重送 1 次）。
-  launchd 每 300 秒喚醒，實際執行通常晚 0–5 分；挑戰類失敗不重送；鎖被占、冷卻、讓位 10:10 只延後不計次；超過最遲時刻記 `missed`（被挑戰停／對帳停擋下記 `blocked`），⛔ 事後補打。
+  launchd 依晚間鏈的間隔喚醒（見 `docs/SCHEDULE_TIMELINE.md` §1.5），實際執行通常晚 0 到一個間隔；挑戰類失敗不重送；鎖被占、冷卻、讓位 10:10 只延後不計次；超過最遲時刻記 `missed`（被挑戰停／對帳停擋下記 `blocked`），⛔ 事後補打。
   S−60／S−30 只對未開打場次（stats 狀態 `START`／`FINISHED`／`POSTPONED`／`RESERVED` 以外）；取不到 S ⇒ `start_time_unknown`；延賽／保留 ⇒ F+60 記 `no_final`，改期後依新 S 產生新時點，舊錨點的待辦一看到新時程即結清（`rescheduled`），⛔ 再以舊時刻抓取。www `GameDateTimeS` 只並列記錄（`www_start_raw`／`start_mismatch`），以 stats 為準。
 - 抓取與送達都沿用既有路徑：plan 回 `scrape`（理由 `starter_checkpoint`；與同賽別事件合併成一次），只抓目標賽別，共用 www 冷卻帳本、挑戰停、`halted`／68 停當晚。
   本機 E／C 指紋（`local_signature`）含兩隊先發欄位與「每場目前觀測版本」（依 `last_seen_at` 的 payload_hash 集合），修正、撤回、**改回舊值（A→B→A）**都會觸發既有 `POSTSEASON_RESULTS_ONLY` 同步；同內容重抓不觸發。
@@ -1006,7 +1006,7 @@ GitHub 會自動標記。判斷是否經 PR 合併要看 `gh api repos/.../commi
 
 ### 11.1 每日鏈（check `daily`）
 
-- 服務端（需求方設定）：cron `10 10 * * *`、時區 `Asia/Taipei`、grace 50 分＝**11:00 前要完成**（裁定 6348735853 第 4 項）；預期值登記在 `scripts/schedule-registry.json` 的 `alert` 段。
+- 服務端（需求方設定）：cron、時區、grace 與完成期限見 `docs/SCHEDULE_TIMELINE.md` §1.1；預期值登記在 `scripts/schedule-registry.json` 的 `alert` 段（`.alert.schedule`、`.alert.tz`、`.alert.grace_minutes`、`.alert.deadline`；裁定 6348735853 第 4 項）。
 - 接線：`scripts/refresh_status.py` 的 `start` 送 `/start?rid=`，`finish` 送 `/<exit code>?rid=`（同一個 rid，由 `started_at` 決定）；**只在 `--trigger launchd` 且 label 是 `com.cpbl.scrape-daily`** 時送，手動 fallback 不送。
   狀態檔與歷史**先寫完才 ping**；`scripts/scrape-daily.sh` 本身不送 `daily` 的 ping。甲型略過日照樣是 `succeeded`，送 `/0`。
 - 正式站可用性 check（`cpbl-prod-availability`，#353／#398）在非同步日的來源：同步日由 `refresh-cpbl-prod.sh` 的收尾哨兵送；
@@ -1014,13 +1014,13 @@ GitHub 會自動標記。判斷是否經 PR 合併要看 `gh api repos/.../commi
   `scrape-daily.sh` 的 EXIT trap 在狀態檔寫完後以同一支 `prod_availability.py sentinel` 補跑一次（約 2 分鐘、判準相同），log 有「可用性補位」一行。
   兩者以 refresh 寫的 marker（`DAILY_SENTINEL_MARKER`）互斥：refresh 寫成功才啟動自己的哨兵、寫不進去就交給補位，同一次執行只送一個；
   補位等待上限 240 秒：逾時送 SIGTERM（哨兵以偵測器失敗告警），寬限 20 秒仍未結束就 SIGKILL（該次沒有告警，由 check 逾時涵蓋），最壞持鎖約 4.5 分鐘；不改離開碼與狀態檔。75／64／`--help` 不補位（鏈本身沒執行）。
-- 四類對應：失敗（exit 非 0）立即 down；中斷（有 start、沒有結束）與整天沒跑在 11:00 down；延後＝11:00 先 down，之後成功 ping 到達時服務端再寄一則恢復通知。
-- 已知盲區：取鎖失敗（75）、參數錯誤（64）、start 寫入失敗（70）都發生在 `start` 之前，不立即送，由 11:00 期限涵蓋（規劃 2 §4.1）。
+- 四類對應：失敗（exit 非 0）立即 down；中斷（有 start、沒有結束）與整天沒跑在期限（registry `.alert.deadline`，見 `docs/SCHEDULE_TIMELINE.md` §1.1）down；延後＝期限先 down，之後成功 ping 到達時服務端再寄一則恢復通知。
+- 已知盲區：取鎖失敗（75）、參數錯誤（64）、start 寫入失敗（70）都發生在 `start` 之前，不立即送，由 `.alert.deadline` 期限涵蓋（規劃 2 §4.1）。
   ping 的結果只寫一行到 launchd stderr（`alert ping:<訊號> check=daily ok|failed|skipped`），金鑰與 URL 已遮罩。
 
 ### 11.2 本機服務（check `services`）與晚間鏈（check `evening`）
 
-兩者都由本機 watcher `scripts/alert_watch.py`（launchd job `com.cpbl.alert-watch`，`StartInterval` 300 秒，樣板 `ops/launchd/com.cpbl.alert-watch.plist`）處理；
+兩者都由本機 watcher `scripts/alert_watch.py`（launchd job `com.cpbl.alert-watch`，`StartInterval` 見 `docs/SCHEDULE_TIMELINE.md` §1.6，樣板 `ops/launchd/com.cpbl.alert-watch.plist`）處理；
 走系統 `/usr/bin/python3`，⛔ 不取 refresh lock、不連 DB、不動容器、⛔ 不改晚間鏈檔。本機狀態只寫 `logs/alert-watch/state.json`，ping／武裝結果一行一筆寫 `logs/launchd-alert-watch.out.log`（遮罩過）。
 
 - **安裝**（D4，6429157634：合併後由需求方親自 bootstrap；⛔ AI 不動 launchd）：
@@ -1031,10 +1031,10 @@ GitHub 會自動標記。判斷是否經 PR 合併要看 `gh api repos/.../commi
   停擺＝不是 `running`（`exited`／`created`／`restarting`／`paused`／`dead`／查無此容器），以及 Docker daemon 無回應（D1）。仍停擺時每次都再送；服務端只在狀態轉換時寄信。
   恢復或距上次成功滿 60 分時送成功 ping。睡眠、DarkWake、剛醒的第一次觀測都**不送**，所以 Mac 睡著不會誤報；最壞約 10 分鐘內響。
   服務端（需求方設定）：`services` 的 period／grace 設到允許的上限，只認明確的 `/fail`。上限實測為 31536000 秒（365 天），超過回 400（#358 exec-2a §1.4）。
-- **晚間鏈**（門檻＝今晚最晚開賽＋5h，6348735853 第 5 項；plan FATAL 不立即送，第 6 項）：
+- **晚間鏈**（門檻＝今晚最晚開賽加 registry `.evening_alert.deadline_after_start_minutes`，見 `docs/SCHEDULE_TIMELINE.md` §1.6；6348735853 第 5 項；plan FATAL 不立即送，第 6 項）：
   - 武裝：今日賽程檔（`logs/daily-schedule-today.json`；判法同 §10 動作條件，`date`＝今晚、排定場＝A／E／C 且 `game_date == date`，不看 `present_status`）有場，
-    就以 Management API 把 `evening` 設成只對今天生效的 cron `MM HH D M *`（`Asia/Taipei`，grace 5h）。晚間狀態檔 `schedule[].starts_at` 還沒有今晚每一場的開賽時刻時，
-    先以 **23:35** 為期限（D3），取得後改成開賽＋5h；每晚最多**成功**武裝一次、改正一次；API 失敗就在下一次喚醒（5 分鐘後）再試，沒有放棄上限（#358 審核第 1 輪 blocking 2）；每次 `arm_schedule` 是查詢（GET ?slug=）＋更新（POST）兩個請求，各自最多試 3 次（10 秒逾時＋退避），最壞約 66 秒，仍短於 300 秒的喚醒間隔。「今晚」＝台北 09:45 起到次日 09:45 前。
+    就以 Management API 把 `evening` 設成只對今天生效的 cron `MM HH D M *`（`Asia/Taipei`，grace＝`.evening_alert.deadline_after_start_minutes`）。晚間狀態檔 `schedule[].starts_at` 還沒有今晚每一場的開賽時刻時，
+    先以 registry `.evening_alert.fallback_deadline` 為期限（D3），取得後改成開賽加 `.evening_alert.deadline_after_start_minutes`；每晚最多**成功**武裝一次、改正一次；API 失敗就在下一次喚醒再試，沒有放棄上限（#358 審核第 1 輪 blocking 2）；每次 `arm_schedule` 是查詢（GET ?slug=）＋更新（POST）兩個請求，各自最多試 3 次（10 秒逾時＋退避），最壞約 66 秒，仍短於喚醒間隔（registry `cadence`）。「今晚」＝台北 09:45 起到次日 09:45 前。
   - 成功：今晚每一場在狀態檔是 `FINISHED`／`POSTPONED`、`pending_sync` 為 `false`、狀態檔有 `halted` 欄且為空、兩份狀態檔都沒有 halted、`events` 每一筆都是物件且 `state` ∈ {`synced`, `unreached`}（`open`、`ingested`＝已入庫未同步、缺 `state`、格式錯、不認得的值都不算），才送成功（每晚一次）。
     欄位缺失一律不送（fail closed，結果是期限告警；#358 審核第 1 輪 blocking 1）。保留賽（`RESERVED`）不算終態，該晚會在期限告警。
   - halted：`logs/postseason-evening-state.json` 或 `logs/last-postseason-evening.json` 有 `halted` 時立即送 `/69`（同一原因每晚一次）。

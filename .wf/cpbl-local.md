@@ -23,6 +23,7 @@
 
 - 主 checkout `~/Dev/cpbl-analytics` 必須停在 `main`：本機排程直接從它執行，它停在哪個分支排程就跑哪個分支的碼。分支工作一律開獨立 worktree。
 - 本機 DB、服務、排程與既有 worktree 都是多個 session 共用；改動前依 vNext 資源租用（`rules/core/github.md` §6）。`Resource` 欄只記當前占用狀態，不是鎖；占用或 owner 不明時先請 PM 協調，⛔ 不清除、不重設、不覆蓋別人的未提交變更。
+- 各排程服務的事件、資源足跡，以及任務是否需要等排程，見 `docs/SCHEDULE_TIMELINE.md`；時刻以 `scripts/schedule-registry.json` 為準，本檔不寫時刻。
 
 ## DB 寫入與 migration
 

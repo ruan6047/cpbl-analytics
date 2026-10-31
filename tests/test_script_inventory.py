@@ -889,7 +889,7 @@ def test_counts_reconcile_across_three_surfaces() -> None:
         "供每日鏈狀態寫入器與本機告警 watcher 共用）＋ 1（#358 WP6：alert_watch.py，本機告警 watcher；"
         "其 launchd 樣板放 ops/launchd/，故不另計）。"
         "同卡的 schedule-registry.json 是純資料不是入口，見 NON_ENTRY_BASENAMES")
-    assert len(research) == 23, (
+    assert len(research) == 24, (
         "19（基準）＋ 1（OPS-SCHEDULE-FAILURE-BLIND1／#132："
         "docs/research/OPS-SCHEDULE-FAILURE-BLIND1/measure_notification_delivery.py，"
         "通知投遞的可重建量測工具。住在自己卡的目錄裡，符合 oneshot 的位置規則）"
@@ -901,7 +901,9 @@ def test_counts_reconcile_across_three_surfaces() -> None:
         "≤2017 官方逐年對戰列的一次性收集與重建工具。住在自己卡的目錄裡，"
         "符合 oneshot 的位置規則）"
         "＋ 1（#383 段 2 P-B：docs/research/ISSUE-383/replace_derived_tables.py，"
-        "11 張衍生表的受守衛整表替換工具。推導為 CI 繫結，具名列於 POSITION_EXCEPTIONS）")
+        "11 張衍生表的受守衛整表替換工具。推導為 CI 繫結，具名列於 POSITION_EXCEPTIONS）"
+        "＋ 1（#400 R1：docs/research/SCHED-TIMING-400/r1_measure.py，排程觸發／完成分布的"
+        "唯讀可重建量測。住在自己卡的目錄裡，符合 oneshot 的位置規則）")
     assert len(cli) == 51, (
         "47 ＋ 1（#284 S03：cpbl-roster，季後 32 人資格名單的本機唯一會員 writer；"
         "放在 cpbl.ingest 底下以受 test_cli_help_guard 的 --help 零副作用探針涵蓋）"
@@ -909,12 +911,12 @@ def test_counts_reconcile_across_three_surfaces() -> None:
         "入口同樣放在 cpbl.ingest 底下以受 --help 零副作用探針涵蓋）"
         "＋ 2（#357 WP2：cpbl-check-livelog 唯讀檢查、cpbl-replay-livelog-extra 預設 dry-run 的"
         "回補工具；同樣放在 cpbl.ingest 底下受 --help 探針涵蓋）")
-    assert len(scripts) + len(research) + len(cli) == 131, (
+    assert len(scripts) + len(research) + len(cli) == 132, (
         "119＋1（#132 的量測工具）＋1（#100 的重測工具）＋1（#201 的收集工具）"
         "＋1（#268 的 postseason-evening.sh）＋1（#284 的 cpbl-roster CLI）"
         "＋1（#287 的 cpbl-build-team-comparison CLI）＋1（#353 的 prod_availability.py）"
         "＋2（#357 的兩支 CLI）＋1（#358 的 alert_ping.py）＋1（#358 的 alert_watch.py）"
-        "＋1（#383 的 replace_derived_tables.py）")
+        "＋1（#383 的 replace_derived_tables.py）＋1（#400 的 r1_measure.py）")
 
 
 def test_invariant_proof_enumerates_every_entry(capsys: pytest.CaptureFixture) -> None:
