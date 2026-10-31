@@ -261,13 +261,17 @@ def _run(args: argparse.Namespace, base: str) -> int:
         print(f"    ⓘ {text}", flush=True)
         print(f"    ⓘ {send(ping_url(args.env_file), verdict['ok'], text)}", flush=True)
     except (Exception, SentinelTerminated) as exc:  # noqa: BLE001 — 偵測器自身失敗：不改變呼叫端成敗，但照樣告警
+        # 告警送出階段同樣忽略 SIGTERM（#398 審核第 3 輪 F3）：一般錯誤先發生時處理器還沒觸發，送告警途中
+        # 第一次 SIGTERM 會中止送出、該次就沒有任何結果。由 SentinelTerminated 進來時處理器已設忽略，這行
+        # 是同值重設。送出受 urlopen timeout=10 限制，呼叫端寬限 ≥ 這個值。
+        signal.signal(signal.SIGTERM, signal.SIG_IGN)
         # fail-closed：量測沒完成＝沒有「全部合格」的證據，與 0 樣本同等處理。
         print(f"    ⚠ prod_availability {args.command} 自身失敗（{type(exc).__name__}）；"
               "不影響呼叫端", file=sys.stderr, flush=True)
         try:
             text = f"cpbl prod availability {args.command} FAIL: detector error {type(exc).__name__}"
             print(f"    ⓘ {send(ping_url(args.env_file), False, text)}", flush=True)
-        except (Exception, SentinelTerminated):  # noqa: BLE001 — 告警本身送不出也不得改變呼叫端成敗
+        except Exception:  # noqa: BLE001
             pass
     return 0
 

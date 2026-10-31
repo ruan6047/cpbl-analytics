@@ -504,6 +504,62 @@ def test_t3_sigterm_while_sending_the_result_is_ignored_single_signal(tmp_path: 
         receiver.close()
 
 
+_ERROR_FIRST_RUNNER = """
+import importlib.util, sys
+spec = importlib.util.spec_from_file_location("prod_availability", sys.argv[1])
+pa = importlib.util.module_from_spec(spec); sys.modules["prod_availability"] = pa; spec.loader.exec_module(pa)
+def _boom(**kw):
+    raise ValueError("injected detector error")   # 一般錯誤先發生（不是訊號）
+pa.run_sentinel = _boom
+raise SystemExit(pa.main(sys.argv[2:]))
+"""
+
+
+def test_t7_sigterm_during_the_alert_of_an_ordinary_error_does_not_drop_it(tmp_path: Path) -> None:
+    """#398 審核第 3 輪 F3：一般錯誤先進失敗路徑（處理器尚未觸發），送告警途中第一次 SIGTERM——告警照樣送完。
+
+    修正前：SIGTERM 在 send() 途中拋 SentinelTerminated，被內層 except 吞掉，rc 0 卻沒有任何送出結果。
+    """
+    receiver = Receiver(hold=True)
+    try:
+        cmd = [SYSTEM_PYTHON, "-c", _ERROR_FIRST_RUNNER, str(SCRIPT), "sentinel",
+               "--stop-file", str(tmp_path / "no-stop"), "--base-url", "http://127.0.0.1:9",
+               "--out", str(tmp_path / "out.tsv")]
+        proc = _start(cmd, _sentinel_env(tmp_path, receiver, curl_sleep=0))
+        assert receiver.got_post.wait(15), "一般錯誤後沒有送出告警"
+        proc.send_signal(signal.SIGTERM)  # 告警正在送（收件端還沒回應）
+        time.sleep(0.5)
+        receiver.release.set()
+        rc, out, err, _ = _finish(proc, timeout=15)
+
+        assert rc == 0, err
+        assert receiver.oks() == [] and len(receiver.fails()) == 1, receiver.posts
+        assert "detector error ValueError" in receiver.fails()[0]
+        assert out.count("已送告警（HTTP 200）") == 1, f"告警被 SIGTERM 中止：stdout={out!r} stderr={err!r}"
+    finally:
+        receiver.close()
+
+
+def test_t1c_handler_ignores_further_sigterm_from_its_first_trigger(monkeypatch, tmp_path: Path) -> None:
+    """處理器第一次觸發的當下就忽略後續 SIGTERM——在例外往外傳（subprocess 收尾等）期間、還沒進失敗路徑
+    之前就已生效。失敗路徑開頭的忽略（F3）蓋不到這段窗口，所以這條直接在窗口內觀察（Md 變異用）。
+    """
+    seen = []
+
+    def fake_sentinel(**kw):
+        try:
+            signal.raise_signal(signal.SIGTERM)
+        except BaseException:
+            seen.append(signal.getsignal(signal.SIGTERM))   # 例外剛離開處理器、尚未到 main 的失敗路徑
+            raise
+        return []
+
+    monkeypatch.setattr(pa, "run_sentinel", fake_sentinel)
+    monkeypatch.setattr(pa, "send", lambda *a, **k: "logged")
+    assert pa.main(["sentinel", "--stop-file", str(tmp_path / "s"), "--out", str(tmp_path / "o.tsv")]) == 0
+    assert seen == [signal.SIG_IGN], seen
+
+
 def test_t6_daily_fallback_grace_is_at_least_the_send_timeout() -> None:
     """鏈端寬限 ≥ send() 的送出逾時（兩個值都從原始碼讀，不手打），且不超過規劃停止條件的 60 秒。"""
     import inspect
