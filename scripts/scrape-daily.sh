@@ -91,19 +91,20 @@ EOF
 
 if [ "$#" -gt 0 ]; then
   case "$1" in
-    --jobs-features)
-      if [ "$#" -ne 1 ]; then
-        echo '--jobs-features 不接受其他參數' >&2
-        exit 64
-      fi
-      # 在 Mac 路徑、日期、鎖、狀態檔與控制操作之前分流；由 jobs 映像 PATH 選 Python。
-      exec python -m cpbl.features.run_build_features --jobs
-      ;;
     -h|--help)
       usage
       exit 0
       ;;
   esac
+fi
+
+# jobs 契約放在共用 help 守衛之後、Mac 操作之前；不擴張守衛的控制流。
+if [ "${1:-}" = "--jobs-features" ]; then
+  if [ "$#" -ne 1 ]; then
+    echo '--jobs-features 不接受其他參數' >&2
+    exit 64
+  fi
+  exec python -m cpbl.features.run_build_features --jobs
 fi
 
 REPO_DIR="$(cd "$(dirname "$0")/.." && pwd)"
