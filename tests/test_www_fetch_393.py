@@ -6,6 +6,7 @@ import importlib.util
 import json
 import subprocess
 import sys
+import types
 from pathlib import Path
 
 import pytest
@@ -193,7 +194,13 @@ def test_check_is_zero_network_and_does_not_create_outputs(tmp_path, monkeypatch
     assert json.loads(capsys.readouterr().out)["ok"] and not (tmp_path / "out").exists()
 
 
-def test_original_session_adapter_preserves_text_and_mature_retry_behavior():
+def test_original_session_adapter_preserves_text_and_mature_retry_behavior(monkeypatch):
+    # As in the existing marker tests, the offline Page needs only the exception type.
+    # CI's default `uv sync` does not install the optional scrape/Playwright group.
+    api = types.ModuleType("playwright.sync_api")
+    api.Error = type("FixtureBrowserError", (Exception,), {})
+    monkeypatch.setitem(sys.modules, "playwright", types.ModuleType("playwright"))
+    monkeypatch.setitem(sys.modules, "playwright.sync_api", api)
     source = Path(__file__).resolve().parents[1] / "src/cpbl/ingest/_browser.py"
     spec = importlib.util.spec_from_file_location("original_browser_fixture_393", source)
     original = importlib.util.module_from_spec(spec)
