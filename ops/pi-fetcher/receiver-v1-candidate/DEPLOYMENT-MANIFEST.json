@@ -1,0 +1,53 @@
+{
+  "candidate_files": [
+    {
+      "source": "sshd-receiver.conf.in",
+      "proposed_destination": "/etc/ssh/sshd_config.d/393-receiver.conf",
+      "owner": "0:0",
+      "mode": "0644",
+      "note": "Only if included at a valid Match scope; actual existing include layout unknown, must be checked under deployment lease before load."
+    },
+    {
+      "source": "authorized_keys.in with authorized generated public key substituted",
+      "proposed_destination": "/etc/ssh/authorized_keys/cpbl393-receiver",
+      "owner": "0:0",
+      "mode": "0644",
+      "parent_owner_mode": "0:0/0755",
+      "note": "Public key only; unresolved placeholder is not deployable."
+    }
+  ],
+  "proposed_new_directories": [
+    {
+      "path": "/srv/cpbl393-receiver",
+      "owner": "0:0",
+      "mode": "0755"
+    },
+    {
+      "path": "/srv/cpbl393-receiver/incoming",
+      "owner": "999:3993",
+      "mode": "0700"
+    }
+  ],
+  "proposed_pi_materials": [
+    {
+      "path": "/home/ruan/.ssh/cpbl393_receiver_ed25519",
+      "owner": "ruan",
+      "mode": "0600",
+      "status": "not_generated; generate only on Pi under new lease, never copy Mac/Actions keys"
+    },
+    {
+      "path": "/home/ruan/.ssh/cpbl393_receiver_known_hosts",
+      "owner": "ruan",
+      "mode": "0600",
+      "status": "Full host public key from trusted source must match declared SHA256; no TOFU"
+    }
+  ],
+  "deploy_operations_not_authorized": [
+    "Check exact account/UID/GID/new-root collision and parent ownership/Match layout/sshd version under one new lease",
+    "Generate one dedicated Pi key, keep private on Pi, bind public key/fingerprint to receiver account",
+    "Install only reviewed configuration/new directories, existing owner performs syntax check and safe sshd reload; retain management access and scoped previous config for recovery",
+    "One direct transfer using real sender and receiver after lease; no writer or DB credentials",
+    "Record time/rc/session exit, public fingerprints, new files/permissions, partial retention, prior config restore if explicitly authorized; no cleanup of other data"
+  ],
+  "rollback_not_automatic": "Exact sshd/account/key/new-root changes require original owner and explicit recovery authorization; no global restart/kill or deletion of existing R/data; unresolved sessions remain unknown."
+}

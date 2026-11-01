@@ -1,0 +1,1 @@
+restrict ssh-ed25519 <PI_RECEIVER_PUBLIC_KEY_BASE64> cpbl393-pi-receiver

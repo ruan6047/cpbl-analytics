@@ -1,6 +1,6 @@
 # WP3：沿原爬蟲的私有原文代取器
 
-Pi只依VPS清單代取www，產出原文與索引。解析、DB、計算、發布、inbox傳輸及正式排程由其他工作包承接。
+Pi只依VPS清單代取www，產出原文與索引；直送候選見下方。解析、DB、計算、發布、接收端部署及正式排程由其他工作包承接。
 目前版本不含舊guard／CDP／Worker限制／API代送，亦不修改`src/cpbl/ingest/_browser.py`。
 
 ## 來源與執行
@@ -89,7 +89,45 @@ for entry in index["entries"]:
 ```
 
 `verify_bundle`返回安全index；`read_response`每次重驗當筆bytes/hash，減少驗後再讀的變動風險。
-這裡沒有實作WP4回放session／writer，也不自行送VPS。hash驗完整性，不是發布者身分驗證；受控inbox交接仍依原PLAN。
+這裡沒有實作WP4回放session／writer；直送由下方獨立入口執行，不因取源成功自動觸發。hash驗完整性，不是發布者身分驗證；受控inbox交接仍依原PLAN。
 
 本機測試只用虛構token／session文字與受控子程序；不是新的官網或Pi證據。
 成熟來源14c的ORIGINAL1兩端成功仍為取源路徑依據；本候選正式原文落檔／受控傳輸與範圍驗證尚待新核發及正式審核。
+
+## Pi → VPS 直送候選
+
+`cpbl_pi_send.py` 只使用標準庫、未改的 `www_fetch.py` 與系統 `/usr/bin/sftp`。
+同版 receiver 文件／設定原樣保存在 `receiver-v1-candidate/`，版本
+`cpbl393-sftp-drop/v1-candidate.1`；其中帳號、UID/GID、目錄與 key 仍是未部署候選，
+不是已核發的正式操作。sender 不建立帳號／key、改權限、取源、部署或呼叫 parser／DB。
+
+未來須在整合租用明列這些檔案、認證引用及既有固定包後才可執行，例如：
+
+```bash
+/existing/venv/bin/python -I -B ops/pi-fetcher/cpbl_pi_send.py /private/original-manifest.json \
+  --bundle /private/job-out/original-manifest-id --timeout 120
+```
+
+範例 120 是待核的工作秒數，不是已核窗口；另保留原 `wait_worker` 的 TERM/KILL wait 最多 10 秒。
+`--identity-file`／`--known-hosts` 預設為合同的 Pi 專用路徑；只能引用新核發綁定的檔案，
+不得用 Mac／Actions key。Python 只 stat 私鑰（當前 UID／0600／非 symlink），不讀其內容；
+known_hosts 要是私有專檔，只有一筆指定 host 的 ED25519 公鑰且 SHA256 與固定 pin 相符。
+不接受任意主機／帳號／根／遠端 shell command，不載入使用者 SSH config／agent／轉送／代理。
+
+先由原 `verify_bundle(require_complete=True)` 驗整包與獨立原 manifest，再執行**一次**原生 batch：
+排他 `mkdir /incoming/<manifest_id>` → `mkdir responses` → 僅 `put` 索引列出的原文 →
+`put index.json` 到 `.index.json.upload` → `rename` 為最後的 `index.json`。
+相對本機路徑由原 ID 產生，bundle 路徑透過子程序 cwd 傳入，不插入 batch 語法；沒有遞迴、
+忽略錯誤、resume、retry、delete 或換 run_id 繞過碰撞。失敗不清理遠端部分檔。
+來源必須已停寫，同 run 不得在傳輸中變更或被消費；此為合同的可信 sender 前提，沒有新增鎖／ready 協議。
+
+stdout 僅安全 JSON；rc0／`transfer_complete` 只代表本機前置與整份 SFTP batch 成功，
+不代表遠端驗 hash、parser、writer 或發布。非零／逾時／未知一律 rc1，保留原生 `sftp_rc`
+（未取得則 null），不從 1／255 等碼猜成既存 ID 或已回滾。輸出不包含子程序 stdout/stderr、
+原文、token、key 或例外內容。消費端仍獨立保留原 manifest，走既有 verify/read gate。
+
+**標準 SFTP 不提供 server 強制 write-once**：受認證帳號仍可改寫自己既存檔。
+本候選僅以可信 sender 的 mkdir 排他、原生 batch 首錯停與 index 最後發布避免正常誤覆寫。
+這項模型須經同版必要審核與部署前明確風險接受；不得以 client 行為宣稱 server immutable。
+OpenSSH allowlist／版本／Include/Match／實際帳號與端到端 pin/key/權限相容尚未在真機驗證。
+離線程序替身只證 sender 參數、順序、拒收與 rc，不能冒稱驗過原生 server 能力。
