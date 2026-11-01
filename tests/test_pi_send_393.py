@@ -25,7 +25,7 @@ def inputs(tmp_path, monkeypatch):
     root = tmp_path / "source space"
     for path in [root, *root.rglob("*")]:
         path.chmod(0o700 if path.is_dir() else 0o600)
-    identity = tmp_path / "identity"
+    identity = tmp_path / "identity file"
     identity.write_bytes(b"NOT A KEY; sender must only stat this file")
     identity.chmod(0o600)
     blob = b"\x00\x00\x00\x0bssh-ed25519\x00\x00\x00\x20" + b"x" * 32
@@ -106,6 +106,39 @@ def test_precheck_failure_never_starts_transport(inputs, monkeypatch, invalid):
     result = invoke(inputs)
     assert result["outcome"] == "precheck_failed" and result["sftp_rc"] is None
     assert result["writer_started"] is False
+
+
+@pytest.mark.parametrize("field, spelling", [
+    ("known_hosts", "%h"), ("identity_file", "%h"),
+    ("known_hosts", "${HOSTNAME}"), ("identity_file", "${HOSTNAME}"),
+])
+def test_auth_path_expansion_is_rejected_even_when_literal_file_passes_checks(
+    inputs, monkeypatch, field, spelling,
+):
+    manifest, bundle, identity, hosts = inputs
+    original = hosts if field == "known_hosts" else identity
+    literal = original.with_name(spelling)
+    # This literal path really exists and passes the old pin/metadata checks.
+    # It is a synthetic public hosts file or NOT-A-KEY text, never a real key.
+    literal.write_bytes(original.read_bytes())
+    literal.chmod(0o600)
+    launches = []
+
+    class Child:
+        returncode = 0
+
+        def communicate(self, **kwargs):
+            pass
+
+    def launch(*args, **kwargs):
+        launches.append(args)
+        return Child()
+
+    monkeypatch.setattr(subprocess, "Popen", launch)
+    args = {"identity_file": identity, "known_hosts": hosts, field: literal}
+    result = sender.send_bundle(manifest, bundle, timeout=30, **args)
+    assert result["outcome"] == "precheck_failed"
+    assert result["sftp_rc"] is None and not launches
 
 
 def test_native_failure_is_unknown_not_collision_and_never_retried(inputs, monkeypatch):

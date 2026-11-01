@@ -112,6 +112,8 @@ for entry in index["entries"]:
 `--identity-file`／`--known-hosts` 預設為合同的 Pi 專用路徑；只能引用新核發綁定的檔案，
 不得用 Mac／Actions key。Python 只 stat 私鑰（當前 UID／0600／非 symlink），不讀其內容；
 known_hosts 要是私有專檔，只有一筆指定 host 的 ED25519 公鑰且 SHA256 與固定 pin 相符。
+兩個認證路徑在檢查前一律拒絕 `%`／`$` 展開語法與設定跳脫字元，確保 Python 驗證的
+字面檔案就是 OpenSSH 使用的檔案；一般路徑及空白仍可使用。
 不接受任意主機／帳號／根／遠端 shell command，不載入使用者 SSH config／agent／轉送／代理。
 
 先由原 `verify_bundle(require_complete=True)` 驗整包與獨立原 manifest，再執行**一次**原生 batch：

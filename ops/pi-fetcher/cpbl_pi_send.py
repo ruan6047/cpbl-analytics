@@ -73,10 +73,11 @@ def send_bundle(manifest, bundle, *, identity_file=IDENTITY_FILE,
             raise ValueError("positive_lease_timeout_required")
         bundle = Path(bundle).absolute()
         identity, hosts = Path(identity_file).absolute(), Path(known_hosts).absolute()
-        # -i is a separate argv value. SSH's -o is config syntax, so quote its path
-        # and reject control/quote escapes rather than accepting injected options.
-        if any(c in str(hosts) for c in '\\"\r\n\x00'):
-            raise ValueError("invalid_known_hosts_path")
+        # OpenSSH expands % tokens and ${ENV} in BOTH identity and known-hosts
+        # paths, even when quoted. Reject expansion/config escapes before stat
+        # so Python validates the same literal paths that OpenSSH will use.
+        if any(c in str(path) for path in (identity, hosts) for c in '\\"\r\n\x00%$'):
+            raise ValueError("invalid_authentication_path")
         _private(identity)  # metadata only: only OpenSSH may read private key bytes
         _pinned_hosts(hosts)
         _private(bundle, directory=True)
