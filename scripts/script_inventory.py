@@ -384,6 +384,14 @@ def ci_binding_targets(src: str, known: set[str]) -> set[str]:
     except SyntaxError:
         return hits
 
+    # basename → 同名的所有目標。(b) 原本對**每個**字串常數都逐一走訪 `known` 並建 `Path(target).name`
+    # （239 支測試檔 × 數千個常數 × 約 200 個目標 ≈ 380 萬次 Path 建構，佔 `build_entries()`
+    # 八成以上的時間、CI 上單一測試逾 100 秒）。改成先建一次對照表，每個常數只做一次 O(1) 查表；
+    # 判定條件逐字等價：`value == target`、`value == name`、`value.endswith("/" + name)`。
+    by_name: dict[str, set[str]] = defaultdict(set)
+    for target in known:
+        by_name[Path(target).name].add(target)
+
     for node in ast.walk(tree):
         # (a) `from scripts.x import y` / `import scripts.x`
         mods: list[str] = []
@@ -403,10 +411,10 @@ def ci_binding_targets(src: str, known: set[str]) -> set[str]:
             value = node.value
             if "\n" in value:          # 多行字串＝散文，不是路徑
                 continue
-            for target in known:
-                name = Path(target).name
-                if value in {name, target} or value.endswith("/" + name):
-                    hits.add(target)
+            if value in known:                       # value == target
+                hits.add(value)
+            tail = value.rsplit("/", 1)[-1]          # value == name 或 value.endswith("/" + name)
+            hits.update(by_name.get(tail, ()))
     return hits
 
 
@@ -1325,8 +1333,14 @@ _LITERAL_PATH_RE = re.compile(r"(?<![\w./-])(scripts/[\w./-]+\.(?:py|sh|plist))(
 _SPLIT_PATH_RE = re.compile(r"""["']scripts/?["']\s*(?:\+|/|,)|["']scripts["']\s*(?:\+|/|,)""")
 
 
+@cache
 def literal_path_refs() -> dict[str, list[str]]:
-    """全庫 `scripts/<name>.<ext>` 字面路徑 → 出現位置（`檔案:行號`）。"""
+    """全庫 `scripts/<name>.<ext>` 字面路徑 → 出現位置（`檔案:行號`）。
+
+    `@cache`：輸入只有 `_tracked_files()` 與 `_read()`（兩者本身已快取），同一行程內結果不會變。
+    沒快取時 `position_debt()` 每呼叫一次就全庫重掃一次；不變式證明測試逐支呼叫，133 次 × 約 0.9 秒
+    ＝ 單一測試逾 100 秒（CI 上實測）。
+    """
     refs: dict[str, list[str]] = defaultdict(list)
     for rel in _tracked_files():
         if rel.startswith(".ai-workflow") or _is_binary(rel):
