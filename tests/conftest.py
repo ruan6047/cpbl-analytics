@@ -29,10 +29,12 @@ test_daily_summary.py、test_coaches_history.py、test_scoreless_streak_api.py�
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 from pathlib import Path
 
 import psycopg
+from psycopg import conninfo, sql
 from psycopg_pool import ConnectionPool
 
 from cpbl import db
@@ -131,8 +133,51 @@ def pytest_report_header(config) -> list[str]:  # noqa: ANN001 — pytest hook �
     return _location_header() + _schedule_alert_header()
 
 
+# 需要按 xdist worker 拆庫的「自行擁有的隔離 Postgres」環境變數。CI 以 Postgres service 提供
+# （.github/workflows/ci.yml）。只列會被**多個測試檔**共用、且各檔都在同一個 `cpbl` schema 上
+# 自建自刪的 DSN；`PA_BUILD_LOCK_TEST_DATABASE_URL`／`PROD_SYNC_SEQ_TEST_DATABASE_URL` 各只有一個
+# 測試檔使用、且測試自己釘死 dbname（`cpbl_pa_lock1`／`cpbl_prod_sync_seq1`），`--dist loadfile` 下
+# 同檔同 worker、不會互撞，所以**不**拆庫、也不能改名。預設 DATABASE_URL 不在此列：那條指向
+# **有真實資料**的本機庫，空庫上有 14 個全庫對帳測試會因「樣本不足」而紅，CI 讓它維持不可達、照舊 skip。
+THROWAWAY_DB_ENVS = (
+    "CPBL_ISOLATED_TEST_DSN",   # test_*_isolated.py、test_daily_chain_completion、test_evening_a_fetch_gate
+)
+
+
+def _per_worker_throwaway_dbs(config) -> None:  # noqa: ANN001 — pytest Config
+    """xdist 下為每個 worker 配自己的拋棄式資料庫。
+
+    這些測試檔都在環境變數所指的庫上自建 schema、結束時 ``DROP SCHEMA … CASCADE``，而且 schema 已存在時
+    拒跑（怕踩到真實資料庫）。單執行緒下它們依序共用一個空庫沒問題；``-n 4`` 時四個 worker 同時建、
+    同時刪同一個 schema 就互相撞成假紅。
+
+    這裡在 **xdist worker 內**、且使用者**本來就設了**該環境變數時，把 dbname 改成 ``<dbname>_<workerid>``，
+    不存在就經維護庫 ``postgres`` ``CREATE DATABASE``；單執行緒或未設時完全不動。這些 DSN 依各測試檔檔頭只該
+    指向拋棄式伺服器，在同一台伺服器建兄弟庫在這個前提下是安全的；沒有 CREATEDB 權限就讓它在這裡炸開，
+    而不是靜默退回共用庫去撞。
+    """
+    # 只認 pytest Config 上 xdist 放的 workerinput；⛔ 不退回 PYTEST_XDIST_WORKER 環境變數——
+    # 替身 config 的單元測試（test_pytest_location_header）就跑在 worker 行程裡，退回去會讓它誤連 DB。
+    worker = (getattr(config, "workerinput", None) or {}).get("workerid")
+    if not worker:
+        return
+    for name in THROWAWAY_DB_ENVS:
+        dsn = os.environ.get(name)
+        if not dsn:
+            continue
+        base = conninfo.conninfo_to_dict(dsn).get("dbname") or "postgres"
+        target = f"{base}_{worker}"
+        maintenance = conninfo.make_conninfo(dsn, dbname="postgres")
+        with psycopg.connect(maintenance, autocommit=True,
+                             connect_timeout=_PROBE_CONNECT_TIMEOUT_SECONDS) as c:
+            if c.execute("SELECT 1 FROM pg_database WHERE datname = %s", (target,)).fetchone() is None:
+                c.execute(sql.SQL("CREATE DATABASE {}").format(sql.Identifier(target)))
+        os.environ[name] = conninfo.make_conninfo(dsn, dbname=target)
+
+
 def pytest_sessionstart(session) -> None:  # noqa: ANN001 — pytest hook 簽名固定
     """整個 session 只探測一次；DB 不可達就讓全域池「預先壞掉」以避免逐測試等待。"""
+    _per_worker_throwaway_dbs(session.config)
     try:
         with psycopg.connect(
             settings.database_url, connect_timeout=_PROBE_CONNECT_TIMEOUT_SECONDS

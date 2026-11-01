@@ -67,6 +67,25 @@ jobs:
     # 確定性失敗遠比 1/3 機率的假 flaky 便宜（TIME-TEST-CLOCK-INJECT1 痛點）。
     env:
       TZ: UTC
+    # 拋棄式 Postgres：只給「自行擁有的隔離庫」那類測試用（tests/conftest.py 的 THROWAWAY_DB_ENVS），
+    # 它們在空庫上自建 schema、自行清理。對外埠刻意用 5434 而不是 settings 預設的 5433：
+    # 預設 DATABASE_URL 指向的是**有真實資料**的本機庫，空庫上有 14 個全庫對帳測試會因樣本不足而紅
+    # （2026-11-01 本機量測），所以 CI 讓它維持不可達、照舊 skip，不假裝那批測試已驗。
+    # 版本與 docker-compose.yml 的 db 服務同為 17。
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: cpbl
+          POSTGRES_PASSWORD: cpbl
+          POSTGRES_DB: postgres
+        ports:
+          - 5434:5432
+        options: >-
+          --health-cmd "pg_isready -U cpbl"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
     steps:
       - uses: actions/checkout@v4
         with:
@@ -80,10 +99,27 @@ jobs:
       - run: uv sync
       - name: Ruff lint
         run: uv run ruff check
+      - name: Create throwaway databases
+        # 兩個測試檔自己釘死 dbname（只在專用拋棄式資料庫上跑），先把那兩個庫建起來；
+        # CPBL_ISOLATED_TEST_DSN 不必預建：xdist 下 conftest 會經維護庫 postgres 建 <庫名>_gwN。
+        run: |
+          uv run python - <<'EOF'
+          import psycopg
+          from psycopg import sql
+          with psycopg.connect("postgresql://cpbl:cpbl@localhost:5434/postgres", autocommit=True) as c:
+              for name in ("cpbl_pa_lock1", "cpbl_prod_sync_seq1"):
+                  c.execute(sql.SQL("CREATE DATABASE {}").format(sql.Identifier(name)))
+          EOF
       - name: Pytest
         # pytest-xdist：ubuntu-latest 4 vCPU → 4 個 worker。`--dist loadfile` 讓同一檔的測試留在同一個
         # worker，保住檔內順序依賴（如 test_championship_managers 取用 test_championships 的種子列）。
         # 無 DB 時各 worker 的 conftest 各自做一次 2 秒探測，結果與單執行緒相同。
+        # 三個 DSN 都指向上面的 service；isolated 那條 xdist 下由 conftest 按 worker 拆庫，
+        # 另兩條各只有一個測試檔、且測試釘死庫名，不拆。
+        env:
+          CPBL_ISOLATED_TEST_DSN: postgresql://cpbl:cpbl@localhost:5434/cpbl_ci_isolated
+          PA_BUILD_LOCK_TEST_DATABASE_URL: postgresql://cpbl:cpbl@localhost:5434/cpbl_pa_lock1
+          PROD_SYNC_SEQ_TEST_DATABASE_URL: postgresql://cpbl:cpbl@localhost:5434/cpbl_prod_sync_seq1
         run: uv run pytest -q -n auto --dist loadfile
 
   web:
