@@ -914,10 +914,6 @@ CLASS_OVERRIDES: dict[str, tuple[str, str]] = {
         "standing",
         "docstring 明寫「改前後各跑一次再 diff」＝重複執行義務，是能力值卡的回歸抽驗工具；"
         "無卡 ID 故不可能是卡片一次性產物。缺的是觸發器不是生命週期"),
-    "scripts/review_gate_inventory.py": (
-        "standing",
-        "REVIEW_GATE_CONTRACT §6 引用它為可重現盤點、§225 宣告「納管＋測試」。"
-        "⚠️ 該宣告未落實：實測無任何測試載入它，防護是名義上的"),
     "scripts/capture_player_ia_fixtures.py": (
         "product_pending",
         "訊號互斥且需求方已裁定不重裁：母卡 UX-PLAYER-IA1 已封存（＝一次性），"
@@ -973,7 +969,6 @@ ONESHOT_HOME: dict[str, str] = {
     "scripts/replay_schedule_branches.py": "INGEST-GAME-TM-REFACTOR1-G4",
     "scripts/report_pa_rebuild_fix1.py": "GAME-RECAP-PA1-FIX1",
     "scripts/restate1_reconcile.py": "INGEST-SPLITS-IMPORT-RESTATE1",
-    "scripts/state_plane_migrate.py": "OPS-STATE-PLANE-MIG1",
     "scripts/team_style_vectors.py": "TEAM-STYLE1",
     "scripts/verify_deep_tm_backfill.py": "INGEST-DEEP-TM-BACKFILL1",
     "scripts/verify_pa_build_fix1.py": "GAME-RECAP-PA1-FIX1",
@@ -2126,13 +2121,10 @@ PURPOSE_VERIFIED: dict[str, str] = {
     "scripts/backup-prod-db.sh": "備整庫並驗內容門檻（OPS-BACKUP-EMPTY1 的產物，已是常設）",
     "scripts/refresh_status.py": "每日鏈的狀態記錄輔助（寫狀態／歷史 JSON）；launchd 觸發時另經 alert_ping.py 送 daily 心跳（#358，fail-open）",
     "scripts/verify_refresh_info.py": "同步後打 /api/info 驗證，唯讀",
-    "scripts/workflow_ledger.py": "⚠️ 已於 33c7c3f 加拒絕執行守衛——TASKS.md 已封存，--write 會覆寫封存產物",
-    "scripts/review_prompt.py": "查核提示詞產生器；AI_RUNBOOK:433 逐字給指令，18 commits",
     "scripts/roadmap_lines.py": "ROADMAP §1 線別歸屬的機械判定者，fail closed",
     "scripts/pa_transition_taxonomy.py": "canonical taxonomy 的產生器（唯讀）；產物勿手改，改了要重跑",
     "scripts/reconcile_scoreless_streak.py": "窮舉對帳；AI_RUNBOOK:380 寫「改動演算法後必跑」，義務靠人記得",
     "scripts/ability_snapshot.py": "能力值卡回歸抽驗；docstring 明寫改前後各跑一次再 diff",
-    "scripts/review_gate_inventory.py": "⚠️ REVIEW_GATE_CONTRACT 宣告「納管＋測試」但實測無測試載入，宣告未落實",
     # --- CLI：高後果／訊號互斥 ---
     "cpbl-refresh-recent": "每日鏈主要寫入者，566 行；⚠️ --help 觸及 cpbl.db.migrate（#53 凍結）",
     "cpbl-research-umpire-impact": "632 行研究入口，零活引用；產物落檔案不落 DB",

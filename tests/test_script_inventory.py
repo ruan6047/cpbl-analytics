@@ -157,7 +157,6 @@ FROZEN_POSITION_DEBT = frozenset({
     "scripts/replay_schedule_branches.py",
     "scripts/report_pa_rebuild_fix1.py",
     "scripts/restate1_reconcile.py",
-    "scripts/state_plane_migrate.py",
     "scripts/strength1_report_tables.py",
     "scripts/team_style2_manager_pairs.py",
     "scripts/team_style_vectors.py",
@@ -877,7 +876,7 @@ def test_counts_reconcile_across_three_surfaces() -> None:
     research = [e for e in entries if e.surface == "research"]
     cli = [e for e in entries if e.surface == "cli"]
 
-    assert len(scripts) == 57, (
+    assert len(scripts) == 53, (
         "49（基準 33c7c3f）＋ 1（DEV-SCRIPT-INVENTORY1 的 script_inventory.py）"
         "＋ 3（OPS-SCHEDULE-FAILURE-BLIND1／#132：schedule_watch.py、"
         "schedule-watchdog.sh、com.cpbl.schedule-watchdog.plist）"
@@ -888,7 +887,10 @@ def test_counts_reconcile_across_three_surfaces() -> None:
         "＋ 1（#358 WP1：alert_ping.py，外部心跳服務 ping／Management API 的 stdlib 模組，"
         "供每日鏈狀態寫入器與本機告警 watcher 共用）＋ 1（#358 WP6：alert_watch.py，本機告警 watcher；"
         "其 launchd 樣板放 ops/launchd/，故不另計）。"
-        "同卡的 schedule-registry.json 是純資料不是入口，見 NON_ENTRY_BASENAMES")
+        "同卡的 schedule-registry.json 是純資料不是入口，見 NON_ENTRY_BASENAMES）"
+        "− 4（#405 需求方指示：workflow_ledger.py、review_prompt.py、review_gate_inventory.py、"
+        "state_plane_migrate.py——CLAUDE.md 已宣告退場的 Ledger／control-plane 工具鏈，連同 "
+        "docs/control-plane/events.jsonl 與四支專屬測試一起移除；見 APPROVED_SCRIPT_DELETIONS）")
     assert len(research) == 24, (
         "19（基準）＋ 1（OPS-SCHEDULE-FAILURE-BLIND1／#132："
         "docs/research/OPS-SCHEDULE-FAILURE-BLIND1/measure_notification_delivery.py，"
@@ -911,12 +913,13 @@ def test_counts_reconcile_across_three_surfaces() -> None:
         "入口同樣放在 cpbl.ingest 底下以受 --help 零副作用探針涵蓋）"
         "＋ 2（#357 WP2：cpbl-check-livelog 唯讀檢查、cpbl-replay-livelog-extra 預設 dry-run 的"
         "回補工具；同樣放在 cpbl.ingest 底下受 --help 探針涵蓋）")
-    assert len(scripts) + len(research) + len(cli) == 132, (
+    assert len(scripts) + len(research) + len(cli) == 128, (
         "119＋1（#132 的量測工具）＋1（#100 的重測工具）＋1（#201 的收集工具）"
         "＋1（#268 的 postseason-evening.sh）＋1（#284 的 cpbl-roster CLI）"
         "＋1（#287 的 cpbl-build-team-comparison CLI）＋1（#353 的 prod_availability.py）"
         "＋2（#357 的兩支 CLI）＋1（#358 的 alert_ping.py）＋1（#358 的 alert_watch.py）"
-        "＋1（#383 的 replace_derived_tables.py）＋1（#400 的 r1_measure.py）")
+        "＋1（#383 的 replace_derived_tables.py）＋1（#400 的 r1_measure.py）"
+        "−4（#405 移除的舊制工具鏈四支，見 APPROVED_SCRIPT_DELETIONS）")
 
 
 def test_invariant_proof_enumerates_every_entry(capsys: pytest.CaptureFixture) -> None:
@@ -955,8 +958,9 @@ def test_invariant_proof_enumerates_every_entry(capsys: pytest.CaptureFixture) -
         f"計數對帳：scripts/** {sum(1 for e in entries if e.surface == 'scripts')}"
         f" ＋ docs/research/**/*.py {sum(1 for e in entries if e.surface == 'research')}"
         f" ＋ CLI {sum(1 for e in entries if e.surface == 'cli')} ＝ {len(entries)}",
-        "（基準 33c7c3f 為 49＋19＋47＝115；本輪零搬動、零刪除，"
-        "唯一增量是本卡新增的 scripts/script_inventory.py）",
+        "（基準 33c7c3f 為 49＋19＋47＝115；DEV-SCRIPT-INVENTORY1 本輪零搬動、零刪除，"
+        "唯一增量是該卡新增的 scripts/script_inventory.py；後續增減逐筆具名於 "
+        "test_counts_reconcile_across_three_surfaces 與 APPROVED_SCRIPT_DELETIONS）",
         f"未分類：{sum(1 for e in entries if not e.cls)}　"
         f"標記缺漏：{sum(1 for e in entries if e.surface == 'scripts' and not e.marker)}　"
         f"標記不符：{sum(1 for e in entries if e.surface == 'scripts' and e.marker != e.cls)}",
@@ -985,8 +989,19 @@ def test_invariant_proof_enumerates_every_entry(capsys: pytest.CaptureFixture) -
     assert not set(si.broken_enforced_refs()) - set(FROZEN_BROKEN_REFS)
 
 
-def test_no_script_was_deleted_this_round() -> None:
-    """卡面驗收條件 4：已死的只標記不刪除。"""
+# ⚠️ 需求方核准的刪除。**具名＋理由**；不在表上的刪除一律紅。
+# 這張表只對「origin/main 還有、工作樹已沒有」的檔案起作用：合併後 origin/main 也沒了，條目自然不再參與
+# 判定，之後可整批清掉（刻意**不**加「過期條目」偵測——那會讓合併當下的 main 立刻紅）。
+APPROVED_SCRIPT_DELETIONS: dict[str, str] = {
+    "scripts/workflow_ledger.py": "#405：Ledger 投影產生器，TASKS.md 已封存、CLAUDE.md 宣告舊制退場",
+    "scripts/review_prompt.py": "#405：讀 control-plane 事件檔產生查核提示詞，事件檔已封存且一併移除",
+    "scripts/review_gate_inventory.py": "#405：讀 control-plane 事件檔的多關卡盤點，無測試載入、無活文件指令",
+    "scripts/state_plane_migrate.py": "#405：Ledger → GitHub Projects 的一次性遷移，Project #4 已關閉",
+}
+
+
+def test_no_script_was_deleted_without_a_ruling() -> None:
+    """DEV-SCRIPT-INVENTORY1 驗收條件 4 的延伸：已死的預設只標記不刪除；要刪就得在上表具名。"""
     baseline = subprocess.run(
         ["git", "-C", str(REPO_ROOT), "ls-tree", "-r", "--name-only", "origin/main", "scripts/"],
         capture_output=True, text=True, check=False)
@@ -994,4 +1009,6 @@ def test_no_script_was_deleted_this_round() -> None:
         pytest.skip("取不到 origin/main")
     before = {p for p in baseline.stdout.split() if p}
     after = set(si._git_ls(si.SCRIPTS_GLOB))
-    assert not (before - after), f"本輪不得刪除任何腳本，但少了：{sorted(before - after)}"
+    unapproved = sorted((before - after) - set(APPROVED_SCRIPT_DELETIONS))
+    assert not unapproved, (
+        f"未經核准就刪除的腳本：{unapproved}——要刪請在 APPROVED_SCRIPT_DELETIONS 具名並寫理由")

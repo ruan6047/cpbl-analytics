@@ -21,7 +21,7 @@
 | 寫入通道 | `ruan6047` 為唯一 lifecycle writer，Coordinator 代行機械寫入 | **祕書單寫入通道**（決議 1）：僅 PM 祕書 session 可寫 Issue 狀態／comment／Project 欄位；其他 session（含執行者、查核者）唯讀，經需求方或祕書轉達 |
 | Local resource | `/private/tmp/cpbl-analytics-control-plane/<CARD_ID>/lease.json` 原子目錄鎖 | 不變（本機資源鎖與遠端狀態面是兩層，cutover 不影響） |
 | 程式碼 remote coordination | GitHub protected `main` + PR／Actions | 不變；程式碼面 branch protection／required checks 另立 `OPS-CODE-BRANCH-PROTECT1`（`OPS-CONTROL-PLANE-PR-GUARD1` 封存後的窄卡），與**卡狀態面**（本檔主題）是兩個不同關切 |
-| Ledger projection | `uv run python scripts/workflow_ledger.py --write` → `TASKS.md` | 祕書每日 snapshot export 回 git（離線稽核用途，非事實來源） |
+| Ledger projection | `workflow_ledger.py --write`（已於 #405 隨舊制工具鏈移除，原檔對照用 `git show e3bfc02:scripts/<name>`） → `TASKS.md` | 祕書每日 snapshot export 回 git（離線稽核用途，非事實來源） |
 | events.jsonl 地位 | **唯一作業狀態事實來源** | **cutover 後封存唯讀**：不得刪除（紅線 3），歷史稽核仍在 git，但不再接受新 lifecycle event |
 
 ---
@@ -105,7 +105,7 @@
 canonical §2.1「實作與審核分離」不變：執行者不得查核或 merge 自己的變更。本節只固定
 **查核之後**的操作分工，消除「每卡逐次請示」的往返。
 
-- **查核提示詞由腳本產生，不向執行者索取**：`uv run python scripts/review_prompt.py <CARD_ID>`
+- **查核提示詞由腳本產生，不向執行者索取**：`review_prompt.py <CARD_ID>`（已於 #405 隨舊制工具鏈移除，原檔對照用 `git show e3bfc02:scripts/<name>`）
   （可接 `| pbcopy`）。它讀該卡**最新 handoff event** 與卡片的驗收條件／驗證章節，
   自動帶入分支、`source_sha`、worktree、tier、`db_scope` 與獨立性要求。執行者只需把
   交付摘要寫進 handoff `evidence`（本來就是必填），不必另外產出提示詞。
@@ -136,14 +136,14 @@ canonical §2.1「實作與審核分離」不變：執行者不得查核或 merg
 - **基線版本查核防線**（WF-17，canonical [`baseline-cascade.md`](../.ai-workflow/templates/baseline-cascade.md)）：
   查核 Initiative 子卡時，核對卡面 `spec 基線` 版本＝父卡當前版本，不一致即退回
   （防舊基線交付）。`review_prompt.py` 自動帶入父卡當前基線版本屬工具層強化，
-  因 `file:scripts/review_prompt.py` 由 OPS-PROCESS-GUARD1 認領互斥，
+  因 `file:review_prompt.py`（原 scripts/ 下，已移除）由 OPS-PROCESS-GUARD1 認領互斥，
   待該卡結案後以 follow-up 落地；落地前由查核者手動核對。
 
 ### 權限與事故處理
 
 - 只有 protected `main` 的部署 workflow 可操作 production；外部協作者可提交 PR／review evidence，不可自行 claim、release、merge 或改寫 event log。
 - GitHub 不可用時停止 claim／handoff／merge／release；本機鎖不可推進 card state。恢復後由 Coordinator 對帳並補 telemetry。
-- claim、handoff、review、merge、release 後執行 `git worktree list`、檢查 local leases，並跑 `uv run python scripts/workflow_ledger.py --check`。
+- claim、handoff、review、merge、release 後執行 `git worktree list`、檢查 local leases，並跑 `workflow_ledger.py --check`（已於 #405 隨舊制工具鏈移除，原檔對照用 `git show e3bfc02:scripts/<name>`）。
 
 ---
 
@@ -152,7 +152,7 @@ canonical §2.1「實作與審核分離」不變：執行者不得查核或 merg
 ### 卡狀態與看板
 
 - **卡狀態＝GitHub Issue**：每張活卡對應 repo `ruan6047/cpbl-analytics` 一個 Issue（一次性遷移由
-  `scripts/state_plane_migrate.py` 建立，見對帳表 `docs/research/OPS-STATE-PLANE-MIG1_reconciliation.md`）。
+  `state_plane_migrate.py`（已於 #405 隨舊制工具鏈移除，原檔對照用 `git show e3bfc02:scripts/<name>`） 建立，見對帳表 `docs/research/OPS-STATE-PLANE-MIG1_reconciliation.md`）。
   Issue open／closed 對應卡是否仍在途；body 含 spec 檔連結、遷移當下現況摘要、
   fenced JSON 資源宣告區塊（`db_scope`／`resources`，見 Task 1 對照表的取捨：資源宣告
   刻意不建 Project 欄位，因開放式檔案路徑會撞 single-select／multi-select 的選項配額，
