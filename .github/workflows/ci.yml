@@ -25,6 +25,10 @@ on:
   push:
   pull_request:
 
+# 兩個 job 都只讀 checkout、不寫回 repo；把 GITHUB_TOKEN 收斂到唯讀，與姊妹 repo ai-workflow 一致。
+permissions:
+  contents: read
+
 jobs:
   api:
     # ⚠️ 這個 name 就是 check 的名字，也就是 ruleset 的 required status check 要比對的
@@ -54,6 +58,8 @@ jobs:
     name: ${{ (github.event_name == 'pull_request' || github.ref == 'refs/heads/main')
               && 'api' || 'api (branch head)' }}
     runs-on: ubuntu-latest
+    # 單執行緒全套約 9.5 分；4 worker 並行後的上限留兩倍餘裕，卡死的 run 不會占到預設 6 小時。
+    timeout-minutes: 20
     # runner 的時區釘死 UTC，**刻意不是 Asia/Taipei**（docs/TIME_SEMANTICS_CONTRACT.md §6
     # 明文禁止）：生產容器就是 UTC，把 CI 設成台北等於讓 CI 永遠無法重現 UTC 容器缺陷，
     # 而 #81 的首頁「今日賽事」缺陷正是靠手動構造 UTC 情境才抓到的。
@@ -75,7 +81,10 @@ jobs:
       - name: Ruff lint
         run: uv run ruff check
       - name: Pytest
-        run: uv run pytest -q
+        # pytest-xdist：ubuntu-latest 4 vCPU → 4 個 worker。`--dist loadfile` 讓同一檔的測試留在同一個
+        # worker，保住檔內順序依賴（如 test_championship_managers 取用 test_championships 的種子列）。
+        # 無 DB 時各 worker 的 conftest 各自做一次 2 秒探測，結果與單執行緒相同。
+        run: uv run pytest -q -n auto --dist loadfile
 
   web:
     # 與上方 api 同一套機制與同樣的紅線，理由不重複，見 api job 的註解。
@@ -84,6 +93,7 @@ jobs:
     name: ${{ (github.event_name == 'pull_request' || github.ref == 'refs/heads/main')
               && 'web' || 'web (branch head)' }}
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     defaults:
       run:
         working-directory: web

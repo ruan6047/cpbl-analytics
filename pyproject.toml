@@ -74,6 +74,7 @@ cpbl-research-umpire-impact = "cpbl.models.run_umpire_impact:main"
 [dependency-groups]
 dev = [
     "pytest>=8.3",
+    "pytest-xdist>=3.6",
     "ruff>=0.9",
 ]
 # 本機爬蟲專用：官網主站(www.cpbl.com.tw)加了 HiNet CDN 反爬 JS 挑戰，純 httpx 會 428；
