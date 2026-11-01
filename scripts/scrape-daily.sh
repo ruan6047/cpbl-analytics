@@ -18,6 +18,7 @@
 #       scripts/scrape-daily.sh          # 完整增量（games+累計+對戰+分項+逐球…）
 #       scripts/scrape-daily.sh fast     # 只更新 games+累計，跳過耗時細項
 #       scripts/scrape-daily.sh --jobs-features  # jobs 單次特徵建置（受保護 DATABASE_URL）
+#       scripts/scrape-daily.sh --jobs-games --year 2026 --kind A --manifest /requests/original.json --bundle /inbox/fixed-run
 set -uo pipefail
 
 # ============================================================== argv 守衛
@@ -53,8 +54,11 @@ scripts/scrape-daily.sh — 每日本機自動爬取，成功後同步 productio
   scripts/scrape-daily.sh fast     # 只更新 games+累計，跳過耗時細項
   SYNC_PROD=0 scripts/scrape-daily.sh   # 只爬本機，不同步 production
   scripts/scrape-daily.sh --jobs-features  # 只建 game_features；不爬、不同步、不 migrate、不訓練
+  scripts/scrape-daily.sh --jobs-games --year 2026 --kind A --manifest /requests/original.json --bundle /inbox/fixed-run
+  --jobs-games 將參數原樣交既有單批 games 回放入口，成功才建 features；manifest 與 bundle 需私有唯讀路徑。
+  各步沿原安全摘要與退出碼，前步失敗即停；兩步不是同一交易，後步失敗不宣稱前步回滾。
   jobs 需明確 DATABASE_URL、cwd 不得有 .env；schema 已由部署備妥，調度端負責單 writer 互斥。
-  jobs 只回報特徵步驟，不代表推論／發布／每日整鏈完成；不讀寫 Mac 狀態檔或送 ping。
+  jobs 只回報本次回放／特徵步驟，不代表推論／發布／每日整鏈完成；不讀寫 Mac 狀態檔或送 ping。
   Mac 位置參數只接受 fast；其餘一律 exit 64。launchd 以無參數呼叫。
 
 日型閘門（#364；PLAN-r2 §3.2，判定在 src/cpbl/ingest/daily_gate.py）
@@ -104,6 +108,24 @@ if [ "${1:-}" = "--jobs-features" ]; then
     echo '--jobs-features 不接受其他參數' >&2
     exit 64
   fi
+  exec python -m cpbl.features.run_build_features --jobs
+fi
+
+# 固定單批 games → features；沿既有 CLI 契約，不重做解析／寫入或錯誤帳。
+if [ "${1:-}" = "--jobs-games" ]; then
+  shift
+  for replay_arg in "$@"; do
+    case "$replay_arg" in
+      # argparse 的 help 會 rc0，但不代表回放完成；此時只執行原入口的 help。
+      -h|--help) exec python -m cpbl.ingest.run_replay_games "$@" ;;
+    esac
+  done
+  python -m cpbl.ingest.run_replay_games "$@"
+  replay_rc=$?
+  if [ "$replay_rc" -ne 0 ]; then
+    exit "$replay_rc"
+  fi
+  # 各入口獨立程序，避免沿用回放入口已關閉的連線池。
   exec python -m cpbl.features.run_build_features --jobs
 fi
 
