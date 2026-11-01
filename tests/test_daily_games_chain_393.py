@@ -26,19 +26,22 @@ def chain(tmp_path):
     python = bin_dir / "python"
     python.write_text(
         f"#!{sys.executable}\n"
-        "import json, os, sys\n"
+        "import argparse, json, os, sys\n"
         "from pathlib import Path\n"
+        "if sys.argv[1] == '-c':\n"
+        " os.execv(sys.executable, [sys.executable, *sys.argv[1:]])\n"
         "assert sys.argv[1] == '-m'\n"
         "module, args = sys.argv[2], sys.argv[3:]\n"
         "with Path(os.environ['CALLS']).open('a') as f:\n"
         " f.write(json.dumps({'module':module,'args':args,"
         "'database_url':os.environ.get('DATABASE_URL')})+'\\n')\n"
-        "if '--help' in args or '-h' in args:\n"
-        " print('synthetic replay usage'); sys.exit(0)\n"
         f"if module == '{REPLAY}':\n"
+        # 真正的標準庫 HelpAction 語義；不是重新列出幾個 help 字串。
+        " argparse.ArgumentParser(prog='synthetic replay').parse_known_args(args)\n"
         " rc=int(os.environ['REPLAY_RC'])\n"
         " result={'ok':rc==0,'contract_passed':rc==0,'stage':'complete' if rc==0 else 'write',"
         "'input_count':2,'written_count':1 if rc==0 else None,'parsed_sha256':'f'*64}\n"
+        " if os.environ['INVALID_RECEIPT']=='1': result.update(ok=False, errors=['write'])\n"
         f"elif module == '{FEATURES}':\n"
         " rc=int(os.environ['FEATURES_RC'])\n"
         " result={'scope':'game_features','ok':rc==0,'stage':'complete' if rc==0 else 'feature_build',"
@@ -60,10 +63,11 @@ def chain(tmp_path):
            "REFRESH_LOCK_DIR": str(tmp_path / "refresh.lock"), "REFRESH_TRIGGER": "not-mac",
            "API_INFO_URL": "http://127.0.0.1:1/api/info", "VPS": "stub@harness.invalid"}
 
-    def run(*, replay_rc=0, features_rc=0, replay_args=None):
+    def run(*, replay_rc=0, features_rc=0, replay_args=None, invalid_receipt=False):
         result = subprocess.run(
             ["/bin/bash", str(script), "--jobs-games", *(args if replay_args is None else replay_args)],
-            cwd=tmp_path, env={**env, "REPLAY_RC": str(replay_rc), "FEATURES_RC": str(features_rc)},
+            cwd=tmp_path, env={**env, "REPLAY_RC": str(replay_rc), "FEATURES_RC": str(features_rc),
+                              "INVALID_RECEIPT": str(int(invalid_receipt))},
             text=True, capture_output=True, timeout=5,
         )
         recorded = [json.loads(line) for line in calls.read_text().splitlines()] if calls.exists() else []
@@ -111,4 +115,20 @@ def test_replay_help_does_not_turn_into_a_feature_write(chain):
     result, calls = run(replay_args=["--year", "2026", "--help"])
     assert result.returncode == 0
     assert [c["module"] for c in calls] == [REPLAY]
-    assert result.stdout.strip() == "synthetic replay usage"
+    assert result.stdout.startswith("usage: synthetic replay")
+
+
+def test_argparse_clustered_help_does_not_turn_into_a_feature_write(chain):
+    run, _ = chain
+    result, calls = run(replay_args=["-hh"])
+    assert result.returncode == 0
+    assert [c["module"] for c in calls] == [REPLAY]
+    assert result.stdout.startswith("usage: synthetic replay")
+
+
+def test_zero_exit_with_failed_receipt_cannot_start_features(chain):
+    run, _ = chain
+    result, calls = run(invalid_receipt=True)
+    assert result.returncode == 1
+    assert [c["module"] for c in calls] == [REPLAY]
+    assert json.loads(result.stdout)["errors"] == ["write"]

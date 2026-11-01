@@ -114,17 +114,29 @@ fi
 # 固定單批 games → features；沿既有 CLI 契約，不重做解析／寫入或錯誤帳。
 if [ "${1:-}" = "--jobs-games" ]; then
   shift
-  for replay_arg in "$@"; do
-    case "$replay_arg" in
-      # argparse 的 help 會 rc0，但不代表回放完成；此時只執行原入口的 help。
-      -h|--help) exec python -m cpbl.ingest.run_replay_games "$@" ;;
-    esac
-  done
-  python -m cpbl.ingest.run_replay_games "$@"
+  replay_output="$(python -m cpbl.ingest.run_replay_games "$@")"
   replay_rc=$?
+  printf '%s\n' "$replay_output"
   if [ "$replay_rc" -ne 0 ]; then
     exit "$replay_rc"
   fi
+  # rc0 也可能只是 argparse help；只依原入口的完成收據決定是否接續，不猜旗標字串。
+  printf '%s\n' "$replay_output" | python -c '
+import json, sys
+try:
+    result = json.load(sys.stdin)
+except json.JSONDecodeError:
+    sys.exit(2)  # 原 CLI rc0 的非寫入輸出（help），保留原成功退出但不啟下一步。
+sys.exit(0 if isinstance(result, dict) and result.get("ok") is True
+         and result.get("contract_passed") is True and result.get("stage") == "complete"
+         and not result.get("errors") else 1)
+'
+  replay_receipt_rc=$?
+  case "$replay_receipt_rc" in
+    0) ;;  # 確實回放完成，才允許 features。
+    2) exit 0 ;;
+    *) exit 1 ;;  # 失敗／不完整收據不能被當成成功鏈。
+  esac
   # 各入口獨立程序，避免沿用回放入口已關閉的連線池。
   exec python -m cpbl.features.run_build_features --jobs
 fi
