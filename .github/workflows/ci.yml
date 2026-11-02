@@ -198,3 +198,27 @@ jobs:
         run: npm run lint
       - name: Contract tests
         run: npm test
+
+  typecheck:
+    # 型別檢查（#414）：basedpyright basic 對 src，既有錯誤凍結在 .basedpyright/baseline.json，
+    # 只有不在 baseline 的新錯誤會讓本 job 紅。設定見 pyproject.toml [tool.basedpyright]，
+    # 本機指令與 baseline 重產步驟見 docs/AI_RUNBOOK.md §7.2。
+    #
+    # ⛔ 非 required check：依 #414 裁定先當一般 CI job，穩定跑一個月後另行裁定是否 required。
+    # 刻意獨立成 job、不併進 api：api 是 ruleset 的 required context，步驟放進去紅了就讓 api 紅，
+    # 等於實質 required。name 沿用 api／web 的表達式，分支 push 時叫 `typecheck (branch head)`，
+    # 避開同 SHA 同名雙 check（理由見 api job 註解）；日後若要設 required，比對的字串是 `typecheck`。
+    name: ${{ (github.event_name == 'pull_request' || github.ref == 'refs/heads/main')
+              && 'typecheck' || 'typecheck (branch head)' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
+      - uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86  # v5
+        with:
+          python-version: "3.12"
+      # 標準環境＝dev＋scrape＋typecheck：scrape（playwright）有無會改變結果（542 vs 540），
+      # baseline 是在這組環境產生的，CI 與本機都必須用同一組。
+      - run: uv sync --locked --group typecheck --group scrape
+      - name: Basedpyright (baseline)
+        run: uv run --locked --group typecheck --group scrape basedpyright
