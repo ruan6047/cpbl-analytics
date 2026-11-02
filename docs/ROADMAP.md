@@ -76,7 +76,7 @@
 
 L1–L5 保留為五種內容分類，便於說明本卡有限貢獻；不要求 `initiative`、分類腳本或命中前綴才能派工。
 
-> **以下為已退役機制的原文，只供歷史查閱，對所有卡均不適用**：五條線，沿用 Project 既有的 **`initiative` 欄**（不發明新欄位）。歸屬由 [`scripts/roadmap_lines.py`](../scripts/roadmap_lines.py) 機械判定，**判不出來即 fail closed**——新卡若前綴與明列表都不命中就會失敗，強迫作者做出判斷而非靜默落進預設線。
+> **以下為已退役機制的原文，只供歷史查閱，對所有卡均不適用**：五條線，沿用 Project 既有的 **`initiative` 欄**（不發明新欄位）。歸屬由 `roadmap_lines.py`（原 scripts/ 下，已於 #405 移除）機械判定，**判不出來即 fail closed**——新卡若前綴與明列表都不命中就會失敗，強迫作者做出判斷而非靜默落進預設線。
 
 ### 「何時算完」對五條線的意義不同 ⚠️
 
@@ -714,15 +714,14 @@ git -C ~/Dev/ai-workflow show ae8f741:cli/src/wf_cli/commands/handoff_cmd.py | s
 > **用它可離線重現本區塊的 `exit 0`**，不需連 GitHub：
 >
 > ```bash
-> uv run python scripts/roadmap_lines.py --check docs/ROADMAP.md \
->   < docs/research/DOC-ROADMAP-STALE-SYNC1_snapshot.json
+> # roadmap_lines.py --check docs/ROADMAP.md < docs/research/DOC-ROADMAP-STALE-SYNC1_snapshot.json（已於 #405 移除：它讀的 Project #4 已關閉；原檔對照用 `git show e3bfc02:scripts/<name>`）
 > ```
 >
 > 對帳**當前**看板（取即時值，不保證與上式同結果——原因見下）：
 >
 > ```bash
 > gh project item-list 4 --owner ruan6047 --format json --limit 300 \
->   | uv run python scripts/roadmap_lines.py --check docs/ROADMAP.md
+>   # | roadmap_lines.py --check docs/ROADMAP.md（已於 #405 移除：它讀的 Project #4 已關閉；原檔對照用 `git show e3bfc02:scripts/<name>`）
 > ```
 >
 > ⚠️ **本區塊含 `#162` 自己那一列，故它對即時看板必然會漂。** 區塊在該卡 `🔨執行中`

@@ -1089,7 +1089,10 @@ def _ref_surface(loc: str) -> str:
         return "sealed"
     if path.startswith("docs/research/") and path.endswith(".json"):
         return "scan"
-    if path.startswith(("docs/archive/", "docs/research/")):
+    # 與 HISTORICAL_DOC_PREFIXES 同一張表（archive／research／tasks／handoffs／incidents／discovery）：
+    # 活文件判定（_is_live_doc）早就把這些目錄當歷史痕跡，引用面之前只列了前兩個，
+    # 讓 docs/tasks 與 docs/discovery 的卡片檔被當成強制面——#405 移除舊制腳本時撞出來。
+    if path.startswith(HISTORICAL_DOC_PREFIXES):
         return "historical"
     if path.startswith("tests/"):
         return "fixture"
@@ -2121,7 +2124,6 @@ PURPOSE_VERIFIED: dict[str, str] = {
     "scripts/backup-prod-db.sh": "備整庫並驗內容門檻（OPS-BACKUP-EMPTY1 的產物，已是常設）",
     "scripts/refresh_status.py": "每日鏈的狀態記錄輔助（寫狀態／歷史 JSON）；launchd 觸發時另經 alert_ping.py 送 daily 心跳（#358，fail-open）",
     "scripts/verify_refresh_info.py": "同步後打 /api/info 驗證，唯讀",
-    "scripts/roadmap_lines.py": "ROADMAP §1 線別歸屬的機械判定者，fail closed",
     "scripts/pa_transition_taxonomy.py": "canonical taxonomy 的產生器（唯讀）；產物勿手改，改了要重跑",
     "scripts/reconcile_scoreless_streak.py": "窮舉對帳；AI_RUNBOOK:380 寫「改動演算法後必跑」，義務靠人記得",
     "scripts/ability_snapshot.py": "能力值卡回歸抽驗；docstring 明寫改前後各跑一次再 diff",
