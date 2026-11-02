@@ -83,10 +83,9 @@ jobs:
     # 確定性失敗遠比 1/3 機率的假 flaky 便宜（TIME-TEST-CLOCK-INJECT1 痛點）。
     env:
       TZ: UTC
-    # 拋棄式 Postgres：只給「自行擁有的隔離庫」那類測試用（tests/conftest.py 的 THROWAWAY_DB_ENVS），
-    # 它們在空庫上自建 schema、自行清理。對外埠刻意用 5434 而不是 settings 預設的 5433：
-    # 預設 DATABASE_URL 指向的是**有真實資料**的本機庫，空庫上有 14 個全庫對帳測試會因樣本不足而紅
-    # （2026-11-01 本機量測），所以 CI 讓它維持不可達、照舊 skip，不假裝那批測試已驗。
+    # 拋棄式 Postgres：給「自行擁有的隔離庫」那類測試用（tests/conftest.py 的 THROWAWAY_DB_ENVS），
+    # 它們在空庫上自建 schema、自行清理；另外也承載主 DSN 用的 CI 資料基底庫 cpbl_ci_base（#413，見下方
+    # 「Load CI data base」）。對外埠刻意用 5434 而不是 settings 預設的 5433：5433 是本機有真實資料的主庫。
     # 版本與 docker-compose.yml 的 db 服務同為 17。
     services:
       postgres:
@@ -142,7 +141,7 @@ jobs:
           from psycopg import sql
           base = "postgresql://cpbl:cpbl@localhost:5434/"
           names = ("cpbl_pa_lock1", "cpbl_prod_sync_seq1", "cpbl_test_289", "cpbl_316_test",
-                   "cpbl238_a8", "cpbl_ingest_starter_watch1", "cpbl_data_editorial1")
+                   "cpbl238_a8", "cpbl_ingest_starter_watch1", "cpbl_data_editorial1", "cpbl_ci_base")
           with psycopg.connect(base + "postgres", autocommit=True) as c:
               for name in names:
                   c.execute(sql.SQL("CREATE DATABASE {}").format(sql.Identifier(name)))
@@ -154,6 +153,13 @@ jobs:
             DATABASE_URL="postgresql://cpbl:cpbl@localhost:5434/$db" \
               uv run python -c "from cpbl.db import migrate; print('$db', len(migrate()), 'migrations')"
           done
+      - name: Load CI data base
+        # #413：把 tests/fixtures/ci_base/ 載入空庫 cpbl_ci_base，供下方主 DSN 使用。載入器先 migrate 到
+        # manifest 記的最大號、依 FK 順序 COPY、setval，再以正常目錄 migrate 疊上之後的新 migration，最後寫
+        # 庫內標記（COMMENT ON DATABASE）。基底與 migration 不相容（欄名、型別、列數、最大號）時這一步非零
+        # 結束、api job 直接紅——⛔ 不加 `|| true`，不相容不得靜默變成 skip。
+        # 這一步是獨立行程，結束時連線全數關閉；conftest 才能以它為模板替每個 xdist worker 複製一份。
+        run: uv run python tests/ci_base.py load --target-dsn postgresql://cpbl:cpbl@localhost:5434/cpbl_ci_base
       - name: Pytest
         # pytest-xdist：ubuntu-latest 4 vCPU → 4 個 worker。`--dist loadfile` 讓同一檔的測試留在同一個
         # worker，保住檔內順序依賴（如 test_championship_managers 取用 test_championships 的種子列）。
@@ -161,8 +167,11 @@ jobs:
         # 三個 DSN 都指向上面的 service；isolated 那條 xdist 下由 conftest 按 worker 拆庫，
         # 另兩條各只有一個測試檔、且測試釘死庫名，不拆。
         env:
-          # 主 DSN 明示指到一個沒人聽的埠：那條代表「有真實資料的本機庫」，CI 沒有，照舊快速 skip。
-          DATABASE_URL: postgresql://cpbl:cpbl@127.0.0.1:1/cpbl
+          # 主 DSN 指向上一步載入的 CI 資料基底（#413）。原本刻意指到沒人聽的埠（#405，5107bbc0：主 DSN 指
+          # 向只跑過 migration 的空庫時有 14 個全庫對帳測試紅），基底補上那批資料後改接；conftest 偵測到
+          # 基底標記才按 xdist worker 以 TEMPLATE 複製成 cpbl_ci_base_gwN，沒有標記的庫一律不動。
+          # 基底蓋不到的測試只在偵測到標記時 skip 並寫明原因（`-rs` 會列出）。
+          DATABASE_URL: postgresql://cpbl:cpbl@localhost:5434/cpbl_ci_base
           CPBL_ISOLATED_TEST_DSN: postgresql://cpbl:cpbl@localhost:5434/cpbl_ci_isolated
           PA_BUILD_LOCK_TEST_DATABASE_URL: postgresql://cpbl:cpbl@localhost:5434/cpbl_pa_lock1
           PROD_SYNC_SEQ_TEST_DATABASE_URL: postgresql://cpbl:cpbl@localhost:5434/cpbl_prod_sync_seq1
@@ -173,7 +182,8 @@ jobs:
           CPBL316_TEST_DSN: postgresql://cpbl:cpbl@127.0.0.1:55316/cpbl_316_test
           CPBL238_A8_TEST_DSN: postgresql://cpbl:cpbl@127.0.0.1:15438/cpbl238_a8
           REDIS_URL: redis://127.0.0.1:16389/0
-        run: uv run pytest -q -n auto --dist loadfile
+        # `-rs`：只多印每個 skip 的理由（#413 驗收 1 的處置清單對照用），不改變任何結果。
+        run: uv run pytest -q -n auto --dist loadfile -rs
 
   web:
     # 與上方 api 同一套機制與同樣的紅線，理由不重複，見 api job 的註解。
