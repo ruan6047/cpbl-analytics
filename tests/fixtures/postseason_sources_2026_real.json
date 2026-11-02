@@ -9,6 +9,7 @@
       "2026-C-1"
     ],
     "note": "#293 WP1 真實樣本（memory：真實樣本非自造）；E1–E4 為 2026 季後挑戰賽實際完賽場、C1 為台灣大賽 G1 賽前（未開打）",
+    "published_build_updated": "2026-11-02（#413）：只換 E1–E4 的 published_build，取自 tests/fixtures/ci_base/game_recap_builds.csv 的 state=published 列（2026-10-28 全數重建為 pa-build-1.6.0）；其餘欄位仍是 2026-10-15 快照",
     "source": "本機 cpbl（cpbl-analytics-db-1）唯讀查詢 cpbl.postseason_sources.load_local_facts"
   },
   "games": {
@@ -61,7 +62,7 @@
         "game_recap_source_revisions": 2
       },
       "published_at": "2026-10-10T03:09:33.274119+08:00",
-      "published_build": "9021f22e-5451-437c-bff5-69a7264e46cf",
+      "published_build": "a8948122-dd91-4128-8d15-8b6d1f3f2572",
       "reconciliation_outstanding": 0
     },
     "2026-E-2": {
@@ -87,7 +88,7 @@
         "game_recap_source_revisions": 2
       },
       "published_at": "2026-10-11T10:11:02.663601+08:00",
-      "published_build": "154353d3-0649-4086-9d88-eedf6abddca1",
+      "published_build": "f18e88d1-de7c-4b8d-9ced-5f68b949c0e4",
       "reconciliation_outstanding": 0
     },
     "2026-E-3": {
@@ -113,7 +114,7 @@
         "game_recap_source_revisions": 2
       },
       "published_at": "2026-10-12T10:11:28.816643+08:00",
-      "published_build": "0e9135a9-5602-42f2-8fe7-9108b724bc56",
+      "published_build": "c8e29634-4072-4423-8778-736c47b47896",
       "reconciliation_outstanding": 0
     },
     "2026-E-4": {
@@ -139,7 +140,7 @@
         "game_recap_source_revisions": 2
       },
       "published_at": "2026-10-13T10:11:04.673242+08:00",
-      "published_build": "9b516bb6-d228-47d0-84bb-be8d959c47a9",
+      "published_build": "058583a2-c2ec-4bb3-9a06-385c4624e29b",
       "reconciliation_outstanding": 0
     }
   }
