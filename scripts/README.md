@@ -63,7 +63,7 @@
 | `rehearsal_pa_build.py` | 一次性產物 | `docs/research/GAME-RECAP-PA1-BUILD1/` | `docs/research/GAME-RECAP-PA1-BUILD1_HANDOFF.md:170`、`docs/research/GAME-RECAP-PA1-BUILD1_HANDOFF.md:215`、`docs/research/GAME-RECAP-PA1-BUILD1_HANDOFF.md:50` |
 | `replay_schedule_branches.py` | 一次性產物 | `docs/research/INGEST-GAME-TM-REFACTOR1-G4/` | `docs/research/GAME_TM_SHADOW_OBSERVATION.md:141`、`docs/research/GAME_TM_SHADOW_OBSERVATION.md:146` |
 | `report_pa_rebuild_fix1.py` | 一次性產物 | `docs/research/GAME-RECAP-PA1-FIX1/` | **無**——射程內可搬，但為避免部分搬動造成假訊號，本輪一併保留 |
-| `restate1_reconcile.py` | 一次性產物 | `docs/research/INGEST-SPLITS-IMPORT-RESTATE1/` | `docs/archive/tasks/INGEST-SPLITS-IMPORT-RESTATE1.md:122`、`docs/archive/tasks/INGEST-SPLITS-IMPORT-RESTATE1.md:79`、`docs/research/INGEST-SPLITS-IMPORT-RESTATE1_RESULTS.md:26`　…另 6 處 |
+| `restate1_reconcile.py` | 一次性產物 | `docs/research/INGEST-SPLITS-IMPORT-RESTATE1/` | `.github/dependabot.yml:71`、`docs/REQUIREMENT_IDEAS.md:26`、`docs/archive/tasks/INGEST-SPLITS-IMPORT-RESTATE1.md:122`　…另 8 處 |
 | `strength1_report_tables.py` | CI 繫結守衛 | `scripts/ci/` | `docs/research/GAME-RECAP-WP-STRENGTH1_RESULTS.md:368`、`docs/research/GAME-RECAP-WP-STRENGTH1_RESULTS.md:399`、`docs/research/GAME-RECAP-WP-STRENGTH1_RESULTS.md:49`　…另 1 處 |
 | `team_style2_manager_pairs.py` | CI 繫結守衛 | `scripts/ci/` | `docs/research/TEAM-STYLE2_RESULTS.md:104`、`docs/research/TEAM-STYLE2_RESULTS.md:121` |
 | `team_style_vectors.py` | 一次性產物 | `docs/research/TEAM-STYLE1/` | `docs/archive/tasks/UX-TEAM-STYLE1.md:49`、`docs/research/TEAM-STYLE1_RESULTS.md:100`、`docs/research/TEAM-STYLE1_RESULTS.md:101`　…另 2 處 |
@@ -165,13 +165,13 @@
 
 ## 引用完整性（不變式 3）
 
-全庫 `scripts/<name>.<ext>` 字面路徑共 **1022** 處。**只有 `enforced` 那一面強制**——其餘的過期是歷史事實不是缺陷：
+全庫 `scripts/<name>.<ext>` 字面路徑共 **1024** 處。**只有 `enforced` 那一面強制**——其餘的過期是歷史事實不是缺陷：
 
 | 面別 | 處數 | 強制？ | 為什麼 |
 |---|---:|---|---|
 | `scan` | 363 | 回報 | 掃描器產物 JSON 是當時的快照 |
 | `self` | 237 | 不適用 | 掃描器自身的說明範例 |
-| `enforced` | 206 | ✅ 強制 | `scripts/`、`src/`、活契約與設計文件——壞了就是現在的缺陷 |
+| `enforced` | 208 | ✅ 強制 | `scripts/`、`src/`、活契約與設計文件——壞了就是現在的缺陷 |
 | `historical` | 163 | 回報 | `docs/archive/**` 與卡片交付產物＝凍結證據，**本卡射程外** |
 | `fixture` | 53 | 不適用 | `tests/**` 的合成路徑；真實路徑壞掉 pytest 自己會紅（更強的機制） |
 
