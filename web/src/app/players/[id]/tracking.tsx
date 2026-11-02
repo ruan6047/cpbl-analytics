@@ -2,8 +2,6 @@
 
 // 逐球追蹤（落點/進壘點/揮棒紀律/熱區，共用單一球種鏡頭）+ 擊球品質彈道 + 打者散點/投手配球。
 // pitchType 內化於 TrackingSection；page 以 key={id-role-seasonKind} 重掛以保留原重置語義。
-// #415：整個視圖由 `page.tsx` 以 `next/dynamic(ssr:false)` 按需載入（`TrackingView`），
-// 本檔的 recharts（ScatterChart）與 `./composition-pie`（PieChart）不進球員頁首載。
 import { useState } from "react";
 import { type HeatMetric, Grid3x3, PlateDisciplineBars } from "@/components/perf-heatmap";
 import { SprayChart } from "@/components/spray-chart";
@@ -18,8 +16,7 @@ import { DataTable, type Column } from "@/components/table";
 import { chartTooltip, pitchColor, useChartTheme } from "@/lib/chart-theme";
 import { type Disc, type PitchType, type Role, QUALITY_GROUPS, ptSort, ptTypesFrom } from "./lib";
 import { sparsePitchNote } from "./layers";
-import { CompositionPie } from "./composition-pie";
-import { PitchTypeToggle } from "./parts";
+import { CompositionPie, PitchTypeToggle } from "./parts";
 
 export function TrackingSection({ disc, role, seasonKind }: { disc: Disc | null; role: Role; seasonKind: "A" | "D" }) {
   const [pitchType, setPitchType] = useState<PitchType>("all");
@@ -450,23 +447,5 @@ function ReleaseCard({ mov }: { mov: Movement }) {
         </div>
       </div>
     </Card>
-  );
-}
-
-/** 逐球追蹤頁籤整個視圖（四段）；`page.tsx` 以 next/dynamic 按需載入，非首屏頁籤切換時才取 chunk。 */
-export function TrackingView({ id, role, seasonKind, disc, advanced, mov, pitchMix, arsenal }: {
-  id: string; role: Role; seasonKind: "A" | "D"; disc: Disc | null;
-  advanced: { batting: StatRow | null; pitching: StatRow | null } | null;
-  mov: Movement | null;
-  pitchMix: { bucket: string; n: number; mix: { pitch_type: string; pct: number }[] }[] | null;
-  arsenal: ArsenalItem[] | null;
-}) {
-  return (
-    <>
-      <TrackingSection key={`${id}-${role}-${seasonKind}`} disc={disc} role={role} seasonKind={seasonKind} />
-      <QualitySection advanced={advanced} role={role} />
-      {role === "pitching" && <MovementSection mov={mov} />}
-      <BattedMixSection pitchMix={pitchMix} arsenal={arsenal} role={role} />
-    </>
   );
 }

@@ -1,19 +1,19 @@
 "use client";
 
-import dynamic from "next/dynamic";
+import {
+  PolarAngleAxis,
+  PolarGrid,
+  PolarRadiusAxis,
+  Radar,
+  RadarChart,
+  ResponsiveContainer,
+} from "recharts";
 import { contrastText } from "@/lib/teams";
 import { gradeColor, useChartTheme } from "@/lib/chart-theme";
-import type { RadarTickProps } from "./ability-radar";
 import { Tooltip } from "./tooltip";
-import { Skeleton } from "./ui";
 
 // 能力值卡：以全史生涯 rate 的全聯盟百分位 [PR] 畫遊戲風雷達 + 等級條。
 // 資料皆我們自算的客觀指標，等級 S–G 純由 PR 換算（非抄遊戲數值）。
-// #415：雷達本體（recharts）在 `./ability-radar` 按需載入（ssr:false；資料在瀏覽器才取得），
-// 球員頁首載與季後賽名單抽屜都不再帶 recharts；chunk 未到時以同高 `Skeleton` 填滿 `role="img"` 容器。
-// 同一個 loader 給 dynamic 與頁面掛載時的預載用。⛔ 本檔不得再靜態 import recharts 或 `./ability-radar` 的元件。
-export const loadAbilityRadar = () => import("./ability-radar");
-const AbilityRadar = dynamic(loadAbilityRadar, { ssr: false, loading: () => <Skeleton className="h-full w-full" /> });
 export type AxisComp = { label: string; weight: number; pr: number };
 export type Axis = { key: string; label: string; pr: number | null; grade: string | null; components: AxisComp[]; note?: string | null };
 export type Card = { available: boolean; role: string; scope?: string; has_advanced?: boolean; signature?: string | null; axes?: Axis[]; overall?: { pr: number; grade: string } };
@@ -101,7 +101,7 @@ export function AbilityCard({
   const data = axes.map((a) => ({ axis: a.label, pr: a.pr ?? 0 }));
   const byLabel = Object.fromEntries(axes.map((a) => [a.label, a]));
   // 自訂軸名刻度：包共用 Tooltip（取代原生 SVG <title>：無延遲、觸控可點、內容可排版）。
-  const renderTick = (props: RadarTickProps) => {
+  const renderTick = (props: { x: number; y: number; textAnchor: string; payload: { value: string } }) => {
     const a = byLabel[props.payload.value];
     const g = a?.grade ?? null;
     // #220：軸名墨色＋等級字母（原本只用等級色上色，金／黃字在紙色上對比不足，且等級只靠顏色）。
@@ -152,14 +152,57 @@ export function AbilityCard({
             </button>
           </Tooltip>
         )}
-        <AbilityRadar data={data} compact={compact} radarColor={radarColor}
-          tick={compact ? { fontSize: 10, fill: ct.muted } : renderTick} />
+        <ResponsiveContainer width="100%" height="100%">
+          <RadarChart data={data} outerRadius={compact ? "70%" : "78%"}>
+            <PolarGrid stroke={ct.line} />
+            <PolarAngleAxis dataKey="axis" tick={compact ? { fontSize: 10, fill: ct.muted } : renderTick} />
+            {/* 半徑軸釘死 0–100：不設的話 recharts 自動縮放到本人最大值，
+                圖形變「相對自己」而等級是絕對 PR（羅戈 續航78/B 被畫到滿格）*/}
+            <PolarRadiusAxis domain={[0, 100]} tick={false} axisLine={false} />
+            <Radar dataKey="pr" stroke={radarColor} strokeWidth={2} fill={radarColor} fillOpacity={0.14} />
+          </RadarChart>
+        </ResponsiveContainer>
       </div>
       {!compact && !hideNote && (
         <p className="mt-1 text-center text-[11px] text-muted">
           自製指標：全聯盟百分位換算，點軸名看組成、點 ? 看計算方式{card.has_advanced ? "；本季含官方進階數據" : ""}。
         </p>
       )}
+    </div>
+  );
+}
+
+// 兩人雷達疊圖（對戰卡：主投 vs 客投）。
+export function AbilityRadarVS({
+  home,
+  away,
+  homeColor,
+  awayColor,
+}: {
+  home: Card;
+  away: Card;
+  homeColor?: string;
+  awayColor?: string;
+}) {
+  const ct = useChartTheme();
+  if (!home?.available || !away?.available || !home.axes) return null;
+  const data = home.axes.map((a, i) => ({
+    axis: a.label,
+    home: a.pr ?? 0,
+    away: away.axes?.[i]?.pr ?? 0,
+  }));
+  return (
+    <div className="h-44" role="img" aria-label="兩位先發投手能力值雷達疊圖，各項為全聯盟百分位">
+      <ResponsiveContainer width="100%" height="100%">
+        <RadarChart data={data} outerRadius="70%">
+          <PolarGrid stroke={ct.line} />
+          <PolarAngleAxis dataKey="axis" tick={{ fontSize: 10, fill: ct.muted }} />
+          {/* 同上：兩人疊圖更不能各自縮放，0–100 絕對刻度才可比 */}
+          <PolarRadiusAxis domain={[0, 100]} tick={false} axisLine={false} />
+          <Radar dataKey="away" stroke={awayColor ?? ct.accent} fill={awayColor ?? ct.accent} fillOpacity={0.25} />
+          <Radar dataKey="home" stroke={homeColor ?? ct.down} fill={homeColor ?? ct.down} fillOpacity={0.25} />
+        </RadarChart>
+      </ResponsiveContainer>
     </div>
   );
 }

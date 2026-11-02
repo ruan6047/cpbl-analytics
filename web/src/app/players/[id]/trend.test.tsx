@@ -38,11 +38,7 @@ test("謝榮豪（ERA+ 1 點）：投手欄位為三振／被安打／四壞", (
 test("足量對照（郭天信、陳冠偉）：維持原折線分支，不出現逐場紀錄", () => {
   for (const [name, role] of [["guotianxin", "batting"], ["chenguanwei", "pitching"]] as const) {
     const html = renderToStaticMarkup(<SeasonTrendCard trend={load(name)} role={role} isRetired={false} />);
-    // #415：折線改 next/dynamic(ssr:false) 按需載入，SSR 只輸出與圖表等高（220px）的 Skeleton 佔位，
-    // recharts 容器在瀏覽器取到 chunk 後才出現；卡殼、標題與指標下拉仍即時輸出。
-    assert.match(html, /<div class="w-full" style="height:220px" data-testid="trend-chart-skeleton"><div class="animate-pulse [^"]*h-full w-full"/, name);
-    assert.doesNotMatch(html, /recharts-responsive-container/, name);
-    assert.match(html, /aria-label="走勢指標"/, name);
+    assert.match(html, /recharts-responsive-container/, name);
     assert.doesNotMatch(html, /season-game-log/, name);
     assert.doesNotMatch(html, /<table/, name);
   }

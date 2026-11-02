@@ -2,30 +2,15 @@
 
 // 走勢與對戰。IA 分層（UX-PLAYER-IA1）後拆為三張獨立卡：
 // SeasonTrendCard→L1 總覽（本季逐場/滾動）、CareerTrendCard／VsTeamCard→L3 分項與對戰。
-import dynamic from "next/dynamic";
 import { useEffect, useMemo, useState } from "react";
-import { Card, EmptyState, Skeleton } from "@/components/ui";
+import { Bar, CartesianGrid, ComposedChart, Line, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { Card, EmptyState } from "@/components/ui";
 import { type Column, DataTable } from "@/components/table";
 import { type StatRow } from "@/lib/client";
+import { chartAxis, chartTooltip, useChartTheme } from "@/lib/chart-theme";
 import { BAT_METRICS, type Metric, n0, PIT_METRICS, type Role } from "./lib";
 import { VsTeamTable } from "./parts";
 import { MIN_TREND_POINTS, gameLogMetrics, gameLogRows, gameLogSummary, showGameLog } from "./season-trend";
-
-// #415：折線（recharts）在 `./trend-chart` 按需載入（ssr:false；資料本就在瀏覽器才取得，SSR 只會輸出空容器）。
-// 同一個 loader 給 dynamic 與頁面掛載時的預載用：webpack 對同一 import() 只產生一個 chunk。
-// ⛔ 本檔不得再靜態 import recharts 或 `./trend-chart`——連只為了拿常數也不行，ES 模組會整個載入（含 recharts）；
-//    由 lazy-charts.test.ts 在模組圖層級守住。
-export const loadTrendChart = () => import("./trend-chart");
-const TrendChart = dynamic(loadTrendChart, { ssr: false, loading: () => <ChartSkeleton /> });
-
-/** 圖表 chunk 未到時的等高佔位（UI_UX_SYSTEM §1 原則 8、§10.4）：與 `CHART_H` 同高，出圖時不跳版。 */
-function ChartSkeleton() {
-  return (
-    <div className="w-full" style={{ height: CHART_H }} data-testid="trend-chart-skeleton">
-      <Skeleton className="h-full w-full" />
-    </div>
-  );
-}
 
 /** 指標下拉：各卡獨立持有選擇，role 變更時回到該 role 的預設指標。 */
 function useMetric(role: Role) {
@@ -47,7 +32,7 @@ function MetricSelect({ metrics, value, onChange }: {
   );
 }
 
-// 圖表高度（`trend-chart.tsx` 的 ResponsiveContainer 固定 220，須與此一致）。載入／空態與佔位必須佔用同樣高度，
+// 圖表高度（ResponsiveContainer 固定值）。載入／空態必須佔用同樣高度，
 // 否則切 role 時內容瞬間縮水會改變文件高度，讓瀏覽器把捲動位置往回夾（REVIEW-005 P1）。
 const CHART_H = 220;
 
@@ -57,6 +42,35 @@ function ChartSlot({ children }: { children: React.ReactNode }) {
     <div className="flex items-center justify-center" style={{ minHeight: CHART_H }}>
       {children}
     </div>
+  );
+}
+
+function TrendChart({ data, metric, categorical }: {
+  data: { name: string; v: number | null }[]; metric: Metric; categorical: boolean;
+}) {
+  const ct = useChartTheme();
+  const axis = chartAxis(ct);
+  return (
+    <ResponsiveContainer width="100%" height={220}>
+      <ComposedChart data={data} margin={{ top: 5, right: 10, left: -10, bottom: 0 }}>
+        <CartesianGrid stroke={ct.surface2} />
+        {/* 生涯=時段類別；本季=逐場/週期日期 */}
+        <XAxis dataKey="name" {...axis} minTickGap={categorical ? 4 : 28} />
+        <YAxis {...axis} domain={["auto", "auto"]} />
+        <Tooltip contentStyle={chartTooltip(ct)} formatter={(v: number) => v?.toFixed(metric.dp)} />
+        {metric.ref != null && (
+          <ReferenceLine y={metric.ref} stroke={ct.faint} strokeDasharray="4 3"
+            label={{ value: `聯盟 ${metric.ref}`, position: "insideTopRight", fill: ct.faint, fontSize: 10 }} />
+        )}
+        {metric.roll ? (
+          <Line type="monotone" dataKey="v" name={metric.label} stroke={ct.ink} strokeWidth={2}
+            isAnimationActive={false} connectNulls
+            dot={data.length > 18 ? false : { r: 3, fill: ct.down }} />
+        ) : (
+          <Bar dataKey="v" name={metric.label} fill={ct.ink} isAnimationActive={false} maxBarSize={18} />
+        )}
+      </ComposedChart>
+    </ResponsiveContainer>
   );
 }
 

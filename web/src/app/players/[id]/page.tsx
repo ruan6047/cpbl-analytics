@@ -1,12 +1,10 @@
 "use client";
 
 // 球員旗艦頁：scope、role、view、level 四軸分離，URL 為單一事實來源。
-import dynamic from "next/dynamic";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { type PlayerProfile, type StatRow, detail } from "@/lib/client";
-import { loadAbilityRadar } from "@/components/ability-card";
-import { EmptyState, Skeleton } from "@/components/ui";
+import { EmptyState } from "@/components/ui";
 import { ContextSwitcher, HierarchicalTabs, TabPanel, type HierarchicalTabGroup } from "@/components/hierarchical-tabs";
 import { StickyNavBar } from "@/components/sticky-nav-bar";
 import { codeFromName, teamColor } from "@/lib/teams";
@@ -21,28 +19,8 @@ import { PlayerMatchupsSection } from "./matchups-section";
 import { PlayerHero } from "./hero";
 import { SabrSection } from "./sabr";
 import { CareerSummary, SeasonSection, TraitsChips } from "./season";
-import type { Movement } from "./tracking";
-import { CareerTrendCard, SeasonTrendCard, VsTeamCard, loadTrendChart } from "./trend";
-
-// #415：逐球追蹤視圖（ScatterChart／PieChart 等 recharts 進入點）非首屏頁籤，整個視圖按需載入；
-// 切到該頁籤首次才取 chunk，期間以 `TrackingSkeleton` 佔位（與 TrackingSection 自身載入態同構）。
-// ⛔ 本檔不得靜態 import `./tracking` 的元件（型別 import 會被擦除，不算）。
-const TrackingView = dynamic(() => import("./tracking").then((m) => ({ default: m.TrackingView })),
-  { ssr: false, loading: () => <TrackingSkeleton /> });
-
-function TrackingSkeleton() {
-  return (
-    <section className="mb-6" aria-hidden data-testid="tracking-skeleton">
-      <Skeleton className="mb-3 h-7 w-40" />
-      <div className="card p-4">
-        <div className="grid gap-x-4 sm:grid-cols-2">
-          <Skeleton className="mt-6 h-48 w-full" />
-          <Skeleton className="mt-6 h-48 w-full" />
-        </div>
-      </div>
-    </section>
-  );
-}
+import { BattedMixSection, MovementSection, type Movement, QualitySection, TrackingSection } from "./tracking";
+import { CareerTrendCard, SeasonTrendCard, VsTeamCard } from "./trend";
 
 const VIEW_LABEL: Record<PlayerView, string> = {
   overview: "總覽",
@@ -86,10 +64,6 @@ export default function PlayerPage() {
   const [trend, setTrend] = useState<StatRow[] | null>(null);
   const [careerStats, setCareerStats] = useState<CareerStats | null>(null);
   const [ability, setAbility] = useState<Ability | null>(null);
-
-  // #415：首屏兩張圖（hero 雷達、本季走勢）的 recharts chunk 在頁面掛載時就預載，
-  // 與 profile／ability／trend API 平行下載；圖表 chunk 不在首載（hydration 更早），出圖不因此延後。
-  useEffect(() => { void loadAbilityRadar(); void loadTrendChart(); }, []);
 
   useEffect(() => {
     setNotFound(false);
@@ -274,8 +248,12 @@ export default function PlayerPage() {
 
         {nav.scope === "season" && nav.view === "tracking" && (
           isRetired ? <EmptyState>本季無逐球追蹤資料（未登錄球員名單）。</EmptyState> : (
-            <TrackingView id={id} role={nav.role} seasonKind={nav.level} disc={disc} advanced={advanced}
-              mov={mov} pitchMix={pitchMix} arsenal={arsenal} />
+            <>
+              <TrackingSection key={`${id}-${nav.role}-${nav.level}`} disc={disc} role={nav.role} seasonKind={nav.level} />
+              <QualitySection advanced={advanced} role={nav.role} />
+              {nav.role === "pitching" && <MovementSection mov={mov} />}
+              <BattedMixSection pitchMix={pitchMix} arsenal={arsenal} role={nav.role} />
+            </>
           )
         )}
 
