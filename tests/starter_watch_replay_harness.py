@@ -217,6 +217,10 @@ def patched(world: World, tmp: Path):
         (pe, "local_signature"): lambda year, kinds=None: _signature(world),
         (pe, "local_www_starts"): lambda year, kinds=None: {},
         (pe, "local_scheduled_kinds"): lambda night, kinds=None: set(),
+        # F 夜退路（賽程檔不可用時查本機有無 F 列）：重播世界的賽別只有 A／E／C
+        # （test_fixture_is_real_and_complete），沒有 F ⇒ False。漏換時它會讀到真庫——主 DSN 連得上且
+        # 該晚真有 F（2026/F/1 在 9/29＝A-302 的觸發夜）就多抓一次 F（#413）。
+        (pe, "local_farm_final_scheduled"): lambda night: False,
         (pe, "local_watch_kinds"): lambda now, kinds=None: (
             {g.kind} if not all(world.local.get(g.key) or [None, None])
             and sw.fire_game_date(now) == g.starts.astimezone(TAIPEI).date() else set()),
