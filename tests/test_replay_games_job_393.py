@@ -27,6 +27,9 @@ def body(root, rows):
 @pytest.fixture
 def job(tmp_path, monkeypatch):
     monkeypatch.setenv("DATABASE_URL", "postgresql://x:x@127.0.0.1:1/x")
+    # A worker may already own a live pool. The job must only close its own
+    # test pool, and monkeypatch restores the worker's original reference.
+    monkeypatch.setattr(db, "_pool", None)
     shutil.copytree(FIXTURE, tmp_path / "input")
     root = tmp_path / "input"
     body(root, [ROW])
@@ -40,6 +43,7 @@ def job(tmp_path, monkeypatch):
     monkeypatch.setattr(_browser, "_Session", forbidden)
     monkeypatch.setattr(db, "migrate", forbidden)
     monkeypatch.setattr(db, "conn", forbidden)
+    monkeypatch.setattr(db, "ConnectionPool", forbidden)
     monkeypatch.setattr(cpbl_site, "conn", forbidden)
     monkeypatch.setattr(cpbl_site, "upsert_games", lambda rows: calls.append(rows) or 1)
     _replay.replay_session.cache_clear()
@@ -138,3 +142,81 @@ def test_help_needs_no_database_or_writer(job, capsys, monkeypatch):
     assert run_replay_games.main(["--help"]) == 0
     assert not calls
     assert "--manifest" in capsys.readouterr().out
+
+
+class PoolProbe:
+    """No connections or background workers; observe only job-owned lifecycle."""
+
+    def __init__(self, *, close_error=False):
+        self.close_calls = 0
+        self.closed = False
+        self.close_error = close_error
+
+    def close(self):
+        self.close_calls += 1
+        self.closed = True
+        if self.close_error:
+            raise RuntimeError("synthetic close failure")
+
+
+@pytest.mark.parametrize("writer_fails", [False, True])
+def test_job_closes_and_detaches_pool_so_next_call_gets_a_new_pool(
+    job, monkeypatch, writer_fails,
+):
+    _, args, _ = job
+    previous, replacement = PoolProbe(), PoolProbe()
+    monkeypatch.setattr(db, "_pool", previous)
+    monkeypatch.setattr(db, "ConnectionPool", lambda *a, **kw: replacement)
+    if writer_fails:
+        def failed(_rows):
+            raise RuntimeError("synthetic writer failure")
+        monkeypatch.setattr(cpbl_site, "upsert_games", failed)
+
+    assert run_replay_games.main(args) == int(writer_fails)
+    assert previous.close_calls == 1 and previous.closed
+    assert db._pool is None
+    assert db.pool() is replacement and not replacement.closed
+
+
+def test_pool_close_error_still_detaches_the_pool_and_returns_failure(job, monkeypatch, capsys):
+    _, args, _ = job
+    previous = PoolProbe(close_error=True)
+    monkeypatch.setattr(db, "_pool", previous)
+
+    assert run_replay_games.main(args) == 1
+    assert previous.close_calls == 1
+    assert db._pool is None
+    result = json.loads(capsys.readouterr().out)
+    assert result["stage"] == "close" and not result["ok"]
+
+
+def test_session_close_error_does_not_skip_pool_cleanup(job, monkeypatch, capsys):
+    _, args, _ = job
+    previous = PoolProbe()
+    monkeypatch.setattr(db, "_pool", previous)
+
+    def failed(_session):
+        raise RuntimeError("synthetic session close failure")
+
+    monkeypatch.setattr(_replay.ReplaySession, "close", failed)
+    assert run_replay_games.main(args) == 1
+    assert previous.close_calls == 1 and previous.closed
+    assert db._pool is None
+    assert json.loads(capsys.readouterr().out)["stage"] == "close"
+
+
+def test_job_fixture_preserves_the_surrounding_worker_pool(tmp_path, monkeypatch):
+    # Exercise the existing fixture's actual setup/teardown within its own patch
+    # scope: a worker pool must neither be closed nor lose its global reference.
+    worker_pool = PoolProbe()
+    monkeypatch.setattr(db, "_pool", worker_pool)
+    with pytest.MonkeyPatch.context() as scoped_patch:
+        fixture = job.__wrapped__(tmp_path, scoped_patch)
+        _, args, _ = next(fixture)
+        try:
+            assert run_replay_games.main(args) == 0
+        finally:
+            with pytest.raises(StopIteration):
+                next(fixture)
+    assert db._pool is worker_pool
+    assert worker_pool.close_calls == 0 and not worker_pool.closed
