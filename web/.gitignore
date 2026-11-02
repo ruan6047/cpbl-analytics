@@ -4,3 +4,5 @@
 /out
 *.tsbuildinfo
 .env*.local
+# Next 16 起由 `next typegen`／`next dev`／`next build` 各自產生（內容隨 distDir 不同），依官方 16 文件改為不入版控；CI 以 `npx next typegen` 先產生再 tsc（#419）
+next-env.d.ts
