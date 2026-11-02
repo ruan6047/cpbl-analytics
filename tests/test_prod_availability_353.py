@@ -566,7 +566,10 @@ def test_t6_daily_fallback_grace_is_at_least_the_send_timeout() -> None:
 
     send_timeout = int(re.search(r"timeout=(\d+)", inspect.getsource(pa.send)).group(1))
     daily = (ROOT / "scripts" / "scrape-daily.sh").read_text(encoding="utf-8")
-    grace = int(re.search(r"^FALLBACK_KILL_GRACE=(\d+)$", daily, re.M).group(1))
+    # 寬限的**預設值**：腳本寫成 FALLBACK_KILL_GRACE="${DAILY_FALLBACK_KILL_GRACE:-20}"（環境變數只供測試縮短），
+    # 這裡讀的是冒號後的預設數字，正式排程不設環境變數時用的就是它。
+    grace = int(re.search(
+        r'^FALLBACK_KILL_GRACE="\$\{DAILY_FALLBACK_KILL_GRACE:-(\d+)\}"$', daily, re.M).group(1))
     assert send_timeout <= grace <= 60
     assert grace >= send_timeout + pa.CURL_MAX_TIME, "規劃 r2 §2：送出逾時＋一輪 curl 收尾"
 

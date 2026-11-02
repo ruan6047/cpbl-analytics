@@ -123,7 +123,8 @@ class Allowed:
 # 才知道那是「做完了」還是「漏填了」。allowlist 只記**還存在**的手寫條件。
 
 ALLOWLIST: dict[str, Allowed] = {
-    # --- 已審視、不是完成判定：3 檔 3 處（無承接卡，也不該有） ---
+    # --- 已審視、不是完成判定：2 檔 2 處（無承接卡，也不該有） ---
+    # （原第 3 處 models/matchup.py 的「= 0 AND game_date >= today」住在舊探索器的 upcoming()，#405 隨之移除）
     "src/cpbl/api/routers/daily.py": Allowed(
         1, REVIEWED, "",
         "`= 0` 只是 SQL 側便宜撈出的『比分為 0』候選；『其實已完成的是哪些』由同一支端點的 "
@@ -131,9 +132,6 @@ ALLOWLIST: dict[str, Allowed] = {
     "src/cpbl/api/routers/info.py": Allowed(
         1, REVIEWED, "",
         "指標語意是『今天排了幾場還沒打』，不是完成判定；且已刻意用 TAIPEI_TODAY_SQL"),
-    "src/cpbl/models/matchup.py": Allowed(
-        1, REVIEWED, "",
-        "`= 0 AND game_date >= today`＝『即將到來的比賽』，語意是未來場不是完成場"),
 }
 
 

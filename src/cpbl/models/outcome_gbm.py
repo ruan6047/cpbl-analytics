@@ -25,9 +25,35 @@ from sklearn.preprocessing import StandardScaler
 from cpbl.db import conn
 from cpbl.features.outcome import FEATURE_KEYS, REAL_FEATURES_LABELS
 from cpbl.ingest._cli import cli_parser
-from cpbl.models.outcome import REAL_FEATURES, _load, _matrix
 
 log = logging.getLogger("cpbl.models.outcome_gbm")
+
+# 走查回測的資料載入。原本住在 models/outcome.py（舊互動探索器的即時 fit 模組），#405 移除探索器後
+# 只剩這裡在用，故搬過來；查詢與欄位順序逐字不變。
+HOME_FIELD = "home_field"
+REAL_FEATURES = [k for k in FEATURE_KEYS if k != HOME_FIELD]
+_BASE = 5  # _load 回傳列中特徵欄位的起始 index（前五欄：season, game_date, home, away, home_win）
+
+
+def _load(completed_only: bool):
+    cols = ", ".join(FEATURE_KEYS)
+    where = "completed = true AND home_win IN (0,1)" if completed_only else "completed = false"
+    with conn() as c:
+        cur = c.cursor()
+        cur.execute(
+            f"""
+            SELECT season, game_date, home_team_name, away_team_name, home_win, {cols}
+            FROM cpbl.game_features
+            WHERE {where}
+            ORDER BY game_date, game_sno
+            """
+        )
+        return cur.fetchall()
+
+
+def _matrix(rows, idx: list[int]) -> np.ndarray:
+    return np.array([[r[_BASE + i] for i in idx] for r in rows], dtype=float)
+
 
 IDX = [FEATURE_KEYS.index(f) for f in REAL_FEATURES]  # _matrix 取全部 real 特徵欄位
 

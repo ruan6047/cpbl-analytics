@@ -234,7 +234,8 @@ FALLBACK_WAIT_MAX="${DAILY_SENTINEL_WAIT_MAX:-240}"
 # ＋一輪 curl 收尾餘裕（CURL_MAX_TIME 10 秒）＝20 秒；⛔ 不得小於送出逾時，否則告警會被 SIGKILL 截斷。
 # 仍未結束（例：DNS 等不可中斷的阻塞）才 SIGKILL——鎖一定在 240＋20 秒左右釋放。Python 修正保證「語意」
 # （TERM 一定變告警），這一層保證「時間」，兩者互補、不是重複守衛。
-FALLBACK_KILL_GRACE=20
+# DAILY_FALLBACK_KILL_GRACE 只供測試縮短（與上面的 DAILY_SENTINEL_WAIT_MAX 同一套），正式排程不設、沿用 20。
+FALLBACK_KILL_GRACE="${DAILY_FALLBACK_KILL_GRACE:-20}"
 FALLBACK_PID=""
 availability_fallback() {  # $1＝本腳本即將使用的離開碼（只寫進 log，不改它）
   local rc="$1" out="${LOG:-/dev/stderr}" waited=0 sentinel_rc=0

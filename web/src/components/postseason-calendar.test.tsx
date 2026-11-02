@@ -62,7 +62,8 @@ test("公告格有單場入口：桌面與手機整格各一個連結，待更�
     },
   };
   const e1 = byKey(withLiveEntries(base, { E1: st }).slots, "E1");
-  for (const node of [<AnnouncedCompact s={e1} />, <AnnouncedMobile s={e1} asOf="2026-10-04" />]) {
+  for (const node of [<AnnouncedCompact key="compact" s={e1} />,
+                      <AnnouncedMobile key="mobile" s={e1} asOf="2026-10-04" />]) {
     const html = renderToStaticMarkup(node);
     assert.equal(html.match(/<a /g)?.length, 1);
     assert.match(html, /<a [^>]*href="\/games\/1\?kind=E&amp;year=2026"/);

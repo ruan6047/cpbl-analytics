@@ -25,7 +25,27 @@ on:
   push:
   pull_request:
 
+# 兩個 job 都只讀 checkout、不寫回 repo；把 GITHUB_TOKEN 收斂到唯讀，與姊妹 repo ai-workflow 一致。
+permissions:
+  contents: read
+
 jobs:
+  secret-scan:
+    # 機密不進 git：gitleaks 掃 PR 範圍（pull_request）或 push 範圍的 commit。與姊妹 repo ai-workflow 的
+    # secret-scan 同一套，action 與 checkout 的 SHA 沿用該 repo 已釘的值。⛔ 不是 required check 的候選：
+    # 它守的是歷史不被污染，不是「這份 diff 能不能合」。
+    name: secret-scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: gitleaks/gitleaks-action@e0c47f4f8be36e29cdc102c57e68cb5cbf0e8d1e  # v3.0.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
   api:
     # ⚠️ 這個 name 就是 check 的名字，也就是 ruleset 的 required status check 要比對的
     # 字串。一旦被設為 required，**改名或拆成多個 job 會讓所有 PR 永遠停在 pending**。
@@ -54,6 +74,8 @@ jobs:
     name: ${{ (github.event_name == 'pull_request' || github.ref == 'refs/heads/main')
               && 'api' || 'api (branch head)' }}
     runs-on: ubuntu-latest
+    # 單執行緒全套約 9.5 分；4 worker 並行後的上限留兩倍餘裕，卡死的 run 不會占到預設 6 小時。
+    timeout-minutes: 20
     # runner 的時區釘死 UTC，**刻意不是 Asia/Taipei**（docs/TIME_SEMANTICS_CONTRACT.md §6
     # 明文禁止）：生產容器就是 UTC，把 CI 設成台北等於讓 CI 永遠無法重現 UTC 容器缺陷，
     # 而 #81 的首頁「今日賽事」缺陷正是靠手動構造 UTC 情境才抓到的。
@@ -61,21 +83,97 @@ jobs:
     # 確定性失敗遠比 1/3 機率的假 flaky 便宜（TIME-TEST-CLOCK-INJECT1 痛點）。
     env:
       TZ: UTC
+    # 拋棄式 Postgres：只給「自行擁有的隔離庫」那類測試用（tests/conftest.py 的 THROWAWAY_DB_ENVS），
+    # 它們在空庫上自建 schema、自行清理。對外埠刻意用 5434 而不是 settings 預設的 5433：
+    # 預設 DATABASE_URL 指向的是**有真實資料**的本機庫，空庫上有 14 個全庫對帳測試會因樣本不足而紅
+    # （2026-11-01 本機量測），所以 CI 讓它維持不可達、照舊 skip，不假裝那批測試已驗。
+    # 版本與 docker-compose.yml 的 db 服務同為 17。
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: cpbl
+          POSTGRES_PASSWORD: cpbl
+          POSTGRES_DB: postgres
+        # 同一個容器對外開多個埠：幾支卡片隔離測試把 (host, port, dbname) 釘死成當初本機租用的資源
+        # （#289→55289、#316→55316、#238 A8→15438），這裡照它們釘的值對外開，才能在 CI 跑而不改測試。
+        ports:
+          - 5434:5432
+          - 55289:5432
+          - 55316:5432
+          - 15438:5432
+        options: >-
+          --health-cmd "pg_isready -U cpbl"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+      redis:
+        # 只給 #238 A8 名單公告測試（釘死 127.0.0.1:16389）。
+        image: redis:7-alpine
+        ports:
+          - 16389:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
         with:
           # fetch-depth: 0（完整歷史）：tests/test_scoreless_streak_no_logic_diff.py
           # 要 diff 對 baseline commit b974b10；預設 fetch-depth: 1（淺層 clone）
           # 會讓該 commit 在此 checkout 無法解析，測試因而 skip 而非真正驗證。
           fetch-depth: 0
-      - uses: astral-sh/setup-uv@v5
+      - uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86  # v5
         with:
           python-version: "3.12"
       - run: uv sync
       - name: Ruff lint
         run: uv run ruff check
+      - name: Create throwaway databases
+        # 這些測試檔自己釘死 dbname（只在專用拋棄式資料庫上跑），先把庫建起來。
+        # - starter_watch、editorial：測試檔頭要求「已跑過 migrate」→ 全套 migration。
+        # - A8（#238）：fixture 斷言 cpbl schema **恰有 1 張表**（當初本機租用庫只建了名單公告表）→
+        #   只套 074 那一支，不跑 migrate()（它會多建 schema_migrations 記錄表）。
+        # CPBL_ISOLATED_TEST_DSN 不必預建：xdist 下 conftest 會經維護庫 postgres 建 <庫名>_gwN。
+        run: |
+          uv run python - <<'EOF'
+          import pathlib, psycopg
+          from psycopg import sql
+          base = "postgresql://cpbl:cpbl@localhost:5434/"
+          names = ("cpbl_pa_lock1", "cpbl_prod_sync_seq1", "cpbl_test_289", "cpbl_316_test",
+                   "cpbl238_a8", "cpbl_ingest_starter_watch1", "cpbl_data_editorial1")
+          with psycopg.connect(base + "postgres", autocommit=True) as c:
+              for name in names:
+                  c.execute(sql.SQL("CREATE DATABASE {}").format(sql.Identifier(name)))
+          with psycopg.connect(base + "cpbl238_a8", autocommit=True) as c:
+              c.execute("CREATE SCHEMA IF NOT EXISTS cpbl")
+              c.execute(pathlib.Path("migrations/074_game_lineup_announcement_revisions.sql").read_text())
+          EOF
+          for db in cpbl_ingest_starter_watch1 cpbl_data_editorial1; do
+            DATABASE_URL="postgresql://cpbl:cpbl@localhost:5434/$db" \
+              uv run python -c "from cpbl.db import migrate; print('$db', len(migrate()), 'migrations')"
+          done
       - name: Pytest
-        run: uv run pytest -q
+        # pytest-xdist：ubuntu-latest 4 vCPU → 4 個 worker。`--dist loadfile` 讓同一檔的測試留在同一個
+        # worker，保住檔內順序依賴（如 test_championship_managers 取用 test_championships 的種子列）。
+        # 無 DB 時各 worker 的 conftest 各自做一次 2 秒探測，結果與單執行緒相同。
+        # 三個 DSN 都指向上面的 service；isolated 那條 xdist 下由 conftest 按 worker 拆庫，
+        # 另兩條各只有一個測試檔、且測試釘死庫名，不拆。
+        env:
+          # 主 DSN 明示指到一個沒人聽的埠：那條代表「有真實資料的本機庫」，CI 沒有，照舊快速 skip。
+          DATABASE_URL: postgresql://cpbl:cpbl@127.0.0.1:1/cpbl
+          CPBL_ISOLATED_TEST_DSN: postgresql://cpbl:cpbl@localhost:5434/cpbl_ci_isolated
+          PA_BUILD_LOCK_TEST_DATABASE_URL: postgresql://cpbl:cpbl@localhost:5434/cpbl_pa_lock1
+          PROD_SYNC_SEQ_TEST_DATABASE_URL: postgresql://cpbl:cpbl@localhost:5434/cpbl_prod_sync_seq1
+          STARTER_WATCH_TEST_DATABASE_URL: postgresql://cpbl:cpbl@localhost:5434/cpbl_ingest_starter_watch1
+          EDITORIAL_TEST_DATABASE_URL: postgresql://cpbl:cpbl@localhost:5434/cpbl_data_editorial1
+          # 下面三組的 (host, port, dbname) 是測試檔釘死的值，對應上方 service 的多埠映射。
+          CPBL289_TEST_DSN: postgresql://cpbl:cpbl@127.0.0.1:55289/cpbl_test_289
+          CPBL316_TEST_DSN: postgresql://cpbl:cpbl@127.0.0.1:55316/cpbl_316_test
+          CPBL238_A8_TEST_DSN: postgresql://cpbl:cpbl@127.0.0.1:15438/cpbl238_a8
+          REDIS_URL: redis://127.0.0.1:16389/0
+        run: uv run pytest -q -n auto --dist loadfile
 
   web:
     # 與上方 api 同一套機制與同樣的紅線，理由不重複，見 api job 的註解。
@@ -84,16 +182,19 @@ jobs:
     name: ${{ (github.event_name == 'pull_request' || github.ref == 'refs/heads/main')
               && 'web' || 'web (branch head)' }}
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     defaults:
       run:
         working-directory: web
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020  # v4
         with:
           node-version: "22"
       - run: npm ci
       - name: Type check
         run: npx tsc --noEmit
+      - name: Lint
+        run: npm run lint
       - name: Contract tests
         run: npm test

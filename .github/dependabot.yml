@@ -1,0 +1,38 @@
+# 依賴更新提醒（每月一次、同生態系合併成一個 PR，避免每天一堆小 PR）。
+# 本 repo 每個 PR 都要走 vNext 卡片流程：Dependabot 開的 PR 只是「提醒＋已算好的 lock diff」，
+# 合併前仍由 PM 開卡、依 CI 與審核程序處理；⛔ 不設 auto-merge。
+# 主版本升級（Next 16、recharts 3、TypeScript 7）刻意排除：那是獨立卡的量，不是例行更新。
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /web
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 2
+    groups:
+      web-minor-and-patch:
+        update-types: [minor, patch]
+    ignore:
+      - dependency-name: next
+        update-types: [version-update:semver-major]
+      - dependency-name: recharts
+        update-types: [version-update:semver-major]
+      - dependency-name: typescript
+        update-types: [version-update:semver-major]
+      - dependency-name: react
+        update-types: [version-update:semver-major]
+      - dependency-name: react-dom
+        update-types: [version-update:semver-major]
+  - package-ecosystem: uv
+    directory: /
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 2
+    groups:
+      python-minor-and-patch:
+        update-types: [minor, patch]
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 2

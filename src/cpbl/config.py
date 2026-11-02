@@ -55,6 +55,10 @@ class Settings(BaseSettings):
     api_db_pool_timeout_seconds: float = 1.0
     api_db_statement_timeout_ms: int = 3500
     api_db_lock_timeout_ms: int = 2000
+    # 連線池上限。預設 8 維持 #353 WP2 規劃 §2.2「不加大池」的裁定不變（tests/test_api_db_timeouts_353.py 守門）；
+    # 做成可設定是因為 API 的 198 個同步端點跑在 Starlette 預設 40 條執行緒上，超過 8 個併發慢請求就會在
+    # 借池處以 PoolTimeout 回 500——要不要對齊、對齊到幾，是部署時依實測調的旋鈕，不是碼內常數。
+    db_pool_max_size: int = Field(default=8, ge=1)
 
     port: int = 4001
     app_version: str = "0.1.0"

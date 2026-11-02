@@ -384,6 +384,14 @@ def ci_binding_targets(src: str, known: set[str]) -> set[str]:
     except SyntaxError:
         return hits
 
+    # basename → 同名的所有目標。(b) 原本對**每個**字串常數都逐一走訪 `known` 並建 `Path(target).name`
+    # （239 支測試檔 × 數千個常數 × 約 200 個目標 ≈ 380 萬次 Path 建構，佔 `build_entries()`
+    # 八成以上的時間、CI 上單一測試逾 100 秒）。改成先建一次對照表，每個常數只做一次 O(1) 查表；
+    # 判定條件逐字等價：`value == target`、`value == name`、`value.endswith("/" + name)`。
+    by_name: dict[str, set[str]] = defaultdict(set)
+    for target in known:
+        by_name[Path(target).name].add(target)
+
     for node in ast.walk(tree):
         # (a) `from scripts.x import y` / `import scripts.x`
         mods: list[str] = []
@@ -403,10 +411,10 @@ def ci_binding_targets(src: str, known: set[str]) -> set[str]:
             value = node.value
             if "\n" in value:          # 多行字串＝散文，不是路徑
                 continue
-            for target in known:
-                name = Path(target).name
-                if value in {name, target} or value.endswith("/" + name):
-                    hits.add(target)
+            if value in known:                       # value == target
+                hits.add(value)
+            tail = value.rsplit("/", 1)[-1]          # value == name 或 value.endswith("/" + name)
+            hits.update(by_name.get(tail, ()))
     return hits
 
 
@@ -906,10 +914,6 @@ CLASS_OVERRIDES: dict[str, tuple[str, str]] = {
         "standing",
         "docstring 明寫「改前後各跑一次再 diff」＝重複執行義務，是能力值卡的回歸抽驗工具；"
         "無卡 ID 故不可能是卡片一次性產物。缺的是觸發器不是生命週期"),
-    "scripts/review_gate_inventory.py": (
-        "standing",
-        "REVIEW_GATE_CONTRACT §6 引用它為可重現盤點、§225 宣告「納管＋測試」。"
-        "⚠️ 該宣告未落實：實測無任何測試載入它，防護是名義上的"),
     "scripts/capture_player_ia_fixtures.py": (
         "product_pending",
         "訊號互斥且需求方已裁定不重裁：母卡 UX-PLAYER-IA1 已封存（＝一次性），"
@@ -965,7 +969,6 @@ ONESHOT_HOME: dict[str, str] = {
     "scripts/replay_schedule_branches.py": "INGEST-GAME-TM-REFACTOR1-G4",
     "scripts/report_pa_rebuild_fix1.py": "GAME-RECAP-PA1-FIX1",
     "scripts/restate1_reconcile.py": "INGEST-SPLITS-IMPORT-RESTATE1",
-    "scripts/state_plane_migrate.py": "OPS-STATE-PLANE-MIG1",
     "scripts/team_style_vectors.py": "TEAM-STYLE1",
     "scripts/verify_deep_tm_backfill.py": "INGEST-DEEP-TM-BACKFILL1",
     "scripts/verify_pa_build_fix1.py": "GAME-RECAP-PA1-FIX1",
@@ -1086,7 +1089,10 @@ def _ref_surface(loc: str) -> str:
         return "sealed"
     if path.startswith("docs/research/") and path.endswith(".json"):
         return "scan"
-    if path.startswith(("docs/archive/", "docs/research/")):
+    # 與 HISTORICAL_DOC_PREFIXES 同一張表（archive／research／tasks／handoffs／incidents／discovery）：
+    # 活文件判定（_is_live_doc）早就把這些目錄當歷史痕跡，引用面之前只列了前兩個，
+    # 讓 docs/tasks 與 docs/discovery 的卡片檔被當成強制面——#405 移除舊制腳本時撞出來。
+    if path.startswith(HISTORICAL_DOC_PREFIXES):
         return "historical"
     if path.startswith("tests/"):
         return "fixture"
@@ -1325,8 +1331,14 @@ _LITERAL_PATH_RE = re.compile(r"(?<![\w./-])(scripts/[\w./-]+\.(?:py|sh|plist))(
 _SPLIT_PATH_RE = re.compile(r"""["']scripts/?["']\s*(?:\+|/|,)|["']scripts["']\s*(?:\+|/|,)""")
 
 
+@cache
 def literal_path_refs() -> dict[str, list[str]]:
-    """全庫 `scripts/<name>.<ext>` 字面路徑 → 出現位置（`檔案:行號`）。"""
+    """全庫 `scripts/<name>.<ext>` 字面路徑 → 出現位置（`檔案:行號`）。
+
+    `@cache`：輸入只有 `_tracked_files()` 與 `_read()`（兩者本身已快取），同一行程內結果不會變。
+    沒快取時 `position_debt()` 每呼叫一次就全庫重掃一次；不變式證明測試逐支呼叫，133 次 × 約 0.9 秒
+    ＝ 單一測試逾 100 秒（CI 上實測）。
+    """
     refs: dict[str, list[str]] = defaultdict(list)
     for rel in _tracked_files():
         if rel.startswith(".ai-workflow") or _is_binary(rel):
@@ -2112,13 +2124,9 @@ PURPOSE_VERIFIED: dict[str, str] = {
     "scripts/backup-prod-db.sh": "備整庫並驗內容門檻（OPS-BACKUP-EMPTY1 的產物，已是常設）",
     "scripts/refresh_status.py": "每日鏈的狀態記錄輔助（寫狀態／歷史 JSON）；launchd 觸發時另經 alert_ping.py 送 daily 心跳（#358，fail-open）",
     "scripts/verify_refresh_info.py": "同步後打 /api/info 驗證，唯讀",
-    "scripts/workflow_ledger.py": "⚠️ 已於 33c7c3f 加拒絕執行守衛——TASKS.md 已封存，--write 會覆寫封存產物",
-    "scripts/review_prompt.py": "查核提示詞產生器；AI_RUNBOOK:433 逐字給指令，18 commits",
-    "scripts/roadmap_lines.py": "ROADMAP §1 線別歸屬的機械判定者，fail closed",
     "scripts/pa_transition_taxonomy.py": "canonical taxonomy 的產生器（唯讀）；產物勿手改，改了要重跑",
     "scripts/reconcile_scoreless_streak.py": "窮舉對帳；AI_RUNBOOK:380 寫「改動演算法後必跑」，義務靠人記得",
     "scripts/ability_snapshot.py": "能力值卡回歸抽驗；docstring 明寫改前後各跑一次再 diff",
-    "scripts/review_gate_inventory.py": "⚠️ REVIEW_GATE_CONTRACT 宣告「納管＋測試」但實測無測試載入，宣告未落實",
     # --- CLI：高後果／訊號互斥 ---
     "cpbl-refresh-recent": "每日鏈主要寫入者，566 行；⚠️ --help 觸及 cpbl.db.migrate（#53 凍結）",
     "cpbl-research-umpire-impact": "632 行研究入口，零活引用；產物落檔案不落 DB",

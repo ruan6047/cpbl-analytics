@@ -196,7 +196,7 @@ export function PlayerHero({ profile, careerStats, ability, role, s, scope }: {
                       className="pm-tag inline-flex items-center gap-1"
                       title={`${o.league}${o.team ? ` · ${o.team}` : ""} · ${o.year} 加盟`}>
                       {o.league}{o.team ? ` · ${o.team}` : ""}
-                      <span className="font-mono opacity-70">'{String(o.year).slice(2)}</span>
+                      <span className="font-mono opacity-70">&apos;{String(o.year).slice(2)}</span>
                     </span>
                   ))}
                 </div>

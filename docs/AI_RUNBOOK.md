@@ -532,7 +532,7 @@ host 缺 `libomp.dylib`。**勿 `brew install libomp` 污染 host**；需 LightG
 |---|---|
 | 契約/健康 | `/api/info`（主站 InfoPoller，**永不拋錯**）、`/healthz` |
 | 成績預測 | `/api/v1/projections/batting`、`/season/batting-leaders`、`/season/pitching-leaders`、`/season/fielding` |
-| 賽果預測 | `/outcome/features`、`/outcome/evaluate`、`/outcome/teams`、`/outcome/matchups`、`/outcome/simulate` |
+| 賽果預測 | `/outcome/pregame`、`/outcome/pregame/serving`、`/outcome/pregame/backtest`、`/outcome/backtest`、`/outcome/plate-appearance`（舊探索器的 features／evaluate／teams／matchups／simulate 已於 #405 移除） |
 | 戰績 | `/season/standings`、`/standings` |
 | 球員頁 | `/players/{id}/batting|pitching|season|profile|fielding|vs-team|splits|matchups|advanced|discipline|arsenal|pitch-mix|trend`、`/players/roster`、`/matchups` |
 | 賽況 | `/games/recent`、`/games/{sno}/live`（含 records/batter_avg/has_tracking/tracking） |
@@ -630,12 +630,11 @@ git -C ~/Dev/cpbl-analytics worktree add .claude/worktrees/<card_id小寫>-execu
 # claim／handoff／review／merge／release 前後：對帳所有活卡與 worktree。
 git worktree list
 find /private/tmp/cpbl-analytics-control-plane -mindepth 1 -maxdepth 1 -type d
-uv run python scripts/workflow_ledger.py --check
-uv run python scripts/workflow_ledger.py --live   # 稽核：union main 與所有 ai/* 分支頂端 event log；與 TASKS.md 不一致＝有事件違規漏留在分支
+# workflow_ledger.py --check／--live（已於 #405 隨舊制工具鏈移除，原檔對照用 `git show e3bfc02:scripts/<name>`）
 
 # 交付後要查核：從最新 handoff event + 卡片驗收條件自動產生查核提示詞（不必向執行者索取）
 # ⚠️ 2026-08-17 起【僅服務 2026-08-04 cutover 之前的卡】——見下方警示，新卡跑它會得到錯誤答案
-uv run python scripts/review_prompt.py <CARD_ID> | pbcopy
+# review_prompt.py <CARD_ID>（已於 #405 隨舊制工具鏈移除，原檔對照用 `git show e3bfc02:scripts/<name>`）
 ```
 
 > ⚠️ **`review_prompt.py` 對 cutover 後的卡失效，而且是靜默的。** 它讀 `docs/control-plane/events.jsonl`，

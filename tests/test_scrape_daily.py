@@ -725,12 +725,14 @@ def test_t5_sentinel_ignoring_sigterm_is_sigkilled_after_grace(tmp_path: Path) -
     started = time.monotonic()
     result, status = _run_daily(
         tmp_path, day_type="skip", timeout=60,
-        extra_env={"DAILY_SENTINEL_WAIT_MAX": "2"},
+        # 寬限縮成 3 秒只是讓測試快（原本等滿 20 秒，是整套最慢的單一測試）；要驗的性質不變：
+        # 忽略 TERM 的哨兵在寬限後被 SIGKILL、鎖照放、離開碼不變。
+        extra_env={"DAILY_SENTINEL_WAIT_MAX": "2", "DAILY_FALLBACK_KILL_GRACE": "3"},
         extra_bin={"python3": _TERM_IGNORING_PYTHON3},
     )
     elapsed = time.monotonic() - started
 
-    assert elapsed < 2 + 20 + 15, f"每日鏈 {elapsed:.1f}s 才結束"
+    assert elapsed < 2 + 3 + 15, f"每日鏈 {elapsed:.1f}s 才結束"
     assert result.returncode == 0
     assert status["state"] == "succeeded"
     assert not (tmp_path / "refresh.lock").exists()

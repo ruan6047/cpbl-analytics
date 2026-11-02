@@ -1,0 +1,8 @@
+# web 映像的 build context 是 web/ 本身；builder 階段自己 npm ci、next build，
+# 本機的 node_modules 與既有 build 輸出不該被送進去。
+node_modules
+.next
+.next-check
+out
+*.tsbuildinfo
+.env*.local
