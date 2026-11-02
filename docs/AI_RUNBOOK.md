@@ -664,13 +664,17 @@ uv run ruff check                 # 後端 lint
 uv run pytest                     # 後端（44 檔中 39 檔零 DB 依賴，整套 <10s）
 cd web && npx tsc --noEmit        # 前端型別
 cd web && npm test                # 前端契約測試（node:test + strip-types，零框架依賴）
+uv run --locked --group typecheck --group scrape basedpyright   # 型別檢查（#414）：只擋 baseline 外的新錯誤
 # 改成績模型還要：容器內 cpbl-train 看回測對照表未退化
 ```
 
 - **路由快照**：新增 API 端點須同步更新 `tests/test_route_snapshot.py` 的 EXPECTED。
 - **bug 修復**：修復測試必須先對缺陷版本**跑紅**再轉綠，紅證據記入交付。統計／ML 變更「先跑紅」不適用，改依規劃寫明的紅線（違反即退回）驗證。
 - **新 worktree**：先 `cd web && npm install`，否則 tsc／npm test 全紅是缺 node_modules 假象非缺陷；後端 `uv run` 會自動建 venv。
-- **CI**（`.github/workflows/ci.yml`）：api job 跑 ruff＋pytest，web job 跑 tsc＋npm test；CI 不部署（部署見 §7.3）。
+- **型別檢查（#414）**：basedpyright basic 對 `src/`（設定在 `pyproject.toml` `[tool.basedpyright]`），既有錯誤凍結在 `.basedpyright/baseline.json`，只有不在 baseline 的新錯誤會 rc≠0。**一律用上面那行的兩個 `--group`**：baseline 是在 uv.lock 的 dev＋scrape＋typecheck 環境產生的，少了 scrape（playwright）結果會不同（542 vs 540）。時間（2026-11-02 實測）：本機約 26–28 秒（Linux x86_64、4 vCPU 容器，比對 3 次）；CI `typecheck` job 29 秒，其中 basedpyright 20 秒、`uv sync` 2 秒（[run 41414779519](https://github.com/ruan6047/cpbl-analytics/actions/runs/41414779519)），與 api job 並行。**非 required check**：依 #414 裁定先當一般 CI job，穩定一個月後另裁；ruleset 的 required context 仍只有 `api`、`web`（§7.2.1）。
+  - 本機修掉 baseline 內的錯誤時，工具會自動縮小 baseline（輸出 `went down by N`），連同修正一起 commit。新程式遇第三方存根誤報，用逐行 `# pyright: ignore[<規則>]` 並附理由，⛔ 不全域關規則。
+  - **漂移重產**（basedpyright 或依賴升版，含 Dependabot 群組 PR）：在**不改 `src/` 的 commit** 單獨跑 `uv run --locked --group typecheck --group scrape basedpyright --writebaseline`，只 commit baseline，body 記工具輸出的 `went up/down by N` 與規則數變化。⛔ 不在含程式改動的 commit 重產、⛔ 不用重產吞掉新程式碼的錯誤。
+- **CI**（`.github/workflows/ci.yml`）：api job 跑 ruff＋pytest，web job 跑 tsc＋npm test，typecheck job 跑上面的型別檢查（非 required）；CI 不部署（部署見 §7.3）。
 
 **DB 契約測試（預設 skip，改對應 ingest 前必須手動實跑一次）**：
 
