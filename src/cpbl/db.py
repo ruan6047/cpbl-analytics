@@ -2,15 +2,20 @@
 
 from __future__ import annotations
 
+import hashlib
+import logging
 import os
 from collections.abc import Iterator
 from contextlib import contextmanager
+from importlib import resources
 from pathlib import Path
 
 import psycopg
 from psycopg_pool import ConnectionPool
 
 from cpbl.config import settings
+
+log = logging.getLogger(__name__)
 
 _pool: ConnectionPool | None = None
 
@@ -143,12 +148,54 @@ def conn() -> Iterator[psycopg.Connection]:
         yield c
 
 
-def migrate() -> list[str]:
-    """依序套用 migrations/*.sql（冪等；皆為 IF NOT EXISTS）。"""
-    applied: list[str] = []
+def _tracking_sql(name: str) -> str:
+    """套用記錄表的 SQL，與 migrations/*.sql 一樣住在 .sql 檔（cpbl/resources/）而不是 Python 字串。
+
+    表放在 cpbl schema 內：隔離測試把整個 cpbl schema 砍掉重來時它一起消失，下一次 migrate 自然全量重跑——
+    「schema 從零開始」與「記錄從零開始」永遠同步。SQL 不內嵌在這裡的另一個理由寫在該 .sql 檔頭。
+    """
+    return (resources.files("cpbl.resources") / name).read_text(encoding="utf-8")
+
+
+def _checksum(text: str) -> str:
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
+def migrate(*, force: bool | None = None) -> list[str]:
+    """依序套用 migrations/*.sql，**跳過已記錄且內容未變的檔案**；回傳本次實際執行的檔名。
+
+    為什麼要記錄：migration 檔皆冪等（IF NOT EXISTS）所以「每次全跑」結果正確，但代價是每個 CLI 入口
+    （每日鏈、訓練、回填…）每次都重跑 79 支，其中 037／038 以 ``DROP CONSTRAINT IF EXISTS`` ＋ ``ADD``
+    重建主鍵——等於每天在大表上重建索引並持 ACCESS EXCLUSIVE 鎖（#353 的停擺形狀）。記錄後常態只跑新檔。
+
+    規則（沿 AGENTS.md「不要改動已存在的 migration」）：
+    - 檔名已記錄且 sha256 相同 → 跳過。
+    - 檔名已記錄但內容變了 → **仍執行**（檔案本身冪等，重跑無害）並更新記錄，同時 WARNING：這代表有人
+      改了既有檔，違反規則，要人看。⛔ 不選擇在這裡失敗——每日鏈卡死的代價高於重跑一支冪等檔。
+    - ``force=True`` 或環境變數 ``CPBL_MIGRATE_FORCE=1`` → 全量重跑並更新記錄（手動復原用）。
+    記錄與執行在**同一個交易**：中途失敗整批回滾，記錄不會領先 schema。
+    第一次在既有資料庫執行會把 79 支再跑一遍（與今天的行為相同）然後記錄下來，之後才開始跳過。
+    """
+    if force is None:
+        force = os.getenv("CPBL_MIGRATE_FORCE") == "1"
     files = sorted(_migrations_dir().glob("*.sql"))
+    applied: list[str] = []
+    skipped = 0
     with conn() as c:
+        c.execute(_tracking_sql("schema_migrations_ddl.sql"))  # type: ignore[arg-type]
+        recorded: dict[str, str] = dict(
+            c.execute("SELECT filename, checksum FROM cpbl.schema_migrations").fetchall())
         for f in files:
-            c.execute(f.read_text(encoding="utf-8"))  # type: ignore[arg-type]
+            text = f.read_text(encoding="utf-8")
+            digest = _checksum(text)
+            previous = recorded.get(f.name)
+            if previous == digest and not force:
+                skipped += 1
+                continue
+            if previous is not None and previous != digest:
+                log.warning("migration %s 內容已與記錄不同（既有 migration 不應修改）；照常重跑並更新記錄", f.name)
+            c.execute(text)  # type: ignore[arg-type]
+            c.execute(_tracking_sql("schema_migrations_record.sql"), (f.name, digest))  # type: ignore[arg-type]
             applied.append(f.name)
+    log.info("migrations: applied %d, skipped %d (already recorded)", len(applied), skipped)
     return applied
