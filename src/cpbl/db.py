@@ -130,8 +130,8 @@ def pool() -> ConnectionPool:
     global _pool
     if _pool is None:
         _pool = ConnectionPool(
-            settings.database_url, min_size=1, max_size=8, open=True, configure=_configure,
-            timeout=_pool_timeout,
+            settings.database_url, min_size=1, max_size=settings.db_pool_max_size, open=True,
+            configure=_configure, timeout=_pool_timeout,
         )
     return _pool
 
