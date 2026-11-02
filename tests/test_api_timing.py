@@ -8,7 +8,7 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from cpbl.api.timing import RequestTimingMiddleware
+from cpbl.api.timing import RequestTimingMiddleware, configure_access_log
 
 
 def _app() -> FastAPI:
@@ -62,3 +62,29 @@ def test_real_app_mounts_timing_outermost() -> None:
     from cpbl.api.main import app
 
     assert app.user_middleware[0].cls is RequestTimingMiddleware
+
+
+def test_access_log_reaches_stdout_under_uvicorn_default_logging(capfd: pytest.CaptureFixture[str]) -> None:
+    """uvicorn 的 LOGGING_CONFIG 不碰 root（WARNING、無 handler）；沒有 configure_access_log 這行 INFO 永遠不會出現。"""
+    import logging.config
+
+    import uvicorn.config
+
+    logging.config.dictConfig(uvicorn.config.LOGGING_CONFIG)
+    logger = configure_access_log()
+    configure_access_log()  # 冪等：不加第二個 handler
+    assert [h.get_name() for h in logger.handlers].count("cpbl.api.access.stdout") == 1
+    assert logger.isEnabledFor(logging.INFO) and logger.propagate
+
+    TestClient(_app()).get("/ping")
+    out, err = capfd.readouterr()
+    assert "INFO:     GET /ping 200 " in out and "ms" in out
+    assert "GET /ping" not in err
+
+
+def test_real_app_configures_access_log() -> None:
+    import cpbl.api.main  # noqa: F401 — 組裝時呼叫 configure_access_log
+
+    logger = logging.getLogger("cpbl.api.access")
+    assert any(h.get_name() == "cpbl.api.access.stdout" for h in logger.handlers)
+    assert logger.isEnabledFor(logging.INFO)

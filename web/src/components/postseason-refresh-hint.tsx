@@ -22,14 +22,16 @@ export function PostseasonRefreshHint({journey}:{journey:PostseasonJourney}) {
     const sno=s.row?.game_sno??journey.announcement.slots.find(a=>a.key===s.key)?.officialSno;
     return sno&&s.awayCode&&s.homeCode?[{year:journey.year,kind:s.kind,sno,away:s.awayCode,home:s.homeCode}]:[];
   }).slice(-2);
-  const signature=JSON.stringify(probes)+asOf;
+  const probesKey=JSON.stringify(probes);
   useEffect(()=>{
+    // probes 每次 render 都是新陣列：effect 內由序列化字串還原，身分由字串決定，不因新物件重複輪詢。
+    const targets:FinalProbe[]=JSON.parse(probesKey);
     let disposed=false;let timer:ReturnType<typeof setTimeout>|undefined;
     const check=async()=>{
       clearTimeout(timer);
       if(document.visibilityState!=="visible")return;
-      const values=await Promise.allSettled(probes.map(p=>detail.gameStatus(p.sno,p.kind,p.year)));
-      const positive=values.some((v,i)=>v.status==="fulfilled"&&confirmedFinal(v.value,probes[i]));
+      const values=await Promise.allSettled(targets.map(p=>detail.gameStatus(p.sno,p.kind,p.year)));
+      const positive=values.some((v,i)=>v.status==="fulfilled"&&confirmedFinal(v.value,targets[i]));
       if(disposed)return;
       setLag(positive);
       // 沿普通SSR重新取得；每頁最多兩status probes，非官源HTTP或API寫入。
@@ -37,7 +39,7 @@ export function PostseasonRefreshHint({journey}:{journey:PostseasonJourney}) {
     };
     void check();document.addEventListener("visibilitychange",check);
     return()=>{disposed=true;clearTimeout(timer);document.removeEventListener("visibilitychange",check);};
-  },[signature,router]); // probes身分由signature固定，不因新物件重複輪詢。
+  },[probesKey,asOf,router]); // asOf 變動＝正式資料已到，也重跑一次讓提示能收起。
   if(!lag)return null;
   return <p role="status" className="my-3 text-sm text-muted">本系列統計{asOf?`截至 ${asOf}`:"來源時點未取得"}；最新完賽資料更新中。<button className="ml-2 inline-flex min-h-11 items-center text-accent underline" onClick={()=>router.refresh()}>重新取得正式資料</button></p>;
 }

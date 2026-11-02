@@ -122,15 +122,17 @@ export function PlayoffsLive({ initial, year, game, series = null, yearParam = n
       },
     }, game);
     pollerRef.current = poller;
+    // ref 在元件生命期內不重新指派，先取出同一個 Set：cleanup 不讀 ref.current（react-hooks/exhaustive-deps）。
+    const pending = pendingNear.current;
     // 外框的 effect 先於本 effect 執行：控制器建立前就接近 viewport 的區，隨第一輪一起取。
-    poller.preactivate(pendingNear.current);
-    pendingNear.current.clear();
+    poller.preactivate(pending);
+    pending.clear();
     const onVisibility = () => poller.visibilityChanged();
     document.addEventListener("visibilitychange", onVisibility);
     poller.start(true);
     return () => {
       document.removeEventListener("visibilitychange", onVisibility);
-      for (const r of regs) if (poller.isActive(r.id)) pendingNear.current.add(r.id);
+      for (const r of regs) if (poller.isActive(r.id)) pending.add(r.id);
       poller.stop();
       pollerRef.current = null;
     };

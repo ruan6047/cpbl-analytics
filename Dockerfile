@@ -31,4 +31,4 @@ USER app
 EXPOSE 4001
 HEALTHCHECK --interval=30s --timeout=3s --start-period=10s \
     CMD curl -fsS http://localhost:4001/api/info || exit 1
-CMD ["sh", "-c", "uvicorn cpbl.api.main:app --host 0.0.0.0 --port ${PORT}"]
+CMD ["sh", "-c", "uvicorn cpbl.api.main:app --host 0.0.0.0 --port ${PORT} --no-access-log"]
