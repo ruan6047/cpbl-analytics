@@ -15,6 +15,10 @@ const nextConfig: NextConfig = {
   // CI 是 `npm ci` 後 `npx next typegen` 再 `npx tsc --noEmit`（未先 build）：typegen 產生
   // next-env.d.ts 與 .next/types，補回 `/// <reference types="next" />` 帶進來的 Next 全域型別。
   distDir: process.env.NEXT_DIST_DIR || ".next",
+  // Next 16 的 `next dev` 偵測到 AI coding agent 環境時會自動寫入 web/AGENTS.md（Next 版本綁定的
+  // agent 指示區塊）；本 repo 以根目錄 AGENTS.md／CLAUDE.md 為唯一規範來源，不要第二份由工具改寫、
+  // 隨版本變動的巢狀指示檔，故關閉（需求方 #419 裁定）。只影響 dev 的這個副作用，不改頁面與建置。
+  agentRules: false,
 };
 
 export default nextConfig;
