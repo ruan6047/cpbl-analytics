@@ -673,7 +673,7 @@ uv run --locked --group typecheck --group scrape basedpyright   # 型別檢查�
 - **新 worktree**：先 `cd web && npm install`，否則 tsc／npm test 全紅是缺 node_modules 假象非缺陷；後端 `uv run` 會自動建 venv。
 - **型別檢查（#414）**：basedpyright basic 對 `src/`（設定在 `pyproject.toml` `[tool.basedpyright]`），既有錯誤凍結在 `.basedpyright/baseline.json`，只有不在 baseline 的新錯誤會 rc≠0。**一律用上面那行的兩個 `--group`**：baseline 是在 uv.lock 的 dev＋scrape＋typecheck 環境產生的，少了 scrape（playwright）結果會不同（542 vs 540）。時間（2026-11-02 實測）：本機約 26–28 秒（Linux x86_64、4 vCPU 容器，比對 3 次）；CI `typecheck` job 29 秒，其中 basedpyright 20 秒、`uv sync` 2 秒（[run 41414779519](https://github.com/ruan6047/cpbl-analytics/actions/runs/41414779519)），與 api job 並行。**非 required check**：依 #414 裁定先當一般 CI job，穩定一個月後另裁；ruleset 的 required context 仍只有 `api`、`web`（§7.2.1）。
   - 本機修掉 baseline 內的錯誤時，工具會自動縮小 baseline（輸出 `went down by N`），連同修正一起 commit。新程式遇第三方存根誤報，用逐行 `# pyright: ignore[<規則>]` 並附理由，⛔ 不全域關規則。
-  - **漂移重產**（basedpyright 或依賴升版，含 Dependabot 群組 PR）：在**不改 `src/` 的 commit** 單獨跑 `uv run --locked --group typecheck --group scrape basedpyright --writebaseline`，只 commit baseline，body 記工具輸出的 `went up/down by N` 與規則數變化。⛔ 不在含程式改動的 commit 重產、⛔ 不用重產吞掉新程式碼的錯誤。
+  - **漂移重產**（basedpyright 或依賴升版，含 Dependabot 群組 PR）：在**不改 `src/` 的 commit** 單獨跑 `uv run --locked --group typecheck --group scrape basedpyright --writebaseline`，只 commit baseline，body 記工具輸出的 `went up/down by N` 與規則數變化。⛔ 不在含程式改動的 commit 重產、⛔ 不用重產吞掉新程式碼的錯誤。程序見 §7.2.2。
 - **CI**（`.github/workflows/ci.yml`）：api job 跑 ruff＋pytest，web job 跑 tsc＋npm test，typecheck job 跑上面的型別檢查（非 required）；CI 不部署（部署見 §7.3）。
 
 **DB 契約測試（預設 skip，改對應 ingest 前必須手動實跑一次）**：
@@ -861,6 +861,78 @@ remote: - 2 of 2 required status checks are expected.
 
 **⚠️ PR 被自動標記為 merged 不代表有人按了 merge 按鈕**：直推使 head 成為 base 的祖先時，
 GitHub 會自動標記。判斷是否經 PR 合併要看 `gh api repos/.../commits/<sha>/pulls` 與 commit 的雙親數。
+
+### 7.2.2 Dependabot 月更 PR 操作清單（#418）
+
+決策邊界（誰接、三類最低要求、失敗處置、major 分流、不設 auto-merge）見 `.wf/cpbl-local.md`「Dependabot 月更 PR」，
+本節只放步驟與指令。合、關、留言、本機冒煙與容器回測都由需求方在 Mac 執行；雲端角色只做盤點、定位、設定變更與紀錄。
+
+**0 · 盤點**（月更卡開卡時；全部唯讀）：
+
+```bash
+REPO=ruan6047/cpbl-analytics
+gh api "repos/$REPO/pulls?state=open&per_page=50" \
+  --jq '.[] | select(.user.login=="dependabot[bot]") | "#\(.number)\t\(.head.sha[0:7])\t\(.head.ref)\t\(.title)"'
+SHA=<head sha>   # 每張看 pull_request 事件掛上的 check；分支頭那份叫 `api (branch head)`，不算
+gh api "repos/$REPO/commits/$SHA/check-runs?per_page=50" \
+  --jq '.check_runs[] | select(.name=="api" or .name=="web" or .name=="typecheck" or .name=="secret-scan") | "\(.name)\t\(.conclusion)\t\(.html_url)"'
+```
+
+**1 · 分類**：標題含「bump the … group」＝群組 PR（步驟 2–5）；`github-actions` 的個別 major＝CI 綠即合（步驟 5）；
+npm／uv 的個別 major＝程式相依 major（步驟 6 留言 ignore＋步驟 8 yml 條目＋候選登記 `docs/REQUIREMENT_IDEAS.md`）。
+
+**2 · 群組驗證**（在該分支的獨立 worktree 做：`git fetch origin && git worktree add ../cpbl-dep-<n> <branch>`；主 checkout 停 main）：
+
+| 群組 | CI 條件 | 本機指令 | 證據 |
+|---|---|---|---|
+| `python-minor-and-patch` | `api`、`typecheck` 綠 | 無（CI 即證據） | check-runs 連結 |
+| `python-ml` | 同上 | `docker compose build api && docker compose run --rm api cpbl-train`，在 main 的 worktree 以同指令再跑一次對照回測表（LightGBM 仍勝 Marcel、MAE 未惡化）。⚠️ 會寫本機 `cpbl.model_versions`／`cpbl.projections`：先依 `rules/core/github.md` §6 取得租用與寫入授權，記下寫入的 `model_version` 供回復 | 兩份回測表摘要＋`model_version` |
+| `python-scraper` | 同上 | `uv sync --group scrape && uv run playwright install chromium`，再 `uv run python -c "from cpbl.ingest.cpbl_site import fetch_year; print(len(fetch_year(2026)))"`（過挑戰＋取整年賽程，不寫 DB）。失敗依「爬蟲紅線」冷卻 15–20 分鐘後只重試一次，仍失敗＝該套件不合（步驟 4） | 筆數輸出或錯誤訊息 |
+| `web-minor-and-patch` | `web` 綠 | `cd web && npm ci && npm run build:check` | rc 與輸出尾段 |
+
+**3 · typecheck baseline 漂移**（每張要合的 uv 群組 PR，對最終 head 跑）：
+
+```bash
+uv sync --locked --group typecheck --group scrape
+uv run --locked --group typecheck --group scrape basedpyright                   # rc=0 且無 went up/down ⇒ 記「無漂移」
+uv run --locked --group typecheck --group scrape basedpyright --writebaseline   # 有漂移才跑；git status 只能有 .basedpyright/baseline.json
+git commit -m "chore: regenerate basedpyright baseline for <dep> bump"          # body 記 went up/down by N 與規則數；推到 Dependabot 分支
+```
+
+**4 · 失敗定位**：讀紅 job 的 log（`gh api repos/$REPO/actions/jobs/<job_id>/logs`）→ 失敗步驟與測試名 → 推定套件（群組 diff 裡
+只有它碰該路徑者優先）→ scratch 探針複現（`uv venv .venv && uv pip install -p .venv/bin/python "<dep>==<舊版>"`、再換 `<新版>`，各跑一次
+最小複現腳本）→ 處置二選一：
+- 套件行為變更或缺陷 ⇒ 群組 PR 留言 `@dependabot ignore <dep> <major|minor|patch> version`（立即關閉並存後端條件；不含它的群組 PR 由
+  下次 run 重開）＋步驟 8 的 yml 條目。
+- 根因在本專案型別標註／測試抓法 ⇒ 在 Dependabot 分支推一個不改行為的獨立 commit（先在 main 的 worktree 套同改法確認也綠），CI 轉綠後
+  照步驟 2 驗、步驟 5 合。
+
+**5 · 合併**：沿 §7.2.1 程序，`BRANCH` 填 Dependabot 分支名（先 `git fetch origin "$BRANCH"`），⛔ 不用 merge 按鈕。分支落後 main
+（PR 的 `mergeable_state` 為 `behind`）先在 PR 留言 `@dependabot rebase`、等 check 重綠；兩張都改 `ci.yml` 的 actions PR 一張合完、等另一張
+rebase 綠再合。
+
+**6 · 關 PR**：
+- 程式相依 major：`gh pr comment <n> --repo "$REPO" --body "@dependabot ignore this major version"`（立即關閉＋後端條件；留言可指向月更卡與
+  yml 條目）。⛔ 不用 `gh pr close` 代替：原生關閉不建 ignore 條件，下次排程可能重開。
+- 群組內要排除的套件：同上，指令換 `@dependabot ignore <dep> major version`（或 `minor`／`patch`）。
+- 只有「紅的群組 PR，等依新設定重開」才用原生 `gh pr close <n> --repo "$REPO" --comment "依 #<月更卡> 重新分群，待新設定重開"`。
+- 留言後 PR 未關閉、或 Dependabot 回覆不認得指令 ⇒ 停該張回報（指令集會變動）；查後端條件用 `@dependabot show <dep> ignore conditions`。
+
+**7 · 紀錄**：每張一行「#n｜動作（合／關／留言 ignore）｜head SHA｜check-runs 連結｜本機／容器證據摘要」交 PM 登記在月更卡；漂移演練寫
+「#n head <sha>：basedpyright rc=0，baseline 不變」或「went up by N → commit <sha>」。
+
+**8 · 改 `dependabot.yml`**：先做完步驟 5／6 清場（既有 Dependabot PR 都合或關），再合設定 PR——合併即觸發一次 Dependabot run，依新
+groups／ignore 從零開 PR。ignore 條目寫法（理由與回看月份只寫在這裡）：
+
+```yaml
+      - dependency-name: <dep>
+        update-types: [version-update:semver-major]
+        # 理由：<失敗現象或綁定關係，附 PR 號>；回看 YYYY-MM
+```
+
+群組名一經命名⛔ 不改（改名會讓既有群組 PR 永遠不被 refresh）。合併後一個工作日內沒出現新 PR ⇒ repo 頁 Insights → Dependency graph →
+Dependabot → 該生態系「Check for updates」（備援；未實測，第一次用過把結果寫回本小節）；仍沒有 ⇒ 等下月排程，月更卡紀錄如實寫
+「本月以關結案、新分群下月驗證」。
 
 ### 7.3 部署 = push-to-deploy（在主站操作）
 1. 本 repo：commit + push（CI 只跑 lint + tsc，**不部署**）。

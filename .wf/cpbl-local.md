@@ -38,6 +38,16 @@
 - 部署不在本 repo 發生：本 repo CI 不部署，須在主站 bump submodule（Runbook §7.3），且需需求方授權。
 - 卡面未明列的 production 資料寫入不做。官網爬蟲只能在本機跑；同步、冷卻與止損程序見 Runbook §3。
 
+## Dependabot 月更 PR
+
+- **誰接**：Dependabot 每月初開的 PR 不是卡片來源，⛔ 不一 PR 一卡；第一批出現時由 PM 開**一張月更卡**集中處理整批。合併、關 PR、Mac 冒煙與容器回測由需求方在 Mac 執行；雲端角色只產出盤點／定位紀錄、設定變更與 PR。**不設 auto-merge**；CI 綠不免除月更卡與下列最低要求。
+- **合併前最低要求（依群組）**：Python 群組＝CI `api`、`typecheck` 綠；含 ML 相依（lightgbm／scikit-learn／numpy／polars）另加容器內 `cpbl-train` 回測對照未退化（會寫本機 DB，執行前需資源租用與寫入授權，Runbook §3／`rules/core/github.md` §6）。web 群組＝CI `web` 綠＋本機 `npm run build:check`。爬蟲類（playwright／httpx／chromium）＝Mac 實跑一次官網爬蟲，CI 綠不算驗過；失敗照「爬蟲紅線」冷卻後只重試一次，仍失敗＝該套件不合。
+- **typecheck baseline 漂移**：照 Runbook §7.2 漂移重產，在 Dependabot 分支上以不改 `src/` 的獨立 commit 重產；無漂移如實記錄。
+- **失敗處置**：群組 PR 紅先定位到**套件**，再 ignore 該套件（⛔ 不整群 ignore）：在群組 PR 留言 ignore 指令關閉＋`dependabot.yml` 加同一條 ignore 附理由與回看月份（yml 是唯一帶理由的地方），不另開卡追蹤。根因在本專案型別標註／測試抓法、且修正不改執行期行為時，可在 Dependabot 分支以不改行為的獨立 commit 修正（同改法在 main 上也要綠，確認不是靠新版才過），不 ignore 該套件。
+- **major 分流**：GitHub Actions 的 major 併入月更卡、CI 綠即可合。程式相依 major（Next、recharts、TypeScript、react／@types、eslint、polars、LightGBM 等）：在 PR 留言 ignore 指令關閉＋yml 加 major ignore（理由＋回看月份）＋候選登記到 `docs/REQUIREMENT_IDEAS.md`，需要時另開評估卡；月更卡不評估、不升級。⛔ 不用原生關閉代替留言 ignore（原生關閉不建 ignore 條件，下次排程可能重開）。
+- **改 `dependabot.yml` 的順序**：先清場（合／關既有 Dependabot PR）再合設定變更，讓設定變更觸發的 run 從零依新設定開 PR；群組名一經命名不改（改名會讓既有群組 PR 永遠不被 refresh）。Dependabot PR 開滿 30 天即停自動 rebase，月更卡在當月處理完。
+- 逐步操作與指令見 `docs/AI_RUNBOOK.md` §7.2.2，本節不重複。
+
 ## 產品交付完成判定
 
 - 承接相關資料產品行為的卡，需求與規劃須講清楚使用者要看的內容從哪個正式資料來源來、經哪條更新鏈到哪個頁面入口，以及多久內要反映新資料，並寫進本卡驗收。
