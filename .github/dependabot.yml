@@ -15,10 +15,15 @@ updates:
     ignore:
       - dependency-name: next
         update-types: [version-update:semver-major]
+        # 保留 major ignore。理由：16.4.x 升級由 #419 執行（PR #424），下一 major（17）仍需獨立卡評估；回看 2027-05
       - dependency-name: recharts
         update-types: [version-update:semver-major]
+        # 保留 major ignore。理由：3.x 評估完成、判升（#419）；升級 PR 依裁定等 #415 結案或裁定不改載入方式後，
+        # 由相連子卡 #423 執行；回看 2027-03
       - dependency-name: typescript
         update-types: [version-update:semver-major]
+        # 保留 major ignore。理由：7.x 暫不升——7.0 無 JS API，Next 15／typescript-eslint／test loader 三條鏈不相容
+        # （#419 評估）；6.x 亦被本條擋住，是否先升 6 另案；回看 2027-02
       - dependency-name: react
         update-types: [version-update:semver-major]
       - dependency-name: react-dom
