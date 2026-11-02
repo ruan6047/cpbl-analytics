@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef, useId } from "react";
+import React, { useState, useEffect, useRef, useId, useCallback } from "react";
 import { createPortal } from "react-dom";
 
 export type TooltipProps = {
@@ -71,7 +71,7 @@ export function Tooltip({
     };
   }, []);
 
-  const updatePosition = () => {
+  const updatePosition = useCallback(() => {
     if (!triggerRef.current || !tooltipRef.current) return;
     const triggerRect = triggerRef.current.getBoundingClientRect();
     const tooltipRect = tooltipRef.current.getBoundingClientRect();
@@ -112,7 +112,7 @@ export function Tooltip({
 
     setCoords({ top, left });
     setActualPlacement(placementToUse);
-  };
+  }, [placement]);
 
   useEffect(() => {
     if (isVisible) {
@@ -159,7 +159,7 @@ export function Tooltip({
         setIsCalculated(false);
       };
     }
-  }, [isVisible]);
+  }, [isVisible, updatePosition]);
 
   const showTooltip = () => {
     if (timerRef.current) clearTimeout(timerRef.current);
