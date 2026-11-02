@@ -1066,8 +1066,10 @@ def test_live_latest_game_day_is_never_in_the_future(kind_code):
 def test_live_summary_matches_contract_shape():
     body = _live()
 
+    # season_close：#391 起 API 一定回這個鍵（讀不到收官狀態時為 null）；本檔第 1535 行附近的
+    # 收官測試也直接斷言它。這條契約集合當時沒同步，而它需要 DB、CI 永遠 skip，所以一直沒紅。
     assert set(body) == {"scope", "today", "latest_game_day", "next_slate",
-                         "freshness", "availability"}
+                         "freshness", "availability", "season_close"}
     assert set(body["availability"]) == {"schedule", "results", "pregame_model"}
     for day in (body["latest_game_day"], body["next_slate"]):
         if day is not None:
