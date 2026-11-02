@@ -532,7 +532,7 @@ host 缺 `libomp.dylib`。**勿 `brew install libomp` 污染 host**；需 LightG
 |---|---|
 | 契約/健康 | `/api/info`（主站 InfoPoller，**永不拋錯**）、`/healthz` |
 | 成績預測 | `/api/v1/projections/batting`、`/season/batting-leaders`、`/season/pitching-leaders`、`/season/fielding` |
-| 賽果預測 | `/outcome/features`、`/outcome/evaluate`、`/outcome/teams`、`/outcome/matchups`、`/outcome/simulate` |
+| 賽果預測 | `/outcome/pregame`、`/outcome/pregame/serving`、`/outcome/pregame/backtest`、`/outcome/backtest`、`/outcome/plate-appearance`（舊探索器的 features／evaluate／teams／matchups／simulate 已於 #405 移除） |
 | 戰績 | `/season/standings`、`/standings` |
 | 球員頁 | `/players/{id}/batting|pitching|season|profile|fielding|vs-team|splits|matchups|advanced|discipline|arsenal|pitch-mix|trend`、`/players/roster`、`/matchups` |
 | 賽況 | `/games/recent`、`/games/{sno}/live`（含 records/batter_avg/has_tracking/tracking） |

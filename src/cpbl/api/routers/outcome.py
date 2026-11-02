@@ -1,4 +1,9 @@
-"""賽果預測：特徵清單、即時 fit 評估、離線回測、對戰卡與模擬。"""
+"""賽果預測：離線回測對照、固定語意群賽前勝率、打席模擬。
+
+舊互動探索器的五支端點（features／evaluate／teams／matchups／simulate）與即時 fit 實作已於 #405 移除：
+前端早在 DEP-PREDICT-LEGACY1 下線，正式站 API 容器 access log 14 小時零命中（同期對照流量逾 5,600 筆）。
+原碼對照用 `git show 0ffd401 -- src/cpbl/api/routers/outcome.py src/cpbl/models/outcome.py src/cpbl/models/matchup.py`。
+"""
 
 from __future__ import annotations
 
@@ -8,12 +13,10 @@ from datetime import date
 import numpy as np
 from fastapi import APIRouter, Query
 
-from cpbl.api.helpers import DEFAULT_SEASON, _parse_features
+from cpbl.api.helpers import DEFAULT_SEASON
 from cpbl.api.pregame_serving import serving_state
 from cpbl.config import settings
 from cpbl.db import conn
-from cpbl.features.outcome import CANDIDATE_FEATURES, FEATURE_DESC
-from cpbl.models import matchup, outcome
 from cpbl.models.outcome_simple import ORIENT, load_outcome_rows
 from cpbl.models.pa_sim import (
     GameState,
@@ -24,19 +27,6 @@ from cpbl.models.pa_sim import (
 )
 
 router = APIRouter()
-
-
-@router.get("/api/v1/outcome/features")
-def outcome_features() -> dict:
-    """賽果預測的候選特徵清單（含說明/群組/相依，給前端分群 + tooltip + 共線軟提醒）。"""
-    from cpbl.features.outcome import FEATURE_CORR, FEATURE_GROUP
-    return {
-        "features": [
-            {"key": k, "label": label, "desc": FEATURE_DESC.get(k, ""),
-             "group": FEATURE_GROUP.get(k, "其他"), "corr": FEATURE_CORR.get(k)}
-            for k, label in CANDIDATE_FEATURES
-        ]
-    }
 
 
 @router.get("/api/v1/outcome/backtest")
@@ -55,46 +45,6 @@ def outcome_backtest() -> dict:
     vid, trained_at, m = row
     return {"available": True, "version": vid,
             "trained_at": trained_at.isoformat() if trained_at else None, **m}
-
-
-@router.get("/api/v1/outcome/evaluate")
-def outcome_evaluate(features: str = Query(..., description="逗號分隔的特徵 key")) -> dict:
-    """用選定特徵子集即時 fit + 時間切分回測。"""
-    try:
-        return outcome.evaluate(_parse_features(features))
-    except ValueError as e:
-        return {"error": str(e)}
-
-
-@router.get("/api/v1/outcome/teams")
-def outcome_teams(season: int = Query(DEFAULT_SEASON)) -> dict:
-    """當季球隊清單（給任選兩隊模擬的下拉選單）。"""
-    return {"season": season, "teams": matchup.list_teams(season)}
-@router.get("/api/v1/outcome/matchups")
-def outcome_matchups(
-    features: str = Query(..., description="逗號分隔的變因 key"),
-    season: int = Query(DEFAULT_SEASON),
-    limit: int = Query(20, ge=1, le=60),
-) -> dict:
-    """今日起未開打賽事的對戰卡（含雙方真實數字 + 預設權重 + 標準化值 z）。"""
-    try:
-        return matchup.upcoming(_parse_features(features), season, limit)
-    except ValueError as e:
-        return {"error": str(e)}
-
-
-@router.get("/api/v1/outcome/simulate")
-def outcome_simulate(
-    home: str = Query(..., description="主隊 team_code"),
-    away: str = Query(..., description="客隊 team_code"),
-    features: str = Query(...),
-    season: int = Query(DEFAULT_SEASON),
-) -> dict:
-    """任選兩隊的假想對戰卡（用當季到當日統計）。"""
-    try:
-        return matchup.simulate(home, away, _parse_features(features), season)
-    except ValueError as e:
-        return {"error": str(e)}
 
 
 @router.get("/api/v1/outcome/pregame")
