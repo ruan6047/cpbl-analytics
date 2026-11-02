@@ -1,10 +1,10 @@
 "use client";
 
 // 球員頁純展示元件：無跨區 state，僅收 props。
-import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
-import { EmptyState, LetterBadge, divBg } from "@/components/ui";
+// #415：甜甜圈圖 `CompositionPie` 移至 `./composition-pie`（recharts），本檔不再 import recharts——
+// 本檔被 hero／season／detail／trend 共用，任何 recharts import 都會進所有引用者的首載。
+import { LetterBadge, divBg } from "@/components/ui";
 import { DataTable, type Column } from "@/components/table";
-import { PIE_COLORS } from "@/lib/chart-theme";
 import { type StatRow } from "@/lib/client";
 import { fmtIP } from "@/lib/format";
 import { codeFromName, eraBadge, teamShort } from "@/lib/teams";
@@ -41,38 +41,6 @@ export function TenureChips({ label, tenures }: { label: string; tenures: Tenure
           </span>
         );
       })}
-    </div>
-  );
-}
-
-// 組成型百分位 → 甜甜圈圖 + 圖例（彈道分布/拉打方向；值總和≈100%）。色由色票 API PIE_COLORS 供給。
-export function CompositionPie({ items, m }: { items: { k: string; label: string }[]; m: Record<string, number> }) {
-  const data = items
-    .map((it, i) => ({ name: it.label, value: m[it.k] == null ? 0 : +(m[it.k] * 100).toFixed(1), color: PIE_COLORS[i % PIE_COLORS.length] }))
-    .filter((d) => d.value > 0);
-  if (!data.length) return <EmptyState>無資料</EmptyState>;
-  return (
-    <div className="flex items-center gap-3">
-      <div className="h-28 w-28 shrink-0">
-        <ResponsiveContainer width="100%" height="100%">
-          <PieChart>
-            <Pie data={data} dataKey="value" nameKey="name" innerRadius={26} outerRadius={52} paddingAngle={2} stroke="none">
-              {data.map((d) => <Cell key={d.name} fill={d.color} />)}
-            </Pie>
-            <Tooltip formatter={(v: number | string) => `${v}%`} />
-          </PieChart>
-        </ResponsiveContainer>
-      </div>
-      <ul className="min-w-0 flex-1 space-y-1.5 text-xs">
-        {data.map((d) => (
-          <li key={d.name} className="flex items-center justify-between gap-2">
-            <span className="flex items-center gap-1.5 text-muted">
-              <span className="inline-block h-2.5 w-2.5 rounded-sm" style={{ background: d.color }} />{d.name}
-            </span>
-            <span className="font-mono tabular-nums text-ink">{d.value}%</span>
-          </li>
-        ))}
-      </ul>
     </div>
   );
 }
