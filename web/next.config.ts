@@ -6,18 +6,19 @@ const nextConfig: NextConfig = {
   // build 與 dev 共用 .next 會互相污染 chunk（查核者跑 build 時 dev 讀到對不上的
   // ./NNN.js → Runtime Error）。用 NEXT_DIST_DIR 讓「驗證用 build」寫到獨立目錄，
   // 永不碰 dev 的 .next。見 package.json 的 build:check。
-  // 註：`next build` 會依 distDir 改寫 web/next-env.d.ts 的 `/// <reference path>` 那一行，
-  // 使 `.next` ↔ `.next-check` 來回翻轉、每次驗證後 worktree 就變髒（實際造成過交付時的
-  // 「worktree clean」宣稱不成立）。該行在本專案**無作用**——tsconfig 的 include 已同時列了
-  // `.next/types/**/*.ts` 與 `.next-check/types/**/*.ts`，且兩者皆 gitignore、乾淨 checkout 上都不存在。
-  // 故由 build:check 於結束時還原該檔（保留原 exit code），不改 gitignore——
-  // 且 **git 基準必須是 `.next` 版本**：build:check 還原成的是 git 裡的內容，
-  // 若基準存成 `.next-check`，`npm run dev` 寫回 `.next` 後就沒有任何東西會還原它
-  // （2026-07-28 首次修正只做了一半，UX worktree 仍每次變髒）。dev 跑得比 build:check 頻繁，
-  // 故以 dev 的輸出為基準。
-  // CI 是 `npm ci` 後直接 `npx tsc --noEmit`（未先 build），少了 next-env.d.ts 會失去
-  // `/// <reference types="next" />` 帶進來的 Next 全域型別。
+  // 註（Next 16，#419）：`next dev` 現在寫 `.next/dev/`（與 `next build` 的 `.next/` 分離），
+  // 守衛前提弱化但無害，distDir 技巧照舊保留。
+  // `next-env.d.ts` 在 16 下由 `next dev`／`next build`／`next typegen` 各自改寫成不同內容
+  // （dev → `./.next/dev/types/…`、build → `./<distDir>/types/…`、typegen → `./.next/types/…`），
+  // 15 時代「git 基準＝dev 輸出、build:check 結束還原」的作法已無法維持，故依官方 16 文件
+  // 改為不入版控（web/.gitignore），build:check 也不再還原它。
+  // CI 是 `npm ci` 後 `npx next typegen` 再 `npx tsc --noEmit`（未先 build）：typegen 產生
+  // next-env.d.ts 與 .next/types，補回 `/// <reference types="next" />` 帶進來的 Next 全域型別。
   distDir: process.env.NEXT_DIST_DIR || ".next",
+  // Next 16 的 `next dev` 偵測到 AI coding agent 環境時會自動寫入 web/AGENTS.md（Next 版本綁定的
+  // agent 指示區塊）；本 repo 以根目錄 AGENTS.md／CLAUDE.md 為唯一規範來源，不要第二份由工具改寫、
+  // 隨版本變動的巢狀指示檔，故關閉（需求方 #419 裁定）。只影響 dev 的這個副作用，不改頁面與建置。
+  agentRules: false,
 };
 
 export default nextConfig;

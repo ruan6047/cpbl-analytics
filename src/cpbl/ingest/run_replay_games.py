@@ -114,10 +114,15 @@ def main(argv: list[str] | None = None) -> int:
         result["ok"] = False
     finally:
         try:
-            if session is not None:
-                session.close()
-            if db is not None and db._pool is not None:
-                db._pool.close()
+            try:
+                if session is not None:
+                    session.close()
+            finally:
+                if db is not None:
+                    # close 失敗也不可留下全域引用，下一次 pool() 應重新建立。
+                    owned_pool, db._pool = db._pool, None
+                    if owned_pool is not None:
+                        owned_pool.close()
         except Exception:
             if result["ok"]:
                 result.update(ok=False, stage="close")

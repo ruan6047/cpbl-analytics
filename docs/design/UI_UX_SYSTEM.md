@@ -381,6 +381,7 @@
 - 細標記、2px 線、≥8px 點；資料端 4px 圓角錨定基線；重疊標記 2px surface 環。
 - **≥2 系列必有 legend**（單一系列不需，標題已命名）；≤4 系列可直接標記（非每點都標數字）。
 - 每張圖須有**文字替代列表**（blueprint §8.3）；大型 tracking 圖 lazy load。
+- **圖表 lazy 的落地界線（#415 實測）**：季後賽名單抽屜的雷達／走勢以 `next/dynamic(ssr:false)` 在抽屜開啟時才載入 recharts（`/playoffs` 首載 294→160 kB），chunk 未到時以等高 `Skeleton` 佔位；首屏就有圖的頁面（球員頁總覽、完賽態勝率圖）維持即時載入——同法在球員頁實測出圖晚 0.6 s、可互動時間未改善，已回退。
 - **已驗證（`UX-TOKEN-HYGIENE1` H2/H3，2026-07-24）**：`--chart-1..8` 以 `dataviz` `validate_palette.js` 驗——**淺色相鄰對最差 ΔE 10.1、深色 9.5（皆過 ≥8 門檻）**，色盲可辨識；`chart-6`(#94a3b8) 為刻意中性灰槽（chroma-floor 旗標非缺陷）；少數低對比槽（淺色 amber/teal、灰）對白底 <3:1，靠 recharts 圖例/表格檢視豁免（validator 允許）。深色原缺的 `chart-7/8` 已補（`7=#db2777` 沿用以免與灰 `chart-6` 在 deutan 下相撞、`8=#e08a2a` 提亮以齊 dark 色階；CVD 與 navy 對比通過）。故**未重新配色**，僅補值+記錄。
 
 ---

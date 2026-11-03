@@ -25,7 +25,7 @@ import type { PostseasonSeriesContextV2 } from "./postseason-series-contract.ts"
 // #283 S02 WP5：讀 Python 產生、committed 的同一份 golden（tests/test_postseason_context_golden.py），
 // 驗首頁、日曆、當季戰績、單場頁吃同一份 series_context 得到相同的系列事實。前端不重算規則。
 
-const router = { back() {}, forward() {}, push() {}, replace() {}, refresh() {}, hmrRefresh() {}, prefetch() {} };
+const router = { back() {}, forward() {}, push() {}, replace() {}, refresh() {}, hmrRefresh() {}, prefetch() {}, bfcacheId: "test" };
 function text(node: ReactElement): string {
   return render(<AppRouterContext.Provider value={router}>{node}</AppRouterContext.Provider>)
     .replace(/<[^>]*>/g, " ").replace(/&#x27;/g, "'").replace(/&quot;/g, '"').replace(/&amp;/g, "&")
