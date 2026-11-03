@@ -1,12 +1,16 @@
 {
  "format": "cpbl-ci-base/1",
- "extracted_on": "2026-11-02",
+ "extracted_on": "2026-11-03",
  "source": "需求方 Mac 本機主庫（docker compose db，埠 5433）唯讀擷取；非 VPS 生產",
  "source_fingerprint": "2e51e4e3efa7f6a42031f4d98246dedc6d499becbacbfe4b0bb1025b8e88a9ef",
  "migration_max": "079_game_livelog_extra.sql",
  "schema_check": {
   "method": "columns-vs-reference",
   "detail": "來源庫沒有 cpbl.schema_migrations；改以入選各表的欄位（名稱＋型別）與 migrate 到最大號的拋棄式庫逐表比對，全數相同"
+ },
+ "snapshot": {
+  "transaction_isolation": "repeatable read",
+  "transaction_read_only": "on"
  },
  "regenerate": "每季重產（需求方裁定 #413 待裁 2）：跨年後以「本季」為準的測試會退回 skip",
  "games": [

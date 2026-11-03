@@ -251,13 +251,17 @@ def _ro_connect(dsn: str):
     return c
 
 
-def require_snapshot_txn(cur) -> None:
-    """當次交易必須是 ``REPEATABLE READ`` 且唯讀；不是就停（規劃 §2「單一 REPEATABLE READ READ ONLY 交易」）。"""
+def require_snapshot_txn(cur) -> dict[str, str]:
+    """當次交易必須是 ``REPEATABLE READ`` 且唯讀；不是就停（規劃 §2「單一 REPEATABLE READ READ ONLY 交易」）。
+
+    通過時回傳實測值，產生器把它寫進 manifest 的 ``snapshot``，作為「整份基底出自單一快照」的留證。
+    """
     isolation = cur.execute("SHOW transaction_isolation").fetchone()[0]
     read_only = cur.execute("SHOW transaction_read_only").fetchone()[0]
     if (isolation, read_only) != ("repeatable read", "on"):
         raise SystemExit(f"擷取交易不是 REPEATABLE READ READ ONLY（isolation={isolation!r}, "
                          f"read_only={read_only!r}）——停止，不產出不一致的快照")
+    return {"transaction_isolation": isolation, "transaction_read_only": read_only}
 
 
 def generate(source_dsn: str, reference_dsn: str, out_dir: Path, extracted_on: str) -> dict:
@@ -283,7 +287,7 @@ def generate(source_dsn: str, reference_dsn: str, out_dir: Path, extracted_on: s
     entries = []
     with _ro_connect(source_dsn) as c:
         cur = c.cursor()
-        require_snapshot_txn(cur)
+        snapshot = require_snapshot_txn(cur)
         for s in _SESSION:
             cur.execute(s)
         src_rec = cur.execute("SELECT to_regclass('cpbl.schema_migrations')").fetchone()[0]
@@ -328,6 +332,8 @@ def generate(source_dsn: str, reference_dsn: str, out_dir: Path, extracted_on: s
         "source_fingerprint": fingerprint,
         "migration_max": migrations[-1].name,
         "schema_check": schema_check,
+        # 擷取交易的實測隔離等級與唯讀（require_snapshot_txn 通過才會走到這裡）：所有表出自同一個快照。
+        "snapshot": snapshot,
         "regenerate": "每季重產（需求方裁定 #413 待裁 2）：跨年後以「本季」為準的測試會退回 skip",
         "games": [{"year": y, "kind_code": k, "game_sno": s, "why": w} for y, k, s, w in GAMES],
         "excluded": "哨兵年份 1900／2099、2018/D/110（測試自行寫入）；營運表（refresh_log、ingest runs、alert、shadow）",
@@ -499,6 +505,9 @@ def main(argv: list[str] | None = None) -> int:
         if args.cmd == "generate":
             m = generate(args.source_dsn, args.reference_dsn, args.out, args.extracted_on)
             total = sum(e["bytes"] for e in m["tables"])
+            snap = m["snapshot"]
+            print(f"snapshot txn: transaction_isolation={snap['transaction_isolation']} "
+                  f"transaction_read_only={snap['transaction_read_only']}")
             print(f"generated {len(m['tables'])} tables, {total} CSV bytes, migration_max={m['migration_max']}")
             for e in m["tables"]:
                 print(f"  {e['table']:<34} {e['rows']:>7} rows {e['bytes']:>9} B  {e['sha256']}")
