@@ -31,8 +31,10 @@ from __future__ import annotations
 import json
 import os
 import subprocess
+import time
 from pathlib import Path
 
+import ci_base
 import psycopg
 from psycopg import conninfo, sql
 from psycopg_pool import ConnectionPool
@@ -137,8 +139,9 @@ def pytest_report_header(config) -> list[str]:  # noqa: ANN001 — pytest hook �
 # （.github/workflows/ci.yml）。只列會被**多個測試檔**共用、且各檔都在同一個 `cpbl` schema 上
 # 自建自刪的 DSN；`PA_BUILD_LOCK_TEST_DATABASE_URL`／`PROD_SYNC_SEQ_TEST_DATABASE_URL` 各只有一個
 # 測試檔使用、且測試自己釘死 dbname（`cpbl_pa_lock1`／`cpbl_prod_sync_seq1`），`--dist loadfile` 下
-# 同檔同 worker、不會互撞，所以**不**拆庫、也不能改名。預設 DATABASE_URL 不在此列：那條指向
-# **有真實資料**的本機庫，空庫上有 14 個全庫對帳測試會因「樣本不足」而紅，CI 讓它維持不可達、照舊 skip。
+# 同檔同 worker、不會互撞，所以**不**拆庫、也不能改名。主 DSN（DATABASE_URL）不在此列：它指向
+# 有真實資料的庫（本機正式庫，或 CI 的資料基底 cpbl_ci_base），只有偵測到基底標記時才由
+# ``_per_worker_ci_base`` 按 worker 複製（#413）；本機正式庫沒有標記，維持原行為。
 THROWAWAY_DB_ENVS = (
     "CPBL_ISOLATED_TEST_DSN",   # test_*_isolated.py、test_daily_chain_completion、test_evening_a_fetch_gate
 )
@@ -175,9 +178,60 @@ def _per_worker_throwaway_dbs(config) -> None:  # noqa: ANN001 — pytest Config
         os.environ[name] = conninfo.make_conninfo(dsn, dbname=target)
 
 
+def _clone_database(dsn: str, template: str, target: str) -> None:
+    """經維護庫以 ``template`` 為模板重建 ``target``（已存在就先刪，確保每個 session 從乾淨基底開始）。
+
+    多個 worker 幾乎同時從同一個模板複製：模板只要有任何連線掛著，``CREATE DATABASE … TEMPLATE``
+    就回 ``ObjectInUse``——那是暫態，退避重試；其他錯誤照常炸開。
+    """
+    maintenance = conninfo.make_conninfo(dsn, dbname="postgres")
+    for attempt in range(20):
+        try:
+            with psycopg.connect(maintenance, autocommit=True,
+                                 connect_timeout=_PROBE_CONNECT_TIMEOUT_SECONDS) as c:
+                c.execute(sql.SQL("DROP DATABASE IF EXISTS {} WITH (FORCE)").format(sql.Identifier(target)))
+                c.execute(sql.SQL("CREATE DATABASE {} TEMPLATE {}").format(
+                    sql.Identifier(target), sql.Identifier(template)))
+            return
+        except psycopg.errors.ObjectInUse:
+            if attempt == 19:
+                raise
+            time.sleep(0.25 * (attempt + 1))
+
+
+def _per_worker_ci_base(config) -> None:  # noqa: ANN001 — pytest Config
+    """主 DSN 指向已載入的 CI 基底（#413，``tests/ci_base.py``）時，xdist 下每個 worker 用自己的複本。
+
+    為什麼：主 DSN 一連得上，至少三個檔會刪掉整個 year=1900 的 livelog、另有兩組檔共用同一個哨兵鍵，
+    不同 worker 會互刪——與預載什麼資料無關。所以只在**偵測到基底標記**時，以 ``CREATE DATABASE …
+    TEMPLATE`` 複製成 ``<庫名>_<workerid>``，並同步改寫 ``DATABASE_URL`` 與 ``settings.database_url``。
+
+    ⛔ 沒有標記（本機正式庫、CI 舊形狀的不可達埠）就完全不動：環境、settings 與連線池都維持原樣。
+    標記經維護庫 ``postgres`` 讀取，不連模板庫本身（連著它就無法被複製）。
+    """
+    marker = ci_base.marker_of(settings.database_url, connect_timeout=_PROBE_CONNECT_TIMEOUT_SECONDS)
+    ci_base.set_active(marker)
+    if marker is None:
+        return
+    worker = (getattr(config, "workerinput", None) or {}).get("workerid")
+    if not worker:
+        return
+    dsn = settings.database_url
+    template = conninfo.conninfo_to_dict(dsn).get("dbname") or "postgres"
+    target = f"{template}_{worker}"
+    _clone_database(dsn, template, target)
+    clone = conninfo.make_conninfo(dsn, dbname=target)
+    os.environ["DATABASE_URL"] = clone
+    settings.database_url = clone
+    if db._pool is not None:
+        db._pool.close()
+        db._pool = None
+
+
 def pytest_sessionstart(session) -> None:  # noqa: ANN001 — pytest hook 簽名固定
     """整個 session 只探測一次；DB 不可達就讓全域池「預先壞掉」以避免逐測試等待。"""
     _per_worker_throwaway_dbs(session.config)
+    _per_worker_ci_base(session.config)
     try:
         with psycopg.connect(
             settings.database_url, connect_timeout=_PROBE_CONNECT_TIMEOUT_SECONDS
