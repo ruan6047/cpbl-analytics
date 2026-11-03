@@ -57,6 +57,37 @@ def test_cli_load_exits_nonzero_before_touching_the_main_db(monkeypatch, tmp_pat
     assert "REFUSED" in capsys.readouterr().err
 
 
+# ------------------------------------------------------------------ 產生器的快照交易（審核 F1）
+
+def _isolated_dsn() -> str:
+    dsn = os.environ.get("CPBL_ISOLATED_TEST_DSN")
+    if not dsn:
+        pytest.skip("未設 CPBL_ISOLATED_TEST_DSN（自行擁有的隔離 Postgres）")
+    return dsn
+
+
+def test_generator_connection_runs_its_first_txn_as_repeatable_read_read_only():
+    """產生器的第一個交易就是 REPEATABLE READ READ ONLY——擷取各表共用同一個快照。"""
+    with ci_base._ro_connect(_isolated_dsn()) as c:
+        cur = c.cursor()
+        ci_base.require_snapshot_txn(cur)
+        assert cur.execute("SHOW transaction_isolation").fetchone()[0] == "repeatable read"
+        assert cur.execute("SHOW transaction_read_only").fetchone()[0] == "on"
+        c.rollback()
+
+
+def test_snapshot_check_rejects_the_pre_fix_connection_shape():
+    """負控：修正前的寫法（非 autocommit 下直接 SET SESSION CHARACTERISTICS）當次交易仍是 READ COMMITTED，
+    檢查必須擋下——確認這道檢查不是構造上永遠通過。"""
+    import psycopg
+
+    with psycopg.connect(_isolated_dsn(), options="-c default_transaction_read_only=on") as c:
+        c.execute("SET SESSION CHARACTERISTICS AS TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY")
+        with pytest.raises(SystemExit, match="read committed"):
+            ci_base.require_snapshot_txn(c.cursor())
+        c.rollback()
+
+
 # ------------------------------------------------------------------ conftest 標記閘門
 
 def _config(worker: str | None) -> SimpleNamespace:

@@ -238,10 +238,26 @@ def _fingerprint(cur, tables: list[str]) -> str:
 
 
 def _ro_connect(dsn: str):
+    """唯讀連線，之後的第一個交易是 ``REPEATABLE READ READ ONLY``（整次擷取共用一個快照）。
+
+    ⛔ 不能在非 autocommit 下直接 ``SET SESSION CHARACTERISTICS``：psycopg 執行它時已隱式開了
+    交易，這句只影響**之後**的交易，當次交易仍是預設的 READ COMMITTED（#413 審核 F1）。所以先在
+    autocommit 下設好 session 特性，再切回交易模式；第一個 ``execute()`` 開的交易才吃得到。
+    """
     import psycopg
-    c = psycopg.connect(dsn, options="-c default_transaction_read_only=on")
+    c = psycopg.connect(dsn, options="-c default_transaction_read_only=on", autocommit=True)
     c.execute("SET SESSION CHARACTERISTICS AS TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY")
+    c.autocommit = False
     return c
+
+
+def require_snapshot_txn(cur) -> None:
+    """當次交易必須是 ``REPEATABLE READ`` 且唯讀；不是就停（規劃 §2「單一 REPEATABLE READ READ ONLY 交易」）。"""
+    isolation = cur.execute("SHOW transaction_isolation").fetchone()[0]
+    read_only = cur.execute("SHOW transaction_read_only").fetchone()[0]
+    if (isolation, read_only) != ("repeatable read", "on"):
+        raise SystemExit(f"擷取交易不是 REPEATABLE READ READ ONLY（isolation={isolation!r}, "
+                         f"read_only={read_only!r}）——停止，不產出不一致的快照")
 
 
 def generate(source_dsn: str, reference_dsn: str, out_dir: Path, extracted_on: str) -> dict:
@@ -267,7 +283,7 @@ def generate(source_dsn: str, reference_dsn: str, out_dir: Path, extracted_on: s
     entries = []
     with _ro_connect(source_dsn) as c:
         cur = c.cursor()
-        assert cur.execute("SHOW transaction_read_only").fetchone()[0] == "on"
+        require_snapshot_txn(cur)
         for s in _SESSION:
             cur.execute(s)
         src_rec = cur.execute("SELECT to_regclass('cpbl.schema_migrations')").fetchone()[0]
