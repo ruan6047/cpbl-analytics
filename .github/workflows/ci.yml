@@ -124,7 +124,7 @@ jobs:
           # 要 diff 對 baseline commit b974b10；預設 fetch-depth: 1（淺層 clone）
           # 會讓該 commit 在此 checkout 無法解析，測試因而 skip 而非真正驗證。
           fetch-depth: 0
-      - uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86  # v5
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2  # v10.3.3
         with:
           python-version: "3.12"
       - run: uv sync
@@ -219,7 +219,7 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
-      - uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86  # v5
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2  # v10.3.3
         with:
           python-version: "3.12"
       # 標準環境＝dev＋scrape＋typecheck：scrape（playwright）有無會改變結果（542 vs 540），
