@@ -1,18 +1,17 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
-import { AbilityCard } from "@/components/ability-card";
-import { SeasonTrendCard } from "@/app/players/[id]/trend";
+import { Skeleton } from "@/components/ui";
 import { CLIENT_API } from "@/lib/client";
 import {
   DRAWER_COPY,
   drawerState,
   drawerStatLine,
   drawerSubtitle,
-  pickAbility,
   playerHref,
   rosterPlayerPath,
   trapFocus,
@@ -30,6 +29,33 @@ import { teamColor } from "@/lib/teams";
 // - 詳情以 `CLIENT_API`＋`no-store` 按需取，不隨 30 秒輪詢重取；區資料更新時抽屜不關、不搶焦點。
 //   詳情 `context_version` ≠ 目前區資料 ⇒「資料已更新，請重開」，⛔ 拼接不同版本。
 // - #350：主視圖只列人名，個人數值（本範圍 G、ERA·局數或 AVG·OPS、主守位出賽、DH 先發）放標頭第二行，取自摘要 member。
+// - #415：雷達／走勢（recharts）收進 `roster-charts.tsx`，以 `next/dynamic(ssr:false)` 按需載入——`/playoffs` 首載
+//   不再帶 recharts；抽屜掛載時即預載該 chunk，與詳情 API 平行。chunk 未到時以等高 `Skeleton` 佔位。
+
+// 同一個 loader 給 dynamic 與預載用：webpack 對同一 import() 只產生一個 chunk，預載與渲染共用。
+// ⛔ 本檔不得靜態 import `./roster-charts`、`ability-card`、`trend`（會把 recharts 拉回 `/playoffs` 首載；見 roster-drawer.test.ts）。
+const loadRosterCharts = () => import("./roster-charts");
+const RosterCharts = dynamic(loadRosterCharts, { ssr: false, loading: () => <RosterChartsSkeleton /> });
+
+/**
+ * 圖表 chunk 尚未到達時的等高佔位（UI_UX_SYSTEM §1 原則 8、§10.4：只用 `Skeleton`，不塌陷）。
+ * 高度對齊 ready 態：能力區標題（h-5）＋ compact 雷達容器 `h-36`；走勢卡 `card p-4`＋卡頭列（h-7 ≈ 指標下拉）＋ `mb-3`
+ * ＋ 圖表 `CHART_H`（220px）。
+ */
+function RosterChartsSkeleton() {
+  return (
+    <div className="space-y-4" aria-hidden data-testid="roster-charts-skeleton">
+      <div className="space-y-2">
+        <Skeleton className="h-5 w-28" />
+        <Skeleton className="h-36 w-full" />
+      </div>
+      <div className="card p-4">
+        <Skeleton className="mb-3 h-7 w-44" />
+        <Skeleton className="h-[220px] w-full" />
+      </div>
+    </div>
+  );
+}
 
 const FOCUSABLE = 'a[href], button:not([disabled]), select, input, textarea, [tabindex]:not([tabindex="-1"])';
 
@@ -68,6 +94,9 @@ export function RosterDrawer({ member, scope = "background", year, series, secti
   const [detail, setDetail] = useState<RosterPlayerDetail | null>(null);
   const [failed, setFailed] = useState(false);
   useBodyScrollLock();
+
+  // #415：抽屜一開就預載圖表 chunk，與下方詳情 fetch 平行（不等 ready 態才開始下載）。
+  useEffect(() => { void loadRosterCharts(); }, []);
 
   // 只在開啟（或換人）時取一次；⛔ 依 sectionVersion 重取（版本不同就顯示請重開）。
   useEffect(() => {
@@ -133,19 +162,9 @@ function DrawerBody({ state, member }: { state: ReturnType<typeof drawerState>; 
   if (state.kind === "loading") return <p role="status" className="text-sm text-muted">{DRAWER_COPY.loading}</p>;
   if (state.kind === "error") return <p role="status" className="text-sm text-muted">{DRAWER_COPY.failed}</p>;
   if (state.kind === "stale") return <p role="status" className="text-sm text-ink">{DRAWER_COPY.stale}</p>;
-  const d = state.detail;
-  const ab = pickAbility(d);
   return (
     <>
-      <section aria-label={ab?.label ?? DRAWER_COPY.abilitySeason} className="space-y-2">
-        <h3 className="text-sm font-bold text-muted">{ab?.label ?? DRAWER_COPY.abilitySeason}</h3>
-        {ab ? <AbilityCard card={ab.card} color={teamColor(d.team_code)} compact />
-          : <p className="text-sm text-muted">{DRAWER_COPY.abilityNone}</p>}
-      </section>
-      {d.trend ? (
-        // 包一層：SeasonTrendCard 的 Card 是 h-full，直接放在捲動區會被撐成整個抽屜高。
-        <div><SeasonTrendCard trend={d.trend.items} role={d.player.role} isRetired={false} /></div>
-      ) : null}
+      <RosterCharts detail={state.detail} />
       <Link href={playerHref(member)} className="inline-flex min-h-11 items-center font-semibold text-accent underline underline-offset-4">
         {DRAWER_COPY.deepLink}
       </Link>
