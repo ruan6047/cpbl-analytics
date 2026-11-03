@@ -18,7 +18,7 @@ import { buildPostseasonJourney, type JourneyRow, type SeriesGame } from "@/lib/
 // #268 挑戰賽 → 台灣大賽的首頁轉換與雙軸 freshness。全部是 SYNTHETIC fixture（形狀取自 #268 反例：
 // E4 統一 2:8 兄弟，兄弟實際 2 勝＋規則 1 勝＝3；C1 10/17 17:05 兄弟@味全・大巨蛋），不是公站證據。
 
-const router = { back() {}, forward() {}, push() {}, replace() {}, refresh() {}, hmrRefresh() {}, prefetch() {} };
+const router = { back() {}, forward() {}, push() {}, replace() {}, refresh() {}, hmrRefresh() {}, prefetch() {}, bfcacheId: "test" };
 const html = (node: ReactElement) => render(<AppRouterContext.Provider value={router}>{node}</AppRouterContext.Provider>);
 const text = (node: ReactElement) => html(node)
   .replace(/<[^>]*>/g, " ")

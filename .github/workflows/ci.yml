@@ -192,6 +192,11 @@ jobs:
         with:
           node-version: "22"
       - run: npm ci
+      - name: Generate Next type definitions
+        # Next 16 起 next-env.d.ts 不入版控（web/.gitignore，#419）：乾淨 checkout 上沒有它就少了
+        # `/// <reference types="next" />` 帶進來的 Next 全域型別。`next typegen` 不 build 就能產生
+        # next-env.d.ts 與 .next/types/*，讓下一步 tsc 看到完整型別。
+        run: npx next typegen
       - name: Type check
         run: npx tsc --noEmit
       - name: Lint
