@@ -1,0 +1,24 @@
+[Unit]
+Description=CPBL Pi source batches for %i
+Wants=network-online.target
+After=network-online.target
+StartLimitIntervalSec=300
+StartLimitBurst=2
+
+[Service]
+Type=oneshot
+User=ruan
+WorkingDirectory=/home/ruan/cpbl-fetcher/cpbl393-auto-supply
+UMask=0077
+Environment=PLAYWRIGHT_BROWSERS_PATH=/home/ruan/cpbl-fetcher/cpbl393-7ac2b0d6/browsers
+Environment=XDG_CACHE_HOME=/home/ruan/cpbl-fetcher/www-supply/browser-cache
+Environment=XDG_CONFIG_HOME=/home/ruan/cpbl-fetcher/www-supply/browser-config
+EnvironmentFile=/etc/cpbl393-source/%i.conf
+ExecStart=/home/ruan/cpbl-fetcher/cpbl393-7ac2b0d6/venv/bin/python -I -B /home/ruan/cpbl-fetcher/cpbl393-auto-supply/ops/pi-fetcher/cpbl_pi_send.py --serve-job %i --out /home/ruan/cpbl-fetcher/www-supply --timeout 120 --max-seconds ${PI_MAX_SECONDS} --discovery-seconds ${PI_DISCOVERY_SECONDS} --max-reads ${PI_MAX_READS} --max-operations ${PI_MAX_OPERATIONS}
+SuccessExitStatus=75
+Restart=no
+RestartForceExitStatus=76
+RestartSec=1
+TimeoutStartSec=infinity
+TimeoutStopSec=30
+KillMode=control-group

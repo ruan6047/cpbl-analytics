@@ -1,0 +1,11 @@
+[Unit]
+Description=Discover evening CPBL source requests on Pi
+
+[Timer]
+OnCalendar=*-*-* *:00/5:00 Asia/Taipei
+AccuracySec=1s
+Persistent=false
+Unit=cpbl393-source@postseason-evening.service
+
+[Install]
+WantedBy=timers.target
