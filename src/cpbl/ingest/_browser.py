@@ -350,6 +350,9 @@ def session() -> _Session | ReplaySession:
         if not manifest or not bundle:
             raise ReplayError("回放需同時指定 CPBL_REPLAY_MANIFEST 與 CPBL_REPLAY_BUNDLE")
         return replay_session(manifest, bundle)
+    if os.environ.get("CPBL_JOBS_MODE") == "1":
+        from cpbl.ingest._replay import ReplayError
+        raise ReplayError("jobs 的 www 操作必須使用已驗收件包，不啟動 Chromium")
     global _session
     if _session is None:
         log.info("啟動 Playwright 瀏覽器以過官網反爬挑戰…")
