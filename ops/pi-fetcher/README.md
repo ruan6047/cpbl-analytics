@@ -176,7 +176,7 @@ WP4 post批包含page＋post，與原 manifest「post參照最近page」相容�
 
 ### 同入口有界服務與 private state
 
-`SUPPLY_VERSION=393-pi-auto-source.1-candidate`；依賴固定 WP4 producer `8081536d` 的 `ops/jobs/SOURCE.md`。
+`SUPPLY_VERSION=393-pi-auto-source.2-candidate`；依賴固定 WP4 producer `8081536d` 的 `ops/jobs/SOURCE.md`。
 原文／index仍是manifest/1與bundle/1，完成收條仍只上列五欄；沒有新增done／current協議。
 
 ```bash
@@ -198,8 +198,11 @@ WP4 post批包含page＋post，與原 manifest「post參照最近page」相容�
   這只約束串行worker，不能冒稱全部附屬HTTP／自然轉址／原helper恢復均有1秒送前硬限制。
 - 已啟原生client但沒有wait證據，留下 `.blocked`，後續三job全停，沒有自動解鎖或到期。
   私有狀態不包含token／form／raw；刪除、清理或人工恢復權不由程式新增。
-- 原生GET非0不能區分出口已撤回、認證或傳輸故障。首prefix前只按有界discovery輪詢並計數；
-  見prefix後則退出為`request_unavailable`，不冒稱missing、job完成或取消已起工作。
+- 原生GET非0不拿來猜missing／碰撞／回滾。只有已wait的命令級rc1可在首prefix前按有界discovery等待發布並計數；
+  255及其他非0立即令該worker失敗，不在同worker重試連線／初始化／認證類故障。
+  見prefix後rc1也退出為`request_unavailable`，不冒稱job完成或取消已起工作。
+  此分類依[OpenSSH sftp原始碼](https://raw.githubusercontent.com/openssh/openssh-portable/master/sftp.c)的批次退出路徑，
+  不是依錯誤字串猜原因；Pi原生版本與實際輸出仍需在已核兩端驗證核對，未證時不放寬重試。
   malformed／錯job／hash變動／退出未知不啟WWW；raw或metadata失敗後不自動重送。
 - 每次poll都輸出安全rc／實際client-start／wait；最後摘要包含poll次數、三種client數、當prefix預留操作與已交batch數。
   `operations_reserved` 是上界預留，不是實際HTTP量；unknown保留null。

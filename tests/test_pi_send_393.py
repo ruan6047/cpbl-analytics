@@ -602,7 +602,7 @@ def test_bounded_service_counts_unavailable_reads_and_stops_at_read_limit(inputs
     def unavailable(args, **kwargs):
         calls.append((args, kwargs))
         return 1, {"outcome": "partial_or_unknown", "request_started": True,
-                   "request_sftp_rc": 255, "request_child_waited": True}
+                   "request_sftp_rc": 1, "request_child_waited": True}
 
     monkeypatch.setattr(sender, "_run_once", unavailable)
     rc = sender.main(["--serve-job", "scrape-daily", "--out", str(out), "--timeout", "30",
@@ -709,3 +709,22 @@ def test_single_batch_mode_does_not_silently_ignore_service_time_limits(inputs, 
                         "--max-seconds", "30", "--request-identity-file", str(identity),
                         "--known-hosts", str(hosts)]) == 1
     assert json.loads(capsys.readouterr().out)["outcome"] == "precheck_failed"
+
+
+def test_discovery_stops_on_ssh_failure_instead_of_repeating_auth_attempts(inputs, monkeypatch, capsys):
+    _, out, _, _ = inputs
+    calls = []
+
+    def failed_connection(args, **kwargs):
+        calls.append(args)
+        return 1, {"outcome": "partial_or_unknown", "request_started": True,
+                   "request_sftp_rc": 255, "request_child_waited": True}
+
+    monkeypatch.setattr(sender, "_run_once", failed_connection)
+    monkeypatch.setattr(sender.time, "sleep", lambda delay: None)
+    rc = sender.main(["--serve-job", "scrape-daily", "--out", str(out), "--timeout", "30",
+                      "--max-seconds", "100", "--discovery-seconds", "100",
+                      "--max-reads", "3", "--max-operations", "10"])
+    result = json.loads(capsys.readouterr().out.splitlines()[-1])
+    assert rc == 1 and len(calls) == 1
+    assert result["outcome"] == "request_failed" and result["request_clients"] == 1

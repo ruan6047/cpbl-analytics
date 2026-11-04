@@ -26,7 +26,7 @@ import time
 from pathlib import Path
 
 INTERFACE = "cpbl393-sftp-drop/v1-candidate.1"
-SUPPLY_VERSION = "393-pi-auto-source.1-candidate"
+SUPPLY_VERSION = "393-pi-auto-source.2-candidate"
 HOST = "45.76.100.29"
 PORT = 22
 USER = "cpbl393-receiver"
@@ -577,8 +577,11 @@ def _serve(args):
         elif row.get("request_started") and row.get("request_child_waited") is not True:
             return 1, {**result, "outcome": "exit_unknown"}
         elif row.get("request_sftp_rc") not in (None, 0) and row.get("request_child_waited") is True:
-            # Native rc cannot distinguish a withdrawn slot, auth or transport
-            # error. Never claim "missing"/job success from it or start WWW.
+            # Only a command-level exit1 may wait for publication. In particular
+            # never repeat exit255/init/transport failures in this worker.
+            # Exit1 is NOT proof of a missing file, collision or rollback.
+            if row["request_sftp_rc"] != 1:
+                return 1, {**result, "outcome": "request_failed"}
             if prefix is not None:
                 return 75, {**result, "outcome": "request_unavailable"}
         elif rc != 0:
