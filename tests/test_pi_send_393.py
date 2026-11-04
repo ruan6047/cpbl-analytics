@@ -602,7 +602,7 @@ def test_bounded_service_counts_unavailable_reads_and_stops_at_read_limit(inputs
     def unavailable(args, **kwargs):
         calls.append((args, kwargs))
         return 1, {"outcome": "partial_or_unknown", "request_started": True,
-                   "request_sftp_rc": 1, "request_child_waited": True}
+                   "request_sftp_rc": 1, "request_child_waited": True, "timed_out": False}
 
     monkeypatch.setattr(sender, "_run_once", unavailable)
     rc = sender.main(["--serve-job", "scrape-daily", "--out", str(out), "--timeout", "30",
@@ -728,3 +728,42 @@ def test_discovery_stops_on_ssh_failure_instead_of_repeating_auth_attempts(input
     result = json.loads(capsys.readouterr().out.splitlines()[-1])
     assert rc == 1 and len(calls) == 1
     assert result["outcome"] == "request_failed" and result["request_clients"] == 1
+
+
+def test_discovery_stops_when_timed_out_client_exits_one_after_term(inputs, monkeypatch, capsys):
+    _, out, identity, hosts = inputs
+    launches, signals, sleeps = [], [], []
+
+    class Child:
+        pid = 123456789  # killpg is replaced; no real process is launched or signalled.
+        returncode = None
+
+        def __init__(self):
+            self.waits = 0
+
+        def communicate(self, input=None, timeout=None):
+            self.waits += 1
+            if self.waits == 1:
+                raise subprocess.TimeoutExpired("synthetic SFTP", timeout)
+            assert input is None
+            self.returncode = 1  # The real timeout helper must preserve this native exit.
+
+    def launch(*args, **kwargs):
+        child = Child()
+        launches.append(child)
+        return child
+
+    monkeypatch.setattr(subprocess, "Popen", launch)
+    monkeypatch.setattr(sender.fetch.os, "killpg", lambda pid, sig: signals.append((pid, sig)))
+    monkeypatch.setattr(sender.time, "sleep", sleeps.append)
+    rc = sender.main(["--serve-job", "scrape-daily", "--out", str(out), "--timeout", "30",
+                      "--max-seconds", "100", "--discovery-seconds", "100",
+                      "--max-reads", "3", "--max-operations", "10",
+                      "--request-identity-file", str(identity), "--known-hosts", str(hosts)])
+    rows = [json.loads(line) for line in capsys.readouterr().out.splitlines()]
+    assert rc == 1 and len(launches) == 1 and len(signals) == 1 and not sleeps
+    assert rows[0]["request_sftp_rc"] == 1 and rows[0]["request_child_waited"] is True
+    assert rows[0]["timed_out"] is True
+    assert rows[-1]["outcome"] == "request_failed" and rows[-1]["request_clients"] == 1
+    assert rows[-1]["raw_clients"] == rows[-1]["receipt_clients"] == 0
+    assert not (out / ".blocked").exists()  # Known exit; the unknown-exit policy is unchanged.
