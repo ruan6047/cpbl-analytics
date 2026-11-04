@@ -225,6 +225,53 @@ def test_evening_quiet_preserves_paused_flags_and_does_no_work(jobs, monkeypatch
     assert not (root / "starter-watch.enabled").exists()
 
 
+@pytest.mark.parametrize("signal_failure", [True, False])
+def test_evening_idle_settles_this_plans_signal_write_result(jobs, monkeypatch, signal_failure):
+    from cpbl import change_signals, db
+    from cpbl.ingest.postseason_evening import publish_signals
+
+    module, root = jobs; calls = []
+    state = {"events": {}, "signals_dirty": True, "signals_error": {"error": "previous"}}
+
+    @contextlib.contextmanager
+    def connection():
+        if signal_failure:
+            raise RuntimeError("fixture signal write failure")
+        yield SimpleNamespace(cursor=lambda: object())
+
+    monkeypatch.setattr(db, "conn", connection)
+    monkeypatch.setattr(change_signals, "write_signals", lambda *a: False)
+
+    def entry(argv, *, jobs):
+        calls.append(argv)
+        if argv == ["plan"]:
+            publish_signals(state, 2026, datetime.now(module.TAIPEI), direct=True)
+        print("idle")
+        return 0
+
+    fake_module(monkeypatch, "cpbl.ingest.postseason_evening", main=entry,
+                load_state=lambda path: state, state_path=lambda: root / "business.json")
+    assert module.main(["postseason-evening"]) == (69 if signal_failure else 0)
+    status = json.loads((root / "jobs/postseason-evening.json").read_text())
+    assert status["state"] == ("failed" if signal_failure else "succeeded")
+    assert bool(state["signals_dirty"]) is signal_failure
+    assert bool(state["signals_error"]) is signal_failure
+    assert calls == [["plan"], ["boxpa-plan", "--dry"]]
+
+
+def test_evening_boxpa_idle_does_not_settle_a_previous_plans_signal_error(jobs, monkeypatch):
+    module, root = jobs; calls = []
+    state = {"signals_error": {"error": "previous"}}
+
+    def entry(argv, *, jobs):
+        calls.append(argv); print("idle"); return 0
+
+    fake_module(monkeypatch, "cpbl.ingest.postseason_evening", main=entry,
+                load_state=lambda path: state, state_path=lambda: root / "business.json")
+    assert module.main(["postseason-evening", "--stage", "boxpa"]) == 0
+    assert calls == [["boxpa-plan", "--dry"]]
+
+
 @pytest.mark.parametrize(("reconcile_ok", "prepare_error", "expected_code"), [
     pytest.param(True, False, 0, id="complete"), pytest.param(False, False, 68, id="mismatch"),
     pytest.param(True, True, 69, id="pa-error-still-delivers-box"),

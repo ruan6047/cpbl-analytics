@@ -288,6 +288,9 @@ def _evening(run, args):
     if code:
         return code
     if action in ("idle", "halted") and not pre.startswith(("detail", "sync", "tracking", "build")):
+        # plan 可能已寫訊號失敗；boxpa-only 沒跑 plan，不結算前輪的 signals_error。
+        if args.stage == "all" and evening.load_state(evening.state_path()).get("signals_error"):
+            return 69
         return code
     finish_code = 0
     try:
