@@ -3,7 +3,7 @@ import test from "node:test";
 import type { ReactElement } from "react";
 import { renderToStaticMarkup as render } from "react-dom/server";
 import { AppRouterContext } from "next/dist/shared/lib/app-router-context.shared-runtime";
-const router={back(){},forward(){},push(){},replace(){},refresh(){},hmrRefresh(){},prefetch(){}};
+const router={back(){},forward(){},push(){},replace(){},refresh(){},hmrRefresh(){},prefetch(){},bfcacheId:"test"};
 const renderToStaticMarkup=(node:ReactElement)=>render(<AppRouterContext.Provider value={router}>{node}</AppRouterContext.Provider>);
 
 import { PostseasonOverview } from "./postseason-overview.tsx";

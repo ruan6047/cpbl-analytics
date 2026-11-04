@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import pytest
 
-from cpbl.api.helpers import _ip_disp, _ip_real, _parse_features, _real_ip, _round
+from cpbl.api.helpers import _ip_disp, _ip_real, _real_ip, _round
 from cpbl.api.routers.ability import _grade
 from cpbl.api.routers.players import _merge_splits
 from cpbl.api.routers.tracking import _batted_result, _count_bucket, _zone_result
@@ -53,9 +53,6 @@ def test_ip_disp_carries_three_outs():
 # ---- 雜項純函式 ----
 
 
-def test_parse_features():
-    assert _parse_features("a, b ,c,,") == ["a", "b", "c"]
-    assert _parse_features("") == []
 
 
 def test_round_none_passthrough():

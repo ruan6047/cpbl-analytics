@@ -39,6 +39,7 @@ from cpbl.api.routers import (
     umpires,
     venues,
 )
+from cpbl.api.timing import RequestTimingMiddleware, configure_access_log
 from cpbl.config import settings
 
 
@@ -71,6 +72,10 @@ app.add_middleware(
     allow_methods=["GET"],
     allow_headers=["*"],
 )
+# 最後加的 middleware 在最外層：計時涵蓋 CORS 與路由的全部處理時間（cpbl.api.timing）。
+app.add_middleware(RequestTimingMiddleware)
+# uvicorn 預設 logging 不會放行 cpbl.api.access 的 INFO；這裡給它 stdout handler，容器 CMD 關掉 uvicorn access log。
+configure_access_log()
 
 for _mod in (info, projections, leaders, outcome, standings, players, games, daily,
              ability, tracking, trend, teams, umpires, people, venues, recap, facts, report,

@@ -3,8 +3,9 @@
 > **本檔全文由腳本產生，未經人工編輯**（本說明區塊除外）。重跑：
 >
 > ```bash
-> uv run python scripts/review_gate_inventory.py                # 工作目錄
-> uv run python scripts/review_gate_inventory.py --rev 81bcd4d  # 附錄那份
+> # review_gate_inventory.py（原 scripts/ 下）已於 #405 隨舊制工具鏈移除；原檔對照用 git show e3bfc02:scripts/<name>
+> review_gate_inventory.py                # 工作目錄
+> review_gate_inventory.py --rev 81bcd4d  # 附錄那份
 > ```
 >
 > iteration 2（依需求方 2026-07-31 指示）新增：真正輸出**分類與計數**（不再只印原始欄位）、

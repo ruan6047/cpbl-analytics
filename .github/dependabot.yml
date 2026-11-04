@@ -1,0 +1,80 @@
+# 依賴更新提醒（每月一次、同生態系分群合併成少數 PR，避免每天一堆小 PR）。
+# 本 repo 每個 PR 都要走 vNext 卡片流程：Dependabot 開的 PR 只是「提醒＋已算好的 lock diff」，
+# 合併前仍由 PM 開一張月更卡集中處理整批、依 CI 與審核程序處理；⛔ 不設 auto-merge。
+# 程式相依的主版本升級刻意排除（Next 17、recharts 3、TypeScript 7、react、@types、eslint 10、polars 2、LightGBM；
+# Next 16 已由 #419 升級。各 ignore 條目附理由與回看月份；評估走獨立卡，不是例行更新）；
+# GitHub Actions 的 major 不排除，併入月更卡、CI 綠即合。
+# 慣例見 .wf/cpbl-local.md「Dependabot 月更 PR」，操作清單見 docs/AI_RUNBOOK.md §7.2.2（#418）。
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /web
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 3   # 1 群＋未被 ignore 的個別 major 餘裕
+    groups:
+      web-minor-and-patch:        # ⚠️ 群組名一經命名不改：改名會讓既有群組 PR 永遠不被 refresh
+        update-types: [minor, patch]
+    ignore:
+      - dependency-name: next
+        update-types: [version-update:semver-major]
+        # 保留 major ignore。理由：16.4.x 升級由 #419 執行（PR #424），下一 major（17）仍需獨立卡評估；回看 2027-05
+      - dependency-name: eslint-config-next
+        update-types: [version-update:semver-major]
+        # 理由：版本號與 next 同步，major 與 next 一起評估；回看同 next
+      - dependency-name: recharts
+        update-types: [version-update:semver-major]
+        # 保留 major ignore。理由：3.x 評估完成、判升（#419）；升級 PR 依裁定等 #415 結案或裁定不改載入方式後，
+        # 由相連子卡 #423 執行；回看 2027-03
+      - dependency-name: typescript
+        update-types: [version-update:semver-major]
+        # 保留 major ignore。理由：7.x 暫不升——7.0 無 JS API，Next 15／typescript-eslint／test loader 三條鏈不相容
+        # （#419 評估）；6.x 亦被本條擋住，是否先升 6 另案；回看 2027-02
+      - dependency-name: react
+        update-types: [version-update:semver-major]
+        # 理由：與 Next 綁定，major 與 next 一起評估；回看同 next
+      - dependency-name: react-dom
+        update-types: [version-update:semver-major]
+        # 理由：與 react 綁定；回看同 next
+      - dependency-name: "@types/react"
+        update-types: [version-update:semver-major]
+        # 理由：與 react major 綁定（#418 裁定）；回看同 next
+      - dependency-name: "@types/react-dom"
+        update-types: [version-update:semver-major]
+        # 理由：與 react-dom major 綁定（#418 裁定）；回看同 next
+      - dependency-name: "@types/node"
+        update-types: [version-update:semver-major]
+        # 理由：與 CI／runtime 的 Node 22 綁定，升 Node 才升（#418 裁定）；回看 2027-02
+      - dependency-name: eslint
+        update-types: [version-update:semver-major]
+        # 理由：程式相依 major，依 #418 慣例不在月更卡升級。Next 16（#419）後 eslint-config-next 16 的 peer 為
+        # eslint >=9，#409 的 ERESOLVE 前提已消失、CI 轉綠；eslint 10 升級仍需另開卡評估。回看 2027-02
+  - package-ecosystem: uv
+    directory: /
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 5   # 3 群＋未被 ignore 的個別 major 餘裕
+    groups:
+      python-scraper:             # 爬蟲相依：CI 綠不算驗過，合併前須在 Mac 實跑一次官網爬蟲
+        patterns: [playwright, httpx]
+        update-types: [minor, patch]
+      python-ml:                  # ML 相依：合併前容器內 cpbl-train 回測對照未退化
+        patterns: [lightgbm, scikit-learn, numpy, polars]
+        update-types: [minor, patch]
+      python-minor-and-patch:     # 其餘 minor／patch。⚠️ 名字刻意沿用舊群組名（理由見 npm 群組註解）
+        patterns: ["*"]
+        exclude-patterns: [playwright, httpx, lightgbm, scikit-learn, numpy, polars]   # 與前兩群互斥：同時命中時 exclude 優先
+        update-types: [minor, patch]
+    ignore:
+      - dependency-name: polars
+        update-types: [version-update:semver-major]
+        # 理由：2.x 有 breaking change（#411）；src/ 目前零 import、僅 scripts/restate1_reconcile.py（oneshot）使用，
+        # 是否保留為直接相依另評估（docs/REQUIREMENT_IDEAS.md）。回看 2027-02
+      - dependency-name: lightgbm
+        update-types: [version-update:semver-major]
+        # 理由：現役成績預測模型相依，major 須走評估卡（容器內回測對照）；回看 2027-02
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 4   # 不分群：四個 action 各自一張（#418 裁定）

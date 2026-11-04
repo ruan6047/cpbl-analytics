@@ -51,8 +51,6 @@ def _real_ip(ip: Any) -> float:
     return _ip_real(ip) or 0.0
 
 
-def _parse_features(features: str) -> list[str]:
-    return [f.strip() for f in features.split(",") if f.strip()]
 def _ip_disp(real: float | None) -> float | None:
     """真實局數 → .1/.2 棒球記法顯示（如 180⅔ → 180.2）。"""
     if real is None:

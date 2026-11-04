@@ -61,54 +61,6 @@ FEATURE_KEYS = [k for k, _ in CANDIDATE_FEATURES]
 FEATURE_LABELS = dict(CANDIDATE_FEATURES)
 REAL_FEATURES_LABELS = {k: v for k, v in CANDIDATE_FEATURES if k != "home_field"}
 
-# 滑鼠移過去的參數說明（前端 tooltip）。皆以「本季」為準。
-FEATURE_DESC = {
-    "winrate_diff": "本季至今的勝率（勝÷出賽）。整體實力的基準指標。",
-    "prior_winpct_diff": "上季最終勝率對比。季初本季樣本少時提供穩定的戰力先驗（無上季資料以五成計）。",
-    "runs_scored_diff": "本季場均得分，衡量打線火力。",
-    "runs_allowed_diff": "本季場均失分，越低代表投手與守備越強（即防禦力）。",
-    "recent_form_diff": "最近 10 場勝率，反映近期手感。屬弱訊號，預設權重低。",
-    "rest_days_diff": "距上一場的休息天數對比。較多休息＝先發輪值充裕、體能較佳（季內首戰視為持平）。",
-    "h2h_home": "本季兩隊交手中主隊的勝率（雙方主客場都計入）。未交手則視為五五波。",
-    "starter_era_diff": "本場先發投手「開打前」的本季至今防禦率對比，越低越強。"
-                        "季初樣本少時以上季成績（再無則上季聯盟平均）按比例收縮墊檔。",
-    "starter_whip_diff": "先發投手開打前的本季至今每局被上壘率（WHIP），越低越強。"
-                         "衡量壓制力；收縮方式同 ERA。",
-    "starter_k9_diff": "先發投手開打前的本季至今每 9 局奪三振數（K9），越高越強。"
-                       "衡量三振能力；收縮方式同 ERA。",
-    "home_field": "主場球隊的基準勝率優勢（約 +5%）。以模型 intercept 表示。",
-    "prior_team_ops_diff": "上季團隊整體攻擊 OPS 對比（全史可算）。衡量打線基底實力。",
-    "prior_team_slg_diff": "上季團隊長打率 SLG 對比。衡量長打火力基底。",
-    "prior_team_era_diff": "上季團隊防禦率 ERA 對比，越低越強。衡量投手戰力基底。",
-    "prior_team_whip_diff": "上季團隊 WHIP 對比，越低越強。衡量壓制力基底。",
-    "team_ops_now_diff": "本季至今團隊整體攻擊 OPS 對比（即時打線狀態）。僅 2018 年起有逐打席資料。",
-    "team_avg_now_diff": "本季至今團隊打擊率對比（即時手感）。僅 2018 年起有逐打席資料。",
-    "team_sb_now_diff": "本季至今每場淨盜壘（盜壘成功−失敗）對比，衡量壘間積極度。僅 2018 年起有。",
-    "team_wp_now_diff": "本季至今投手群每場暴投數對比，越少越穩（控球/守成）。僅 2018 年起有。",
-    "team_err_now_diff": "本季至今每場失誤數對比，越少守備越穩。僅 2018 年起有。",
-}
-
-# 顯示群組（前端依此分區呈現）。
-FEATURE_GROUP = {
-    "winrate_diff": "整體實力", "prior_winpct_diff": "整體實力", "recent_form_diff": "整體實力",
-    "runs_scored_diff": "打擊表現", "prior_team_ops_diff": "打擊表現", "prior_team_slg_diff": "打擊表現",
-    "team_ops_now_diff": "打擊表現", "team_avg_now_diff": "打擊表現",
-    "team_sb_now_diff": "壘間",
-    "runs_allowed_diff": "守備／失分", "team_err_now_diff": "守備／失分", "team_wp_now_diff": "守備／失分",
-    "starter_era_diff": "先發投手", "starter_whip_diff": "先發投手", "starter_k9_diff": "先發投手",
-    "prior_team_era_diff": "團隊投手", "prior_team_whip_diff": "團隊投手",
-    "h2h_home": "對戰記錄", "rest_days_diff": "場地／賽事因數", "home_field": "場地／賽事因數",
-}
-# 相依（共線）群組：同 id 的特徵彼此高度相關，前端選了多個會軟提醒（仍可選，聯合 fit 自動分攤）。
-FEATURE_CORR = {
-    "starter_era_diff": "先發壓制", "starter_whip_diff": "先發壓制", "starter_k9_diff": "先發壓制",
-    "winrate_diff": "整體戰力", "prior_winpct_diff": "整體戰力", "recent_form_diff": "整體戰力",
-    "runs_scored_diff": "打線火力", "prior_team_ops_diff": "打線火力", "prior_team_slg_diff": "打線火力",
-    "team_ops_now_diff": "打線火力", "team_avg_now_diff": "打線火力",
-    "runs_allowed_diff": "投手戰力", "prior_team_era_diff": "投手戰力", "prior_team_whip_diff": "投手戰力",
-}
-
-
 # ── 先發投手賽前指標（as-of running state + 前一季 prior 收縮）─────────────
 # 收縮強度（IP 當量），約 5 場先發的投球局數。**開跑前釘死的常數**：不因回測
 # 數字調整（統計紅線——不得為了數字好看而調參）。當季分母增加 → prior 自然退位。

@@ -242,6 +242,19 @@ def test_session_timezone_is_not_left_to_the_environment() -> None:
     except Exception as exc:  # noqa: BLE001
         pytest.skip(f"需本機 DB：{exc}")
 
+    # 本測試要**重建**一條帶 PGTZ 的新 pool，所以會把 `dbmod._pool` 設回 None——這一步也把
+    # conftest 在無 DB 時換上的「未開啟池」丟掉了，於是借連線不再立即拋 PoolClosed，而是等滿
+    # psycopg_pool 預設 30 秒 checkout timeout 才 skip（CI 無 DB，每次都付這 30 秒）。
+    # 先用一條用完即丟的原生連線做 2 秒探測：連不上就立刻 skip，連得上才重建 pool。
+    import psycopg
+
+    from cpbl.config import settings
+
+    try:
+        psycopg.connect(settings.database_url, connect_timeout=2).close()
+    except Exception as exc:  # noqa: BLE001
+        pytest.skip(f"需本機 DB：{exc}")
+
     old_pool, old_pgtz = dbmod._pool, os.environ.get("PGTZ")
     dbmod._pool = None
     os.environ["PGTZ"] = "America/New_York"

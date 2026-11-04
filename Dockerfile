@@ -2,10 +2,15 @@
 FROM ghcr.io/astral-sh/uv:python3.12-bookworm-slim AS builder
 WORKDIR /app
 ENV UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy
-COPY pyproject.toml README.md ./
+# 兩段式安裝：先只放依賴宣告與 lock 檔裝第三方套件，再放程式碼裝本專案。
+# - `--frozen`：嚴格照 uv.lock 安裝，lock 與 pyproject 不一致就直接失敗；
+#   沒有 lock 時 uv sync 會重新解依賴，生產映像跑的版本就與 CI 測過的 uv.lock 脫鉤。
+# - 依賴層只依賴 pyproject.toml／uv.lock，改程式碼不會讓它失效，重建只剩本專案那一層。
+COPY pyproject.toml uv.lock README.md ./
+RUN uv sync --frozen --no-dev --no-editable --no-install-project
 COPY src ./src
 COPY migrations ./migrations
-RUN uv sync --no-dev --no-editable
+RUN uv sync --frozen --no-dev --no-editable
 
 FROM python:3.12-slim-bookworm
 RUN groupadd -r app && useradd -r -g app app \
@@ -26,4 +31,4 @@ USER app
 EXPOSE 4001
 HEALTHCHECK --interval=30s --timeout=3s --start-period=10s \
     CMD curl -fsS http://localhost:4001/api/info || exit 1
-CMD ["sh", "-c", "uvicorn cpbl.api.main:app --host 0.0.0.0 --port ${PORT}"]
+CMD ["sh", "-c", "uvicorn cpbl.api.main:app --host 0.0.0.0 --port ${PORT} --no-access-log"]

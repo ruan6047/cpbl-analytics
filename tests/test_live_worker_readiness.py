@@ -401,6 +401,10 @@ def test_persisted_evidence_is_private_bounded_and_matches_memory(evidence_dir):
 
 
 def test_both_persistent_writes_failing_is_unknown_not_old_success(evidence_dir):
+    if os.geteuid() == 0:
+        # 本測試靠 chmod 0o500 讓本機證據寫入失敗；root 不受檔案權限限制，寫入照樣成功，
+        # 前提不成立就會誤判成 not_ready（容器內以 root 跑測試時實際發生過）。
+        pytest.skip("以 root 執行時 chmod 擋不住寫入，本測試的前提不成立")
     schedule, games = _one_game(livelog=[])
     h = _harness(evidence_dir, schedule=schedule, games=games, start=True)
     slept = []

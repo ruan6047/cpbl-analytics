@@ -74,12 +74,18 @@ cpbl-research-umpire-impact = "cpbl.models.run_umpire_impact:main"
 [dependency-groups]
 dev = [
     "pytest>=8.3",
+    "pytest-xdist>=3.6",
     "ruff>=0.9",
 ]
 # 本機爬蟲專用：官網主站(www.cpbl.com.tw)加了 HiNet CDN 反爬 JS 挑戰，純 httpx 會 428；
 # 改用 Playwright 開頁過挑戰後 page.evaluate(fetch) 發 API。生產不爬蟲、不需此群組。
 scrape = [
     "playwright>=1.49",
+]
+# 型別檢查專用（#414）：CI typecheck job 與本機比對 baseline 用。不在預設群組，
+# 一般 `uv sync` 與生產映像（Dockerfile `uv sync --frozen --no-dev`）都不裝。
+typecheck = [
+    "basedpyright>=1.40.2",
 ]
 
 [build-system]
@@ -110,3 +116,12 @@ extend-exclude = [".ai-workflow"]
 select = ["E", "F", "I", "UP", "B"]
 # 忽略風格噪音：行長（中文註解/SQL）、緊湊 state 更新分號、迴圈內即用閉包假陽性、W/L 命名
 ignore = ["E501", "E702", "B023", "E741", "UP031"]
+
+[tool.basedpyright]
+# #414：型別檢查以 baseline 凍結既有錯誤（.basedpyright/baseline.json），新改動不得新增。
+# basedpyright 預設是 recommended，basic 必須明寫；平台釘 Linux（CI 與生產皆 Linux），避免 Mac 本機結果漂移。
+# 標準環境＝uv.lock 的 dev＋scrape＋typecheck 群組，指令見 docs/AI_RUNBOOK.md §7.2。
+include = ["src"]
+typeCheckingMode = "basic"
+pythonVersion = "3.12"
+pythonPlatform = "Linux"

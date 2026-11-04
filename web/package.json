@@ -6,23 +6,25 @@
     "dev": "next dev",
     "prebuild": "node scripts/guard-build.mjs",
     "build": "next build",
-    "build:check": "NEXT_DIST_DIR=.next-check next build; code=$?; git checkout -- next-env.d.ts 2>/dev/null || true; exit $code",
+    "build:check": "NEXT_DIST_DIR=.next-check next build",
     "test": "node --no-warnings --experimental-strip-types --import ./test/tsx-loader.mjs --test 'src/**/*.test.ts' 'src/**/*.test.tsx'",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "eslint src"
   },
   "dependencies": {
-    "next": "15.5.22",
-    "react": "19.1.1",
-    "react-dom": "19.1.1",
+    "next": "16.4.3",
+    "react": "19.3.1",
+    "react-dom": "19.3.1",
     "recharts": "2.15.4"
   },
   "devDependencies": {
-    "@tailwindcss/postcss": "4.1.18",
+    "@tailwindcss/postcss": "4.3.3",
     "@types/node": "22.10.6",
-    "@types/react": "19.1.0",
-    "@types/react-dom": "19.1.0",
-    "tailwindcss": "4.1.18",
-    "typescript": "5.7.3"
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "eslint": "9.39.2",
+    "eslint-config-next": "16.4.3",
+    "tailwindcss": "4.3.3",
+    "typescript": "5.9.3"
   }
 }

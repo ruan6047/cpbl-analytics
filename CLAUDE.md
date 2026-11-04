@@ -16,7 +16,7 @@
 >
 > 改動共享資源（本機 DB、服務、排程、既有 worktree）須依 vNext 規則取得資源租用。模型分工見 [`.wf/model-policy.md`](.wf/model-policy.md)。
 >
-> **舊制度已退場**：[user Project #4](https://github.com/users/ruan6047/projects/4) 已於 [ai-workflow#417](https://github.com/ruan6047/ai-workflow/issues/417) 結案時關閉（2026-10-08；可 `gh project close 4 --owner ruan6047 --undo` 還原）；未結案舊卡（#53、#90、#119、#158）依 #417 Q6 裁定改照 vNext 繼續，各卡已留通知。舊流程（T 級、舊狀態值、claim／lease、Ledger、`wfcli`）⛔ 不用於任何卡；[`docs/AI_WORKFLOW.md`](docs/AI_WORKFLOW.md)、[`docs/CONTROL_PLANE_CONTRACT.md`](docs/CONTROL_PLANE_CONTRACT.md)、[`docs/MODEL_ROUTING.md`](docs/MODEL_ROUTING.md)、[`docs/TASKS.md`](docs/TASKS.md) 只作歷史查閱。舊 `.ai-workflow` 子模組已退役、本機殘留已於 #417 清除；ai-workflow 舊制已自其 main 移除（最後版本 `a1ea86f`），舊規則原文見 [ai-workflow @ `f207d2e`](https://github.com/ruan6047/ai-workflow/tree/f207d2ecf80556d6b90beeb0438bf648288a5fd9)，⛔ 不引為判準。
+> **舊制度已退場**：[user Project #4](https://github.com/users/ruan6047/projects/4) 已於 [ai-workflow#417](https://github.com/ruan6047/ai-workflow/issues/417) 結案時關閉（2026-10-08；可 `gh project close 4 --owner ruan6047 --undo` 還原）；未結案舊卡（#53、#90、#119、#158）依 #417 Q6 裁定改照 vNext 繼續，各卡已留通知。舊流程（T 級、舊狀態值、claim／lease、Ledger、`wfcli`）⛔ 不用於任何卡；[`docs/AI_WORKFLOW.md`](docs/AI_WORKFLOW.md)、[`docs/CONTROL_PLANE_CONTRACT.md`](docs/CONTROL_PLANE_CONTRACT.md)、[`docs/MODEL_ROUTING.md`](docs/MODEL_ROUTING.md)、[`docs/TASKS.md`](docs/TASKS.md) 只作歷史查閱。舊制工具鏈（`workflow_ledger.py`、`review_prompt.py`、`review_gate_inventory.py`、`state_plane_migrate.py` 與 `docs/control-plane/events.jsonl`）及其測試已於 #405 移除，對照用 `git show e3bfc02:<path>`；舊 `.ai-workflow` 子模組已退役、本機殘留已於 #417 清除；ai-workflow 舊制已自其 main 移除（最後版本 `a1ea86f`），舊規則原文見 [ai-workflow @ `f207d2e`](https://github.com/ruan6047/ai-workflow/tree/f207d2ecf80556d6b90beeb0438bf648288a5fd9)，⛔ 不引為判準。
 > **CPBL 操作事實讀 [`docs/AI_RUNBOOK.md`](docs/AI_RUNBOOK.md)**（指令、資料流、同步、API/web、陷阱）；操作事實衝突時以現實＋Runbook 為準並回頭修正，但流程治理一律以 vNext 規則為準，Runbook 內舊治理段不得覆蓋。DB 技術邊界見 [`docs/DATABASE_CONTRACT.md`](docs/DATABASE_CONTRACT.md)。
 > **方向定位**：依 [`.wf/cpbl-local.md`](.wf/cpbl-local.md)「任務框架」後的短定位，窄讀 [`docs/ROADMAP.md`](docs/ROADMAP.md) 有效 §0 四目標／原排序、§1 成果定義／投資取捨及原來源，並承接各卡後續有效裁定；L1–L5 只是內容分類，候選成果群不代表投入。產品設計讀 [`docs/PRODUCT_UX_BLUEPRINT.md`](docs/PRODUCT_UX_BLUEPRINT.md) 適用段落，定案不代表交付；未投入需求留 [`docs/REQUIREMENT_IDEAS.md`](docs/REQUIREMENT_IDEAS.md)，契約／狀態留 GitHub。本檔及 ROADMAP／PRODUCT_UX 的舊流程、註冊與排程安排對所有卡均只作歷史，流程一律依 vNext，不整本注入或自動修改鎖定卡。
 > **使用路徑**：無卡先回共同入口查重、附方向來源及本次貢獻後分流，由受派任務 PM 開卡，入口不完成每卡需求討論、不自行開卡；有卡回原卡 PM 對話續談，不重新排隊、不接管別卡。§0／§1 原投資限制與本卡已核定驗收保留，方向引用不新增確認關卡。
@@ -35,7 +35,7 @@ PersonalWebsite 主站的子專案,透過 `/api/info` 掛載到子網域並被�
 
 | 主題 | 事實 | 為什麼重要 |
 |---|---|---|
-| **ML 雙軌** | (1) **成績預測** [projection]：AVG/OBP/SLG/OPS rate stat（Marcel vs LightGBM 離線回測）；(2) **賽果預測** [outcome]：單場主隊勝率，現役賽前模型以固定語意群離線訓練；舊的使用者選特徵即時 fit 探索器前端已下線，後端端點仍保留 | 兩者資料前置與流程不同，勿混淆 |
+| **ML 雙軌** | (1) **成績預測** [projection]：AVG/OBP/SLG/OPS rate stat（Marcel vs LightGBM 離線回測）；(2) **賽果預測** [outcome]：單場主隊勝率，現役賽前模型以固定語意群離線訓練；舊的使用者選特徵即時 fit 探索器已於 #405 連後端端點一併移除 | 兩者資料前置與流程不同，勿混淆 |
 | **資料粒度** | `cpbl-opendata` 只有**逐年彙總**（最早 1990）；**逐場**資料（賽程/比分/逐打席 livelog/box/逐球 TrackMan）由**官網爬蟲**補足且已入庫 | 成績預測用逐年；賽果預測與賽況頁用逐場。**計數型**季彙總仍受逐年粒度限制 |
 | **驗收標準** | LightGBM 必須在**時間切分回測**上打贏 Marcel baseline 才算有價值 | 打不贏 baseline = 模型沒學到東西，這是誠實的工程紅線 |
 | **賽果天花板** | 單場勝負可預測性 ~60%，產品價值在透明與教育，不在擊敗賭盤 | 禁止用浮誇數字包裝（見下方賽果預測準則） |
@@ -77,10 +77,9 @@ cpbl-analytics/
 │   ├── models/
 │   │   ├── marcel.py             # Marcel baseline（加權 5/4/3 + 回歸均值 + 年齡曲線）
 │   │   ├── train.py              # 成績預測：LightGBM 訓練 + 回測 + 持久化
-│   │   ├── outcome.py            # 舊互動探索器的即時 fit 特徵子集 + 時間切分回測（後端保留，前端已下線）
 │   │   ├── outcome_gbm.py        # 舊全特徵 benchmark（離線：LightGBM vs 邏輯回歸 vs 全押主場 → model_versions）
 │   │   ├── outcome_simple.py     # 現役固定語意群賽前勝率模型（離線訓練）
-│   │   └── matchup.py            # 舊互動探索器的單場對戰卡 + 定向預設權重（後端保留）
+│   │   └── matchup.py            # team_stats：戰績榜／月曆共用的當季球隊累計（舊對戰卡邏輯已於 #405 移除）
 │   └── api/                      # FastAPI：main.py 組裝 + routers/ 領域分群 + helpers/rows 共用
 ├── web/                          # 獨立 Next.js 15 前端（App Router + Tailwind v4 + recharts）
 ├── migrations/                   # NNN_*.sql（season/ML 表 + games/game_features/current 系列 + advanced_stats/pitch_tracking/game_log/standings…）
@@ -110,10 +109,10 @@ npm run build:check                                                             
 
 > 現役賽前勝率使用固定語意群模型（`cpbl-train-outcome-simple`→`models/outcome_simple.py` 離線訓練）；
 > 首頁與賽況頁呈現賽前勝率，`/methodology#pregame` 呈現回測對照。
-> 舊的自由選特徵／調權重互動探索器前端已下線，`/predict` 轉址至 `/methodology#pregame`；
-> 後端 `/api/v1/outcome/features`、`/evaluate`、`/teams`、`/matchups`、`/simulate` 仍保留，
-> `web/src` 沒有這五支端點的呼叫。是否有外部呼叫者尚未查證，不可逕自移除端點。
-> 舊探索器的即時 fit 實作仍在 `models/outcome.py`、`models/matchup.py`，不需離線訓練。
+> 舊的自由選特徵／調權重互動探索器已整個退場：前端於 DEP-PREDICT-LEGACY1 下線、`/predict` 轉址至 `/methodology#pregame`；
+> 後端 `/api/v1/outcome/features`、`/evaluate`、`/teams`、`/matchups`、`/simulate` 與即時 fit 實作
+> （原 `models/outcome.py`，以及 `models/matchup.py` 的對戰卡部分）已於 #405 移除，依據是正式站 API 容器
+> access log 14 小時零命中、同期對照流量逾 5,600 筆。原碼對照用 `git show 0ffd401:<path>`。
 > 另有**離線走查回測**（`cpbl-train-outcome`→`models/outcome_gbm.py`）跑全特徵
 > LightGBM/邏輯回歸 vs 全押主場，寫 `model_versions(task='outcome')` 供 `/methodology#pregame` 回測面板
 > 與 `/api/info` 展示；需 LightGBM 故在容器內跑。成績預測（打擊 projection）有 `cpbl-train`。
@@ -159,10 +158,9 @@ docker compose run --rm api cpbl-train     # 容器內已有 libgomp1，LightGBM
 
 1. **現役賽前勝率**：`models/outcome_simple.py` 的固定語意群模型離線訓練，
    由 `/api/v1/outcome/pregame` 與每日摘要提供前端；不讓使用者自由選特徵或調權重。
-2. **舊互動探索器（前端已下線）**：`models/outcome.py` 仍供 `/evaluate` 在請求時只用所選子集
-   即時 fit 邏輯回歸並回傳回測準確率；`models/matchup.py` 仍供對戰卡與模擬端點。
-   這是保留的後端行為，不是要恢復 `/predict` 的產品規則。`home_field` 在舊模型中控制
-   `fit_intercept`；請勿將此舊模型規則套到現役固定語意群模型。
+2. **舊互動探索器（已移除）**：即時 fit 邏輯回歸、對戰卡與任選兩隊模擬已於 #405 整個移除，
+   ⛔ 不要恢復 `/predict` 的產品規則。舊模型以 `home_field` 控制 `fit_intercept` 的規則同樣作廢，
+   請勿套到現役固定語意群模型。`models/matchup.py` 只剩 `team_stats`（戰績榜對帳口徑）。
 3. **誠實揭露**：現役模型與舊全特徵 benchmark 在 `/methodology#pregame` 對照；
    勿把含前視洩漏的舊數字當成賽前預測力。特徵在 `features/outcome.py` 於套用該場結果前計算，
    `completed` 走 `cpbl.completion.is_completed_game`：日期不晚於 `as_of`，且比分總和大於 0 或有
@@ -218,7 +216,7 @@ URL（`http://cpbl-analytics:4001/api/info`）。
 
 - **Phase 1（已完成）**：opendata 回填 + 打擊成績預測（Marcel vs LightGBM）+ `/api/info` + 投影查詢。
 - **Phase 1.5（已完成）**：官網逐場爬蟲（games 表，含比分/先發投手）；獨立 Next.js 前端（投影排行 + 球員逐年圖表）。
-- **Phase 2（已完成；舊探索器前端已下線）**：**賽事預測** — game_features（leakage-safe）+ 曾提供即時 fit 特徵子集探索器；`/predict` 現轉址至 `/methodology#pregame`，其五支舊後端端點仍保留。今日賽事勝率預測由現役固定語意群模型提供。
+- **Phase 2（已完成；舊探索器前端已下線）**：**賽事預測** — game_features（leakage-safe）+ 曾提供即時 fit 特徵子集探索器；`/predict` 現轉址至 `/methodology#pregame`，其五支舊後端端點已於 #405 移除。今日賽事勝率預測由現役固定語意群模型提供。
 - **Phase 2.6（已完成）**：賽事預測重構 — game_features 改全史 kind A（1145→9350 完成場，修正混二軍/季後）+ 新增 leakage-safe 特徵（上季戰力 `prior_winpct_diff`、休息天數 `rest_days_diff`）+ 離線 LightGBM 走查回測對照（2022–26，`/methodology#pregame` 回測面板；原宣稱 ~62% 含約 6–7 個百分點前視洩漏，見 [`docs/research/ML-OUTCOME-LEAK1_RESULTS.md`](docs/research/ML-OUTCOME-LEAK1_RESULTS.md)，勿當賽前預測力引用）。
 - **Phase 2.5（已完成）**：官方進階數據 — `advanced_stats`（彙總進階 + 官方 PR）+ `pitch_tracking`（逐球 TrackMan）+ 好球帶紀律 `/discipline`；逐場 box score / 逐打席 livelog（`game_log`、賽況頁）。
 - **前端改版（進行中）**：設計系統見 [`docs/design/UI_UX_SYSTEM.md`](docs/design/UI_UX_SYSTEM.md)；P1/P2（球員頁旗艦）完成；P3 各頁視覺化升級進行中（含賽況頁**賽中態**的 **ESPN 風格狀態板**：頂部記分條 + 壘包/球數 + 逐球好球帶 + Recent Plays）。⚠️ 完賽態**總覽頁籤**的頁首記分條只呈現終場比分，不顯示 TOP/BOT、壘包與球數；完賽態逐打席頁籤與總覽共用同一記分條元素，須保留選中打席的局數、壘包與球數（需求方 2026-08-21 裁定，[#160](https://github.com/ruan6047/cpbl-analytics/issues/160)；逐欄位定稿見 [`docs/design/GAME-PAGE-THREE-STATES.md`](docs/design/GAME-PAGE-THREE-STATES.md) §1.1.1）。本行是 Roadmap 進度描述，**不是視覺方向的裁定依據**。

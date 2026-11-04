@@ -97,7 +97,7 @@ receiver 在寫 `handoff-accepted` 前必須逐項完成，並把結果寫進該
   git worktree add --detach .claude/worktrees/<card-id小寫>-review <完整40字元SHA>
   ```
 - **`handoff-accepted` writer 與授權**：receiver 本人；無需額外授權，但必須 ≠ 執行者。
-- **查核提示詞**：`uv run python scripts/review_prompt.py <CARD_ID>`（見 `CONTROL_PLANE_CONTRACT.md`〈交付→查核→合併慣例〉）。
+- **查核提示詞**：`review_prompt.py <CARD_ID>`（已於 #405 隨舊制工具鏈移除，原檔對照用 `git show e3bfc02:scripts/<name>`）（見 `CONTROL_PLANE_CONTRACT.md`〈交付→查核→合併慣例〉）。
 - **tmux launcher／wake-up**：不使用。
 - **Runtime 路徑與 `.gitignore`**：不適用（無本機 queue）。
 - **失敗、重試與人工介入**：receiver acceptance／review preflight 未通過時，可由 sender／

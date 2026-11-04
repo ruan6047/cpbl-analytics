@@ -24,6 +24,7 @@
 
 from __future__ import annotations
 
+import ci_base
 import psycopg
 import pytest
 from psycopg_pool import PoolClosed, PoolTimeout
@@ -191,6 +192,9 @@ def test_full_season_pre_scores_match_the_fact_stream(season_games) -> None:
     宣稱由本測試的窮舉產生，不是人工抽驗；分母（場次數、打席數）一併 assert 出來，
     避免「跑了 0 場也叫全季一致」。
     """
+    if ci_base.active():
+        # 斷言不動：全季 ≥200 場 published 約 60 MB，遠超基底 5 MB 上限（#413 規劃 §1），只能在正式庫跑。
+        pytest.skip("CI 基底只收 2026/A/81 一場 published，全季 ≥200 場的母體只在正式庫上有")
     from cpbl.db import conn
 
     with conn() as connection:
