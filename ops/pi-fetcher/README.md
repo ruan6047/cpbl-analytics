@@ -50,6 +50,10 @@ Pi拒用`CPBL_SCRAPE_PROFILE`，不得搬Mac個人profile/Cookie。用既有`PLA
 - `page`取原session的HTML文字；`post.page`必須指向最近一個page操作。
 - form/header的`{"$token":"A"}`為原inline token，`B`為hidden input；抽取值只在記憶體。
   清單不得帶literal token、Cookie、Authorization或秘密query；只接受www相對路徑及公開參數。
+- `393-wp3-original.2` 沿同一形狀新增 `getSelectOpts`、`getFightingScore`、`getFighterScore`、
+  `getApartScore` 四個 token 名稱；各自只在原函式錨點起 1600 字元內找 inline token，
+  對齊既有 fighting／person／apart 的 `_token_in`。缺錨點或 token 就停，不退回第一個 A。
+  舊 `.1` 不認得這些名稱；producer 與 Pi／VPS 必須綁同一相容版，不只核 schema 字串。
 - `max_requests`保留舊欄位名，現在明確代表**清單操作開始數**（上限600），不是實際HTTP上限；
   `min_gap_s≥1`亦僅限制兩個清單呼叫起點。原helper重試／附屬活動不是新的清單操作。
 - `max_duration_s`為可選工作上限，預設300秒；CLI以標準子程序逾時保護，TERM後5秒、必要KILL再wait5秒。
@@ -64,7 +68,10 @@ HTML原有內嵌token仍屬敏感原文，只存私有bundle，禁止進Git、�
 
 index每列以`id/op/path或api`對應原清單，含`http_status/ms/body/bytes/sha256`；
 `manifest_sha256`綁原清單。page的HTTPstatus在快取／context恢復後可能不可見，記null、不補200；
-page HTML是否取得沿原helper返回／require判定。post status沿原helper返回值，200且JSON可解析才保存。
+page HTML是否取得沿原helper返回／require判定。post status沿原helper返回值；預設200且JSON可解析才保存。
+`.2` 僅對原 HTML consumer 的 `/standings/seasonaction`、`/team/teamscoreaction`、`/player/trans`
+保留 HTTP200 的原始文字，不先 JSON 解碼；沒有把其他 POST 放寬成任意文字，也不新增 body 格式欄位。
+HTTP200／保存原文不是業務成功判定，原 HTML parser 仍由 VPS 承接；原成熟 browser 的恢復與挑戰處置不變。
 `complete=true`僅表示全部清單原文取得並已呼叫close返回，**不是**GameDatas業務驗收或全部程序退出證據。
 
 `observed`只含SDK可見request／response／redirect／page WS與觀測到的context更換計數；
