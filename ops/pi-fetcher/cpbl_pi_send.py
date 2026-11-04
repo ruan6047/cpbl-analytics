@@ -577,10 +577,10 @@ def _serve(args):
         elif row.get("request_started") and row.get("request_child_waited") is not True:
             return 1, {**result, "outcome": "exit_unknown"}
         elif row.get("request_sftp_rc") not in (None, 0) and row.get("request_child_waited") is True:
-            # Only a command-level exit1 may wait for publication. In particular
+            # Only an explicitly non-timeout exit1 may wait for publication.
             # never repeat exit255/init/transport failures in this worker.
             # Exit1 is NOT proof of a missing file, collision or rollback.
-            if row["request_sftp_rc"] != 1:
+            if row["request_sftp_rc"] != 1 or row.get("timed_out") is not False:
                 return 1, {**result, "outcome": "request_failed"}
             if prefix is not None:
                 return 75, {**result, "outcome": "request_unavailable"}
