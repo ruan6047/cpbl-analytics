@@ -59,6 +59,7 @@ scripts/schedule-watchdog.sh — 排程缺席／失敗偵測器的 launchd 入�
             通知被擋時的備援是 pytest header 上的那一行）
 
 怎麼呼叫：scripts/schedule-watchdog.sh                # 排程與手動皆走這支
+          Linux：scripts/schedule-watchdog.sh --jobs；注入與狀態見 ops/jobs/README.md
           排程由 launchd 觸發（com.cpbl.schedule-watchdog，每日 21:10 ＋ RunAtLoad）
           想看判定細節但不要通知／不要產物：scripts/schedule_watch.py --api-url none
 
@@ -75,6 +76,11 @@ if [ "$#" -gt 0 ]; then
       exit 0
       ;;
   esac
+fi
+
+if [ "${1:-}" = "--jobs" ]; then
+  shift
+  exec python "$(cd "$(dirname "$0")" && pwd)/jobs.py" schedule-watchdog "$@"
 fi
 
 # 位置參數契約（逐支不同，刻意不與守衛共用）：本檔一個位置參數都不收，且**沒有**

@@ -60,6 +60,7 @@ scripts/postseason-evening.sh — 常設事件觸發晚間鏈（#268／#365；la
   不寫：prod refresh 標記、game_features、模型、migration；非目標場的明細／打席列。
 
 怎麼呼叫（不接受位置參數，設定一律走環境變數）
+  Linux：scripts/postseason-evening.sh --jobs [--stage all|boxpa]；注入與狀態見 ops/jobs/README.md
   launchd：ops/launchd/com.cpbl.postseason-evening.plist（StartInterval 300；常設安裝，重新 bootstrap 需授權）
   手動單次：REFRESH_TRIGGER=manual bash scripts/postseason-evening.sh
   只跑 box／PA 階段（手動單次）：POSTSEASON_EVENING_STAGE=boxpa REFRESH_TRIGGER=manual bash scripts/postseason-evening.sh
@@ -99,6 +100,11 @@ if [ "$#" -gt 0 ]; then
       exit 0
       ;;
   esac
+fi
+
+if [ "${1:-}" = "--jobs" ]; then
+  shift
+  exec python "$(cd "$(dirname "$0")" && pwd)/jobs.py" postseason-evening "$@"
 fi
 
 # 位置參數契約（逐支不同，刻意不與守衛共用）：本腳本一個位置參數都不收。

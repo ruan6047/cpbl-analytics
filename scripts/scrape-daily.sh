@@ -50,6 +50,7 @@ scripts/scrape-daily.sh — 每日本機自動爬取，成功後同步 productio
     成功 ping 或告警；同步日由 refresh-cpbl-prod.sh 的哨兵送，同一次執行只送一個。不影響離開碼
 
 怎麼呼叫
+  scripts/scrape-daily.sh --jobs [--fast]  # Linux 六工作介面；注入與狀態見 ops/jobs/README.md
   scripts/scrape-daily.sh          # 完整增量（games+累計+對戰+分項+逐球…）
   scripts/scrape-daily.sh fast     # 只更新 games+累計，跳過耗時細項
   SYNC_PROD=0 scripts/scrape-daily.sh   # 只爬本機，不同步 production
@@ -100,6 +101,11 @@ if [ "$#" -gt 0 ]; then
       exit 0
       ;;
   esac
+fi
+
+if [ "${1:-}" = "--jobs" ]; then
+  shift
+  exec python "$(cd "$(dirname "$0")" && pwd)/jobs.py" scrape-daily "$@"
 fi
 
 # jobs 契約放在共用 help 守衛之後、Mac 操作之前；不擴張守衛的控制流。

@@ -51,6 +51,7 @@ scripts/weekly-box-revisions.sh — 每週一次的 box 深度重抓（DATA-BOX-
           cpbl schema 的 box 相關表（經 cpbl-refresh-box-deep）
 
 怎麼呼叫：scripts/weekly-box-revisions.sh                    # 本季 A+D，近 30 天
+          Linux：scripts/weekly-box-revisions.sh --jobs [--year Y] [--days-back N]；見 ops/jobs/README.md
           YEAR=2026 DAYS_BACK=14 scripts/weekly-box-revisions.sh
           排程由 launchd 觸發（com.cpbl.weekly-box-revisions，週一 14:10）
           環境變數：YEAR／DAYS_BACK／REFRESH_LOCK_DIR
@@ -64,6 +65,7 @@ EOU
 # DEV-CLI-HELP-GUARD1 那次事故（查核者想看用法，結果對官網開爬並寫入 DB）。
 case "${1:-}" in
   --help|-h) usage; exit 0 ;;
+  --jobs) shift; exec python "$(cd "$(dirname "$0")" && pwd)/jobs.py" weekly-box-revisions "$@" ;;
   "") ;;
   *) echo "未知參數：$1（本檔不吃位置參數，設定走環境變數；--help 看用法）" >&2; exit 64 ;;
 esac

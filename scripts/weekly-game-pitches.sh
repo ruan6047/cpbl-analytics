@@ -52,6 +52,7 @@ scripts/weekly-game-pitches.sh — 每週一次的全季逐球重跑（launchd �
   · 對 stats.cpbl.com.tw 發出整季份量的請求
 
 怎麼呼叫（不接受位置參數，設定一律走環境變數）
+  Linux：scripts/weekly-game-pitches.sh --jobs [--year Y]；注入與狀態見 ops/jobs/README.md
   scripts/weekly-game-pitches.sh              # 全季 A + D，年份取今年
   YEAR=2026 scripts/weekly-game-pitches.sh    # 指定年份
 
@@ -74,6 +75,11 @@ if [ "$#" -gt 0 ]; then
       exit 0
       ;;
   esac
+fi
+
+if [ "${1:-}" = "--jobs" ]; then
+  shift
+  exec python "$(cd "$(dirname "$0")" && pwd)/jobs.py" weekly-game-pitches "$@"
 fi
 
 # 位置參數契約（逐支不同，刻意不與守衛共用）：本腳本一個位置參數都不收，
