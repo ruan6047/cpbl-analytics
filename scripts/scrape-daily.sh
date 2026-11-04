@@ -50,6 +50,7 @@ scripts/scrape-daily.sh — 每日本機自動爬取，成功後同步 productio
     成功 ping 或告警；同步日由 refresh-cpbl-prod.sh 的哨兵送，同一次執行只送一個。不影響離開碼
 
 怎麼呼叫
+  Mac切換後若共用標記存在則exit78；僅核定單次救援用 CPBL_MAC_RESCUE=1，見 ops/jobs/CUTOVER.md。
   scripts/scrape-daily.sh --jobs [--fast]  # Linux 六工作介面；注入與狀態見 ops/jobs/README.md
   scripts/scrape-daily.sh          # 完整增量（games+累計+對戰+分項+逐球…）
   scripts/scrape-daily.sh fast     # 只更新 games+累計，跳過耗時細項
@@ -145,6 +146,12 @@ sys.exit(0 if isinstance(result, dict) and result.get("ok") is True
   esac
   # 各入口獨立程序，避免沿用回放入口已關閉的連線池。
   exec python -m cpbl.features.run_build_features --jobs
+fi
+
+MAC_CUTOVER_MARKER="$HOME/Library/Application Support/cpbl-analytics/mac-jobs-disabled"
+if { [ -e "$MAC_CUTOVER_MARKER" ] || [ -L "$MAC_CUTOVER_MARKER" ]; } && [ "${CPBL_MAC_RESCUE:-}" != "1" ]; then
+  printf '%s\n' 'Mac 工作已切換；僅核定救援時以 CPBL_MAC_RESCUE=1 單次執行。' >&2
+  exit 78
 fi
 
 REPO_DIR="$(cd "$(dirname "$0")/.." && pwd)"

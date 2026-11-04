@@ -51,6 +51,7 @@ scripts/weekly-box-revisions.sh — 每週一次的 box 深度重抓（DATA-BOX-
           cpbl schema 的 box 相關表（經 cpbl-refresh-box-deep）
 
 怎麼呼叫：scripts/weekly-box-revisions.sh                    # 本季 A+D，近 30 天
+          Mac切換後共用標記存在則exit78；核定單次救援用 CPBL_MAC_RESCUE=1，見 ops/jobs/CUTOVER.md。
           Linux：scripts/weekly-box-revisions.sh --jobs [--year Y] [--days-back N]；見 ops/jobs/README.md
           YEAR=2026 DAYS_BACK=14 scripts/weekly-box-revisions.sh
           排程由 launchd 觸發（com.cpbl.weekly-box-revisions，週一 14:10）
@@ -69,6 +70,12 @@ case "${1:-}" in
   "") ;;
   *) echo "未知參數：$1（本檔不吃位置參數，設定走環境變數；--help 看用法）" >&2; exit 64 ;;
 esac
+
+MAC_CUTOVER_MARKER="$HOME/Library/Application Support/cpbl-analytics/mac-jobs-disabled"
+if { [ -e "$MAC_CUTOVER_MARKER" ] || [ -L "$MAC_CUTOVER_MARKER" ]; } && [ "${CPBL_MAC_RESCUE:-}" != "1" ]; then
+  printf '%s\n' 'Mac 工作已切換；僅核定救援時以 CPBL_MAC_RESCUE=1 單次執行。' >&2
+  exit 78
+fi
 
 REPO_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$REPO_DIR"

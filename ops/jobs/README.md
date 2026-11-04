@@ -5,6 +5,8 @@ CPBL Dockerfile 僅加入 jobs.py、refresh_status、schedule_watch、alert_watc
 六個必要檔案到 `/app/jobs`；候選尚未構建／部署，不以現有映像宣稱已包含本介面。
 API 的預設 CMD／healthcheck 保留；WP5 的 S1 supercronic 服務自行配置其前景啟動與 healthcheck。
 
+原驗收5的jobs連線標籤與Mac舊入口防誤觸／明示救援，見 [CUTOVER.md](CUTOVER.md)；真marker及停用仍待WP7切換核發。
+
 | job | 額外 argv | 既有內容／解除的 Mac 依賴 |
 |---|---|---|
 | scrape-daily | 可選 `--fast` | 原日型→recent/衍生→team comparison→features→prod-sync 標記；移除 uv、容器前置與跨機同步 |

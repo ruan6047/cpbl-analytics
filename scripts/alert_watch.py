@@ -457,6 +457,7 @@ def build_parser() -> argparse.ArgumentParser:
                 "依判準送 healthchecks ping 或以 Management API 武裝 evening check。\n"
                 "會寫什麼：logs/alert-watch/state.json（或 --state）；不取 refresh lock、不連 DB、不動容器。\n"
                 "怎麼呼叫：/usr/bin/python3 scripts/alert_watch.py --repo <repo>（launchd 每 300 秒）；"
+                "Mac切換標記存在則exit78；僅核定單次救援用CPBL_MAC_RESCUE=1（ops/jobs/CUTOVER.md）。"
                 "故障注入：CPBL_ALERT_SLUG_OVERRIDE=test 加 --only services --containers <拋棄式容器> --state <暫存檔>"),
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
@@ -470,6 +471,10 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main(argv: list | None = None) -> int:
     args = build_parser().parse_args(argv)
+    marker = Path.home() / "Library/Application Support/cpbl-analytics/mac-jobs-disabled"
+    if (marker.exists() or marker.is_symlink()) and os.environ.get("CPBL_MAC_RESCUE") != "1":
+        print("Mac 工作已切換；僅核定救援時以 CPBL_MAC_RESCUE=1 單次執行。", file=sys.stderr)
+        return 78
     try:
         now = datetime.fromisoformat(args.now) if args.now else datetime.now(TAIPEI)
         if now.tzinfo is None:

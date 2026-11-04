@@ -59,6 +59,7 @@ scripts/schedule-watchdog.sh — 排程缺席／失敗偵測器的 launchd 入�
             通知被擋時的備援是 pytest header 上的那一行）
 
 怎麼呼叫：scripts/schedule-watchdog.sh                # 排程與手動皆走這支
+          Mac切換後共用標記存在則exit78；核定單次救援用 CPBL_MAC_RESCUE=1，見 ops/jobs/CUTOVER.md。
           Linux：scripts/schedule-watchdog.sh --jobs；注入與狀態見 ops/jobs/README.md
           排程由 launchd 觸發（com.cpbl.schedule-watchdog，每日 21:10 ＋ RunAtLoad）
           想看判定細節但不要通知／不要產物：scripts/schedule_watch.py --api-url none
@@ -89,6 +90,12 @@ if [ "$#" -gt 0 ]; then
   printf '未知參數：%s\n' "$1" >&2
   printf '本腳本不接受任何參數；判定細節請直接跑 scripts/schedule_watch.py（見 --help）。\n' >&2
   exit 64
+fi
+
+MAC_CUTOVER_MARKER="$HOME/Library/Application Support/cpbl-analytics/mac-jobs-disabled"
+if { [ -e "$MAC_CUTOVER_MARKER" ] || [ -L "$MAC_CUTOVER_MARKER" ]; } && [ "${CPBL_MAC_RESCUE:-}" != "1" ]; then
+  printf '%s\n' 'Mac 工作已切換；僅核定救援時以 CPBL_MAC_RESCUE=1 單次執行。' >&2
+  exit 78
 fi
 
 REPO_DIR="$(cd "$(dirname "$0")/.." && pwd)"
