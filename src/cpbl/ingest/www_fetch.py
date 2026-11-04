@@ -24,17 +24,36 @@ import time
 from pathlib import Path
 from urllib.parse import parse_qsl, urlsplit
 
-VERSION = "393-wp3-original.1"
+VERSION = "393-wp3-original.2"
 MANIFEST_SCHEMA = "cpbl-www-manifest/1"
 BUNDLE_SCHEMA = "cpbl-www-bundle/1"
 MAX_BODY_BYTES = 8 * 1024 * 1024
 MAX_TOTAL_BYTES = 256 * 1024 * 1024
 MAX_INDEX_BYTES = 1024 * 1024
 TZ = dt.timezone(dt.timedelta(hours=8))
+_INLINE_TOKEN_RE = re.compile(r"RequestVerificationToken:\s*'([^']+)'")
+
+
+class _FunctionToken:
+    """The same fixed 1600-character function slice as cpbl_fighting._token_in."""
+
+    def __init__(self, name):
+        self.marker = name + ": function"
+
+    def search(self, html):
+        start = html.find(self.marker)
+        return None if start < 0 else _INLINE_TOKEN_RE.search(html[start:start + 1600])
+
+
 TOKEN_RES = {
-    "A": re.compile(r"RequestVerificationToken:\s*'([^']+)'"),
+    "A": _INLINE_TOKEN_RE,
     "B": re.compile(r'name="__RequestVerificationToken"[^>]*value="([^"]+)"'),
+    **{name: _FunctionToken(name) for name in (
+        "getSelectOpts", "getFightingScore", "getFighterScore", "getApartScore",
+    )},
 }
+# These existing consumers parse HTML, not JSON. All other POSTs retain JSON validation.
+HTML_POST_APIS = frozenset({"/standings/seasonaction", "/team/teamscoreaction", "/player/trans"})
 SECRET_HEADERS = {"cookie", "set-cookie", "authorization", "proxy-authorization"}
 TOKEN_KEYS = {"requestverificationtoken", "__requestverificationtoken"}
 ID_RE = re.compile(r"[A-Za-z0-9_-]{1,64}")
@@ -353,7 +372,7 @@ def run(
                     status, text = driver.post(page_path, r["api"], form, headers)
                     row["http_status"] = status
                     accepted = status == 200
-                    if accepted:
+                    if accepted and r["api"] not in HTML_POST_APIS:
                         _json(text)
                 row.update(http_status=status, ms=int((clock() - last_start) * 1000))
                 if not accepted:
