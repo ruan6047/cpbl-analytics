@@ -91,6 +91,38 @@ for entry in index["entries"]:
 `verify_bundle`返回安全index；`read_response`每次重驗當筆bytes/hash，減少驗後再讀的變動風險。
 這裡沒有實作WP4回放session／writer；直送由下方獨立入口執行，不因取源成功自動觸發。hash驗完整性，不是發布者身分驗證；受控inbox交接仍依原PLAN。
 
+### 同一入口取新原文後直送
+
+既有 `cpbl_pi_send.py` 新增 `--fetch`，直接呼叫上面的成熟取源入口，成功後才執行原 sender。
+它不下載請求清單、不排程、不輪詢，也不啟動 VPS parser／writer；省略 `--fetch` 的既有直送行為不變。
+以下只是候選呼叫，`manifest.json` 必須是 VPS 產生並受控交付的本輪原始 bytes，不是手填或舊包替代：
+
+```bash
+/existing/venv/bin/python -I -B ops/pi-fetcher/cpbl_pi_send.py /private/manifest.json \
+  --bundle /private/job-out/the-original-manifest-id --fetch --timeout 120
+```
+
+- `--bundle` 的最後一節必須等於原清單 `manifest_id`，父目錄交原取源入口的 `--out`。
+  原取源器的時窗、同 run 拒覆寫、恢復與 worker wait 原樣沿用，不重試外層工作。
+- 取源失敗、逾時或既有 run 拒收時一律不呼叫 sender；即使磁碟上有同名完整舊包，也不 fallback。
+  原清單在取源後改變時，sender 原有 `manifest_sha256` gate 會拒送。
+- 安全結果新增 `fetch_rc`；`child_waited`／`sftp_rc` 仍只指 sender 的原生 SFTP。
+  `--timeout` 仍是 SFTP 工作預算；取源預算與退出餘裕沿 manifest，部署核發須涵蓋兩段總長。
+  bundle 的 `complete=true` 代表原文完成，sender 的 `transfer_complete` 代表 batch 完成，兩者均非 VPS 入庫成功。
+
+### VPS → Pi 請求讀取方向的既有缺口
+
+既有 `cpbl393-sftp-drop/v1-candidate.1` receiver 是上傳接口：`sshd-receiver.conf.in` 的
+allowlist 沒有 `read`／`readdir`，獨立原 manifest 在 chroot 外，亦沒有已核的 `/requests` 讀取路徑。
+不能把 sender 的上傳能力當成 Pi 已能自動取得清單，也不能借 root／備份 reader 身分完成它。
+本候選沒有改 receiver 合約、建立新路徑或暗加讀取權限。
+
+WP4 的請求 producer 與消費端須先固定本輪 manifest 的原 bytes、ID、hash、可讀檔案路徑與
+不和傳輸並行的收件方式，再把必要的讀取方向／權限差異集中納入兩端部署及一次驗證核發。
+沒有另造 `current.json`，也沒有把固定 F2 包或人工 `CPBL_REPLAY_*` 當每日新產物。
+VPS 必須保留獨立原 manifest，只挑同 ID／hash 的完整 bundle，重用 `verify_bundle`／`read_response`；
+最後 `index.json` 的出現不單獨證明 SFTP client 已退出，原可信 sender 的同 run 停寫／不併行消費前提仍需履行。
+
 本機測試只用虛構token／session文字與受控子程序；不是新的官網或Pi證據。
 成熟來源14c的ORIGINAL1兩端成功仍為取源路徑依據；本候選正式原文落檔／受控傳輸與範圍驗證尚待新核發及正式審核。
 

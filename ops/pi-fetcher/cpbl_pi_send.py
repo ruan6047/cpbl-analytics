@@ -1,4 +1,4 @@
-"""Pi → VPS SFTP sender for the fixed #393 receiver candidate; no source fetch or DB.
+"""Pi → VPS SFTP sender; optionally run the existing fetcher first, never a DB writer.
 
 Producer and consumer must not mutate/consume this run during transfer. SFTP rc0
 is transfer completion only. The receiver cannot enforce write-once on its owner.
@@ -136,6 +136,8 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("manifest", type=Path)
     parser.add_argument("--bundle", type=Path, required=True)
+    parser.add_argument("--fetch", action="store_true",
+                        help="Run the unchanged original fetcher once before sending its new bundle")
     parser.add_argument("--identity-file", type=Path, default=IDENTITY_FILE)
     parser.add_argument("--known-hosts", type=Path, default=KNOWN_HOSTS)
     parser.add_argument("--timeout", type=float, required=True,
@@ -149,8 +151,32 @@ def main(argv=None):
         print(json.dumps({"interface": INTERFACE, "outcome": "precheck_failed",
                           "sftp_rc": None, "writer_started": False}))
         return 1
+    if args.fetch:
+        result = {"interface": INTERFACE, "outcome": "precheck_failed", "fetch_rc": None,
+                  "sftp_rc": None, "writer_started": False, "child_waited": False}
+        try:
+            if not math.isfinite(args.timeout) or args.timeout <= 0:
+                raise ValueError("positive_lease_timeout_required")
+            with args.manifest.open("rb") as stream:
+                raw = stream.read(fetch.MAX_INDEX_BYTES + 1)
+            manifest = fetch.parse_manifest(raw)
+            if args.bundle.name != manifest["manifest_id"]:
+                raise ValueError("bundle_must_match_original_manifest_id")
+            # The mature CLI owns its existing window, collision and worker-wait
+            # behaviour. Do not reuse an old bundle after any fetch failure.
+            with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+                result["fetch_rc"] = fetch.main([
+                    str(args.manifest), "--out", str(args.bundle.parent),
+                ])
+        except (OSError, ValueError):
+            pass
+        if result["fetch_rc"] != 0:
+            print(json.dumps(result))
+            return 1
     result = send_bundle(args.manifest, args.bundle, identity_file=args.identity_file,
                          known_hosts=args.known_hosts, timeout=args.timeout)
+    if args.fetch:
+        result["fetch_rc"] = 0
     print(json.dumps(result))
     return 0 if result["outcome"] == "transfer_complete" else 1
 

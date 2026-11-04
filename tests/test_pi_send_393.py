@@ -212,3 +212,81 @@ def test_sender_matches_exact_frozen_receiver_contract():
     assert contract["identity_proposed"]["pi_identity_file"] == str(sender.IDENTITY_FILE)
     assert contract["identity_proposed"]["pi_known_hosts_file"] == str(sender.KNOWN_HOSTS)
     assert contract["storage_proposed"]["sftp_root"] == sender.REMOTE_ROOT
+
+
+def test_fetch_mode_uses_original_fetcher_before_the_single_verified_send(inputs, monkeypatch, capsys):
+    order = []
+
+    def original_fetch(argv):
+        order.append(("fetch", argv))
+        return 0  # The synthetic fixture represents this successful worker output.
+
+    class Child:
+        returncode = 0
+
+        def communicate(self, **kwargs):
+            order.append(("send", kwargs["input"]))
+
+    monkeypatch.setattr(sender.fetch, "main", original_fetch)
+    monkeypatch.setattr(subprocess, "Popen", lambda *a, **k: Child())
+    manifest, bundle, identity, hosts = inputs
+    # Match the manifest ID as the real original worker does.
+    target = bundle.with_name(json.loads(manifest.read_bytes())["manifest_id"])
+    bundle.rename(target)
+    rc = sender.main([str(manifest), "--bundle", str(target), "--fetch", "--timeout", "30",
+                      "--identity-file", str(identity), "--known-hosts", str(hosts)])
+    assert rc == 0
+    assert order[0] == ("fetch", [str(manifest), "--out", str(target.parent)])
+    assert [step[0] for step in order] == ["fetch", "send"]
+    result = json.loads(capsys.readouterr().out)
+    assert result["fetch_rc"] == 0 and result["outcome"] == "transfer_complete"
+    assert result["manifest_sha256"] == hashlib.sha256(manifest.read_bytes()).hexdigest()
+
+
+@pytest.mark.parametrize("fetch_rc", [3, 65, 124])
+def test_fetch_failure_never_sends_or_falls_back_to_old_bundle(inputs, monkeypatch, capsys, fetch_rc):
+    manifest, bundle, identity, hosts = inputs
+    target = bundle.with_name(json.loads(manifest.read_bytes())["manifest_id"])
+    bundle.rename(target)
+    monkeypatch.setattr(sender.fetch, "main", lambda argv: fetch_rc)
+    monkeypatch.setattr(subprocess, "Popen", lambda *a, **k: pytest.fail("no send after failure"))
+    rc = sender.main([str(manifest), "--bundle", str(target), "--fetch", "--timeout", "30",
+                      "--identity-file", str(identity), "--known-hosts", str(hosts)])
+    result = json.loads(capsys.readouterr().out)
+    assert rc == 1 and result["fetch_rc"] == fetch_rc
+    assert result["sftp_rc"] is None and result["outcome"] == "precheck_failed"
+
+
+def test_fetch_mode_refuses_mismatched_destination_before_fetch(inputs, monkeypatch, capsys):
+    monkeypatch.setattr(sender.fetch, "main", lambda argv: pytest.fail("wrong manifest ID"))
+    manifest, bundle, _, _ = inputs
+    assert sender.main([str(manifest), "--bundle", str(bundle), "--fetch", "--timeout", "30"]) == 1
+    assert json.loads(capsys.readouterr().out)["sftp_rc"] is None
+
+
+def test_fetch_mode_retains_original_existing_run_refusal(inputs, monkeypatch, capsys):
+    manifest, bundle, identity, hosts = inputs
+    target = bundle.with_name(json.loads(manifest.read_bytes())["manifest_id"])
+    bundle.rename(target)
+    monkeypatch.setattr(subprocess, "Popen", lambda *a, **k: pytest.fail("no child for existing run"))
+    rc = sender.main([str(manifest), "--bundle", str(target), "--fetch", "--timeout", "30",
+                      "--identity-file", str(identity), "--known-hosts", str(hosts)])
+    result = json.loads(capsys.readouterr().out)
+    assert rc == 1 and result["fetch_rc"] == 65 and result["sftp_rc"] is None
+
+
+def test_changed_manifest_after_fetch_is_rejected_by_existing_bundle_gate(inputs, monkeypatch, capsys):
+    manifest, bundle, identity, hosts = inputs
+    target = bundle.with_name(json.loads(manifest.read_bytes())["manifest_id"])
+    bundle.rename(target)
+
+    def changed_manifest(argv):
+        manifest.write_bytes(manifest.read_bytes() + b"\n")
+        return 0
+
+    monkeypatch.setattr(sender.fetch, "main", changed_manifest)
+    monkeypatch.setattr(subprocess, "Popen", lambda *a, **k: pytest.fail("manifest hash mismatch"))
+    rc = sender.main([str(manifest), "--bundle", str(target), "--fetch", "--timeout", "30",
+                      "--identity-file", str(identity), "--known-hosts", str(hosts)])
+    result = json.loads(capsys.readouterr().out)
+    assert rc == 1 and result["fetch_rc"] == 0 and result["sftp_rc"] is None
