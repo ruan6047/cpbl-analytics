@@ -24,8 +24,9 @@ API 的預設 CMD／healthcheck 保留；WP5 的 S1 supercronic 服務自行配�
 - `REFRESH_TRIGGER`：supercronic 明確設 `jobs`；預設 `manual` 不冒充排程成功。
 - 四 writer 需明確受保護 `DATABASE_URL`、相容 schema/資料與實際排他，CLI 不 migrate。
   `PGAPPNAME` 預設 cpbl-jobs，DSN 不得另覆成不同身份；仍須現場收據確認，不由 env 宣稱單 writer。
-- WWW 只讀既有 `CPBL_REPLAY_MANIFEST`／`CPBL_REPLAY_BUNDLE` 私有唯讀收件包。
-  jobs 模式缺包即失敗，不啟 Chromium 或直打 www；stats 沿既有 client。
+- WWW 的manual模式可明確指定 `CPBL_REPLAY_MANIFEST`／`CPBL_REPLAY_BUNDLE` 私有唯讀包。
+  scheduled模式拒用固定包，沿 [SOURCE.md](SOURCE.md) 的逐批原manifest／相符新包供給候選；
+  請求出口、新讀向與完成metadata語義尚待整體核發，不能宣稱現已可啟用。缺條件失敗，不啟Chromium或直打www；stats沿既有client。
 - 觀測者需 `CPBL_JOBS_API_URL`，alert-watch 另需受保護 `REDIS_URL`／DB 連線；只讀健康，不控制服務。
 - healthchecks 直接從受保護環境讀既有 `CPBL_HC_PING_KEY`、`CPBL_HC_API_KEY`、各 BASE/TIMEOUT 名稱；
   不回頭讀 Mac `.env`。`CPBL_ALERT_SLUG_OVERRIDE` 保留既有 test-check 用途，沒有新增 check。

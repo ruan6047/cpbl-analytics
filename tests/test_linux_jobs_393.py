@@ -116,6 +116,20 @@ def test_jobs_bookends_real_owner_lock_history_and_daily_check(jobs, monkeypatch
     assert json.loads(capsys.readouterr().out)["exit_code"] == 0
 
 
+def test_swallowed_source_failure_still_makes_job_nonzero(jobs, monkeypatch):
+    from cpbl.ingest import _job_source
+
+    module, root = jobs
+
+    def daily(run, args):
+        _job_source._ACTIVE.get().failed = True
+        return 0
+
+    monkeypatch.setattr(module, "_daily", daily)
+    assert module.main(["scrape-daily"]) == 69
+    assert json.loads((root / "jobs/scrape-daily.json").read_text())["state"] == "failed"
+
+
 def test_busy_lock_is_not_stolen_and_interrupt_releases_only_owned_lock(jobs, monkeypatch):
     module, root = jobs
     lock = root / "locks/refresh.lock"; lock.mkdir(parents=True)

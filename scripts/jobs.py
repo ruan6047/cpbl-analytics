@@ -441,6 +441,7 @@ def main(argv=None):
     if args.job in ("schedule-watchdog", "alert-watch") and not os.environ.get("CPBL_JOBS_API_URL"):
         print(json.dumps({"job": args.job, "error": "api_url_required"})); return 64
     code, run = 64, None
+    from cpbl.ingest._job_source import job_source
     try:
         with _environment() as (root, trigger):
             run = Run(args.job, root, trigger, datetime.now(TAIPEI))
@@ -455,7 +456,7 @@ def main(argv=None):
                     for sig in handlers:
                         signal.signal(sig, interrupted)
                     try:
-                        with run.locked():
+                        with run.locked(), job_source(run.job, run.root) as source:
                             try:
                                 run.record("running"); run.daily_ping("start")
                                 if args.job == "scrape-daily":
@@ -468,6 +469,8 @@ def main(argv=None):
                                     code = _watchdog(run, args)
                                 else:
                                     code = _alert(run, args)
+                                if source.failed and code == 0:
+                                    code = 69  # 原葉函式可容錯；供給失敗不可因上層吞錯記成功。
                             finally:
                                 _close_pool(run)
                     except FileExistsError:
