@@ -1,4 +1,4 @@
-# api 映像（根目錄 Dockerfile）只 COPY pyproject.toml／uv.lock／README.md／src／migrations，
+# api 映像（根目錄 Dockerfile）只 COPY pyproject.toml／uv.lock／README.md／src／migrations 與六個 Linux helper，
 # 其餘一律不送進 build context。沒有本檔時 .git、docs（約 25 MB）、web/node_modules 與
 # .venv（本機合計逾 1 GB）都會被打包送給 daemon，build 慢且映像快取容易失效。
 # 採白名單：先排除全部，再放行 Dockerfile 實際 COPY 的路徑。
@@ -8,5 +8,13 @@
 !README.md
 !src/
 !migrations/
+!scripts/
+scripts/*
+!scripts/jobs.py
+!scripts/refresh_status.py
+!scripts/schedule_watch.py
+!scripts/alert_watch.py
+!scripts/alert_ping.py
+!scripts/schedule-registry.json
 **/__pycache__/
 **/*.py[cod]
