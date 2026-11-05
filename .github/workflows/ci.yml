@@ -30,6 +30,20 @@ permissions:
   contents: read
 
 jobs:
+  image-build:
+    # 根目錄 Dockerfile 乾 build：主站部署在 runner 上 build 這個映像，本 repo CI 原本不 build，
+    # 所以 COPY 路徑與 .dockerignore 白名單對不上時（#393 I0-EARLY 首次 Deploy 失敗）要到部署才炸。
+    # 只 build、不 push、不起容器、不碰 DB；不是部署。
+    name: image-build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+      - run: docker build --pull --file Dockerfile --tag cpbl-api-ci:${{ github.sha }} .
+      - run: docker image inspect cpbl-api-ci:${{ github.sha }} --format '{{.Id}}'
+
   secret-scan:
     # 機密不進 git：gitleaks 掃 PR 範圍（pull_request）或 push 範圍的 commit。與姊妹 repo ai-workflow 的
     # secret-scan 同一套，action 與 checkout 的 SHA 沿用該 repo 已釘的值。⛔ 不是 required check 的候選：
