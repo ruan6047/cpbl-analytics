@@ -83,8 +83,14 @@ def _outside_roster(data):
 # #398 審核第 1 輪 F2 修正（同卡；只改「區塊之前」基準、保護不減，待需求方追認）：marker 改為啟動哨兵前寫、
 # 寫入失敗不啟動，--help 說明同步改寫（23828 → 24241 bytes）；區塊之後未變。
 # 舊值：區塊之前 fd979e90…dfd3（23828 bytes，cc3fd2e0；需求方 6543084495 追認）。ROSTER_ONLY 區塊未動。
+# #393（已核 PLAN 驗收5／ops/jobs/CUTOVER.md 的共用標記防誤觸）：固定已審來源377f795c，
+# 對原main d97bc828只有第117行help（114 bytes）及第145–150行guard（314 bytes）兩段新增；
+# 逐段移除這兩段後，整支腳本與d97bc828逐位元組相同，沒有預設業務或ROSTER_ONLY變更。
+# 區塊之前24241→24669 bytes；舊hash a12bc146ddcc1eed26852c620bc4ca67514bc831ca7eb25d260a74664f4682dd。
+# suffix 80410 bytes及#316合併結果的ROSTER_ONLY 3906 bytes均不變。仍雜湊完整prefix，
+# 包含help／guard及所有原業務位元組，不剝除、正規化或略過任何區段；其他模式逐項保護照舊。
 OUTSIDE_ROSTER_SHA256 = (
-    "a12bc146ddcc1eed26852c620bc4ca67514bc831ca7eb25d260a74664f4682dd",   # 區塊之前（24241 bytes）
+    "14ca9e67317da4e448f591e3d6ccb18b346fd0ac38c49d4d5032042a56759ad7",   # 區塊之前（24669 bytes）
     "51ecd63ca96caa79a1bb2a3289c62ccfe511dd28ab4fc44d6bbfe556da6a424b",   # 區塊之後（80410 bytes）
 )
 # #316 的成果（ROSTER_ONLY 區塊本身）以 main 上合併後的版本為準：#293 不得改動它。

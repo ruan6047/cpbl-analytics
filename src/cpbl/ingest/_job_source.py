@@ -8,18 +8,20 @@ import hashlib
 import json
 import math
 import os
+import re
 import stat
 import tempfile
 import time
 import uuid
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from typing import cast
 
 from cpbl.ingest import www_fetch
 from cpbl.ingest._replay import ReplayError, ReplaySession
 
 WWW_JOBS = {"scrape-daily", "postseason-evening", "weekly-box-revisions"}
-_ACTIVE = contextvars.ContextVar("cpbl_job_source", default=None)
+_ACTIVE: contextvars.ContextVar[JobSource | None] = contextvars.ContextVar("cpbl_job_source", default=None)
 _TOKEN_FOR_API = {
     "/team/getfightingoptsaction": "getSelectOpts",
     "/team/getfightingscore": "getFightingScore",
@@ -188,11 +190,12 @@ class SourceSession:
             self.source.failed = True
             raise ReplayError("source_batch_failed") from None
 
-    def page_html(self, page_path, wait="networkidle", force=False, require=None):
+    def page_html(self, page_path, wait="networkidle", force=False,
+                  require: str | re.Pattern[str] | None = None):
         try:
             if self.source.failed:
                 raise ReplayError("source_stopped")
-            pattern = require.pattern if hasattr(require, "pattern") else require
+            pattern = cast(re.Pattern[str], require).pattern if hasattr(require, "pattern") else require
             key = (page_path, wait, pattern)
             if force or page_path not in self.pages or self.pages[page_path][0] != key:
                 page = {"id": "p1", "op": "page", "path": page_path, "wait": wait}
