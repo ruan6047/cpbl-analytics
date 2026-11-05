@@ -32,6 +32,7 @@ from urllib.parse import urlencode, urlsplit
 from zoneinfo import ZoneInfo
 
 if TYPE_CHECKING:
+    from cpbl.ingest._job_source import SourceSession
     from cpbl.ingest._replay import ReplaySession
 
 log = logging.getLogger("cpbl.browser")
@@ -341,7 +342,7 @@ class _Session:
 _session: _Session | None = None
 
 
-def session() -> _Session | ReplaySession:
+def session() -> _Session | ReplaySession | SourceSession:
     """取得（或建立）共用瀏覽器 session。"""
     manifest = os.environ.get("CPBL_REPLAY_MANIFEST")
     bundle = os.environ.get("CPBL_REPLAY_BUNDLE")
