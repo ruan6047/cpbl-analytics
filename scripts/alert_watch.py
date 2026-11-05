@@ -39,6 +39,7 @@ import re
 import subprocess
 import sys
 import tempfile
+import urllib.request
 from collections.abc import Callable
 from datetime import date, datetime, time, timedelta, timezone
 from pathlib import Path
@@ -343,22 +344,73 @@ def _write_state(path: Path, payload: dict) -> None:
     os.replace(temp, path)
 
 
+def _linux_services() -> dict:
+    """同三項服務的 Linux 唯讀健康訊號；不需要 Docker socket/CLI。"""
+    import redis
+
+    from cpbl.db import conn
+
+    statuses = {}
+    try:
+        with conn() as connection:
+            connection.execute("SET TRANSACTION READ ONLY")
+            connection.execute("SET LOCAL statement_timeout = '2s'")
+            ok = connection.execute("SELECT 1").fetchone() == (1,)
+        statuses["postgres"] = "running" if ok else "stopped"
+    except Exception:
+        statuses["postgres"] = "unreachable"
+    try:
+        client = redis.Redis.from_url(os.environ["REDIS_URL"], socket_connect_timeout=2, socket_timeout=2)
+        try:
+            statuses["redis"] = "running" if client.ping() else "stopped"
+        finally:
+            client.close()
+    except Exception:
+        statuses["redis"] = "unreachable"
+    try:
+        request = urllib.request.Request(os.environ["CPBL_JOBS_API_URL"])
+        with urllib.request.urlopen(request, timeout=8) as response:
+            statuses["api"] = "running" if response.status == 200 else "stopped"
+    except Exception:
+        statuses["api"] = "unreachable"
+    return statuses
+
+
+def _linux_continuity() -> list | None:
+    try:
+        return [Path("/proc/sys/kernel/random/boot_id").read_text().strip(),
+                os.readlink("/proc/self/ns/pid")]
+    except OSError:
+        return None
+
+
+def observe_jobs(now: datetime) -> dict:
+    statuses = _linux_services()
+    alert = load_json(Path("logs/schedule-alert.json"))
+    if isinstance(alert, dict) and alert.get("exit_code"):
+        statuses["scheduler"] = "failed"
+    return {"at": now.isoformat(), "awake": True, "capabilities": ["Linux"],
+            "sleeptime": _linux_continuity(), "containers": statuses,
+            "down": any(value != "running" for value in statuses.values()),
+            "reason": ",".join(name for name, value in statuses.items() if value != "running")}
+
+
 def run_once(repo: Path, now: datetime, *, containers: tuple = DEFAULT_CONTAINERS,
              state_path: Path | None = None, only: str | None = None,
              run: Runner = run_command, config: alert_ping.Config | None = None,
-             pinger=alert_ping.ping, armer=alert_ping.arm_schedule) -> list:
+             pinger=alert_ping.ping, armer=alert_ping.arm_schedule, jobs: bool = False) -> list:
     """跑一次觀測與判定，寫狀態檔，回紀錄行。"""
     state_path = state_path or (repo / STATE_PATH)
     if config is None:
         env_file = None if os.environ.get(alert_ping.PROC_ENV_FILE) else repo / ".env"
-        config = alert_ping.load_config(env_file)
+        config = alert_ping.load_config(env_file, use_environment=jobs)
     loaded = load_json(state_path)
     state = loaded if isinstance(loaded, dict) and loaded.get("schema_version") == STATE_SCHEMA else {}
     lines = []
 
     if only in (None, "services"):
         services = dict(state.get("services") or {})
-        obs = observe(now, containers, run)
+        obs = observe_jobs(now) if jobs else observe(now, containers, run)
         action, why = services_decision(services.get("last_obs"), obs,
                                         _parse_at(services.get("last_ok_at")), now)
         if action == "fail":
@@ -405,6 +457,7 @@ def build_parser() -> argparse.ArgumentParser:
                 "依判準送 healthchecks ping 或以 Management API 武裝 evening check。\n"
                 "會寫什麼：logs/alert-watch/state.json（或 --state）；不取 refresh lock、不連 DB、不動容器。\n"
                 "怎麼呼叫：/usr/bin/python3 scripts/alert_watch.py --repo <repo>（launchd 每 300 秒）；"
+                "Mac切換標記存在則exit78；僅核定單次救援用CPBL_MAC_RESCUE=1（ops/jobs/CUTOVER.md）。"
                 "故障注入：CPBL_ALERT_SLUG_OVERRIDE=test 加 --only services --containers <拋棄式容器> --state <暫存檔>"),
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
@@ -418,6 +471,10 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main(argv: list | None = None) -> int:
     args = build_parser().parse_args(argv)
+    marker = Path.home() / "Library/Application Support/cpbl-analytics/mac-jobs-disabled"
+    if (marker.exists() or marker.is_symlink()) and os.environ.get("CPBL_MAC_RESCUE") != "1":
+        print("Mac 工作已切換；僅核定救援時以 CPBL_MAC_RESCUE=1 單次執行。", file=sys.stderr)
+        return 78
     try:
         now = datetime.fromisoformat(args.now) if args.now else datetime.now(TAIPEI)
         if now.tzinfo is None:

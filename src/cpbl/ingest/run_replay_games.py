@@ -59,6 +59,7 @@ def main(argv: list[str] | None = None) -> int:
         if manifest.resolve().is_relative_to(bundle.resolve()):
             raise ValueError("independent_manifest_required")
         from cpbl.ingest import _browser, www_fetch
+        from cpbl.ingest._replay import ReplaySession
 
         result["stage"] = "manifest"
         with manifest.open("rb") as stream:
@@ -79,6 +80,8 @@ def main(argv: list[str] | None = None) -> int:
         os.environ["CPBL_REPLAY_BUNDLE"] = str(bundle)
         result["stage"] = "bundle"
         session = _browser.session()
+        if not isinstance(session, ReplaySession):
+            raise ValueError("replay_session_required")
         if session.index["manifest_sha256"] != result["manifest_sha256"]:
             raise ValueError("manifest_changed")
         with (bundle / "index.json").open("rb") as stream:

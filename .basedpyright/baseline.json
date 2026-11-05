@@ -1992,16 +1992,6 @@
                 }
             }
         ],
-        "./src/cpbl/ingest/run_replay_games.py": [
-            {
-                "code": "reportAttributeAccessIssue",
-                "range": {
-                    "startColumn": 19,
-                    "endColumn": 24,
-                    "lineCount": 1
-                }
-            }
-        ],
         "./src/cpbl/ingest/run_scrape_legends.py": [
             {
                 "code": "reportCallIssue",

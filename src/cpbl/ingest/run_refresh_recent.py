@@ -1193,14 +1193,15 @@ def _games_written(detail_inc: dict, backfill: list[dict], postseason_detail: di
     return total
 
 
-def main() -> None:
-    if "--plan" in sys.argv[1:]:
+def main(argv: list[str] | None = None, *, jobs: bool = False) -> None:
+    argv = sys.argv[1:] if argv is None else argv
+    if "--plan" in argv:
         # #364 (b)：只印日型與步驟清單，不 migrate、不爬、不寫 refresh_log（交給 daily_gate 的唯讀 plan）。
         from cpbl.ingest.daily_gate import main as gate_main
 
-        sys.exit(gate_main(["plan", *[a for a in sys.argv[1:] if a != "--plan"]]))
+        sys.exit(gate_main(["plan", *[a for a in argv if a != "--plan"]]))
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s | %(message)s")
-    skip_detail = len(sys.argv) > 1 and sys.argv[1] == "fast"
+    skip_detail = bool(argv and argv[0] == "fast")
     # #364 日型（PLAN-r5 §3.2、§3.2.3）：⛔ 不依日型直接略過衍生步驟。乙型（light）與甲型只同步
     # （sync_only）的衍生步驟一律依「來源變動訊號」決定；sync_only 另不爬（只做衍生＋交給同步）。
     from cpbl.ingest import daily_gate as gate
@@ -1234,7 +1235,8 @@ def main() -> None:
     year = today.year
     # 設定值打錯要在任何寫入前炸開（#237；預設空＝原 A／D 每日鏈）。
     postseason_kinds = parse_postseason_kinds(settings.refresh_postseason_kinds)
-    migrate()
+    if not jobs:
+        migrate()
 
     # PA build 失敗必須 fail-closed（不得擋住爬取/同步），故結果初始化在 try 外、
     # 呼叫本身包一層獨立 try/except，例外不外拋。

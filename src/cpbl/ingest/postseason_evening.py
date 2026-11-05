@@ -2095,7 +2095,7 @@ def log_local_refresh(state: Mapping, ok: bool, note: str | None) -> None:
         )
 
 
-def publish_signals(state: dict, year: int, now: datetime) -> None:
+def publish_signals(state: dict, year: int, now: datetime, *, direct: bool = False) -> None:
     """D1：把 :func:`signal_rows` 寫成本機 ``cpbl.official_change_signals`` 的現況（只在狀態有變時）。
 
     寫入失敗不改變本次動作的結果（賽程鏈本身比訊號重要），但照實記在狀態檔 ``signals_error``、
@@ -2115,7 +2115,7 @@ def publish_signals(state: dict, year: int, now: datetime) -> None:
     state["signals_dirty"] = False
     state["signals_error"] = None
     if changed:
-        state["signals_unsynced"] = True   # B1：本機表已變，正式站還是舊的（見 signals_sync_due）
+        state["signals_unsynced"] = not direct  # jobs 已直寫同 DB，不再排 Mac→prod 訊號同步。
 
 
 # =========================================================================== 狀態檔 I/O
@@ -2199,7 +2199,7 @@ def _parser():
     return p
 
 
-def main(argv: list[str] | None = None) -> int:
+def main(argv: list[str] | None = None, *, jobs: bool = False) -> int:
     args = _parser().parse_args(sys.argv[1:] if argv is None else argv)
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s | %(message)s")
     now = _now()
@@ -2212,6 +2212,12 @@ def main(argv: list[str] | None = None) -> int:
         return 64
     path = state_path()
     state = load_state(path)
+
+    def publish():
+        if jobs:
+            publish_signals(state, year, now, direct=True)
+        else:
+            publish_signals(state, year, now)
 
     if args.command == "plan" and args.dry:
         at = now
@@ -2292,7 +2298,7 @@ def main(argv: list[str] | None = None) -> int:
                 sw.say(f"plan {action} inflight={','.join(state['starter_watch']['inflight'])} "
                        f"watch_only={','.join(state['starter_watch'].get('watch_only') or []) or '-'}")
             sw.notify_problems(state, now)
-        publish_signals(state, year, now)
+        publish()
         # 本次偵測剛改動本機訊號表、而這次本來只會閒置（www 不能連）→ 同一次喚醒就送出（B1）。
         action, reason = with_signal_sync(state, now, action, reason)
         state["last_run"] = {"at": _iso(now), "action": action, "reason": reason}
@@ -2375,7 +2381,7 @@ def main(argv: list[str] | None = None) -> int:
                         observed_keys=[g.key for g in schedule], chain_kinds=regular)
         state["last_run"] = {"at": _iso(now), "action": "scrape", "outcome": outcome,
                              "errors": result.get("errors") or []}
-        publish_signals(state, year, now)
+        publish()
         save_json(path, state)
         print(outcome)
         return 0
@@ -2449,7 +2455,8 @@ def main(argv: list[str] | None = None) -> int:
         manifest = json.loads(mpath.read_text(encoding="utf-8")) if mpath.exists() else None
         _boxpa_prepare_state(state, now, year)          # 先以送出前的分類決定「這次送了哪些來源」
         parts = [p for p in args.parts.split(",") if p]
-        apply_backup_record(state, now, _backup_record_path())   # #365：同步前的備份（新／沿用）入帳
+        if not jobs:
+            apply_backup_record(state, now, _backup_record_path())  # #365 Mac 同步備份入帳
         outcome = boxpa_record_sync(state, now, keys, args.code, manifest, args.elapsed, parts)
         _boxpa_prepare_state(state, now, year)          # 再以新 manifest 重算分類
         state["boxpa_last"] = {"at": _iso(now), "action": "sync", "games": keys, "code": args.code,
@@ -2459,7 +2466,8 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if args.command == "record-sync":
-        apply_backup_record(state, now, _backup_record_path())   # #365：同步前的備份（新／沿用）入帳
+        if not jobs:
+            apply_backup_record(state, now, _backup_record_path())  # #365 Mac 同步備份入帳
         outcome = record_sync(state, now, args.code)
         if outcome == "synced":
             # #391 當晚切換：同步成功後重算收官，新收官的軍記進 league_closed（同晚後續喚醒即排除其賽別）。
@@ -2472,7 +2480,7 @@ def main(argv: list[str] | None = None) -> int:
         if sw.flag_path().exists():
             sw.notify_problems(state, now)
         state["last_run"] = {"at": _iso(now), "action": "sync", "outcome": outcome, "code": args.code}
-        publish_signals(state, year, now)
+        publish()
         save_json(path, state)
         print(outcome)
         return 0
@@ -2483,7 +2491,8 @@ def main(argv: list[str] | None = None) -> int:
     # #365 審核 F3：結果鏈 idle、只有 box／PA 實際同步時也要把這次的備份使用（新備份／沿用）寫進本機 refresh_log。
     # backup_uses 只由本次喚醒的同步入帳（finish 寫完即清），所以它非空＝這次真的有同步用到備份。
     boxpa_last = state.get("boxpa_last") or {}
-    boxpa_only = not attempted and bool(state.get("backup_uses"))
+    boxpa_only = not attempted and (bool(state.get("backup_uses"))
+                                   or (jobs and boxpa_last.get("action") == "sync"))
     summary = {"finished_at": _iso(now), "last_run": last, "halted": state.get("halted"),
                "www_blocked_at": state.get("www_blocked_at"), "probe_status": state.get("probe_status"),
                "sync_blocked_at": state.get("sync_blocked_at"),

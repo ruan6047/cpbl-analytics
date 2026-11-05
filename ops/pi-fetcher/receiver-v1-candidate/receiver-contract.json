@@ -1,0 +1,86 @@
+{
+  "interface": "cpbl393-sftp-drop/v1-candidate.1",
+  "status": "fixed_local_candidate_not_deployed_not_approved_for_operations",
+  "endpoint": {
+    "host": "45.76.100.29",
+    "port": 22,
+    "host_key_type": "ssh-ed25519",
+    "host_key_sha256": "SHA256:b8E6MnwfRRThcvrHhbLygtHZIGIav2DiI+QMsYwWCgw"
+  },
+  "identity_proposed": {
+    "user": "cpbl393-receiver",
+    "uid": 999,
+    "group": "cpbl393-receiver",
+    "gid": 3993,
+    "numeric_ids_not_live_verified": true,
+    "reason": "Keep existing raw dir0700/file0600 readable by job UID999; do not reuse existing host GID999(systemd-journal).",
+    "pi_identity_file": "/home/ruan/.ssh/cpbl393_receiver_ed25519",
+    "pi_private_mode": "0600",
+    "pi_private_owner": "ruan",
+    "pi_known_hosts_file": "/home/ruan/.ssh/cpbl393_receiver_known_hosts",
+    "receiver_public_key": "not_generated",
+    "receiver_public_fingerprint": "unknown_until_authorized_generation"
+  },
+  "storage_proposed": {
+    "chroot_host": "/srv/cpbl393-receiver",
+    "chroot_owner": "0:0",
+    "chroot_mode": "0755",
+    "writable_host": "/srv/cpbl393-receiver/incoming",
+    "sftp_root": "/incoming",
+    "writable_owner": "999:3993",
+    "directory_mode": "0700",
+    "file_mode": "0600",
+    "umask": "0077",
+    "consumer_bundle_host": "/srv/cpbl393-receiver/incoming/{manifest_id}",
+    "consumer_manifest": "independently controlled outside bundle/chroot; receiver has no write authority"
+  },
+  "format": {
+    "manifest": "cpbl-www-manifest/1",
+    "bundle": "cpbl-www-bundle/1",
+    "run_id": "original manifest_id; [A-Za-z0-9_-]{1,64}",
+    "request_id": "original validated request id; no schema changes"
+  },
+  "sender_contract": {
+    "precheck": "Producer stopped writing; existing verify_bundle(local_bundle, original_manifest_raw, require_complete=True) succeeds; only declared verified responses uploaded.",
+    "first_remote_write": "mkdir /incoming/{manifest_id}; never recursive/error-ignored",
+    "then": [
+      "mkdir /incoming/{manifest_id}/responses",
+      "put only verified index-declared responses/{request_id}.body",
+      "put local index.json to /incoming/{manifest_id}/.index.json.upload",
+      "rename .index.json.upload to index.json"
+    ],
+    "no_resume_retry_delete_or_new_run_to_bypass_collision": true,
+    "server_requests": [
+      "realpath",
+      "stat",
+      "lstat",
+      "fstat",
+      "open",
+      "write",
+      "close",
+      "mkdir",
+      "rename",
+      "posix-rename",
+      "limits"
+    ]
+  },
+  "sender_result": {
+    "exit_0": "Local precheck and entire SFTP batch succeeded; transfer only, not receiver hash validation or DB.",
+    "exit_1": "Any precheck/rejection/transfer/transport failure or unknown completion; no DB continuation.",
+    "native_sftp_rc": "record verbatim; null if unknown; do not invent native error codes",
+    "outcomes": [
+      "transfer_complete",
+      "precheck_failed",
+      "receiver_rejected_if_known",
+      "partial_or_unknown"
+    ],
+    "writer_started": false
+  },
+  "security_boundary": {
+    "server_enforces": "Chroot, permissions, key-only internal SFTP, request allowlist, no shell/forwarding/download/delete/chmod.",
+    "sender_enforces": "Fresh run mkdir claim + batch abort on any error + index published last; same-run no concurrent mutation/consumption.",
+    "server_does_not_enforce": "Authenticated receiver can still rewrite own existing files via allowed open/write/posix-rename; no server-enforced write-once or verification receipt.",
+    "requires_explicit_risk_acceptance_before_deployment": true
+  },
+  "operations_authorized_now": false
+}

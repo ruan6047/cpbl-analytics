@@ -14,7 +14,8 @@
 
 DB：寫入 DATABASE_URL 指向的庫（預設本機共享 cpbl；寫共享庫前須取得資源租用）。只寫
     ``team_comparison_*`` 三表（與 --record-failure 的本機 refresh_log 一列）；⛔ 不 migrate；
-    ⛔ 生產只經 ``refresh-cpbl-prod.sh`` 的 TEAM_COMPARISON_ONLY／完整鏈 insert-only 同步。
+    Mac 路徑的生產交付經 ``refresh-cpbl-prod.sh`` 的 TEAM_COMPARISON_ONLY／完整鏈 insert-only 同步；
+    #393 jobs 路徑沿同一 builder 直寫核定 DB，不自行 migrate 或重寫建置／指標算法。
 
 退出碼：0 成功／無變更 · 2 參數錯 · 3 A 母體覆蓋不全（未切換，舊版標待更新）
         4 指標在建置期間被他人切到別版 · 5 建置失敗（已回滾，舊版標待更新）

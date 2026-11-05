@@ -114,6 +114,7 @@ scripts/refresh-cpbl-prod.sh — 把本機 CPBL 資料同步到 production（四
                72 目標 psql／ssh 失敗
 
 背景：docs/AI_RUNBOOK.md（本機爬 → 同步生產）
+Mac切換後共用標記存在則exit78；僅核定單次救援用 CPBL_MAC_RESCUE=1，見 ops/jobs/CUTOVER.md。
 EOF
 }
 
@@ -141,6 +142,12 @@ LOCAL_DB="${LOCAL_DB:-cpbl-analytics-db-1}"
 VPS="${VPS:-root@45.76.100.29}"
 DEPLOY_PATH="${DEPLOY_PATH:-/opt/personal-website}"
 API_INFO_URL="${API_INFO_URL:-https://cpbl.ruan-ruan.com/api/info}"
+MAC_CUTOVER_MARKER="$HOME/Library/Application Support/cpbl-analytics/mac-jobs-disabled"
+if { [ -e "$MAC_CUTOVER_MARKER" ] || [ -L "$MAC_CUTOVER_MARKER" ]; } && [ "${CPBL_MAC_RESCUE:-}" != "1" ]; then
+  printf '%s\n' 'Mac 工作已切換；僅核定救援時以 CPBL_MAC_RESCUE=1 單次執行。' >&2
+  exit 78
+fi
+
 REPO_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 YEAR="$(date +%Y)"
 PREV="$((YEAR - 1))"

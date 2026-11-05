@@ -12,6 +12,7 @@ from pathlib import Path
 import pytest
 
 from cpbl.ingest import www_fetch as fetch
+from cpbl.ingest._replay import ReplaySession
 
 NOW = dt.datetime(2026, 11, 1, 12, tzinfo=dt.UTC)
 HTML = "<html>中文<script>const c={RequestVerificationToken:'fixture-only-token'};</script></html>"
@@ -95,6 +96,75 @@ def test_private_raw_bundle_preserves_original_text_and_binds_manifest(tmp_path)
     assert "fixture-only-token" not in serialized and "headers" not in serialized
     assert bundle.stat().st_mode & 0o777 == 0o700
     assert all(p.stat().st_mode & 0o777 == 0o600 for p in bundle.rglob("*") if p.is_file())
+
+
+@pytest.mark.parametrize("api", [
+    "/standings/seasonaction", "/team/teamscoreaction", "/player/trans",
+])
+def test_original_html_post_endpoints_preserve_html_in_the_existing_bundle(tmp_path, api):
+    m = manifest()
+    m["requests"][1]["api"] = api
+    text = "<table><tr><td>虛構 HTML POST</td></tr></table>"
+    index, _, bundle = execute(tmp_path, value=m, driver=FixtureDriver(text=text))
+    assert index["complete"] and index["stopped"] is None
+    assert fetch.verify_bundle(bundle, raw(m)) == index
+    assert fetch.read_response(bundle, index["entries"][1]) == text.encode()
+    original = tmp_path / "original-manifest.json"
+    original.write_bytes(raw(m))
+    replay = ReplaySession(original, bundle)
+    assert replay.post("/schedule", api, m["requests"][1]["form"],
+                       {"RequestVerificationToken": "fixture-only-token"}) == (200, text)
+
+
+def test_json_post_keeps_rejecting_html_responses(tmp_path):
+    index, _, _ = execute(tmp_path, driver=FixtureDriver(text="<html>not JSON</html>"))
+    assert not index["complete"]
+    assert index["stopped"]["signal"] == "operation_error:JSONDecodeError"
+
+
+@pytest.mark.parametrize("token_name", [
+    "getSelectOpts", "getFightingScore", "getFighterScore", "getApartScore",
+])
+def test_function_token_uses_original_function_anchor_not_first_inline_token(tmp_path, token_name):
+    m = manifest()
+    m["requests"][1]["headers"] = {"RequestVerificationToken": {"$token": token_name}}
+    text = ("RequestVerificationToken:'wrong-first'; " + token_name
+            + ": function() { RequestVerificationToken:'synthetic-function-token'; }")
+
+    class FunctionDriver(FixtureDriver):
+        def page(self, *args):
+            return 200, text
+
+    driver = FunctionDriver()
+    index, _, bundle = execute(tmp_path, value=m, driver=driver)
+    assert index["complete"]
+    assert driver.calls[0][4] == {"RequestVerificationToken": "synthetic-function-token"}
+    assert fetch.verify_bundle(bundle, raw(m)) == index
+    assert "synthetic-function-token" not in json.dumps(index)
+    original = tmp_path / "original-manifest.json"
+    original.write_bytes(raw(m))
+    replay = ReplaySession(original, bundle)
+    assert replay.post("/schedule", m["requests"][1]["api"], m["requests"][1]["form"],
+                       {"RequestVerificationToken": "synthetic-function-token"}) == (200, BODY)
+
+
+@pytest.mark.parametrize("text", [
+    "RequestVerificationToken:'wrong-first';",
+    "getApartScore: function() {" + " " * 1600 + "RequestVerificationToken:'too-far';}",
+])
+def test_missing_function_token_never_posts_or_uses_first_token(tmp_path, text):
+    m = manifest()
+    m["requests"][0].pop("require")
+    m["requests"][1]["headers"] = {"RequestVerificationToken": {"$token": "getApartScore"}}
+
+    class FunctionDriver(FixtureDriver):
+        def page(self, *args):
+            return 200, text
+
+    driver = FunctionDriver()
+    index, _, _ = execute(tmp_path, value=m, driver=driver)
+    assert not index["complete"] and not driver.calls
+    assert index["stopped"]["signal"] == "operation_error:ValueError"
 
 
 @pytest.mark.parametrize(

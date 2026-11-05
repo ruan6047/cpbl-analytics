@@ -1,0 +1,11 @@
+[Unit]
+Description=Discover daily CPBL source requests on Pi
+
+[Timer]
+OnCalendar=*-*-* 10:10:00 Asia/Taipei
+AccuracySec=1s
+Persistent=false
+Unit=cpbl393-source@scrape-daily.service
+
+[Install]
+WantedBy=timers.target

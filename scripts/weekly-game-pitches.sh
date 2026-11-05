@@ -52,6 +52,8 @@ scripts/weekly-game-pitches.sh — 每週一次的全季逐球重跑（launchd �
   · 對 stats.cpbl.com.tw 發出整季份量的請求
 
 怎麼呼叫（不接受位置參數，設定一律走環境變數）
+  Mac切換後若共用標記存在則exit78；僅核定單次救援用 CPBL_MAC_RESCUE=1，見 ops/jobs/CUTOVER.md。
+  Linux：scripts/weekly-game-pitches.sh --jobs [--year Y]；注入與狀態見 ops/jobs/README.md
   scripts/weekly-game-pitches.sh              # 全季 A + D，年份取今年
   YEAR=2026 scripts/weekly-game-pitches.sh    # 指定年份
 
@@ -76,12 +78,23 @@ if [ "$#" -gt 0 ]; then
   esac
 fi
 
+if [ "${1:-}" = "--jobs" ]; then
+  shift
+  exec python "$(cd "$(dirname "$0")" && pwd)/jobs.py" weekly-game-pitches "$@"
+fi
+
 # 位置參數契約（逐支不同，刻意不與守衛共用）：本腳本一個位置參數都不收，
 # 而補救方式是 `YEAR=` 而不是別的環境變數——這一句必須逐支為真，不可共用。
 if [ "$#" -gt 0 ]; then
   printf '未知參數：%s\n' "$1" >&2
   printf '本腳本不接受位置參數，年份請用 YEAR=；用法請打 --help。\n' >&2
   exit 64
+fi
+
+MAC_CUTOVER_MARKER="$HOME/Library/Application Support/cpbl-analytics/mac-jobs-disabled"
+if { [ -e "$MAC_CUTOVER_MARKER" ] || [ -L "$MAC_CUTOVER_MARKER" ]; } && [ "${CPBL_MAC_RESCUE:-}" != "1" ]; then
+  printf '%s\n' 'Mac 工作已切換；僅核定救援時以 CPBL_MAC_RESCUE=1 單次執行。' >&2
+  exit 78
 fi
 
 REPO_DIR="$(cd "$(dirname "$0")/.." && pwd)"

@@ -1,0 +1,12 @@
+# Candidate only: not installed. Integrate at a valid existing Match location.
+Match User cpbl393-receiver
+    ChrootDirectory /srv/cpbl393-receiver
+    ForceCommand internal-sftp -d /incoming -u 0077 -l ERROR -p realpath,stat,lstat,fstat,open,write,close,mkdir,rename,posix-rename,limits
+    AuthenticationMethods publickey
+    PasswordAuthentication no
+    KbdInteractiveAuthentication no
+    AuthorizedKeysFile /etc/ssh/authorized_keys/cpbl393-receiver
+    DisableForwarding yes
+    PermitTTY no
+    PermitUserRC no
+    PermitTunnel no

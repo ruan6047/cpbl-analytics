@@ -876,7 +876,7 @@ def test_counts_reconcile_across_three_surfaces() -> None:
     research = [e for e in entries if e.surface == "research"]
     cli = [e for e in entries if e.surface == "cli"]
 
-    assert len(scripts) == 52, (
+    assert len(scripts) == 53, (
         "49（基準 33c7c3f）＋ 1（DEV-SCRIPT-INVENTORY1 的 script_inventory.py）"
         "＋ 3（OPS-SCHEDULE-FAILURE-BLIND1／#132：schedule_watch.py、"
         "schedule-watchdog.sh、com.cpbl.schedule-watchdog.plist）"
@@ -891,7 +891,8 @@ def test_counts_reconcile_across_three_surfaces() -> None:
         "− 4（#405 需求方指示：workflow_ledger.py、review_prompt.py、review_gate_inventory.py、"
         "state_plane_migrate.py——CLAUDE.md 已宣告退場的 Ledger／control-plane 工具鏈，連同 "
         "docs/control-plane/events.jsonl 與四支專屬測試一起移除；見 APPROVED_SCRIPT_DELETIONS）"
-        "− 1（#405 需求方指示：roadmap_lines.py——讀已關閉的 Project #4 看板，ROADMAP §3 的對帳指令已標已移除）")
+        "− 1（#405 需求方指示：roadmap_lines.py——讀已關閉的 Project #4 看板，ROADMAP §3 的對帳指令已標已移除）"
+        "＋ 1（#393 WP4：jobs.py，六個既有工作的 Linux 適配入口；不負責排程或新取源工具）")
     assert len(research) == 24, (
         "19（基準）＋ 1（OPS-SCHEDULE-FAILURE-BLIND1／#132："
         "docs/research/OPS-SCHEDULE-FAILURE-BLIND1/measure_notification_delivery.py，"
@@ -914,13 +915,14 @@ def test_counts_reconcile_across_three_surfaces() -> None:
         "入口同樣放在 cpbl.ingest 底下以受 --help 零副作用探針涵蓋）"
         "＋ 2（#357 WP2：cpbl-check-livelog 唯讀檢查、cpbl-replay-livelog-extra 預設 dry-run 的"
         "回補工具；同樣放在 cpbl.ingest 底下受 --help 探針涵蓋）")
-    assert len(scripts) + len(research) + len(cli) == 127, (
+    assert len(scripts) + len(research) + len(cli) == 128, (
         "119＋1（#132 的量測工具）＋1（#100 的重測工具）＋1（#201 的收集工具）"
         "＋1（#268 的 postseason-evening.sh）＋1（#284 的 cpbl-roster CLI）"
         "＋1（#287 的 cpbl-build-team-comparison CLI）＋1（#353 的 prod_availability.py）"
         "＋2（#357 的兩支 CLI）＋1（#358 的 alert_ping.py）＋1（#358 的 alert_watch.py）"
         "＋1（#383 的 replace_derived_tables.py）＋1（#400 的 r1_measure.py）"
-        "−5（#405 移除的舊制工具鏈四支＋roadmap_lines.py，見 APPROVED_SCRIPT_DELETIONS）")
+        "−5（#405 移除的舊制工具鏈四支＋roadmap_lines.py，見 APPROVED_SCRIPT_DELETIONS）"
+        "＋1（#393 WP4 的既有六工作 Linux jobs.py 適配入口）")
 
 
 def test_invariant_proof_enumerates_every_entry(capsys: pytest.CaptureFixture) -> None:

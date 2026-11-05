@@ -1,0 +1,11 @@
+[Unit]
+Description=Discover weekly CPBL box revision requests on Pi
+
+[Timer]
+OnCalendar=Mon *-*-* 14:10:00 Asia/Taipei
+AccuracySec=1s
+Persistent=false
+Unit=cpbl393-source@weekly-box-revisions.service
+
+[Install]
+WantedBy=timers.target

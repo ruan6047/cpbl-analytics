@@ -147,11 +147,11 @@ def parse_env_file(path: Path) -> dict:
 
 
 def load_config(env_file: Path | None = None,
-                environ: Mapping[str, str] | None = None) -> Config:
+                environ: Mapping[str, str] | None = None, *, use_environment: bool = False) -> Config:
     environ = os.environ if environ is None else environ
     if env_file is None:
         env_file = Path(environ.get(PROC_ENV_FILE) or ".env")
-    values = parse_env_file(Path(env_file))
+    values = environ if use_environment else parse_env_file(Path(env_file))
     try:
         timeout = float(values.get(ENV_TIMEOUT) or DEFAULT_TIMEOUT_SECONDS)
         if timeout <= 0:
@@ -165,7 +165,7 @@ def load_config(env_file: Path | None = None,
         api_base=(values.get(ENV_API_BASE) or DEFAULT_API_BASE).rstrip("/"),
         timeout=timeout,
         slug_override=(environ.get(PROC_SLUG_OVERRIDE) or "").strip(),
-        source=str(env_file),
+        source="<protected-jobs-environment>" if use_environment else str(env_file),
     )
 
 

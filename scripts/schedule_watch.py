@@ -359,13 +359,13 @@ def evaluate_interval_job(job: dict, repo: Path) -> dict:
 
 
 def evaluate_job(job: dict, now: datetime, repo: Path, lookback: int,
-                 anchor: date | None = None) -> dict:
+                 anchor: date | None = None, *, trigger: str = "launchd") -> dict:
     if job["cadence"].get("kind") == "interval":
         return evaluate_interval_job(job, repo)
     cadence = job["cadence"]
     history_file = repo / job["history_path"]
     records, corrupt = load_history(history_file)
-    by_cycle = index_by_cycle(cadence, records, now=now)
+    by_cycle = index_by_cycle(cadence, records, trigger=trigger, now=now)
 
     result: dict[str, Any] = {
         "label": job["label"],
@@ -501,7 +501,7 @@ def plist_cadence(plist_path: Path) -> dict | None:
 
 
 def check_registry(registry: dict, repo: Path, today: date, installed_probe=None,
-                   listing_probe=None) -> list[dict]:
+                   listing_probe=None, *, jobs_mode: bool = False) -> list[dict]:
     """Fail closed 一律歸「對登記表告警」，與 job 告警分開，且優先序最高。"""
     installed_probe = installed_probe or launchctl_installed
     listing_probe = listing_probe or launchctl_cpbl_labels
@@ -520,7 +520,19 @@ def check_registry(registry: dict, repo: Path, today: date, installed_probe=None
                              "detail": f"{label} 缺必填欄位：{', '.join(missing)}"})
             continue
         plist_path = repo / job["plist"]
-        if not plist_path.exists():
+        if jobs_mode:
+            try:
+                cadence = job["cadence"]
+                if cadence["kind"] == "interval":
+                    if type(cadence["seconds"]) is not int or cadence["seconds"] <= 0:
+                        raise ValueError("interval")
+                elif cadence["kind"] in ("daily", "weekly"):
+                    previous_fire(cadence, datetime.combine(today, datetime.min.time()).replace(tzinfo=TAIPEI))
+                else:
+                    raise ValueError("cadence")
+            except (KeyError, ValueError, TypeError):
+                findings.append({"verdict": "REGISTRY_INVALID", "detail": f"{label} cadence 無效"})
+        elif not plist_path.exists():
             findings.append({"verdict": "REGISTRY_INVALID",
                              "detail": f"{label} 指向的 plist 不存在：{job['plist']}"})
         else:
@@ -538,6 +550,8 @@ def check_registry(registry: dict, repo: Path, today: date, installed_probe=None
             findings.append({"verdict": "REGISTRY_INVALID",
                              "detail": f"{label} 的 history_from={history_from} 在未來——"
                                        "歷史寫入器不可能從未來開始，八成是打錯或忘了更新"})
+        if jobs_mode:
+            continue  # Linux 看 jobs history；不把 Mac 安裝狀態當 scheduler 狀態。
         is_installed = installed_probe(label)
         if job["expected_installed"] and not is_installed:
             findings.append({"verdict": "JOB_NOT_INSTALLED", "label": label,
@@ -547,6 +561,8 @@ def check_registry(registry: dict, repo: Path, today: date, installed_probe=None
                              "detail": f"{label} 宣告不應安裝卻已安裝——"
                                        "先確認是刻意 cutover 還是誤裝，再更新登記表"})
 
+    if jobs_mode:
+        return findings
     for plist_path in sorted((repo / "scripts").glob("com.cpbl.*.plist")):
         label = plist_path.name[: -len(".plist")]
         if label not in declared:
@@ -1157,6 +1173,54 @@ def evaluate(registry: dict, repo: Path, now: datetime, api_url: str, api_timeou
     else:
         report["verdict"] = "OK"
         report["exit_code"] = EXIT_OK
+    report["message"] = build_message(report)
+    return report
+
+
+def evaluate_jobs(registry: dict, repo: Path, now: datetime, api_url: str) -> dict:
+    """Linux 適配：同一 cadence/週期演算法，讀真 jobs 觸發歷史；不呼叫 Mac 探測。"""
+    names = ("scrape-daily", "postseason-evening", "weekly-box-revisions", "weekly-game-pitches",
+             "schedule-watchdog", "alert-watch")
+    labels = {"com.cpbl." + name for name in names}
+    selected = [dict(job) for job in registry.get("jobs", []) if job.get("label") in labels]
+    local_registry = {**registry, "jobs": selected}
+    findings = check_registry(local_registry, repo, now.date(), jobs_mode=True)
+    if {job["label"] for job in selected} != labels:
+        findings.append({"verdict": "REGISTRY_INVALID", "detail": "Linux 六工作登記不完整"})
+    findings += check_alert_segments(local_registry)
+    import alert_ping
+    missing = alert_ping.missing_settings(alert_ping.load_config(use_environment=True), need_api=True)
+    if missing:
+        findings.append({"verdict": "ALERT_NOT_CONFIGURED", "detail": ",".join(missing)})
+    report = {"now": now.isoformat(), "platform": "jobs", "registry_findings": findings,
+              "global_findings": [], "jobs": [], "production": {}, "registry_blocked": False}
+    if not any(f["verdict"].startswith("REGISTRY_") for f in findings):
+        anchor = deployment_anchor(repo, now)
+        for job in selected:
+            name = job["label"].removeprefix("com.cpbl.")
+            job["status_path"] = f"logs/jobs/{name}.json"
+            result = evaluate_job(job, now, repo, DEFAULT_LOOKBACK_CYCLES, anchor, trigger="jobs")
+            # interval 仍不推算不存在的週期；但具名 Linux 執行失敗不能被吞成健康。
+            if job["cadence"]["kind"] == "interval":
+                try:
+                    state = json.loads((repo / job["status_path"]).read_text())
+                except (OSError, ValueError):
+                    state = {}
+                if state.get("state") == "failed" and not result["findings"]:
+                    result["findings"].append({"verdict": "FAILED", "detail": job["label"],
+                                               "exit_code": state.get("exit_code")})
+            report["jobs"].append(result)
+        report["production"] = production = probe_production(api_url, 8.0)
+        verdict = {"unreachable": "B_UNREACHABLE", "unavailable": "B_UNAVAILABLE",
+                   "stalled": "B_STALLED"}.get(production.get("state"))
+        if verdict:
+            report["global_findings"].append({"verdict": verdict, "detail": production.get("error", "")})
+    else:
+        report["registry_blocked"] = True
+    verdicts = [f["verdict"] for f in findings + report["global_findings"]]
+    verdicts += [f["verdict"] for job in report["jobs"] for f in job["findings"]]
+    report["verdict"] = max(verdicts, key=lambda v: SEVERITY.get(v, 0)) if verdicts else "OK"
+    report["exit_code"] = EXIT_BY_VERDICT.get(report["verdict"], EXIT_REGISTRY) if verdicts else EXIT_OK
     report["message"] = build_message(report)
     return report
 

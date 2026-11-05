@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import re
 import time
 from datetime import date, datetime
@@ -193,6 +194,32 @@ def lineup_acnts(
     pitchers: set[str] = set()
     if not snos:
         return batters, pitchers
+
+    def collect(payload):
+        for b in json.loads(payload.get("BattingJson") or "[]"):
+            if b.get("HitterAcnt"):
+                batters.add(b["HitterAcnt"])
+        for p in json.loads(payload.get("PitchingJson") or "[]"):
+            if p.get("PitcherAcnt"):
+                pitchers.add(p["PitcherAcnt"])
+
+    if os.environ.get("CPBL_JOBS_MODE") == "1":
+        from cpbl.ingest._browser import session
+        replay = session()  # jobs 缺已驗包即失敗，不建立原 httpx www client。
+        path = f"/box?year={year}&KindCode={kind_code}&gameSno=1"
+        hidden = re.compile(r'name="__RequestVerificationToken"[^>]*value="([^"]+)"')
+        html = replay.page_html(path, require=hidden)
+        match = hidden.search(html) or _TOKEN_RE.search(html)
+        if not match:
+            raise RuntimeError("box 頁找不到 RequestVerificationToken")
+        for sno in snos:
+            status, text = replay.post(path, "/box/getlive",
+                                       {"GameSno": str(sno), "KindCode": kind_code, "Year": str(year)},
+                                       headers={"RequestVerificationToken": match.group(1)})
+            if status != 200:
+                raise RuntimeError("回放 getlive 未成功")
+            collect(json.loads(text))
+        return batters, pitchers
     client = httpx.Client(
         timeout=30.0, follow_redirects=True,
         headers={"User-Agent": UA, "X-Requested-With": "XMLHttpRequest"},
@@ -223,12 +250,7 @@ def lineup_acnts(
             except httpx.HTTPError as e:
                 log.warning("getlive 失敗 sno=%s: %s", sno, e)
                 continue
-            for b in json.loads(payload.get("BattingJson") or "[]"):
-                if b.get("HitterAcnt"):
-                    batters.add(b["HitterAcnt"])
-            for p in json.loads(payload.get("PitchingJson") or "[]"):
-                if p.get("PitcherAcnt"):
-                    pitchers.add(p["PitcherAcnt"])
+            collect(payload)
     finally:
         client.close()
     return batters, pitchers

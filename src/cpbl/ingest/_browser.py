@@ -32,6 +32,7 @@ from urllib.parse import urlencode, urlsplit
 from zoneinfo import ZoneInfo
 
 if TYPE_CHECKING:
+    from cpbl.ingest._job_source import SourceSession
     from cpbl.ingest._replay import ReplaySession
 
 log = logging.getLogger("cpbl.browser")
@@ -341,15 +342,21 @@ class _Session:
 _session: _Session | None = None
 
 
-def session() -> _Session | ReplaySession:
+def session() -> _Session | ReplaySession | SourceSession:
     """取得（或建立）共用瀏覽器 session。"""
     manifest = os.environ.get("CPBL_REPLAY_MANIFEST")
     bundle = os.environ.get("CPBL_REPLAY_BUNDLE")
     if manifest is not None or bundle is not None:
         from cpbl.ingest._replay import ReplayError, replay_session
+        if os.environ.get("CPBL_JOBS_MODE") == "1" and os.environ.get("REFRESH_TRIGGER") == "jobs":
+            from cpbl.ingest._job_source import reject_fixed_replay
+            reject_fixed_replay()
         if not manifest or not bundle:
             raise ReplayError("回放需同時指定 CPBL_REPLAY_MANIFEST 與 CPBL_REPLAY_BUNDLE")
         return replay_session(manifest, bundle)
+    if os.environ.get("CPBL_JOBS_MODE") == "1":
+        from cpbl.ingest._job_source import active_session
+        return active_session()
     global _session
     if _session is None:
         log.info("啟動 Playwright 瀏覽器以過官網反爬挑戰…")
