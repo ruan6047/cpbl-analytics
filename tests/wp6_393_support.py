@@ -489,6 +489,12 @@ def real_prediction(plan, patches, output):
 
 def test_check_event(plan, event):
     """原三個SaaS事件，用既有helper與HTTP工具；只在單獨核發node執行。"""
+    require(os.environ.get("CPBL_WP6_HC_EXECUTE") == "1", "wp6_hc_not_granted")
+    require(event in ("failed", "interrupted", "silent"), "wp6_original_hc_scope")
+    root = Path(plan["private_root"]) / "results"; root.mkdir(exist_ok=True)
+    snapshot = root / ("hc-" + event + "-original.private.json")
+    require(not os.path.lexists(snapshot), "wp6_hc_original_snapshot_exists")
+    (root / ("hc-" + event + "-mutation.invoked")).open("x").close()
     import urllib.parse
     import urllib.request
     sys.path.insert(0, str(Path.cwd()))
@@ -499,8 +505,6 @@ def test_check_event(plan, event):
             raise
         alert_ping = importlib.import_module("jobs.alert_ping")
 
-    require(os.environ.get("CPBL_WP6_HC_EXECUTE") == "1", "wp6_hc_not_granted")
-    require(event in ("failed", "interrupted", "silent"), "wp6_original_hc_scope")
     spec = plan["healthchecks"]; config = alert_ping.load_config(use_environment=True)
     require(config.slug_override == "test" and config.api_ready and config.ping_ready, "wp6_test_only_config")
     require(all(urllib.parse.urlsplit(url).hostname in spec["allowed_hosts"]
@@ -522,10 +526,8 @@ def test_check_event(plan, event):
             and spec["poll_seconds"] > 0 and spec["notification_seconds"] > 0, "wp6_hc_explicit_budget")
     require(urllib.parse.urlsplit(before["update_url"]).hostname in spec["allowed_hosts"], "wp6_hc_restore_destination")
     rid = alert_ping.run_id(plan["lease_id"] + ":" + event)
-    root = Path(plan["private_root"]) / "results"; root.mkdir(exist_ok=True)
-    snapshot = root / ("hc-" + event + "-original.private.json")
-    snapshot.write_bytes(json_bytes(restore))
-    (root / ("hc-" + event + "-mutation.invoked")).open("x").close()
+    with snapshot.open("xb") as stream:
+        stream.write(json_bytes(restore))
     down = False; restored = False
     try:
         armed = alert_ping.arm_schedule(config, "test", cron=spec["schedule"], tz=spec["tz"],

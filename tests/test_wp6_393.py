@@ -6,6 +6,7 @@ import os
 import subprocess
 import time
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 from wp6_393_support import (
@@ -68,6 +69,74 @@ def test_pregrant_streamed_hash_attribution_is_not_a_fake_runtime_pass():
     assert job_argv_ok(["scrape-daily"])
     assert not job_argv_ok(["scrape-daily", "--date", "2026-08-01"])
     assert not job_argv_ok(["scrape-daily", "--help"])
+
+
+def test_pregrant_creator_selection_binds_both_completion_cutoffs():
+    from datetime import date
+
+    document = Path(__file__).resolve().parents[1] / "ops/jobs/WP6-OPERATIONS.md"
+    snippet = document.read_text().split("```python\n", 1)[1].split("\n```", 1)[0]
+    cutoff = date(2026, 11, 5)
+    class ConnectionBoundary:
+        def execute(self, query, parameters):
+            text = query.as_string()
+            assert text.count("%s") == len(parameters)
+            assert parameters == (2026, ["A", "D", "E", "C"], cutoff, cutoff)
+            assert "PARTITION BY g.kind_code" in text and "WHERE rn=1" in text
+            return SimpleNamespace(fetchall=lambda: [])
+    namespace = {"connection": ConnectionBoundary(), "cutoff": cutoff}
+    exec(compile(snippet, str(document), "exec"), namespace)
+    assert namespace["rows"] == []
+
+
+def test_pregrant_hc_event_reentry_preserves_snapshot_and_never_calls_api(tmp_path, monkeypatch):
+    import sys
+
+    monkeypatch.setenv("CPBL_WP6_HC_EXECUTE", "1")
+    original = {"schedule": "0 10 * * *", "tz": "Asia/Taipei", "grace": 60, "timeout": 3600}
+    calls = []; reads = []
+    def request(config, request, **kwargs):
+        calls.append(request.get_method())
+        if request.get_method() == "POST":
+            return True, 200, "", b"{}"
+        reads.append(True)
+        check = {**original, "uuid": "synthetic-check", "slug": "test",
+                 "update_url": "https://hc.invalid/update/synthetic-check",
+                 "status": "down" if len(reads) == 2 else "up"}
+        return True, 200, "", json_bytes({"checks": [check]})
+    config = SimpleNamespace(slug_override="test", api_ready=True, ping_ready=True,
+                             api_key="synthetic-only", api_base="https://hc.invalid/api",
+                             ping_base="https://hc.invalid/ping")
+    helper = SimpleNamespace(load_config=lambda **kw: calls.append("config") or config, USER_AGENT="synthetic",
+        _request=request, run_id=lambda seed: "synthetic-rid",
+        arm_schedule=lambda *a, **kw: SimpleNamespace(ok=True),
+        ping=lambda *a, **kw: SimpleNamespace(ok=True))
+    monkeypatch.setitem(sys.modules, "scripts.alert_ping", helper)
+    notification = tmp_path / "notification.txt"; notification.write_bytes(b"synthetic notification")
+    binding = tmp_path / "notification-binding.json"
+    binding.write_bytes(json_bytes({"lease_id": "synthetic-lease", "event": "failed",
+        "rid": "synthetic-rid", "check_uuid": "synthetic-check", "delivered": True,
+        "artifact": {"path": str(notification), "bytes": notification.stat().st_size,
+                     "sha256": digest(notification.read_bytes())}}))
+    plan = {"private_root": str(tmp_path), "lease_id": "synthetic-lease",
+        "limits": {"private_bytes": 1024}, "healthchecks": {"allowed_hosts": ["hc.invalid"],
+        "check_uuid": "synthetic-check", "schedule": "* * * * *", "tz": "Asia/Taipei",
+        "grace": 60, "max_polls": 1, "poll_seconds": 1, "notification_seconds": 1,
+        "notification_bindings": {"failed": str(binding)}}}
+    assert hc_event(plan, "failed")["restored"] is True
+    snapshot = tmp_path / "results/hc-failed-original.private.json"
+    before = snapshot.read_bytes(); before_hash = digest(before); before_calls = len(calls)
+    original["grace"] = 999  # 重入若先查API／覆寫snapshot，會破壞第一次原態。
+    with pytest.raises((FileExistsError, AssertionError)):
+        hc_event(plan, "failed")
+    assert snapshot.read_bytes() == before and digest(snapshot.read_bytes()) == before_hash
+    assert len(calls) == before_calls
+    marker_only = tmp_path / "marker-only/results"; marker_only.mkdir(parents=True)
+    (marker_only / "hc-failed-mutation.invoked").touch()
+    with pytest.raises((FileExistsError, AssertionError)):
+        hc_event({**plan, "private_root": str(marker_only.parent)}, "failed")
+    assert not (marker_only / "hc-failed-original.private.json").exists()
+    assert len(calls) == before_calls
 
 
 @pytest.mark.parametrize("job", JOBS)

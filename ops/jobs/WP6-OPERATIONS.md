@@ -37,7 +37,7 @@ python /app/jobs/jobs.py alert-watch
 PYTHONPATH=src:. /Users/ruanruan/Dev/cpbl-analytics/.venv/bin/python -m pytest --noconftest -q tests/test_wp6_393.py
 ```
 
-無 `CPBL_WP6_EXECUTE=1` 時：兩項 pregrant 合成檢查，24 項 runtime 預設 skip；skip 不是 runtime 驗收。不得使用全 repo pytest 或 `-n`。
+無 `CPBL_WP6_EXECUTE=1` 時：四項 pregrant 合成檢查（原兩項＋本審核兩項缺陷回歸），24 項 runtime 預設 skip；skip 不是 runtime 驗收。不得使用全 repo pytest 或 `-n`。窄修自查只選受影響節點，不重跑未受影響項目。
 
 核發後，由 VPS 已存在的隔離測試環境執行原 pytest；不在 production image 安裝 pytest，也不建立新的測試平台。整合租用固定該 Python 絕對路徑、既有依賴、產品 image ID／來源、測試 commit、UID 與工作目錄。每個節點單獨一份已封輸入及新 target DB，全部仍屬同一整合租用；不可在上一節點寫後動態換基準。命令範本中的大寫位置均須在核發附件替成一個精確值，不能照字面執行：
 
@@ -139,7 +139,7 @@ WITH chosen AS (
 )
 SELECT year,kind_code,game_sno,game_date FROM chosen WHERE rn=1 ORDER BY kind_code
 """).format(completed=sql.SQL(daily_chain_completed_games_sql("g", "%s::date")))
-rows = connection.execute(query, (2026, ["A", "D", "E", "C"], cutoff)).fetchall()
+rows = connection.execute(query, (2026, ["A", "D", "E", "C"], cutoff, cutoff)).fetchall()
 ```
 
 產物僅四場身分、日期、所採 cutoff／查詢來源 hash 與完成證據 hash；真清單留私有檔，對外只 count/bytes/hash。缺一 kind 即停相關 consumer，不改查詢、假造資料或默認縮驗收。各 case 的 sample_keys 取此固定四場在其既有業務能力內的交集：週跑僅 A/D；daily/evening 的年度賽程仍原邏輯，observer 只核這批來源更新後的同 PG／history。全年度 season/derived/features 仍會讀寫其原範圍，明列資源成本，不冒僅四列 DB 寫入。
@@ -213,7 +213,7 @@ scheduler-stopped 的 case argv 必 schedule-watchdog、expected_exit 非零、w
  "artifact":{"path":"授權私有通知證據","bytes":0,"sha256":"真hash"}}
 ```
 
-`notification_bindings` 對 failed/interrupted/silent 各綁一個私有絕對路徑；初始可未生成，通知等待有界，由當次真送達事件填，不能放舊通知。helper 還原後等候通知證據至 notification_seconds；缺失只算該事件未通過。原四欄快照與 mutation.invoked 先落盤；任何恢復失敗都保留交原 PM，不以第二次完整事件重試修飾。真 Mac alert-watch bootout 與 VPS自然排程證據仍由 WP5/WP7 於同 grant 承接，本 helper 不冒已完成。
+`notification_bindings` 對 failed/interrupted/silent 各綁一個私有絕對路徑；初始可未生成，通知等待有界，由當次真送達事件填，不能放舊通知。helper 還原後等候通知證據至 notification_seconds；缺失只算該事件未通過。任何 API／設定讀取前先獨占 mutation.invoked，若原快照已存在亦立即拒絕；取得原態後快照以獨占建立落盤，不可覆寫。第一次失敗也保留 once 與已有原件，不清 once 重試；任何恢復失敗都保留交原 PM，不以第二次完整事件重試修飾。真 Mac alert-watch bootout 與 VPS自然排程證據仍由 WP5/WP7 於同 grant 承接，本 helper 不冒已完成。
 
 ## 6. 一次整合租用必封的上限、回復及交付
 
