@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 
 from cpbl import db
-from cpbl.ingest import _browser, _replay, cpbl_site, run_replay_games
+from cpbl.ingest import _browser, _job_source, _replay, cpbl_site, run_replay_games
 
 FIXTURE = Path(__file__).parent / "fixtures" / "replay_393"
 ROW = {"Year": 2026, "KindCode": "A", "GameSeasonCode": "1", "GameSno": 7,
@@ -63,6 +63,28 @@ def test_job_delegates_one_declared_scope_to_original_writer(job, capsys):
     assert (out["year"], out["kind"], out["input_count"], out["written_count"]) == (2026, "A", 1, 1)
     assert out["index_sha256"] == hashlib.sha256((root / "bundle/index.json").read_bytes()).hexdigest()
     assert "rows" not in out and "token" not in json.dumps(out).lower()
+
+
+def test_job_rejects_source_session_before_index_parser_or_db_and_closes_it(job, capsys, monkeypatch):
+    _, args, calls = job
+    index_reads, parsed, closed = [], [], []
+
+    class IndexProbe:
+        def __getitem__(self, key):
+            index_reads.append(key)
+            raise AssertionError("non-replay index must not be read")
+
+    # 真正的錯誤session類型，但不跑其取源/檔案前置；它絕不能通過replay守衛。
+    wrong = object.__new__(_job_source.SourceSession)
+    wrong.index = IndexProbe()
+    monkeypatch.setattr(wrong, "close", lambda: closed.append(True))
+    monkeypatch.setattr(_browser, "session", lambda: wrong)
+    monkeypatch.setattr(cpbl_site, "fetch_year", lambda *a: parsed.append(True))
+
+    assert run_replay_games.main(args) == 1
+    assert json.loads(capsys.readouterr().out)["stage"] == "bundle"
+    assert not index_reads and not parsed and not calls
+    assert closed == [True] and db._pool is None
 
 
 @pytest.mark.parametrize("change", ["year", "kind", "extra_kind"])
