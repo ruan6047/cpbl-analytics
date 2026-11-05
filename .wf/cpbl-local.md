@@ -12,6 +12,7 @@
 ## 任務框架
 
 - CPBL 新任務採用 ai-workflow vNext 已安裝 `wfx` 套件隨附的規則（套件內 `wfx/rules/`）；`wfx` 只提供 `brief`／`facts`／`write`，開卡／關卡由 PM 以 `gh` 執行。`.wf/` 是本專案補充層，只補 CPBL 專有邊界，不取代框架核心規則。
+- 共同主 PM 由能直接與各卡 PM 通訊的對話擔任（同一對話兼任或同一工具互送；`wfx/rules/PM-coordination.md` §1）；#393 期間由需求方在兩個對話間手動轉貼核發與釋放，不再沿用。
 - 新卡一律開在 GitHub Issues＋user Project #10「cpbl-analytics vNext 任務看板」（`.wf/config.json`）。
 - Project #4 已於 ai-workflow#417 結案時關閉；未結案舊卡依 #417 Q6 改照 vNext 繼續（各卡已留通知）。舊流程（T 級、舊狀態值、claim／lease、Ledger、`wfcli`）⛔ 不帶入任何卡；`docs/AI_WORKFLOW.md`、`docs/CONTROL_PLANE_CONTRACT.md`、`docs/TASKS.md` 只作歷史查閱，⛔ 不當活卡狀態讀寫。
 
@@ -69,4 +70,4 @@
 - **測試連線目標**：獨立 worktree 不代表 DB 隔離；未設 `DATABASE_URL` 且沒有 `.env` 時，pytest 可能以預設值連上共享 cpbl，DB 可達時整合測試可能寫入。執行前核對有效連線目標與各整合測試專用環境變數；需 DB 的測試使用已核定的隔離庫／租用，無 DB 授權的測試明設不可達的 `DATABASE_URL`，並如實列出略過項，不稱 DB 整合已驗證。沿用 `docs/DATABASE_CONTRACT.md` §2。來源：[#358 未租用測試](https://github.com/ruan6047/cpbl-analytics/issues/358#issuecomment-6462486937)、[#353 同型事件](https://github.com/ruan6047/cpbl-analytics/issues/353#issuecomment-6464593800)；核對 2026-10-28。
 - **部署與 schema 先後**：新增 API 對資料表／欄位的依賴時，交付須對照實際部署鏈，讓已驗證備份及已授權 migration 先於新程式的相關讀取；不可假設 API 啟動會自動 migrate，亦不可只以 `/api/info` 成功代替受影響端點驗證。事故處置仍遵守既有備份、授權與角色邊界。來源：[#357 部署後 /live 500 與未備份 migration](https://github.com/ruan6047/cpbl-analytics/issues/357#issuecomment-6462181389)；核對 2026-10-28。
 - **工作樹寫入受限**：派工指定的獨立 worktree 無法寫入時，先停受影響操作並回報 PM 協調可用位置；不得自行改在 PM 或其他使用中的既有 worktree 切分支交付，即使當下工作區乾淨亦同。來源：[#383 工作樹事件及改善](https://github.com/ruan6047/cpbl-analytics/issues/383#issuecomment-6467687412)；核對 2026-10-28。
-- 停止條件只中止當次連網或共享資源操作，不中止原因排查。實測前應備妥足以判斷問題的去敏診斷資料；失敗後持續利用既有證據完成分析，將必要修正、離線驗證與下一輪有界實測集中申請，避免因診斷資訊不足反覆拆租用。冷卻、資源租用與風險授權仍須遵守。來源：[#393 排查經驗裁定](https://github.com/ruan6047/cpbl-analytics/issues/393#issuecomment-6539509710)；最後核對 2026-10-31。
+- 停止條件只中止當次連網或共享資源操作，不中止原因排查；診斷資料與失敗路徑驗證、租用內續行與集中申請，自 wfx 0.2.39 起由框架 `stages/執行.md` §2、`core/github.md` §6 規定，本條只保留 CPBL 的冷卻紅線仍適用。來源：[#393 排查經驗裁定](https://github.com/ruan6047/cpbl-analytics/issues/393#issuecomment-6539509710)；最後核對 2026-11-06。
