@@ -37,8 +37,10 @@
 #       YEAR=2026 DAYS_BACK=14 scripts/weekly-box-revisions.sh
 set -uo pipefail
 
+# argv 守衛擺在任何副作用之前：本檔會開真實爬蟲，`--help` 被當成位置參數吞掉就是
+# DEV-CLI-HELP-GUARD1 那次事故（查核者想看用法，結果對官網開爬並寫入 DB）。
 usage() {
-  cat <<'EOU'
+  cat <<'EOF'
 scripts/weekly-box-revisions.sh — 每週一次的 box 深度重抓（DATA-BOX-REVISION-SNAPSHOT1 深度層）
 
 在做什麼：把「近 DAYS_BACK 天的已完成場」的 box 重抓一次（kind A 與 D 各一輪），
@@ -59,17 +61,30 @@ scripts/weekly-box-revisions.sh — 每週一次的 box 深度重抓（DATA-BOX-
 
 退出碼：0 成功｜75 refresh lock 忙碌而跳過（**不是成功**）｜127 本機 DB 容器未啟動
         ｜64 參數錯誤｜其他 = cpbl-refresh-box-deep 的退出碼
-EOU
+EOF
 }
 
-# argv 守衛擺在任何副作用之前：本檔會開真實爬蟲，`--help` 被當成位置參數吞掉就是
-# DEV-CLI-HELP-GUARD1 那次事故（查核者想看用法，結果對官網開爬並寫入 DB）。
-case "${1:-}" in
-  --help|-h) usage; exit 0 ;;
-  --jobs) shift; exec python "$(cd "$(dirname "$0")" && pwd)/jobs.py" weekly-box-revisions "$@" ;;
-  "") ;;
-  *) echo "未知參數：$1（本檔不吃位置參數，設定走環境變數；--help 看用法）" >&2; exit 64 ;;
-esac
+if [ "$#" -gt 0 ]; then
+  case "$1" in
+    -h|--help)
+      usage
+      exit 0
+      ;;
+  esac
+fi
+
+if [ "${1:-}" = "--jobs" ]; then
+  shift
+  exec python "$(cd "$(dirname "$0")" && pwd)/jobs.py" weekly-box-revisions "$@"
+fi
+
+# 位置參數契約（逐支不同，刻意不與守衛共用）：本腳本一個位置參數都不收，
+# 設定一律走環境變數。
+if [ "$#" -gt 0 ]; then
+  printf '未知參數：%s\n' "$1" >&2
+  printf '本腳本不接受位置參數，設定走環境變數；用法請打 --help。\n' >&2
+  exit 64
+fi
 
 MAC_CUTOVER_MARKER="$HOME/Library/Application Support/cpbl-analytics/mac-jobs-disabled"
 if { [ -e "$MAC_CUTOVER_MARKER" ] || [ -L "$MAC_CUTOVER_MARKER" ]; } && [ "${CPBL_MAC_RESCUE:-}" != "1" ]; then

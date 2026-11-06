@@ -894,11 +894,9 @@ HELP_SAFETY_ALLOWLIST: dict[str, str] = {
     # ＝寫 DB）看不到它。實測它的 `--help` 會 ssh 進生產跑整庫 dump，然後 exit 0、
     # 產出備份、`rm -f` 掉輪替視窗最舊的那份。**清冊印得出警告，不變式卻擋不住**，
     # 這正是判準加寬為「高後果」的成因；該支已加守衛，同樣不列本表。
-    "scripts/weekly-box-revisions.sh": (
-        "無 argv 守衛，會直接跑 `cpbl-refresh-box-deep`（Playwright 打官網 + 寫本機 DB）。"
-        "⚠️ **與同批三支同性質，本卡射程外**：它是 `#132` 的資源（該卡同時持有 "
-        "`scripts/refresh_status.py` 與 `src/cpbl/api/routers/info.py`），本卡改它等於"
-        "動另一張活卡的檔案。去向：`#132` 收工後比照同批三支補上守衛"),
+    #
+    # `weekly-box-revisions.sh` 曾在本表，理由是「無 argv 守衛」與「#132 的資源」。兩點都已過期：
+    # 它一直有 `case "${1:-}"` 守衛，只是形狀不是 canonical；#132 已關閉。#416 對齊形狀後撤除。
 }
 
 # 分類的人工改判：機械推導錯的逐支列出＋理由。

@@ -298,8 +298,9 @@ def test_help_prints_usage_and_touches_nothing(tmp_path: Path, flag: str) -> Non
     assert not (tmp_path / "repo" / "logs").exists()      # 連 logs/ 都沒建
 
 
-def test_unknown_argument_exits_64_without_running(tmp_path: Path) -> None:
-    result, status, history = _run_weekly(tmp_path, argv=["zzz-not-a-real-arg"])
+@pytest.mark.parametrize("arg", ["zzz-not-a-real-arg", ""], ids=["unknown", "empty-string"])
+def test_unknown_argument_exits_64_without_running(tmp_path: Path, arg: str) -> None:
+    result, status, history = _run_weekly(tmp_path, argv=[arg])
 
     assert result.returncode == 64
     assert status == {} and history == []
