@@ -843,8 +843,6 @@ HELP_SAFETY_ALLOWLIST: dict[str, str] = {
     "scripts/rehearsal_backfill.py": (
         "完全不看 argv：任何旗標（含 --help）都直接 DROP/CREATE pitch_tracking_rehearsal。"
         "去向：本卡只標記；修行為需另卡，且該卡母卡 INGEST-DEEP-TM-BACKFILL1 已封存"),
-    "scripts/rehearsal_pa_build.py": (
-        "完全不看 argv，寫合成 year=2099 列。去向：同上，PA-DAILY 若啟動時一併處理"),
     "scripts/verify_deep_tm_backfill.py": (
         "判準加寬為「高後果」後**新納入射程**（對 DB 唯讀，但 `VPS` 是裸常數、"
         "任何參數都直接 ssh 進生產跑 psql；改用呼叫圖後另見 `urllib.request.urlopen` "

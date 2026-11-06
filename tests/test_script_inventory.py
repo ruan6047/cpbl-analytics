@@ -448,16 +448,41 @@ def test_writes_ast_is_a_projection_of_the_same_engine() -> None:
 # `tests/test_shell_help_guard.py`：**副本 ＋ 假樁**，本卡紅線「不得執行版控樹上的
 # 腳本」照舊——跑的一律是 `tmp_path` 裡 `shutil.copy2` 出來的副本。
 
-# 路徑 → (守衛那一行, 改回修法前的形狀)
+# 路徑 → (守衛那一行, 改回修法前的形狀, 主流程第一個碰到的出口)
 ONESHOT_HELP_GUARDS = {
     "docs/research/INGEST-SCORELESS-INNING-PITCHER1/confirm_live_schema.py": (
         "    gid = _parser().parse_args().gid",
         '    import sys as _s\n    gid = _s.argv[1] if len(_s.argv) > 1 else "2026-A-246"',
+        "httpx",
     ),
     "scripts/replay_schedule_branches.py": (
         "    _parser().parse_args()\n",
         "",
+        "httpx",
     ),
+    "scripts/rehearsal_pa_build.py": (
+        "    _parser().parse_args()\n",
+        "",
+        "cpbl.db.conn",
+    ),
+}
+
+# 出口是 DB 的腳本改用假 `cpbl` 套件：PYTHONPATH 排在已安裝版本之前，`cpbl.db.conn` 留痕後
+# 立刻中止，負控制走不到真實連線。`_run_oneshot` 另給死 DSN，假套件沒蓋到時也連不出去。
+_FAKE_CPBL = {
+    "cpbl/__init__.py": "",
+    "cpbl/ingest/__init__.py": "",
+    "cpbl/ingest/pa_build.py": "def build_game(*a, **k):\n    raise SystemExit(98)\n",
+    "cpbl/db.py": '''\
+import json, os, pathlib
+
+
+def conn(*a, **k):
+    log = pathlib.Path(os.environ["HTTPX_CALL_LOG"])
+    entries = json.loads(log.read_text()) if log.exists() else []
+    log.write_text(json.dumps([*entries, "cpbl.db.conn"]))
+    raise SystemExit(97)
+''',
 }
 
 # 假 httpx：import 鏈實際只用到 `Client` 與 `HTTPError`（實測 grep 全鏈）。
@@ -516,7 +541,11 @@ def _oneshot_harness(tmp_path: Path, rel: str, *, drop_guard: bool) -> dict:
     (stub_dir / "httpx.py").write_text(_HTTPX_STUB, encoding="utf-8")
 
     source = (REPO_ROOT / rel).read_text(encoding="utf-8")
-    guard, replacement = ONESHOT_HELP_GUARDS[rel]
+    guard, replacement, exit_point = ONESHOT_HELP_GUARDS[rel]
+    if exit_point == "cpbl.db.conn":
+        for name, body in _FAKE_CPBL.items():
+            (stub_dir / name).parent.mkdir(parents=True, exist_ok=True)
+            (stub_dir / name).write_text(body, encoding="utf-8")
     if drop_guard:
         assert guard in source, f"{rel} 的守衛那一行找不到——負控制會變成空斷言"
         source = source.replace(guard, replacement, 1)
@@ -533,6 +562,7 @@ def _run_oneshot(harness: dict, argv: list[str]) -> tuple[subprocess.CompletedPr
         "HOME": str(harness["work"].parent / "home"),
         "PYTHONPATH": str(harness["stub"]),
         "HTTPX_CALL_LOG": str(harness["log"]),
+        "DATABASE_URL": "postgresql://sealed.invalid/never-connects",
     }
     result = subprocess.run(
         [sys.executable, str(harness["script"]), *argv],
@@ -573,19 +603,29 @@ def test_oneshot_unknown_flag_is_refused_not_ignored(rel: str, tmp_path: Path) -
 
 
 @pytest.mark.parametrize("rel", sorted(ONESHOT_HELP_GUARDS), ids=lambda s: Path(s).name)
-def test_negative_control_unguarded_help_really_reaches_the_network(
+def test_negative_control_unguarded_help_really_reaches_its_exit(
     rel: str, tmp_path: Path,
 ) -> None:
-    """負控制：把守衛改回修法前的形狀，`--help` 必須真的走到 HTTP 出口。
+    """負控制：把守衛改回修法前的形狀，`--help` 必須真的走到主流程的出口。
 
-    這條證明修的是**實害**而不是體感——假樁留痕就是那一次請求的證據。
+    這條證明修的是**實害**而不是體感——假樁留痕就是那一次請求或連線的證據。
     """
     harness = _oneshot_harness(tmp_path, rel, drop_guard=True)
     _, calls = _run_oneshot(harness, ["--help"])
 
     assert calls, (
-        "拿掉守衛後 `--help` 沒有碰到網路——那代表假樁面沒有涵蓋這支的出口，證據力是假的")
-    assert any("httpx" in c for c in calls), calls
+        "拿掉守衛後 `--help` 沒有碰到出口——那代表假樁面沒有涵蓋這支的出口，證據力是假的")
+    exit_point = ONESHOT_HELP_GUARDS[rel][2]
+    assert any(exit_point in c for c in calls), calls
+
+
+def test_rehearsal_pa_build_without_arguments_still_runs(tmp_path: Path) -> None:
+    """無參數是它的文件化呼叫（重現指令住在 PA1-BUILD1 的 handoff），守衛不得擋下。"""
+    harness = _oneshot_harness(tmp_path, "scripts/rehearsal_pa_build.py", drop_guard=False)
+    result, calls = _run_oneshot(harness, [])
+
+    assert result.returncode == 97, f"stderr={result.stderr}"
+    assert calls == ["cpbl.db.conn"]
 
 
 def test_invariant_4_backup_prod_db_is_in_scope_and_now_guarded() -> None:
