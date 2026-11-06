@@ -646,14 +646,18 @@ def test_invariant_4_reuses_cli_help_guard_criteria_not_a_second_copy() -> None:
     assert si.CLI_GUARD_PACKAGES == cli_guard.GUARDED_PACKAGES
 
 
-def test_refresh_recent_is_marked_unsafe_in_the_inventory() -> None:
-    """需求方裁定 2：本卡不處理它，但清冊必須標記。"""
+def test_refresh_recent_is_safe_in_the_inventory_without_an_exception() -> None:
+    """#416：它是高後果入口，判 safe 的依據是 test_cli_help_guard.py，不是具名放行。"""
     entry = next(e for e in si.build_entries() if e.ident == "cpbl-refresh-recent")
-    assert entry.help_state == "unsafe"
-    assert "#53" in si.HELP_SAFETY_ALLOWLIST["cpbl-refresh-recent"]
-    rendered = (REPO_ROOT / "scripts" / "README.md").read_text(encoding="utf-8")
-    assert "cpbl-refresh-recent" in rendered
-    assert "--help 不安全" in rendered
+    assert entry.high_consequence
+    assert entry.help_state == "safe"
+    assert "cpbl-refresh-recent" not in si.HELP_SAFETY_ALLOWLIST
+
+
+def test_no_high_consequence_entry_is_help_unsafe() -> None:
+    """#416 驗收 1：清零，不留具名例外。新增例外要回到本卡的需求方裁定層級。"""
+    assert not si.high_consequence_unsafe(si.build_entries())
+    assert not si.HELP_SAFETY_ALLOWLIST
 
 
 # ===================================== 寫入面交叉複算：不得未裁定、不得過期

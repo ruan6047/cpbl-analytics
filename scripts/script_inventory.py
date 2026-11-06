@@ -829,11 +829,11 @@ SINGLE_CRITERION_OVERRIDE: dict[str, tuple[bool, str]] = {
 
 # 判定為寫入型但 `--help` 不安全的既有例外。**本輪不修它們的行為**（那會讓本卡從
 # 盤點變成改一批腳本），改為具名列出＋理由＋去向。具名例外可讀，勝過偷偷放寬判準。
+#
+# 目前為空（#416 清零）：常數保留，不變式 4 仍以它為例外面，新例外要具名寫在這裡。
 HELP_SAFETY_ALLOWLIST: dict[str, str] = {
-    "cpbl-refresh-recent": (
-        "#53 INGEST-GAME-TM-REFACTOR1-G4 Phase B 凍結資源，DEV-CLI-HELP-GUARD1／2 明文不改。"
-        "`--help` 主流程觸及 cpbl.db.migrate，且它是每日鏈 scrape-daily.sh 的主要寫入者。"
-        "去向：#53 Phase B 解凍後併入 test_cli_help_guard.py 的斷言範圍"),
+    # --- `cpbl-refresh-recent` 曾在本表：#416 補上入口防護，由 tests/test_cli_help_guard.py 涵蓋 ---
+    #
     # --- ⚠️ `confirm_live_schema.py` 與 `replay_schedule_branches.py` 曾在這張表上 ---
     #
     # 本輪 `R2-001` 修法把它們新納入射程後，執行者主張具名放行，判準是
@@ -1496,7 +1496,7 @@ def undecided_disagreements() -> list[str]:
 # CLI 側的 `--help` 安全性沿用 `tests/test_cli_help_guard.py` 的執行期證明，
 # 不另立判準：被該檔涵蓋＝安全，被 FROZEN_MODULES 排除＝具名例外。
 CLI_GUARD_PACKAGES = ("cpbl.ingest.", "cpbl.models.", "cpbl.features.")
-CLI_GUARD_FROZEN = {"cpbl.ingest.run_refresh_recent", "cpbl.ingest.cpbl_pitch_tracking"}
+CLI_GUARD_FROZEN = {"cpbl.ingest.cpbl_pitch_tracking"}
 
 
 def _cli_help_state(target: str) -> tuple[str, str]:
@@ -1939,10 +1939,13 @@ def render() -> str:
       "執行期零請求由 `tests/test_script_inventory.py` 以**副本 ＋ 假 httpx 留痕**逐支證明，"
       "負控制（改回修法前的形狀）實測 `--help` 會走到 `httpx.Client()` ＋ `.get`。")
     a("")
-    a("| 入口 | 理由與去向 |")
-    a("|---|---|")
-    for ident, reason in sorted(HELP_SAFETY_ALLOWLIST.items()):
-        a(f"| `{ident}` | {_md_escape(reason)} |")
+    if HELP_SAFETY_ALLOWLIST:
+        a("| 入口 | 理由與去向 |")
+        a("|---|---|")
+        for ident, reason in sorted(HELP_SAFETY_ALLOWLIST.items()):
+            a(f"| `{ident}` | {_md_escape(reason)} |")
+    else:
+        a("目前沒有具名例外：高後果入口的 `--help` 不安全者已清零（#416）。")
     a("")
     a("> [!note] 判準沿用 `tests/test_cli_help_guard.py`，不另立一套。")
     a("> CLI 側該檔以**執行期密封探針**證明（所有 I/O 出口 stub 化後才呼叫 `main()`）；")
@@ -2102,7 +2105,7 @@ PURPOSE_VERIFIED: dict[str, str] = {
     "scripts/reconcile_scoreless_streak.py": "窮舉對帳；AI_RUNBOOK:380 寫「改動演算法後必跑」，義務靠人記得",
     "scripts/ability_snapshot.py": "能力值卡回歸抽驗；docstring 明寫改前後各跑一次再 diff",
     # --- CLI：高後果／訊號互斥 ---
-    "cpbl-refresh-recent": "每日鏈主要寫入者，566 行；⚠️ --help 觸及 cpbl.db.migrate（#53 凍結）",
+    "cpbl-refresh-recent": "每日鏈主要寫入者；參數解析在任何副作用之前（#416），--plan 轉交 daily_gate",
     "cpbl-research-umpire-impact": "632 行研究入口，零活引用；產物落檔案不落 DB",
     # --- CLI：9 支零活引用，觸發者是人 ---
     "cpbl-classify-pitches-v2": "手動觸發：球種細分 v2，未接排程（memory：二軍／生產未同步）",

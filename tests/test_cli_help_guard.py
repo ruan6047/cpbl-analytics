@@ -16,9 +16,10 @@
    `scripts/refresh-cpbl-prod.sh`）與各模組 docstring 裡的既有指令形式，逐一驗證解析結果
    與改版前語意相同。這層是本卡「不得為了加護欄而弄壞排程」的紅線。
 
-排除：`run_refresh_recent` 與 `cpbl_pitch_tracking` 由 #53 的 INGEST-GAME-TM-REFACTOR1-G4
-Phase B 資源佔用，本卡明文不改，故不納入斷言範圍（它們的現況記錄在
-`docs/research/DEV-CLI-HELP-GUARD1/cli-help-audit.md`）。
+排除：`cpbl_pitch_tracking` 由 #53 的 INGEST-GAME-TM-REFACTOR1-G4 Phase B 資源佔用，
+本卡明文不改，故不納入斷言範圍（現況記錄在
+`docs/research/DEV-CLI-HELP-GUARD1/cli-help-audit.md`）。`run_refresh_recent` 原本也在排除
+名單，#416 補上入口防護後已納入。
 """
 
 from __future__ import annotations
@@ -36,7 +37,6 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 
 # #53 的 G4 Phase B 資源佔用：本卡只盤點，不把 CLI 護欄改動併入逐球 writer。
 FROZEN_MODULES = {
-    "cpbl.ingest.run_refresh_recent",
     "cpbl.ingest.cpbl_pitch_tracking",
 }
 
@@ -153,8 +153,7 @@ def test_entry_discovery_actually_found_the_clis() -> None:
             "cpbl-scrape-stats", "cpbl-scrape-detail", "cpbl-scrape-fighting",
             "cpbl-build-features", "cpbl-build-sabr", "cpbl-classify-pitches",
             "cpbl-train-outcome", "cpbl-train-outcome-simple", "cpbl-train-pa-sim",
-            "cpbl-train", "cpbl-train-pitching"} <= ids
-    assert "cpbl-refresh-recent" not in ids  # 仍有 CLI 副作用，且其 writer 由 #53 佔用
+            "cpbl-train", "cpbl-train-pitching", "cpbl-refresh-recent"} <= ids
 
 
 def test_only_declared_modules_are_unimportable_in_this_environment() -> None:
@@ -509,9 +508,9 @@ def test_scrape_transactions_rejects_half_given_range(monkeypatch: pytest.Monkey
     assert exc.value.code not in (0, None)
 
 
-# ------------------------------------------------- cpbl-refresh-recent（#416 WP1）
-# 仍在 FROZEN_MODULES，不進 GUARDED_ENTRIES 的參數化，這裡直接對模組斷言；
-# 自 FROZEN_MODULES 移除是 #416 WP4 的事。
+# ------------------------------------------------- cpbl-refresh-recent（#416）
+# `--help`、`-h` 與未知旗標已由 GUARDED_ENTRIES 的參數化涵蓋；這裡補它特有的部分：
+# 多餘位置參數、負控制，以及每日鏈的合法呼叫不變。
 #
 # 事故：2026-10-24 `cpbl-refresh-recent --help` 真跑 refresh（#364）。這支是每日鏈的
 # 主要寫入者，防護除了擋 `--help`，還不能改變排程與 jobs 入口的呼叫。
@@ -528,22 +527,7 @@ def _sealed_refresh(monkeypatch: pytest.MonkeyPatch):
     return mod
 
 
-@pytest.mark.parametrize("flag", ["--help", "-h"])
-def test_refresh_recent_help_exits_zero_with_no_side_effects(
-    flag: str, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture,
-) -> None:
-    mod = _sealed_refresh(monkeypatch)
-    monkeypatch.setattr(sys, "argv", [REFRESH_SCRIPT, flag])
-
-    with pytest.raises(SystemExit) as exc:  # SideEffectReached 會直接讓測試失敗
-        mod.main()
-
-    assert exc.value.code == 0
-    assert REFRESH_SCRIPT in capsys.readouterr().out
-
-
 @pytest.mark.parametrize("argv", [
-    ["--zzz-not-a-real-flag"],
     ["fast", "--zzz-not-a-real-flag"],
     ["foo"],
     ["fast", "foo"],
