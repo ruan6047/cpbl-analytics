@@ -481,7 +481,7 @@ export default function BoxTabs({ data, tab: controlledTab, onTabChange, showTab
                   <XAxis type="number" tick={axis.tick} tickLine={false} axisLine={false} />
                   <YAxis type="category" dataKey="name" width={62} tick={{ ...axis.tick, fill: ct.ink }} tickLine={false} axisLine={false} />
                   <Tooltip cursor={{ fill: "transparent" }} contentStyle={chartTooltip(ct)}
-                    formatter={(v: number, name: string) => [v, name === "strikes" ? "好球" : "壞球"]} />
+                    formatter={(v, name) => [v, name === "strikes" ? "好球" : "壞球"]} />
                   <Bar dataKey="strikes" stackId="p" isAnimationActive={false} stroke={ct.surface} strokeWidth={1}>
                     {c3.map((r, i) => <Cell key={i} fill={teamColor(r.code)} />)}
                   </Bar>

@@ -101,14 +101,15 @@ export function AbilityCard({
   const data = axes.map((a) => ({ axis: a.label, pr: a.pr ?? 0 }));
   const byLabel = Object.fromEntries(axes.map((a) => [a.label, a]));
   // 自訂軸名刻度：包共用 Tooltip（取代原生 SVG <title>：無延遲、觸控可點、內容可排版）。
-  const renderTick = (props: { x: number; y: number; textAnchor: "inherit" | "start" | "middle" | "end"; payload: { value: string } }) => {
-    const a = byLabel[props.payload.value];
+  const renderTick = (props: { x?: number | string; y?: number | string; textAnchor?: "inherit" | "start" | "middle" | "end"; payload: { value?: unknown } }) => {
+    const label = String(props.payload.value ?? "");
+    const a = byLabel[label];
     const g = a?.grade ?? null;
     // #220：軸名墨色＋等級字母（原本只用等級色上色，金／黃字在紙色上對比不足，且等級只靠顏色）。
     const txt = (
-      <text x={props.x} y={props.y} textAnchor={props.textAnchor} dominantBaseline="central"
+      <text x={Number(props.x)} y={Number(props.y)} textAnchor={props.textAnchor} dominantBaseline="central"
         fontSize={12} fontWeight={700} style={{ cursor: "help" }} fill={ct.ink}>
-        {props.payload.value}{g ? <tspan dx={3} fill={ct.muted} fontWeight={800}>{g}</tspan> : null}
+        {label}{g ? <tspan dx={3} fill={ct.muted} fontWeight={800}>{g}</tspan> : null}
       </text>
     );
     if (!a) return txt;
