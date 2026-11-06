@@ -1,7 +1,7 @@
 """排程 shell 的 `--help` 守衛（DEV-SCRIPT-INVENTORY1，需求方裁定：提前處置）。
 
 盤點原本把這幾支具名列進 `script_inventory.HELP_SAFETY_ALLOWLIST`（＝已知危害、
-具名放行）。需求方推翻該處置：它們與 `sync_deep_tm_prod.py` **同級**——探索動作即
+具名放行）。需求方推翻該處置：它們與 `sync_deep_tm_prod.py`（#416 已刪）**同級**——探索動作即
 造成損害——而破壞半徑更大：後者 DROP 一張表，`refresh-cpbl-prod.sh` 是**整條生產
 同步鏈**（爬官網 → 備份並 upsert production → VPS 重跑訓練）。
 

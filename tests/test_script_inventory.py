@@ -152,7 +152,6 @@ FROZEN_POSITION_DEBT = frozenset({
     "scripts/outcome_simple_calibration_audit.py",
     "scripts/reconcile_game_tm.py",
     "scripts/reconcile_splits_recalc1.py",
-    "scripts/rehearsal_backfill.py",
     "scripts/rehearsal_pa_build.py",
     "scripts/replay_schedule_branches.py",
     "scripts/report_pa_rebuild_fix1.py",
@@ -916,7 +915,7 @@ def test_counts_reconcile_across_three_surfaces() -> None:
     research = [e for e in entries if e.surface == "research"]
     cli = [e for e in entries if e.surface == "cli"]
 
-    assert len(scripts) == 53, (
+    assert len(scripts) == 51, (
         "49（基準 33c7c3f）＋ 1（DEV-SCRIPT-INVENTORY1 的 script_inventory.py）"
         "＋ 3（OPS-SCHEDULE-FAILURE-BLIND1／#132：schedule_watch.py、"
         "schedule-watchdog.sh、com.cpbl.schedule-watchdog.plist）"
@@ -932,8 +931,10 @@ def test_counts_reconcile_across_three_surfaces() -> None:
         "state_plane_migrate.py——CLAUDE.md 已宣告退場的 Ledger／control-plane 工具鏈，連同 "
         "docs/control-plane/events.jsonl 與四支專屬測試一起移除；見 APPROVED_SCRIPT_DELETIONS）"
         "− 1（#405 需求方指示：roadmap_lines.py——讀已關閉的 Project #4 看板，ROADMAP §3 的對帳指令已標已移除）"
-        "＋ 1（#393 WP4：jobs.py，六個既有工作的 Linux 適配入口；不負責排程或新取源工具）")
-    assert len(research) == 24, (
+        "＋ 1（#393 WP4：jobs.py，六個既有工作的 Linux 適配入口；不負責排程或新取源工具）"
+        "− 2（#416 需求方核准：rehearsal_backfill.py、verify_deep_tm_backfill.py；"
+        "見 APPROVED_SCRIPT_DELETIONS）")
+    assert len(research) == 23, (
         "19（基準）＋ 1（OPS-SCHEDULE-FAILURE-BLIND1／#132："
         "docs/research/OPS-SCHEDULE-FAILURE-BLIND1/measure_notification_delivery.py，"
         "通知投遞的可重建量測工具。住在自己卡的目錄裡，符合 oneshot 的位置規則）"
@@ -947,7 +948,9 @@ def test_counts_reconcile_across_three_surfaces() -> None:
         "＋ 1（#383 段 2 P-B：docs/research/ISSUE-383/replace_derived_tables.py，"
         "11 張衍生表的受守衛整表替換工具。推導為 CI 繫結，具名列於 POSITION_EXCEPTIONS）"
         "＋ 1（#400 R1：docs/research/SCHED-TIMING-400/r1_measure.py，排程觸發／完成分布的"
-        "唯讀可重建量測。住在自己卡的目錄裡，符合 oneshot 的位置規則）")
+        "唯讀可重建量測。住在自己卡的目錄裡，符合 oneshot 的位置規則）"
+        "− 1（#416 需求方核准：docs/research/INGEST-DEEP-TM-BACKFILL1/sync_deep_tm_prod.py，"
+        "守衛只擋得住 --help、無參數仍直接寫生產）")
     assert len(cli) == 51, (
         "47 ＋ 1（#284 S03：cpbl-roster，季後 32 人資格名單的本機唯一會員 writer；"
         "放在 cpbl.ingest 底下以受 test_cli_help_guard 的 --help 零副作用探針涵蓋）"
@@ -955,14 +958,15 @@ def test_counts_reconcile_across_three_surfaces() -> None:
         "入口同樣放在 cpbl.ingest 底下以受 --help 零副作用探針涵蓋）"
         "＋ 2（#357 WP2：cpbl-check-livelog 唯讀檢查、cpbl-replay-livelog-extra 預設 dry-run 的"
         "回補工具；同樣放在 cpbl.ingest 底下受 --help 探針涵蓋）")
-    assert len(scripts) + len(research) + len(cli) == 128, (
+    assert len(scripts) + len(research) + len(cli) == 125, (
         "119＋1（#132 的量測工具）＋1（#100 的重測工具）＋1（#201 的收集工具）"
         "＋1（#268 的 postseason-evening.sh）＋1（#284 的 cpbl-roster CLI）"
         "＋1（#287 的 cpbl-build-team-comparison CLI）＋1（#353 的 prod_availability.py）"
         "＋2（#357 的兩支 CLI）＋1（#358 的 alert_ping.py）＋1（#358 的 alert_watch.py）"
         "＋1（#383 的 replace_derived_tables.py）＋1（#400 的 r1_measure.py）"
         "−5（#405 移除的舊制工具鏈四支＋roadmap_lines.py，見 APPROVED_SCRIPT_DELETIONS）"
-        "＋1（#393 WP4 的既有六工作 Linux jobs.py 適配入口）")
+        "＋1（#393 WP4 的既有六工作 Linux jobs.py 適配入口）"
+        "−3（#416 需求方核准刪除的三支）")
 
 
 def test_invariant_proof_enumerates_every_entry(capsys: pytest.CaptureFixture) -> None:
@@ -1041,6 +1045,8 @@ APPROVED_SCRIPT_DELETIONS: dict[str, str] = {
     "scripts/review_gate_inventory.py": "#405：讀 control-plane 事件檔的多關卡盤點，無測試載入、無活文件指令",
     "scripts/state_plane_migrate.py": "#405：Ledger → GitHub Projects 的一次性遷移，Project #4 已關閉",
     "scripts/roadmap_lines.py": "#405：ROADMAP §3 線別對帳器，輸入是已關閉的 Project #4 看板；ROADMAP 相關段已標歷史",
+    "scripts/rehearsal_backfill.py": "#416 需求方核准：母卡 INGEST-DEEP-TM-BACKFILL1 已結案，零文件引用、無呼叫者",
+    "scripts/verify_deep_tm_backfill.py": "#416 需求方核准：一次性驗證，只印不驗且會 ssh 生產；#50 掛的去留至此裁定",
 }
 
 
