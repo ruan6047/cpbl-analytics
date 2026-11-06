@@ -1,8 +1,8 @@
 # 依賴更新提醒（每月一次、同生態系分群合併成少數 PR，避免每天一堆小 PR）。
 # 本 repo 每個 PR 都要走 vNext 卡片流程：Dependabot 開的 PR 只是「提醒＋已算好的 lock diff」，
 # 合併前仍由 PM 開一張月更卡集中處理整批、依 CI 與審核程序處理；⛔ 不設 auto-merge。
-# 程式相依的主版本升級刻意排除（Next 17、recharts 3、TypeScript 7、react、@types、eslint 10、polars 2、LightGBM；
-# Next 16 已由 #419 升級。各 ignore 條目附理由與回看月份；評估走獨立卡，不是例行更新）；
+# 程式相依的主版本升級刻意排除（Next 17、recharts 4、TypeScript 7、react、@types、eslint 10、polars 2、LightGBM；
+# Next 16 已由 #419 升級、recharts 3 已由 #423 升級。各 ignore 條目附理由與回看月份；評估走獨立卡，不是例行更新）；
 # GitHub Actions 的 major 不排除，併入月更卡、CI 綠即合。
 # 慣例見 .wf/cpbl-local.md「Dependabot 月更 PR」，操作清單見 docs/AI_RUNBOOK.md §7.2.2（#418）。
 version: 2
@@ -24,8 +24,8 @@ updates:
         # 理由：版本號與 next 同步，major 與 next 一起評估；回看同 next
       - dependency-name: recharts
         update-types: [version-update:semver-major]
-        # 保留 major ignore。理由：3.x 評估完成、判升（#419）；升級 PR 依裁定等 #415 結案或裁定不改載入方式後，
-        # 由相連子卡 #423 執行；回看 2027-03
+        # 保留 major ignore。理由：3.10.1 升級由 #423 執行（PR #438），3.x minor／patch 隨 web 群組月更；
+        # 下一 major（4，將移除 Cell 等）仍需獨立卡評估；回看 2027-03
       - dependency-name: typescript
         update-types: [version-update:semver-major]
         # 保留 major ignore。理由：7.x 暫不升——7.0 無 JS API，Next 15／typescript-eslint／test loader 三條鏈不相容
