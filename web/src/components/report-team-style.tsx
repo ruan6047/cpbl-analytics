@@ -1,6 +1,7 @@
 "use client";
 
 import { PolarAngleAxis, PolarGrid, PolarRadiusAxis, Radar, RadarChart, ResponsiveContainer } from "recharts";
+import { legacyAngleTick } from "@/components/polar-angle-tick";
 import { useChartTheme } from "@/lib/chart-theme";
 import { clampZ, TEAM_STYLE_SECTION } from "@/lib/team-style";
 import { teamColor } from "@/lib/teams";
@@ -19,7 +20,7 @@ export function ReportTeamStyle({ style }: { style: NonNullable<Report["teams"]>
       <ResponsiveContainer width="100%" height="100%">
         <RadarChart data={data} outerRadius="70%">
           <PolarGrid stroke={ct.line} />
-          <PolarAngleAxis dataKey="label" tick={{ fill:ct.ink, fontSize:12 }} />
+          <PolarAngleAxis dataKey="label" tick={legacyAngleTick({ fill:ct.ink, fontSize:12 })} />
           <PolarRadiusAxis domain={[-2,2]} tick={false} axisLine={false} />
           <Radar isAnimationActive={false} dataKey="z" stroke={color} fill={color} fillOpacity={0.3} />
         </RadarChart>

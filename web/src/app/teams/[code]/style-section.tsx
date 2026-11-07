@@ -16,6 +16,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import { legacyAngleTick } from "@/components/polar-angle-tick";
 import { chartAxis, chartTooltip, useChartTheme } from "@/lib/chart-theme";
 import {
   SEMANTICS_BADGE,
@@ -141,7 +142,7 @@ export function TeamStyleSection({ data, defaultYear }: {
                 <ResponsiveContainer width="100%" height="100%">
                   <RadarChart data={radarData} outerRadius="74%">
                     <PolarGrid stroke={ct.line} />
-                    <PolarAngleAxis dataKey="axis" tick={{ fontSize: 11, fill: ct.muted }} />
+                    <PolarAngleAxis dataKey="axis" tick={legacyAngleTick({ fontSize: 11, fill: ct.muted })} />
                     {/* 半徑軸釘死 ±2：z 是季內標準化值，截 ±2 顯示（研究消費建議） */}
                     <PolarRadiusAxis domain={[-2, 2]} tick={false} axisLine={false} />
                     <Radar dataKey="z" stroke={color} fill={color} fillOpacity={0.3} />

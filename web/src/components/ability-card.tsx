@@ -10,6 +10,7 @@ import {
 } from "recharts";
 import { contrastText } from "@/lib/teams";
 import { gradeColor, useChartTheme } from "@/lib/chart-theme";
+import { legacyAngleTick } from "./polar-angle-tick";
 import { Tooltip } from "./tooltip";
 
 // 能力值卡：以全史生涯 rate 的全聯盟百分位 [PR] 畫遊戲風雷達 + 等級條。
@@ -156,7 +157,7 @@ export function AbilityCard({
         <ResponsiveContainer width="100%" height="100%">
           <RadarChart data={data} outerRadius={compact ? "70%" : "78%"}>
             <PolarGrid stroke={ct.line} />
-            <PolarAngleAxis dataKey="axis" tick={compact ? { fontSize: 10, fill: ct.muted } : renderTick} />
+            <PolarAngleAxis dataKey="axis" tick={compact ? legacyAngleTick({ fontSize: 10, fill: ct.muted }) : renderTick} />
             {/* 半徑軸釘死 0–100：不設的話 recharts 自動縮放到本人最大值，
                 圖形變「相對自己」而等級是絕對 PR（羅戈 續航78/B 被畫到滿格）*/}
             <PolarRadiusAxis domain={[0, 100]} tick={false} axisLine={false} />
@@ -197,7 +198,7 @@ export function AbilityRadarVS({
       <ResponsiveContainer width="100%" height="100%">
         <RadarChart data={data} outerRadius="70%">
           <PolarGrid stroke={ct.line} />
-          <PolarAngleAxis dataKey="axis" tick={{ fontSize: 10, fill: ct.muted }} />
+          <PolarAngleAxis dataKey="axis" tick={legacyAngleTick({ fontSize: 10, fill: ct.muted })} />
           {/* 同上：兩人疊圖更不能各自縮放，0–100 絕對刻度才可比 */}
           <PolarRadiusAxis domain={[0, 100]} tick={false} axisLine={false} />
           <Radar dataKey="away" stroke={awayColor ?? ct.accent} fill={awayColor ?? ct.accent} fillOpacity={0.25} />
