@@ -133,7 +133,9 @@ export default async function TeamPage({ params, searchParams }: {
   }).reverse();
 
   // ── 賽季 tab：主力選手（依所選年度該隊名稱過濾逐年排行）──
-  const yearName = yearTeam?.team_name ?? team?.team_name;
+  // 該年戰績取不到且所選年即當季（含年度未知＝當季）時，以隊史最後一個時期的隊名過濾（#441 審核修訂輪 1 同類修正）。
+  const yearName = yearTeam?.team_name ?? team?.team_name
+    ?? (year == null || year === season ? lastEra?.name : undefined);
   const opponents = (yearStd?.items ?? []).filter((t) => t.team_code !== code);
   const POS_ZH_TO_FIELD: Record<string, FieldPosition> = {
     "左外野手": "LF", "中外野手": "CF", "右外野手": "RF",
@@ -179,13 +181,14 @@ export default async function TeamPage({ params, searchParams }: {
   }
 
   // 指定打擊：守備出賽≤打擊出賽半數（主要 DH）、打席最多者
-  const dh = teamBat
+  // 指定打擊與替補野手都由守備出賽推導；守備來源取不到時不推（否則會把先發野手誤列為 DH／替補），就地標示（#441）。
+  const dh = !fieldR.ok ? undefined : teamBat
     .filter((b) => (b.pa ?? 0) >= 80 && (fieldTotG.get(b.player_id) ?? 0) * 2 <= (b.g ?? 0))
     .sort((a, b) => (b.pa ?? 0) - (a.pa ?? 0))[0];
   const dhCell = dh ? { main: dh.name ?? "—", sub: dh.ops_plus != null ? `OPS+ ${dh.ops_plus}` : `${dh.pa} 打席`, href: `/players/${dh.player_id}` } : null;
 
   // 主要替補：非各守位主力、非 DH，達 30 打席者，依打席取前 6
-  const bench = teamBat
+  const bench = !fieldR.ok ? [] : teamBat
     .filter((b) => !starterIds.has(b.player_id) && b.player_id !== dh?.player_id && (b.pa ?? 0) >= 30)
     .sort((a, b) => (b.pa ?? 0) - (a.pa ?? 0))
     .slice(0, 6);
@@ -233,7 +236,7 @@ export default async function TeamPage({ params, searchParams }: {
           <>
             <RosterBoard fieldCells={lineupCells} designatedHitter={dhCell} groups={rosterGroups}
               caption={`${displayName}${yearLabel}各守位主力`}
-              emptyField={!fieldR.ok ? unavailableCopy("守位主力")
+              emptyField={!fieldR.ok ? unavailableCopy("守位主力、指定打擊與替補野手")
                 : year == null || year >= 2025 ? "尚無守備資料。" : `${year} 年守備位置圖尚未提供（歷史守備待補）。`} />
             {!batR.ok && <SourceUnavailable label="打者主力（指定打擊、替補野手、OPS+）" className="py-2" />}
             {!pitR.ok && <SourceUnavailable label="投手主力" className="py-2" />}
