@@ -4,10 +4,11 @@
 // - 先發投手只在 `series_section.next_game.starters`（S11 官方先發，與第 4 區同一份純函式與字樣；#285 批次 E）；
 //   場次精簡卡沒有。
 // - `context_version` 是 S02 原值，與 #289 watch 回應同源可比；不一致時由輪詢控制器（playoffs-poll.ts）重取。
-// - server 取數 `no-store`：控制狀態快取不得超過 30 秒輪詢（⛔ 用 api.ts 的 600 秒 revalidate）。
+// - server 取數 `no-store`＋有界逾時：控制狀態快取不得超過 30 秒輪詢（#441 起 api.ts 也全面 no-store）。
 
 import type { GameKeyV2, SeriesContractCoverage, SeriesContractOfficialStatus, SeriesStatusV2, TargetStatusV2 } from "./postseason-series-contract.ts";
 import type { SeriesSummary } from "./playoffs-series-summary.ts";
+import { SSR_FETCH_TIMEOUT_MS } from "./fetch-result.ts";
 
 export type PlayoffsSeriesCode = "E" | "C";
 
@@ -159,7 +160,9 @@ export function parseYearParam(raw: string | string[] | undefined, fallback: num
 export async function fetchPlayoffsOverview(year: number, series: PlayoffsSeriesCode | null = null): Promise<PlayoffsOverview | null> {
   const base = process.env.API_URL ?? "http://localhost:4001";
   try {
-    const res = await fetch(`${base}${overviewPath(year, series)}`, { cache: "no-store" });
+    const res = await fetch(`${base}${overviewPath(year, series)}`, {
+      cache: "no-store", signal: AbortSignal.timeout(SSR_FETCH_TIMEOUT_MS),   // #441：有界逾時
+    });
     if (!res.ok) return null;
     const body = (await res.json()) as PlayoffsOverview;
     return body?.contract === "playoffs-overview/v1" ? body : null;

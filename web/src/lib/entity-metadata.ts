@@ -1,11 +1,15 @@
 import type { Metadata } from "next";
 
+import { fetchApiJson } from "./fetch-result.ts";
+
 const API_URL = process.env.API_URL ?? "http://localhost:4001";
 
+/** metadata 用的實體讀取：失敗（非 2xx、斷線、逾時、壞 JSON）一律回 null，讓標題退回中性字樣；
+ *  ⛔ 這個 null 不代表實體不存在，內文由 client 自己判斷。no-store（#441）：恢復後下一次請求
+ *  就要取到新標題，暖快取也不能遮住故障。 */
 async function readEntity<T>(path: string): Promise<T | null> {
   try {
-    const response = await fetch(`${API_URL}${path}`, { next: { revalidate: 300 } });
-    return response.ok ? response.json() as Promise<T> : null;
+    return await fetchApiJson<T>(API_URL, path);
   } catch {
     return null;
   }

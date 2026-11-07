@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { DataTable, type Column } from "@/components/table";
-import { ActivePill, GonePill, Notice, PlayerLink, TeamBadge, TeamLogo } from "@/components/ui";
+import { ActivePill, GonePill, Notice, PlayerLink, SourceUnavailable, TeamBadge, TeamLogo } from "@/components/ui";
 import { api } from "@/lib/api";
+import { settle } from "@/lib/fetch-result";
 import { teamFullName } from "@/lib/teams";
 import { CareerLeaders } from "./career-leaders";
 import { ChampionsPlayerTable, type ChampRow } from "./champions-player-table";
@@ -105,16 +106,24 @@ function FranchiseTable({ rows }: { rows: Franchises }) {
 }
 
 export default async function RecordsPage() {
-  const [d, fr, ch, ps, tr] = await Promise.all([api.records(), api.franchises(), api.championships(), api.postseason(), api.teamRecords()]);
-  const seasons = seasonRows(d);
-  const battingCareer = [
+  // #441：五支來源各自 settle，任一失敗只降級依賴它的頁籤區塊；頁框與其他頁籤照常。
+  // records → 生涯排行／單季之最；championships → 歷代總冠軍／個人冠軍榜；postseason → 季後賽紀錄；
+  // teamRecords → 紀錄集錦；franchises → 歷代球隊，以及王朝榜的例行賽勝率欄與隊名補充。
+  const [dR, frR, chR, psR, trR] = await Promise.all([
+    settle(api.records()), settle(api.franchises()), settle(api.championships()), settle(api.postseason()), settle(api.teamRecords()),
+  ]);
+  const d = dR.ok ? dR.data : null;
+  const fr = frR.ok ? frR.data : null;
+  const ch = chR.ok ? chR.data : null;
+  const seasons = d ? seasonRows(d) : [];
+  const battingCareer = d && [
     { title: "生涯全壘打", rows: d.career_batting.hr },
     { title: "生涯安打", rows: d.career_batting.h },
     { title: "生涯打點", rows: d.career_batting.rbi },
     { title: "生涯打席", rows: d.career_batting.pa },
     { title: "生涯盜壘", rows: d.career_batting.sb },
   ];
-  const pitchingCareer = [
+  const pitchingCareer = d && [
     { title: "生涯勝投", rows: d.career_pitching.w },
     { title: "生涯三振", rows: d.career_pitching.so },
     { title: "生涯救援", rows: d.career_pitching.sv },
@@ -124,15 +133,15 @@ export default async function RecordsPage() {
 
   // 冠軍資料 coverage fail-closed：缺年時 API 不回傳 franchise/player_ranking，前端據此
   // 不呈現「歷史最多冠軍」累計結論（看板紅線：冠軍資料缺年不得公開歷史最多）。
-  const covComplete = ch.coverage.complete;
-  const dynasties = ch.franchise_ranking ?? [];
-  const champPlayers = ch.player_ranking ?? [];
+  const covComplete = ch?.coverage.complete ?? false;
+  const dynasties = ch?.franchise_ranking ?? [];
+  const champPlayers = ch?.player_ranking ?? [];
 
   // 把奪冠年份解析成「當年隸屬球隊」徽章（含教練身分年份）。用**當年隊名**（era-accurate）：
   // 張泰山 2004/05 是興農牛奪冠（興農 franchise 今為富邦），顯示富邦是錯的；已解散隊
   // （三商虎/中信鯨）更沒有現役 franchise。依**當年隊碼**去重：同隊合併一枚，改過名的隊
   // （Lamigo→樂天桃猿 是不同碼）獨立列出。每枚帶自己的奪冠年份供 hover。
-  const yearInfo = new Map(ch.seasons.map((s) => [s.year, s]));
+  const yearInfo = new Map((ch?.seasons ?? []).map((s) => [s.year, s]));
   const teamsOf = (years: number[]) => {
     const byCode = new Map<string, { code: string; name: string; years: number[] }>();
     for (const y of years) {
@@ -160,13 +169,13 @@ export default async function RecordsPage() {
   const champRows = [...champGroups.values()];
 
   // 例行賽勝率（全史 kind A）：現役球團依勝率排序，供王朝榜第三欄與冠軍分布對照。
-  const regular = fr.items
+  const regular = (fr?.items ?? [])
     .filter((t) => t.active)
     .map((t) => ({ code: t.code, name: t.name, win_pct: t.win_pct, w: t.w, l: t.l }))
     .sort((a, b) => (b.win_pct ?? 0) - (a.win_pct ?? 0));
 
-  // 王朝榜隊名改用 franchise 全名（中信兄弟／統一7-ELEVEn獅…）。
-  const frName = new Map(fr.items.map((t) => [t.code, t.name]));
+  // 王朝榜隊名改用 franchise 全名（中信兄弟／統一7-ELEVEn獅…）；franchises 取不到時沿用冠軍回應自帶的隊名。
+  const frName = new Map((fr?.items ?? []).map((t) => [t.code, t.name]));
   const dynastyRows = dynasties.map((r) => ({ ...r, team: frName.get(r.team_code) ?? r.team }));
 
   // 頁籤形式（UI 審 r7）：七大區改單層 tablist 一次看一區；區塊標題由頁籤承擔，
@@ -177,8 +186,10 @@ export default async function RecordsPage() {
       content: (
         <section aria-labelledby="dynasty">
           <h2 id="dynasty" className="sr-only">歷代總冠軍</h2>
-          {covComplete && dynasties.length ? (
-            <DynastyChart rows={dynastyRows} regular={regular} />
+          {!ch ? (
+            <SourceUnavailable label="歷代總冠軍" />
+          ) : covComplete && dynasties.length ? (
+            <DynastyChart rows={dynastyRows} regular={regular} regularUnavailable={!fr} />
           ) : (
             <Notice>{ch.note ?? "冠軍資料尚未補齊，暫不呈現累計王朝排行。"}</Notice>
           )}
@@ -190,7 +201,9 @@ export default async function RecordsPage() {
       content: (
         <section aria-labelledby="career-records">
           <h2 id="career-records" className="sr-only">生涯排行</h2>
-          <CareerLeaders batting={battingCareer} pitching={pitchingCareer} />
+          {battingCareer && pitchingCareer
+            ? <CareerLeaders batting={battingCareer} pitching={pitchingCareer} />
+            : <SourceUnavailable label="生涯排行" />}
         </section>
       ),
     },
@@ -199,17 +212,22 @@ export default async function RecordsPage() {
       content: (
         <section aria-labelledby="postseason">
           <h2 id="postseason" className="sr-only">季後賽紀錄</h2>
-          <DataTable columns={postseasonColumns} rows={ps.teams} rowKey={(r) => r.team_code} dense />
-          <p className="mt-2 text-[11px] text-faint">一軍季後賽（台灣大賽＋挑戰賽）全史；亞軍＝台灣大賽敗者，依勝率排序。</p>
+          {psR.ok ? (
+            <>
+              <DataTable columns={postseasonColumns} rows={psR.data.teams} rowKey={(r) => r.team_code} dense />
+              <p className="mt-2 text-[11px] text-faint">一軍季後賽（台灣大賽＋挑戰賽）全史；亞軍＝台灣大賽敗者，依勝率排序。</p>
+            </>
+          ) : <SourceUnavailable label="季後賽紀錄" />}
         </section>
       ),
     },
-    ...(covComplete && champPlayers.length > 0 ? [{
+    // 個人冠軍榜只在冠軍資料完整時出現；冠軍來源取不到時無從判斷，保留頁籤並標示暫時無法取得。
+    ...(!ch || (covComplete && champPlayers.length > 0) ? [{
       label: "個人冠軍榜",
       content: (
         <section aria-labelledby="champ-players">
           <h2 id="champ-players" className="sr-only">個人冠軍次數榜</h2>
-          <ChampionsPlayerTable rows={champRows} />
+          {ch ? <ChampionsPlayerTable rows={champRows} /> : <SourceUnavailable label="個人冠軍榜" />}
         </section>
       ),
     }] : []),
@@ -218,6 +236,7 @@ export default async function RecordsPage() {
       content: (
         <section aria-labelledby="season-records">
           <h2 id="season-records" className="sr-only">單季之最</h2>
+          {!d ? <SourceUnavailable label="單季之最" /> : (
           <div className="grid gap-4 lg:grid-cols-2">
             <div>
               <h3 className="mb-2 text-sm font-bold text-ink">打者紀錄</h3>
@@ -228,6 +247,7 @@ export default async function RecordsPage() {
               <DataTable columns={seasonColumns} rows={seasons.filter((r) => r.group === "投手")} rowKey={(r) => r.key} dense />
             </div>
           </div>
+          )}
         </section>
       ),
     },
@@ -236,8 +256,12 @@ export default async function RecordsPage() {
       content: (
         <section aria-labelledby="team-records">
           <h2 id="team-records" className="sr-only">例行賽紀錄集錦</h2>
-          <DataTable columns={teamRecordColumns} rows={tr.records} rowKey={(r) => r.label} dense />
-          <p className="mt-2 text-[11px] text-faint">全史；連勝／連敗／連續完封為單季內、和局中斷。以當年隊名歸屬。</p>
+          {trR.ok ? (
+            <>
+              <DataTable columns={teamRecordColumns} rows={trR.data.records} rowKey={(r) => r.label} dense />
+              <p className="mt-2 text-[11px] text-faint">全史；連勝／連敗／連續完封為單季內、和局中斷。以當年隊名歸屬。</p>
+            </>
+          ) : <SourceUnavailable label="紀錄集錦" />}
         </section>
       ),
     },
@@ -246,7 +270,7 @@ export default async function RecordsPage() {
       content: (
         <section aria-labelledby="franchise-history">
           <h2 id="franchise-history" className="sr-only">歷代球隊</h2>
-          <FranchiseTable rows={fr.items} />
+          {fr ? <FranchiseTable rows={fr.items} /> : <SourceUnavailable label="歷代球隊" />}
         </section>
       ),
     },

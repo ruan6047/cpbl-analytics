@@ -1,6 +1,7 @@
 import type { Report, ReportAnchor, ReportKind, ReportRequest } from "./report-types";
 // FastAPI 資料層 client（Server Component 用）。prod 走 Docker 內網，dev 走 localhost。
-import { ApiError } from "./http-error.ts";
+import { cache } from "react";
+import { fetchApiJson } from "./fetch-result.ts";
 import type { DailySummary, PregameServingMeta } from "./daily-summary";
 import type { LiveEntryStatus } from "./postseason-journey";
 import type { PostseasonSeriesContextV2 } from "./postseason-series-contract";
@@ -96,28 +97,28 @@ export type TeamUpcomingRecordsResponse = {
   franchise_records: TeamRecordsFranchise[];
 };
 
-async function get<T>(path: string, revalidate = 600): Promise<T> {
-  const res = await fetch(`${API_URL}${path}`, { next: { revalidate } });
-  if (!res.ok) throw new ApiError(path, res.status);
-  return res.json() as Promise<T>;
+/** 伺服器端 API 取用（#441）：一律 no-store＋有界逾時，失敗拋帶分類的 ApiError
+ *  （頁面以 `settle()` 轉成區塊降級）。⛔ 不再用 `next.revalidate`：暖快取會遮住 API 故障，
+ *  降級結果也不得被跨請求保存，否則 API 恢復後下一次請求仍顯示舊狀態（#441 驗收 3）。
+ *  代價是成功結果不再跨請求共用；同一請求內的相同路徑仍由 React `cache` 去重
+ *  （帶逾時訊號的 fetch 不會被 Next 自動去重）。 */
+const getCached = cache(<T>(path: string): Promise<T> => fetchApiJson<T>(API_URL, path));
+
+function get<T>(path: string): Promise<T> {
+  return getCached(path) as Promise<T>;
 }
 
-/** 不進快取的取用。只給「必須即時」的狀態用（目前只有賽前模型的 serving 降級揭露）：
- *  快取住的降級提示會在 refresh 恢復後續顯示，讓上線程序的驗證步驟失去意義。 */
-async function getLive<T>(path: string): Promise<T> {
-  const res = await fetch(`${API_URL}${path}`, { cache: "no-store" });
-  if (!res.ok) throw new ApiError(path, res.status);
-  return res.json() as Promise<T>;
-}
+/** 必須即時的狀態（賽前模型 serving 降級揭露、單場報告）。#441 起與 `get` 相同（皆 no-store），
+ *  保留名稱讓呼叫點的「為何必須即時」理由留在原處。 */
+const getLive = get;
 
-/** 季後旅程的兩個輸入（季後摘要、calendar）。當季已公告季後時，呼叫端傳 `live` 走 no-store（#237 方案 A）。
- *  原因：兩者各自快取 120 秒、三入口的 key 又不同，正式建置實測會把不同時間存下的快照組在同一頁。
- *  no-store 只消除跨請求快取造成的舊新混用；兩支仍是獨立請求，不保證來自同一個資料庫快照。
- *  歷史年份與二軍不傳 `live`，沿用 120 秒快取。 */
+/** 季後旅程的兩個輸入（季後摘要、calendar）。#237 方案 A 讓當季已公告季後時走 no-store；
+ *  #441 起所有伺服器取數都是 no-store，`live` 不再改變快取行為，保留參數只為不改呼叫端。
+ *  兩支仍是獨立請求，不保證來自同一個資料庫快照。 */
 export type JourneyFetch = { live?: boolean };
 
-function journeyGet<T>(path: string, { live = false }: JourneyFetch): Promise<T> {
-  return live ? getLive<T>(path) : get<T>(path, 120);
+function journeyGet<T>(path: string, _mode: JourneyFetch): Promise<T> {
+  return get<T>(path);
 }
 
 /** 單場賽況入口的狀態查詢上限（#237）。後端每場固定 2 次 Redis GET（各 1 秒 socket timeout）
@@ -125,17 +126,17 @@ function journeyGet<T>(path: string, { live = false }: JourneyFetch): Promise<T>
 const LIVE_ENTRY_TIMEOUT_MS = 2000;
 
 /** 單場狀態，只給季後單場入口判斷「要不要給連結」（#237；身分比對在 postseason-journey 的 withLiveEntries）。
- *  no-store：入口要跟著快照出現與消失，不能被快取留住。任何失敗（4xx／5xx／例外／逾時／壞 JSON）
- *  都回 null，等同沒有入口，不讓頁面出錯。 */
+ *  no-store：入口要跟著快照出現與消失，不能被快取留住。失敗時 reject 帶分類的 ApiError，
+ *  讓頁面能區分「無法核實」與「確實沒有入口」（#441）；兩者都不給連結。 */
+async function liveEntryCheck(sno: number, kind: string, year: number, timeoutMs = LIVE_ENTRY_TIMEOUT_MS): Promise<LiveEntryStatus> {
+  const body = await fetchApiJson<unknown>(API_URL, `/api/v1/games/${sno}/status?kind_code=${kind}&season=${year}`, timeoutMs);
+  return body && typeof body === "object" ? (body as LiveEntryStatus) : null;
+}
+
+/** 同上，但任何失敗（4xx／5xx／例外／逾時／壞 JSON）都回 null，等同沒有入口。 */
 async function liveEntryStatus(sno: number, kind: string, year: number, timeoutMs = LIVE_ENTRY_TIMEOUT_MS): Promise<LiveEntryStatus> {
   try {
-    const res = await fetch(`${API_URL}/api/v1/games/${sno}/status?kind_code=${kind}&season=${year}`, {
-      cache: "no-store",
-      signal: AbortSignal.timeout(timeoutMs),
-    });
-    if (!res.ok) return null;
-    const body: unknown = await res.json();
-    return body && typeof body === "object" ? (body as LiveEntryStatus) : null;
+    return await liveEntryCheck(sno, kind, year, timeoutMs);
   } catch {
     return null;
   }
@@ -492,12 +493,12 @@ export const api = {
     return getLive<Report>(`/api/v1/games/${sno}/report?${params}`);
   },
   officialStandings: (seg = 0, year?: number, kind = "A") =>
-    get<OfficialStandingsResponse>(`/api/v1/standings?season_code=${seg}&kind_code=${kind}${year ? `&season=${year}` : ""}`, 120),
-  seasons: (kind = "A") => get<{ years: number[] }>(`/api/v1/seasons?kind_code=${kind}`, 600),
+    get<OfficialStandingsResponse>(`/api/v1/standings?season_code=${seg}&kind_code=${kind}${year ? `&season=${year}` : ""}`),
+  seasons: (kind = "A") => get<{ years: number[] }>(`/api/v1/seasons?kind_code=${kind}`),
   teamDer: (code: string) =>
     get<{ team: string; franchise: string;
       items: { year: number; team_id: string; der: string; rnk: number; n: number; lg_der: string }[];
-    }>(`/api/v1/teams/${code}/der`, 600),
+    }>(`/api/v1/teams/${code}/der`),
   teamEras: (code: string) =>
     get<{
       franchise: string; origins: string | null;
@@ -507,7 +508,7 @@ export const api = {
       best_season: { year: number; name: string; win_pct: number } | null;
       worst_season: { year: number; name: string; win_pct: number } | null;
       championships: number[]; championship_count: number;
-    }>(`/api/v1/teams/${code}/eras`, 600),
+    }>(`/api/v1/teams/${code}/eras`),
   franchises: () =>
     get<{
       items: {
@@ -515,7 +516,7 @@ export const api = {
         from: number; to: number; w: number; l: number; t: number; win_pct: number | null;
         eras: { code: string; name: string; from: number; to: number }[];
       }[];
-    }>(`/api/v1/franchises`, 600),
+    }>(`/api/v1/franchises`),
   teamPlayers: (code: string) =>
     get<{
       code: string;
@@ -537,39 +538,39 @@ export const api = {
         number: number; holder_type: "player" | "fans" | "org";
         player_id: string | null; holder: string; status: "active" | "revoked"; note: string | null;
       }[];
-    }>(`/api/v1/teams/${code}/players`, 600),
+    }>(`/api/v1/teams/${code}/players`),
   specialRecords: (season?: number) =>
-    get<SpecialRecordsResponse>(`/api/v1/special-records${season ? `?season=${season}` : ""}`, 120),
+    get<SpecialRecordsResponse>(`/api/v1/special-records${season ? `?season=${season}` : ""}`),
   standingsTrend: (season?: number, kind = "A", seasonCode = 0) =>
     get<StandingsTrendResponse>(
       `/api/v1/standings-trend?kind_code=${kind}${season ? `&season=${season}` : ""}${seasonCode === 1 || seasonCode === 2 ? `&season_code=${seasonCode}` : ""}`,
-      120,
     ),
   postseasonSummary: (season?: number, kind = "A", fetchMode: JourneyFetch = {}) =>
     journeyGet<PostseasonSummaryResponse>(`/api/v1/postseason-summary?kind_code=${kind}${season ? `&season=${season}` : ""}`, fetchMode),
   gamesRecent: (limit = 60, year?: number, kind = "A") =>
-    get<GamesRecentResponse>(`/api/v1/games/recent?limit=${limit}&kind_code=${kind}${year ? `&season=${year}` : ""}`, 120),
+    get<GamesRecentResponse>(`/api/v1/games/recent?limit=${limit}&kind_code=${kind}${year ? `&season=${year}` : ""}`),
   gamesCalendar: (year?: number, kind = "A", fetchMode: JourneyFetch = {}) =>
     journeyGet<GamesCalendarResponse>(`/api/v1/games/calendar?kind_code=${kind}${year ? `&season=${year}` : ""}`, fetchMode),
   liveEntryStatus,
+  liveEntryCheck,
   standings: (season?: number) =>
     get<StandingsResponse>(`/api/v1/season/standings${season ? `?season=${season}` : ""}`),
   teamSplit: (season?: number) =>
-    get<TeamSplitResponse>(`/api/v1/season/team-split${season ? `?season=${season}` : ""}`, 120),
+    get<TeamSplitResponse>(`/api/v1/season/team-split${season ? `?season=${season}` : ""}`),
   // 球風七軸（UX-TEAM-STYLE1）：逐季 z/raw/排名＋軸級語意標注＋教練時間標記。全年口徑。
   teamStyle: (code: string) =>
-    get<TeamStyleResponse>(`/api/v1/teams/${code}/style`, 600),
+    get<TeamStyleResponse>(`/api/v1/teams/${code}/style`),
   // 近日焦點・近期球員熱區（UX-TEAM-HOTZONE1）：口徑見後端 cpbl.api.team_hotzone docstring。
   teamHotZone: (code: string, season?: number) =>
-    get<TeamHotZoneResponse>(`/api/v1/teams/${code}/hot-zone${season ? `?season=${season}` : ""}`, 120),
+    get<TeamHotZoneResponse>(`/api/v1/teams/${code}/hot-zone${season ? `?season=${season}` : ""}`),
   // 近日焦點・即將挑戰的紀錄（UX-TEAM-RECORDS1）：口徑見後端 cpbl.api.team_records docstring。
   teamUpcomingRecords: (code: string, season?: number) =>
-    get<TeamUpcomingRecordsResponse>(`/api/v1/teams/${code}/upcoming-records${season ? `?season=${season}` : ""}`, 120),
+    get<TeamUpcomingRecordsResponse>(`/api/v1/teams/${code}/upcoming-records${season ? `?season=${season}` : ""}`),
   // 固定語意群賽前勝率（UX-TEAM-FOCUS2 複用；不接受特徵勾選）。與 outcome/pregame 探索器
   // 同一端點，但消費端各自把整份 response 交給 resolvePregameCard（單一來源守衛
   // pregame-single-source.test.ts 規則 2）。
   outcomePregame: (limit = 60) =>
-    get<PregameResponse>(`/api/v1/outcome/pregame?limit=${limit}`, 120),
+    get<PregameResponse>(`/api/v1/outcome/pregame?limit=${limit}`),
   records: () =>
     get<{
       games: Record<"max_margin" | "max_team_runs" | "max_combined", { year: number; date: string; home: string; away: string; hs: number; as: number } | null>;
@@ -577,7 +578,7 @@ export const api = {
       season_pitching: Record<string, { name: string; pid: string; year: number; val: number }[]>;
       career_batting: Record<string, { name: string; pid: string; val: number; active: boolean }[]>;
       career_pitching: Record<string, { name: string; pid: string; val: number | string; active: boolean }[]>;
-    }>("/api/v1/records", 600),
+    }>("/api/v1/records"),
   // 冠軍編：coverage fail-closed（缺年時 API 不回傳 franchise/player_ranking，前端據此不呈現累計結論）。
   championships: () =>
     get<{
@@ -590,12 +591,12 @@ export const api = {
       note?: string;
       franchise_ranking?: { team_code: string; team: string | null; titles: number; years: number[]; rk: number }[];
       player_ranking?: { name: string; pid: string; titles: number; years: number[]; active: boolean; is_manager: boolean; rk: number }[];
-    }>("/api/v1/records/championships", 600),
+    }>("/api/v1/records/championships"),
   // 例行賽球隊紀錄集錦（全史完整資料；每項一位保持者）。
   teamRecords: () =>
     get<{
       records: { label: string; team_code: string; team: string | null; value: number; unit: string; year: number }[];
-    }>("/api/v1/records/team", 600),
+    }>("/api/v1/records/team"),
   // 季後賽球團戰績（僅完整資料：亞軍/連霸/勝率/出賽）。
   postseason: () =>
     get<{
@@ -605,9 +606,8 @@ export const api = {
         w: number; l: number; g: number; win_pct: number | null;
         streak: number; streak_from: number; streak_to: number;
       }[];
-    }>("/api/v1/records/postseason", 600),
+    }>("/api/v1/records/postseason"),
   // 排行榜改由前端點欄位排序/隊伍篩選，故抓全名單（低門檻、大 limit）。
-  // revalidate=60：資料隨爬蟲更新，縮短快取避免欄位/數值過時。
   venues: (season?: number) =>
     get<{
       season: number;
@@ -619,31 +619,31 @@ export const api = {
         games_played: number | null; avg_attendance: number | null; home_teams: string | null;
         first_year: number | null; last_year: number | null;
       }[];
-    }>(`/api/v1/venues${season ? `?season=${season}` : ""}`, 600),
+    }>(`/api/v1/venues${season ? `?season=${season}` : ""}`),
   // 球場詳情三端點。{venue} 為短名（含中文 → encodeURIComponent）；查無資料回 404 → 呼叫端 notFound()。
   venueFactors: (venue: string) =>
-    get<VenueFactorsResponse>(`/api/v1/venues/${encodeURIComponent(venue)}/factors`, 600),
+    get<VenueFactorsResponse>(`/api/v1/venues/${encodeURIComponent(venue)}/factors`),
   venueStats: (venue: string) =>
-    get<VenueStatsResponse>(`/api/v1/venues/${encodeURIComponent(venue)}/stats`, 600),
+    get<VenueStatsResponse>(`/api/v1/venues/${encodeURIComponent(venue)}/stats`),
   venuePlayers: <T>(venue: string, role: "batting" | "pitching", limit = 6) =>
     get<VenuePlayersResponse<T>>(
-      `/api/v1/venues/${encodeURIComponent(venue)}/players?role=${role}&limit=${limit}`, 600),
+      `/api/v1/venues/${encodeURIComponent(venue)}/players?role=${role}&limit=${limit}`),
   projections: (stat = "ops", limit = 50) =>
     get<{
       model_version: string | null; stat: string; target_year: number | null;
       items: { player_id: string; name: string | null; predicted: number; actual: number | null }[];
-    }>(`/api/v1/projections/batting?stat=${stat}&limit=${limit}`, 600),
+    }>(`/api/v1/projections/batting?stat=${stat}&limit=${limit}`),
   pitchingProjections: (stat = "era", limit = 50) =>
     get<{
       model_version: string | null; stat: string; target_year: number | null;
       items: { player_id: string; name: string | null; predicted: number; actual: number | null }[];
-    }>(`/api/v1/projections/pitching?stat=${stat}&limit=${limit}`, 600),
+    }>(`/api/v1/projections/pitching?stat=${stat}&limit=${limit}`),
   battingLeaders: (sort = "ops", { limit = 400, minPa = 0, year, kind = "A" }: { limit?: number; minPa?: number; year?: number; kind?: string } = {}) =>
-    get<BattingLeadersResponse>(`/api/v1/season/batting-leaders?sort=${sort}&limit=${limit}&min_pa=${minPa}&kind_code=${kind}${year ? `&season=${year}` : ""}`, 60),
+    get<BattingLeadersResponse>(`/api/v1/season/batting-leaders?sort=${sort}&limit=${limit}&min_pa=${minPa}&kind_code=${kind}${year ? `&season=${year}` : ""}`),
   pitchingLeaders: (sort = "era", { limit = 400, minIp = 0, year, kind = "A" }: { limit?: number; minIp?: number; year?: number; kind?: string } = {}) =>
-    get<PitchingLeadersResponse>(`/api/v1/season/pitching-leaders?sort=${sort}&limit=${limit}&min_ip=${minIp}&kind_code=${kind}${year ? `&season=${year}` : ""}`, 60),
+    get<PitchingLeadersResponse>(`/api/v1/season/pitching-leaders?sort=${sort}&limit=${limit}&min_ip=${minIp}&kind_code=${kind}${year ? `&season=${year}` : ""}`),
   fielding: (sort = "g", { season, pos, limit = 1000 }: { season?: number; pos?: string; limit?: number } = {}) =>
-    get<FieldingResponse>(`/api/v1/season/fielding?sort=${sort}&limit=${limit}${season ? `&season=${season}` : ""}${pos ? `&pos=${encodeURIComponent(pos)}` : ""}`, 300),
+    get<FieldingResponse>(`/api/v1/season/fielding?sort=${sort}&limit=${limit}${season ? `&season=${season}` : ""}${pos ? `&pos=${encodeURIComponent(pos)}` : ""}`),
   // 首頁每日入口單一聚合契約（API-DAILY-SUMMARY1）：最近比賽日／下一批賽事／freshness／
   // 三軸 availability，取代舊首頁十餘組請求（blueprint §8.4）。
   //
@@ -665,11 +665,11 @@ export const api = {
   // 後端的 /api/v1/outcome/pregame/serving 端點仍在，但只留給上線程序第 3 步的 curl
   // 對帳；要在 web 端取用得先明著加回來、經過 review（pregame-single-source.test.ts
   // 的「第二來源不可達」規則會擋，見 UX-PREGAME-SOURCE-GUARD1）。
-  outcomeBenchmark: () => get<OutcomeBenchmarkResponse>("/api/v1/outcome/backtest", 600),
+  outcomeBenchmark: () => get<OutcomeBenchmarkResponse>("/api/v1/outcome/backtest"),
   playersRoster: (season?: number) =>
     get<{
       season: number;
       batters: { id: string; name: string; team: string }[];
       pitchers: { id: string; name: string; team: string }[];
-    }>(`/api/v1/players/roster${season ? `?season=${season}` : ""}`, 600),
+    }>(`/api/v1/players/roster${season ? `?season=${season}` : ""}`),
 };

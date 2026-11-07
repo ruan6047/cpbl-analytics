@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { gameMetadata, gameMetadataPath, gameStatusPath } from "./entity-metadata.ts";
+import { gameMetadata, gameMetadataPath, gameStatusPath, playerMetadata } from "./entity-metadata.ts";
 
 const LIVE_0_0 = { game: { away_team_name: "樂天桃猿", home_team_name: "統一7-ELEVEn獅", away_score: 0, home_score: 0 } };
 
@@ -63,4 +63,33 @@ test("賽事 metadata 預設一軍，拒絕不合法年度", () => {
     gameMetadataPath("1", { year: "not-a-year" }),
     "/api/v1/games/1/live?kind_code=A",
   );
+});
+
+// #441：SSR metadata 取數失敗只退回中性標題，不拋到頁面；壞 JSON 也要接住（原本未 await 會漏接）。
+// no-store：恢復後下一次請求就取新標題，不被快取留住。
+test("球員 metadata：500／斷線／壞 JSON 都退回中性標題，恢復後下一次即取新名", async () => {
+  const original = globalThis.fetch;
+  const inits: RequestInit[] = [];
+  let mode: "500" | "down" | "badjson" | "ok" = "500";
+  globalThis.fetch = (async (_input: string | URL | Request, init: RequestInit) => {
+    inits.push(init);
+    if (mode === "down") throw new TypeError("fetch failed");
+    if (mode === "500") return new Response("{}", { status: 500 });
+    if (mode === "badjson") return new Response("<html>", { status: 200 });
+    return new Response(JSON.stringify({ player: { name: "恢復姓名" } }));
+  }) as typeof fetch;
+  try {
+    for (const m of ["500", "down", "badjson"] as const) {
+      mode = m;
+      assert.deepEqual(await playerMetadata("0000000001"), { title: "球員資料" }, m);
+    }
+    mode = "ok";
+    assert.deepEqual(await playerMetadata("0000000001"), { title: "恢復姓名｜球員" });
+    for (const init of inits) {
+      assert.equal(init.cache, "no-store");
+      assert.equal((init as { next?: unknown }).next, undefined);
+    }
+  } finally {
+    globalThis.fetch = original;
+  }
 });

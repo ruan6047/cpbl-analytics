@@ -3,8 +3,9 @@ import { afterEach, test } from "node:test";
 
 import { api } from "./api.ts";
 
-// #237 方案 A：當季已公告季後時，季後摘要與 calendar 不走跨請求快取（no-store）；
-// 其他呼叫（歷史年份、二軍）照舊 120 秒快取。判準落在實際送出的 fetch 選項與網址。
+// #237 方案 A：當季已公告季後時，季後摘要與 calendar 不走跨請求快取（no-store）。
+// #441 起所有伺服器取數都 no-store（暖快取會遮住 API 故障、降級結果不得被保存），歷史年份與二軍亦同。
+// 判準落在實際送出的 fetch 選項與網址。
 // 正式建置實測的舊新快照混用見 ui-r3 production 自檢；這裡只驗快取選項，不代表資料庫原子快照。
 
 type Call = { url: string; init: RequestInit & { next?: { revalidate?: number } } };
@@ -39,15 +40,15 @@ test("live：季後摘要與 calendar 走 no-store，不帶 revalidate；網址�
   }
 });
 
-test("不傳 live（歷史年份、二軍、未公告）：照舊 120 秒快取", async () => {
+test("不傳 live（歷史年份、二軍、未公告）：#441 起同樣 no-store，不再帶 120 秒 revalidate", async () => {
   stubFetch();
   await api.postseasonSummary(2025, "A");
   await api.gamesCalendar(2025, "A");
   await api.gamesCalendar(undefined, "D", { live: false });
   assert.equal(calls.length, 3);
   for (const c of calls) {
-    assert.equal(c.init.cache, undefined);
-    assert.equal(c.init.next?.revalidate, 120);
+    assert.equal(c.init.cache, "no-store");
+    assert.equal(c.init.next, undefined);
   }
 });
 
