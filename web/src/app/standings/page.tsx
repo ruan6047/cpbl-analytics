@@ -651,7 +651,9 @@ export default async function Standings({ searchParams }: { searchParams: Promis
       {!isPostseason && mainR.ok && !isMinor && (!h0R.ok || !h1R.ok || !h2R.ok) && segCode === 0 && (
         <SourceUnavailable label="半季冠軍標記" className="py-2" />
       )}
-      {!isPostseason && mainR.ok && segCode === 0 && !postseasonR.ok && (
+      {/* 總冠軍章需要季後摘要；摘要取不到，或年度清單取不到而無從判斷所選年是否已打完季後（不取以免把進行中系列當冠軍），都就近標示。 */}
+      {!isPostseason && mainR.ok && segCode === 0
+        && (!postseasonR.ok || (currentYear == null && selectedYear != null)) && (
         <SourceUnavailable label="年度總冠軍標記" className="py-2" />
       )}
 
