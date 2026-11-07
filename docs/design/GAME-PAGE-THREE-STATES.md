@@ -68,7 +68,7 @@
 | 格 | 欄位與內容 | 資料源 | 空 | 不可用 | 錯誤 |
 |---|---|---|---|---|---|
 | **G0 狀態列**（§1.1 表未涵蓋，記分條第 1 列） | `phaseLabel`「比賽結束」＋`inningLabel(glyph)`＋日期／賽事編號／球場＋最後更新＋`sr-only aria-live` | `snapshot`；**整列以 `{snapshot && …}` 閘門**，歷史場（`live_snapshot === null`）只剩日期／編號／球場 | 局數不成立 → `inningLabel` 回 `null` → 顯示「等待賽況」 | 無 snapshot → 整段狀態文字不渲染 | `source_status==="error"`／`freshness==="stale"` 由**頁面層** `Notice` 承載，不入記分條 |
-| **G1／G5 兩隊識別**（左＝客、右＝主）**不變** | `TeamLogo`(40, decorative) ＋ 隊名 ＋ `{w}-{l}` 本季戰績 | `game.away_team_name`／`home_team_name`；`data.records[teamCode]` | 戰績缺 → 該行留空字串（不寫 `0-0`） | 非現役 franchise（`isCurrentTeam` 為 false）→ 退化為純文字、不連結 | 不適用 |
+| **G1／G5 兩隊識別**（左＝客、右＝主）**不變**，唯戰績後補近 10 場（[#394 裁定](https://github.com/ruan6047/cpbl-analytics/issues/394#issuecomment-6515979335)） | `TeamLogo`(40, decorative) ＋ 隊名 ＋ `{w}-{l}` 本季戰績 ＋ `近10 {form}` | `game.away_team_name`／`home_team_name`；`data.records[teamCode]` | 戰績缺或 `w+l=0` → 戰績與近 10 場都留空（不寫 `0-0`） | 非現役 franchise（`isCurrentTeam` 為 false）→ 退化為純文字、不連結 | 不適用 |
 | **G2／G4 終場比分**（左客、右主）**不變** | `font-mono text-4xl font-bold tabular-nums` 兩個大數字 | `liveScorebarScores(game, e)`：優先 `game.away_score`／`home_score`，缺值才降階到當前事件的 `visiting_score`／`home_score` | 賽後態**構造上不會為空**——`canShowPostgameConclusions` 要求 `away+home > 0` 才成立 | 同左 | 不適用 |
 | **G3 中央 ⭐本卡唯一變更** | **賽後＋總覽**：只一行 `終場`（`text-xs font-semibold tracking-wide`，**`text-muted`**）。**不渲染** `▲/▼ N 局`、**不渲染** `<BasesOuts>`、**不渲染** B/S `Dots`。<br>**賽後＋逐打席**：維持賽中形狀（選中打席的 `▲/▼ N 局`＋壘包＋球數）——見下方「兩個頁籤共用同一元素」 | 無資料依賴（純態標籤）。態＝`canShowPostgameConclusions(live_snapshot, away+home) && view === "overview"` | 不適用 | 不適用 | 不適用 |
 

@@ -597,7 +597,8 @@ function overlaySnapshot(response: LiveApiResponse, snapshot: LiveSnapshot): Liv
     ...boxRows("1", snapshot.away.pitchers, "pitcher"),
     ...boxRows("2", snapshot.home.pitchers, "pitcher"),
   ]);
-  const batterAvg = Object.fromEntries(batting.flatMap((row) => {
+  // A 賽別由 API 回截至該場（含入庫前的本場）。快照 Avg 有時是賽前值、有時已含本場，不疊（#394）。
+  const batterAvg = snapshot.kind_code === "A" ? {} : Object.fromEntries(batting.flatMap((row) => {
     const id = String(row.hitter_acnt ?? "");
     return id && row.avg != null ? [[id, Number(row.avg)]] : [];
   }));
