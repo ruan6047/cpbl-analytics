@@ -420,7 +420,16 @@ export default async function TeamPage({ params, searchParams }: {
   }
 
   if (!eras) {
-    groups.push({ value: "eras", label: "隊史", content: <SourceUnavailable key="eras" label="隊史" className="py-8" /> });
+    // 隊史（eras）取不到只降級隊史紀錄與沿革；退休背號來自名單（players）來源，照常呈現（#441 審核 F3）。
+    groups.push({ value: "eras", label: "隊史", content: (
+      <div key="eras" className="space-y-8">
+        <section key="records">
+          <h2 className="mb-1 text-xl font-bold tracking-[0.04em]">隊史紀錄</h2>
+          <SourceUnavailable label="隊史紀錄與球隊沿革" />
+        </section>
+        {roster ? <RetiredNumbers key="retired" retired={retired} color={color} /> : <SourceUnavailable key="retired" label="退休背號" />}
+      </div>
+    ) });
   } else if (eras.eras.length >= 1) {
     groups.push({ value: "eras", label: "隊史", content: (
       <div key="eras" className="space-y-8">
@@ -525,12 +534,13 @@ export default async function TeamPage({ params, searchParams }: {
           )}
         </div>
 
-        {team && (
+        {/* 連勝敗／淘汰指數來自當季戰績；近況來自近期賽事。兩者獨立，當季戰績取不到時近況照常（#441 審核同類修正）。 */}
+        {(team || (isActive && (form.length > 0 || !gamesR.ok))) && (
           <div className="mt-3 flex flex-wrap items-center gap-x-6 gap-y-3 rounded-md bg-surface-2 px-3 py-2.5">
-            {[
+            {(team ? [
               { label: "", value: streakZh(team.streak) },
               { label: "淘汰指數", value: team.elim && team.elim !== "" ? team.elim : "—" },
-            ].map((s, i) => (
+            ] : []).map((s, i) => (
               <div key={s.label || i} className="flex items-baseline gap-1.5">
                 {s.label && <span className="text-xs text-muted">{s.label}</span>}
                 <span className="font-mono text-base font-bold tabular-nums text-ink">{s.value}</span>

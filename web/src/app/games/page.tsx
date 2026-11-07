@@ -72,23 +72,24 @@ export default async function GamesPage({
   const isCurrent = scope.isCurrentYear && kind === "A";
   // 季後公告（#237）：只在當季一軍且有官方公告時啟用；歷史年份與二軍走原路徑。
   // 啟用時 calendar 與季後摘要都不走跨請求快取，避免同一頁組到不同時間的快照（api.ts journeyGet）。
-  // 年度未知（清單取不到且未指定）時無從判斷是否已公告季後，不組季後旅程（#441；選單處已標示年度來源失敗）。
-  const announced = isCurrent && scope.selectedYear != null && announcementFor(scope.selectedYear) !== null;
-  const live = { live: announced };
+  // 年度未知（清單取不到且未指定）時，先以非即時取月曆，等月曆回應的 season（省略 season＝當季）再判斷公告（#441 審核 F2）。
+  const live = { live: isCurrent && scope.selectedYear != null && announcementFor(scope.selectedYear) !== null };
   const calendarR = await settle(api.gamesCalendar(isCurrent ? undefined : scope.selectedYear ?? undefined, kind, live));
   const calendarRes = dataOf(calendarR);
   const season = calendarRes?.season;
   const selectedYear = scope.selectedYear ?? season ?? null;
+  if (!live.live && isCurrent && scope.selectedYear == null && season != null && announcementFor(season) !== null) live.live = true;
+  const announced = live.live;
   // #268：官方空白隊名（台灣大賽 C 列）以現役隊碼補齊顯示名，日曆格、即時卡與篩選共用同一份。
   const items = (calendarRes?.items ?? []).map(withGameTeamNames);
   const hasDetail = (selectedYear ?? Infinity) >= 2018;
 
   // 季後旅程的系列事實只讀 API 的 series_context（#283）；摘要取不到時不畫公告格，不擋日曆本身。
-  // 公告季後時才取；失敗就近標示（#441），不擋日曆。月曆本身取不到時不組旅程（缺正式場次）。
-  const postR = announced && calendarRes ? await settle(api.postseasonSummary(scope.selectedYear ?? undefined, "A", live)) : null;
+  // 公告季後時才取；失敗就近標示（#441），不擋日曆。月曆取不到時旅程退回只用摘要（同首頁），季後說明照常呈現。
+  const postR = announced ? await settle(api.postseasonSummary(selectedYear ?? undefined, "A", live)) : null;
   const postSummary = postR ? dataOf(postR) : null;
   const baseJourney = isCurrent && postSummary?.season === selectedYear
-    ? postseasonJourneyFromContext(postSummary.series_context, items)
+    ? postseasonJourneyFromContext(postSummary.series_context, calendarRes ? items : null)
     : null;
   // #268 B2：與首頁同一支既有 daily summary（no-store），只取 coverage 的官方賽程異動；失敗時就近說明無法核實，不擋日曆。
   const dailyR = baseJourney && announced ? await settle(api.dailySummary()) : null;
@@ -230,7 +231,10 @@ export default async function GamesPage({
       {entryUnverified && <SourceUnavailable label="季後單場入口" className="mb-3 py-2" />}
 
       {!calendarR.ok ? (
-        <SourceUnavailable label="賽程月曆" className="py-12" />
+        <>
+          <SourceUnavailable label="賽程月曆" className="py-12" />
+          {journey && <PostseasonExplainer journey={journey} className="mt-2" />}
+        </>
       ) : (
       <>
 

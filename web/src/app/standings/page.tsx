@@ -72,8 +72,11 @@ function NumPairCell({ good, bad }: { good: number; bad: number }) {
 // 特殊戰績跨隊對照（UX-SPECIAL-COMPARE1）：把高訊號隊級特殊戰績收成單一精簡表，
 // 補回 UX-STANDINGS-FOCUS1 移出後的跨隊比較（不重現舊 8 張密表；細項留球隊頁）。
 // 沿用 WLCell/NumPairCell 色階 → 「哪隊最會逆轉／再見」5 秒可讀。
-function SpecialCompareTable({ rows, sp }: { rows: OfficialStanding[]; sp: Map<string, SpecialRecord> }) {
-  const columns: Column<OfficialStanding>[] = [
+// 跨隊比較表只需要隊碼與隊名；主戰績取不到時可改用其他成功來源的隊伍清單（#441）。
+type TeamRow = Pick<OfficialStanding, "team_code" | "team_name">;
+
+function SpecialCompareTable({ rows, sp }: { rows: TeamRow[]; sp: Map<string, SpecialRecord> }) {
+  const columns: Column<TeamRow>[] = [
     { header: "球隊", cell: (t) => <LinkedTeam code={t.team_code} name={t.team_name} />, nowrap: true, className: "font-sans", sticky: true },
     { header: <span title="曾落後仍逆轉獲勝 - 曾領先卻被逆轉">逆轉 勝-被</span>, cell: (t) => <WLCell p={sp.get(t.team_code)?.comeback} />, nowrap: true },
     { header: <span title="最終局下半超前致勝 - 客場吞再見敗">再見 勝-被</span>, cell: (t) => { const s = sp.get(t.team_code); return <NumPairCell good={s?.walkoff ?? 0} bad={s?.walked_off ?? 0} />; }, nowrap: true },
@@ -93,16 +96,16 @@ function SpecialCompareTable({ rows, sp }: { rows: OfficialStanding[]; sp: Map<s
   );
 }
 
-function MonthsTable({ rows, sp }: { rows: OfficialStanding[]; sp: Map<string, SpecialRecord> }) {
+function MonthsTable({ rows, sp }: { rows: TeamRow[]; sp: Map<string, SpecialRecord> }) {
   const monthSet = new Set<number>();
   sp.forEach((s) => Object.keys(s.months).forEach((m) => monthSet.add(Number(m))));
   const months = [...monthSet].sort((a, b) => a - b);
   if (months.length === 0) return null;
-  const columns: Column<OfficialStanding>[] = [
+  const columns: Column<TeamRow>[] = [
     { header: "球隊", cell: (t) => <LinkedTeam code={t.team_code} name={t.team_name} />, nowrap: true, className: "font-sans" },
     ...months.map((m) => ({
       header: `${m} 月`,
-      cell: (t: OfficialStanding) => <WLCell p={sp.get(t.team_code)?.months[String(m)]} />,
+      cell: (t: TeamRow) => <WLCell p={sp.get(t.team_code)?.months[String(m)]} />,
       nowrap: true,
     })),
   ];
@@ -252,8 +255,10 @@ type PostSeries = {
   games?: SeriesGame[];
 };
 
-function PostseasonBracket({ isCurrent, h0, h1, h2, series, journey, activeSeries }: {
+function PostseasonBracket({ isCurrent, h0, h1, h2, series, journey, activeSeries, seedsUnavailable = false }: {
   isCurrent: boolean;
+  /** #441：半季／全年戰績取不到。已有實際系列資料時照常呈現系列，只少種子標記（頁面另行標示）。 */
+  seedsUnavailable?: boolean;
   h0: OfficialStandingsResponse | null;
   h1: OfficialStandingsResponse | null;
   h2: OfficialStandingsResponse | null;
@@ -295,7 +300,7 @@ function PostseasonBracket({ isCurrent, h0, h1, h2, series, journey, activeSerie
     };
     return <PostseasonOverview journey={journey} nameOf={nameOf} seedOf={wild} active={activeSeries} />;
   }
-  if (!h1c || !h2c || full.length < 3) {
+  if ((!h1c || !h2c || full.length < 3) && !(seedsUnavailable && series.length > 0)) {
     return <p className="text-sm text-faint">此年度尚無季後賽資料（半季冠軍未產生）。</p>;
   }
   const totalGames = series.reduce((n, s) => n + (s.games?.length ?? 0), 0);
@@ -372,6 +377,8 @@ function PostseasonBracket({ isCurrent, h0, h1, h2, series, journey, activeSerie
     );
   }
 
+  // 上方守衛已保證走到這裡時半季冠軍皆有值（seedsUnavailable 只放行有系列資料的歷史路徑）。
+  if (!h1c || !h2c) return null;
   // ── 當季進行中（尚無對戰資料）：依現行制（2022+）預測 bracket 席位 ──
   let byeCode: string, challHomeCode: string | null, challAwayCode: string | null;
   let handicapSlot: "challenge" | "taiwan";
@@ -521,7 +528,11 @@ export default async function Standings({ searchParams }: { searchParams: Promis
   const calendar = dataOf(calendarR);
   const daily = dataOf(dailyR);
   // 季後分頁（一軍）的對戰區需要三段戰績＋季後摘要；任一取不到就整區標示，不以殘缺資料推「形勢預測」。
-  const bracketUnavailable = !h0R.ok || !h1R.ok || !h2R.ok || !postseasonR.ok;
+  // 季後對戰區：系列比分來自季後摘要；半季／全年戰績只供種子標記。已有實際系列時種子缺了照常呈現系列（#441 審核同類修正），
+  // 只有「摘要取不到」或「沒有系列、需要戰績推形勢」時才整區標示。
+  const seedsUnavailable = !h0R.ok || !h1R.ok || !h2R.ok;
+  const hasSeries = (postseason?.series.length ?? 0) > 0;
+  const bracketUnavailable = !postseasonR.ok || (seedsUnavailable && !hasSeries);
   // 系列事實只讀 API 的 series_context（#283）；calendar 只供「本站賽果紀錄至」。
   const baseJourney = announcement && postseason && postseason.season === selectedYear
     ? postseasonJourneyFromContext(postseason.series_context, calendar?.items ?? null)
@@ -541,12 +552,85 @@ export default async function Standings({ searchParams }: { searchParams: Promis
   const sp = new Map((special?.items ?? []).map((s) => [s.team_code, s]));
   // 主戰績表發散上色比較基準（勝率與團隊攻守）
   const pcts = items.map((x) => x.win_pct);
-  const opsVals = items.map((r) => adv.get(r.team_code)?.ops);
-  const eraVals = items.map((r) => adv.get(r.team_code)?.era);
-  const whipVals = items.map((r) => adv.get(r.team_code)?.whip);
+  // 進階展開與走勢不依賴主戰績本身：主戰績取不到時，隊伍清單改取自團隊攻守或特殊戰績的成功回應（#441 審核 F1）。
+  const teamRows: TeamRow[] = mainR.ok ? items
+    : derived?.standings.length ? derived.standings.map((d) => ({ team_code: d.code, team_name: d.name }))
+    : (special?.items ?? []).map((x) => ({ team_code: x.team_code, team_name: x.team_name }));
+  const opsVals = teamRows.map((r) => adv.get(r.team_code)?.ops);
+  const eraVals = teamRows.map((r) => adv.get(r.team_code)?.era);
+  const whipVals = teamRows.map((r) => adv.get(r.team_code)?.whip);
 
   const levelLabel = isMinor ? "二軍" : "";
   const subtitle = isMinor ? `${levelLabel}戰績` : useOfficial ? "本季戰績" : "歷年戰績";
+
+  // 走勢與進階展開（#441 審核 F1）：主戰績成功或失敗都要照常呈現，只依各自來源降級。
+  const supportingBlocks = (
+    <>
+          {trend && trend.points.length > 0 && (
+            <section className="mt-8">
+              <h2 className="mb-1 text-xl font-bold tracking-[0.04em]">戰績走勢</h2>
+              <div className="rounded-md p-4">
+                <StandingsTrend teams={trend.teams} points={trend.points} names={trend.names} />
+              </div>
+            </section>
+          )}
+          {!trendR.ok && (
+            <section className="mt-8">
+              <h2 className="mb-1 text-xl font-bold tracking-[0.04em]">戰績走勢</h2>
+              <SourceUnavailable label="戰績走勢" />
+            </section>
+          )}
+
+          {/* 進階展開：把對戰各隊/主客場/月份收合，首屏聚焦競爭位置（§5.4）。
+              原生 <details> 免 client island、SSR 友善、鍵盤可及。 */}
+          <details className="mt-8 rounded-md bg-surface">
+            <summary className="cursor-pointer select-none px-4 py-3 text-sm font-semibold text-ink marker:text-faint">
+              進階展開：團隊攻守・對戰各隊・主客場{sp.size > 0 ? "・特殊戰績對照・月份趨勢" : ""}
+            </summary>
+            <div className="px-4 pt-2">
+              {/* #218 戰績主表精簡：OPS／ERA／WHIP 移到展開區，發散色好／差語意不變 */}
+              <section className="mb-6">
+                <h3 className="mb-2 text-sm font-bold tracking-[0.04em] text-ink">團隊攻守</h3>
+                {!derivedR.ok ? <SourceUnavailable label="團隊攻守" /> : (
+                <DataTable
+                  columns={[
+                    { header: "球隊", cell: (t) => <LinkedTeam code={t.team_code} name={t.team_name} />, nowrap: true, className: "font-sans", sticky: true },
+                    {
+                      header: <StatAbbr abbr="OPS" />,
+                      cell: (t) => { const v = adv.get(t.team_code)?.ops; return v == null ? "—" : v.toFixed(3).replace(/^0/, ""); },
+                      cellStyle: (t) => divBg(adv.get(t.team_code)?.ops, opsVals), className: "text-ink", nowrap: true, align: "right",
+                    },
+                    {
+                      header: <StatAbbr abbr="ERA" />,
+                      cell: (t) => { const v = adv.get(t.team_code)?.era; return v == null ? "—" : v.toFixed(2); },
+                      cellStyle: (t) => divBg(adv.get(t.team_code)?.era, eraVals, true), className: "text-ink", nowrap: true, align: "right",
+                    },
+                    {
+                      header: <StatAbbr abbr="WHIP" />,
+                      cell: (t) => { const v = adv.get(t.team_code)?.whip; return v == null ? "—" : v.toFixed(2); },
+                      cellStyle: (t) => divBg(adv.get(t.team_code)?.whip, whipVals, true), className: "text-ink", nowrap: true, align: "right",
+                    },
+                  ] satisfies Column<TeamRow>[]}
+                  rows={teamRows} rowKey={(t) => t.team_code} dense />
+                )}
+              </section>
+              {/* 對戰各隊／主客場來自主戰績本身；主戰績取不到時已在上方標示，這裡不重複。 */}
+              {mainR.ok && <H2HTable rows={items} />}
+              {mainR.ok && <TeamStatsTable rows={items} />}
+              {sp.size > 0 && <SpecialCompareTable rows={teamRows} sp={sp} />}
+              {sp.size > 0 && <MonthsTable rows={teamRows} sp={sp} />}
+              {!specialR.ok && <SourceUnavailable label="特殊戰績對照・月份趨勢" className="pb-4" />}
+            </div>
+          </details>
+
+          {!isMinor && (
+            <p className="mt-6 text-xs leading-relaxed text-muted">
+              進階展開的「特殊戰績對照」列出高訊號隊級戰績跨隊比較；場地／賽況軌跡／對手先發／
+              系列賽等更多細項，見各隊球隊頁（點上方球隊名進入）。
+            </p>
+          )}
+    </>
+  );
 
   return (
     <div>
@@ -562,7 +646,8 @@ export default async function Standings({ searchParams }: { searchParams: Promis
       {/* 季後總覽的補充來源（#441）：月曆只供「本站賽果紀錄至」與單場連結、daily 只供官方賽程異動。 */}
       {isPostseason && journey && !calendarR.ok && <SourceUnavailable label="季後場次補充（賽果紀錄至、單場連結）" className="py-2" />}
       {isPostseason && journey && !dailyR.ok && <SourceUnavailable label="官方賽程異動核實" className="py-2" />}
-      {isPostseason && journey && (!h0R.ok || !h1R.ok || !h2R.ok) && <SourceUnavailable label="種子標記與隊名補充" className="py-2" />}
+      {isPostseason && !isMinor && (journey || hasSeries) && seedsUnavailable && <SourceUnavailable label="種子標記與隊名補充" className="py-2" />}
+      {isPostseason && isMinor && postseasonR.ok && !mainR.ok && <SourceUnavailable label="種子標記" className="py-2" />}
       {!isPostseason && mainR.ok && !isMinor && (!h0R.ok || !h1R.ok || !h2R.ok) && segCode === 0 && (
         <SourceUnavailable label="半季冠軍標記" className="py-2" />
       )}
@@ -572,7 +657,7 @@ export default async function Standings({ searchParams }: { searchParams: Promis
 
       {isPostseason ? (
         isMinor ? (
-          !postseasonR.ok || !mainR.ok
+          !postseasonR.ok
             ? <SourceUnavailable label="二軍總冠軍賽" className="py-8" />
             : <FarmChampion isCurrent={useOfficial} series={postseason?.series ?? []} standings={items} />
         ) : bracketUnavailable && !journey ? (
@@ -586,10 +671,14 @@ export default async function Standings({ searchParams }: { searchParams: Promis
             series={postseason?.series ?? []}
             journey={journey}
             activeSeries={ps}
+            seedsUnavailable={seedsUnavailable}
           />
         )
       ) : !mainR.ok ? (
-        <SourceUnavailable label="戰績表" className="py-8" />
+        <>
+          <SourceUnavailable label="戰績表" className="py-8" />
+          {supportingBlocks}
+        </>
       ) : items.length === 0 ? (
         <p className="text-sm text-faint">此區間尚無戰績（下半季可能未開始）。</p>
       ) : (
@@ -653,68 +742,7 @@ export default async function Standings({ searchParams }: { searchParams: Promis
             rowKey={(t) => t.team_code}
             dense
           />
-          {trend && trend.points.length > 0 && (
-            <section className="mt-8">
-              <h2 className="mb-1 text-xl font-bold tracking-[0.04em]">戰績走勢</h2>
-              <div className="rounded-md p-4">
-                <StandingsTrend teams={trend.teams} points={trend.points} names={trend.names} />
-              </div>
-            </section>
-          )}
-          {!trendR.ok && (
-            <section className="mt-8">
-              <h2 className="mb-1 text-xl font-bold tracking-[0.04em]">戰績走勢</h2>
-              <SourceUnavailable label="戰績走勢" />
-            </section>
-          )}
-
-          {/* 進階展開：把對戰各隊/主客場/月份收合，首屏聚焦競爭位置（§5.4）。
-              原生 <details> 免 client island、SSR 友善、鍵盤可及。 */}
-          <details className="mt-8 rounded-md bg-surface">
-            <summary className="cursor-pointer select-none px-4 py-3 text-sm font-semibold text-ink marker:text-faint">
-              進階展開：團隊攻守・對戰各隊・主客場{sp.size > 0 ? "・特殊戰績對照・月份趨勢" : ""}
-            </summary>
-            <div className="px-4 pt-2">
-              {/* #218 戰績主表精簡：OPS／ERA／WHIP 移到展開區，發散色好／差語意不變 */}
-              <section className="mb-6">
-                <h3 className="mb-2 text-sm font-bold tracking-[0.04em] text-ink">團隊攻守</h3>
-                {!derivedR.ok ? <SourceUnavailable label="團隊攻守" /> : (
-                <DataTable
-                  columns={[
-                    { header: "球隊", cell: (t) => <LinkedTeam code={t.team_code} name={t.team_name} />, nowrap: true, className: "font-sans", sticky: true },
-                    {
-                      header: <StatAbbr abbr="OPS" />,
-                      cell: (t) => { const v = adv.get(t.team_code)?.ops; return v == null ? "—" : v.toFixed(3).replace(/^0/, ""); },
-                      cellStyle: (t) => divBg(adv.get(t.team_code)?.ops, opsVals), className: "text-ink", nowrap: true, align: "right",
-                    },
-                    {
-                      header: <StatAbbr abbr="ERA" />,
-                      cell: (t) => { const v = adv.get(t.team_code)?.era; return v == null ? "—" : v.toFixed(2); },
-                      cellStyle: (t) => divBg(adv.get(t.team_code)?.era, eraVals, true), className: "text-ink", nowrap: true, align: "right",
-                    },
-                    {
-                      header: <StatAbbr abbr="WHIP" />,
-                      cell: (t) => { const v = adv.get(t.team_code)?.whip; return v == null ? "—" : v.toFixed(2); },
-                      cellStyle: (t) => divBg(adv.get(t.team_code)?.whip, whipVals, true), className: "text-ink", nowrap: true, align: "right",
-                    },
-                  ] satisfies Column<OfficialStanding>[]}
-                  rows={items} rowKey={(t) => t.team_code} dense />
-                )}
-              </section>
-              <H2HTable rows={items} />
-              <TeamStatsTable rows={items} />
-              {sp.size > 0 && <SpecialCompareTable rows={items} sp={sp} />}
-              {sp.size > 0 && <MonthsTable rows={items} sp={sp} />}
-              {!specialR.ok && <SourceUnavailable label="特殊戰績對照・月份趨勢" className="pb-4" />}
-            </div>
-          </details>
-
-          {!isMinor && (
-            <p className="mt-6 text-xs leading-relaxed text-muted">
-              進階展開的「特殊戰績對照」列出高訊號隊級戰績跨隊比較；場地／賽況軌跡／對手先發／
-              系列賽等更多細項，見各隊球隊頁（點上方球隊名進入）。
-            </p>
-          )}
+          {supportingBlocks}
         </>
       )}
 
