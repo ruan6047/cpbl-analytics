@@ -22,7 +22,8 @@ export function StandingsNav({ kind, years, selectedYear, seg, segs, children }:
   const pushSeg = (v: string) => {
     const p = new URLSearchParams();
     if (kind === "D") p.set("kind", "D");
-    if (selectedYear !== years[0]) p.set("year", String(selectedYear));
+    // selectedYear=0＝年度未知（#441 年度清單取不到且網址未指定）：不寫進網址。
+    if (selectedYear && selectedYear !== years[0]) p.set("year", String(selectedYear));
     if (v !== "0") p.set("seg", v);
     const qs = p.toString();
     router.push(qs ? `/standings?${qs}` : "/standings");

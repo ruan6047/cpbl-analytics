@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { StandingsSeries } from "@/components/playoffs/standings-series";
-import { ENTITY_LINK_TEXT, StatAbbr, TeamBadge, TeamLogo, divBg, prColor } from "@/components/ui";
+import { ENTITY_LINK_TEXT, SourceUnavailable, StatAbbr, TeamBadge, TeamLogo, divBg, prColor } from "@/components/ui";
 import { DataTable, type Column } from "@/components/table";
 import { StandingsTrend } from "@/components/standings-trend";
 import { StandingsNav } from "./nav";
@@ -8,6 +8,8 @@ import { SectionTitle } from "@/components/postmark";
 import { SeriesCard, displayTeamName, type SeriesSide } from "@/components/postseason-series";
 import { PostseasonOverview } from "@/components/postseason-overview";
 import { api } from "@/lib/api";
+import { SKIPPED, dataOf, settle } from "@/lib/fetch-result";
+import { seasonScope } from "@/lib/season-scope";
 import type { OfficialStanding, OfficialStandingsResponse, SpecialRecord, WL } from "@/lib/api";
 import { announcementFor } from "@/lib/postseason-announcement";
 import { postseasonJourneyFromContext, type PostseasonJourney, type SeriesGame } from "@/lib/postseason-journey";
@@ -454,19 +456,25 @@ export default async function Standings({ searchParams }: { searchParams: Promis
   const segTabs = segsFor(kind);
   const rawSeg = Number(seg) || 0;
   const segCode = segTabs.some((s) => s.v === rawSeg) ? rawSeg : 0;
-  const { years } = await api.seasons(kind);
-  const currentYear = years[0] ?? new Date().getFullYear();
-  const selectedYear = yearParam ? Number(yearParam) : currentYear;
+  // #441：所有來源各自 settle，只降級依賴失敗來源的區塊。年度清單取不到時，未指定年份就省略 season
+  // 讓端點回正式預設年（不以主機年份冒充當季、不把未知當成歷年），選單處標示暫時無法取得。
+  const scope = seasonScope(await settle(api.seasons(kind)), yearParam);
+  const { years, currentYear } = scope;
   // 一軍季後頁只需正式系列比分；一般戰績與二軍仍使用原有取數分支。
   if (!isMinor && segCode === 3) {
-    const summary = await api.postseasonSummary(selectedYear, kind, { live: true });
-    return <div><header className="mb-4"><SectionTitle as="h1" date={selectedYear}>季後賽戰績</SectionTitle></header>
-      <StandingsNav kind={kind} years={years} selectedYear={selectedYear} seg={segCode} segs={segTabs}>
-        <StandingsSeries year={selectedYear} context={summary.series_context} />
+    const summaryR = await settle(api.postseasonSummary(scope.selectedYear ?? undefined, kind, { live: true }));
+    const year = scope.selectedYear ?? (summaryR.ok ? summaryR.data.season : null);
+    return <div><header className="mb-4"><SectionTitle as="h1" date={year ?? undefined}>季後賽戰績</SectionTitle></header>
+      <StandingsNav kind={kind} years={years} selectedYear={year ?? 0} seg={segCode} segs={segTabs}>
+        {summaryR.ok && year != null
+          ? <StandingsSeries year={year} context={summaryR.data.series_context} />
+          : <SourceUnavailable label="季後賽系列" className="py-8" />}
       </StandingsNav></div>;
   }
+  // selectedYear 只在「年度清單取不到且網址未指定」時為 undefined：端點一律省略 season，取正式預設年。
+  const selectedYear = scope.selectedYear ?? undefined;
   // 官方 rich view（半季冠軍判定/即時 OPS/近十場/連勝連敗）只在「一軍當季」；二軍與歷年皆由 games 即時算
-  const useOfficial = !isMinor && selectedYear === currentYear;
+  const useOfficial = !isMinor && scope.isCurrentYear;
   // 季後賽分頁（seg=3）：一軍＝挑戰賽/台灣大賽 bracket；二軍＝二軍總冠軍賽單一系列。
   const isPostseason = segCode === 3;
   // 季後賽為全年概念 → officialStandings 強制 seg=0（0/1/2 才是有效 season_code）。
@@ -477,28 +485,45 @@ export default async function Standings({ searchParams }: { searchParams: Promis
   // <2018 無 livelog 的類型自然退化為空）。對戰各隊/主客場來自 standings 本體，不另抓。
   const needAdvanced = !isMinor && !isPostseason;
   // 季後賽系列大比分：歷年有結果、或當季開了季後賽分頁；一軍抓 E/C、二軍抓 F。
-  const needPostseasonSummary = selectedYear < currentYear || isPostseason;
+  // 年度未知時無從判斷是否為歷年（#441）：只在季後賽分頁取，⛔ 不把未知當成歷年。
+  const needPostseasonSummary = (selectedYear != null && currentYear != null && selectedYear < currentYear) || isPostseason;
   // 當季一軍且有官方公告（#237）：季後總覽改用與首頁、日曆共用的旅程模型；
   // 另讀既有 calendar 端點取正式 E／C 場次（含未完賽）以建單場連結。歷史年份與二軍不變。
-  const announcement = !isMinor && isPostseason && selectedYear === currentYear ? announcementFor(selectedYear) : null;
+  const announcement = !isMinor && isPostseason && selectedYear != null && selectedYear === currentYear ? announcementFor(selectedYear) : null;
   // 旅程的兩個輸入不走跨請求快取，避免同一頁組到不同時間的快照（api.ts journeyGet）；歷史與二軍照舊快取。
   const live = { live: announcement !== null };
-  const [{ season, items, half }, derived, special, trend, h1r, h2r, h0r, postseason, calendar, daily] = await Promise.all([
-    api.officialStandings(effSeg, useOfficial ? undefined : selectedYear, kind),
-    !isMinor ? api.standings(selectedYear) : Promise.resolve({ standings: [] }),
-    needAdvanced ? api.specialRecords(selectedYear) : Promise.resolve(null),
-    api.standingsTrend(useOfficial ? undefined : selectedYear, kind, effSeg),
-    needPlayoffData ? api.officialStandings(1, selectedYear, kind) : Promise.resolve(null),
-    needPlayoffData ? api.officialStandings(2, selectedYear, kind) : Promise.resolve(null),
-    needPlayoffData ? api.officialStandings(0, selectedYear, kind) : Promise.resolve(null),
-    needPostseasonSummary ? api.postseasonSummary(selectedYear, kind, live) : Promise.resolve(null),
-    // calendar 失敗不擋季後總覽：旅程模型退回只用 summary 的完賽場。
-    announcement ? api.gamesCalendar(selectedYear, "A", live).catch(() => null) : Promise.resolve(null),
-    // #268 B2：與首頁同一支既有 daily summary（no-store），只取 coverage 的官方賽程異動；失敗＝不顯示，不擋頁。
-    announcement ? api.dailySummary().catch(() => null) : Promise.resolve(null),
+  const skip = Promise.resolve(SKIPPED);
+  const [mainR, derivedR, specialR, trendR, h1R, h2R, h0R, postseasonR, calendarR, dailyR] = await Promise.all([
+    settle(api.officialStandings(effSeg, useOfficial ? undefined : selectedYear, kind)),
+    !isMinor ? settle(api.standings(selectedYear)) : skip,
+    needAdvanced ? settle(api.specialRecords(selectedYear)) : skip,
+    settle(api.standingsTrend(useOfficial ? undefined : selectedYear, kind, effSeg)),
+    needPlayoffData ? settle(api.officialStandings(1, selectedYear, kind)) : skip,
+    needPlayoffData ? settle(api.officialStandings(2, selectedYear, kind)) : skip,
+    needPlayoffData ? settle(api.officialStandings(0, selectedYear, kind)) : skip,
+    needPostseasonSummary ? settle(api.postseasonSummary(selectedYear, kind, live)) : skip,
+    // calendar 失敗不擋季後總覽：旅程模型退回只用 summary 的完賽場（就近標示）。
+    announcement ? settle(api.gamesCalendar(selectedYear, "A", live)) : skip,
+    // #268 B2：與首頁同一支既有 daily summary（no-store），只取 coverage 的官方賽程異動；失敗就近標示，不擋頁。
+    announcement ? settle(api.dailySummary()) : skip,
   ]);
+  const main = dataOf(mainR);
+  const season = main?.season ?? selectedYear;
+  const items = main?.items ?? [];
+  const half = main?.half;
+  const derived = dataOf(derivedR);
+  const special = dataOf(specialR);
+  const trend = dataOf(trendR);
+  const h1r = dataOf(h1R);
+  const h2r = dataOf(h2R);
+  const h0r = dataOf(h0R);
+  const postseason = dataOf(postseasonR);
+  const calendar = dataOf(calendarR);
+  const daily = dataOf(dailyR);
+  // 季後分頁（一軍）的對戰區需要三段戰績＋季後摘要；任一取不到就整區標示，不以殘缺資料推「形勢預測」。
+  const bracketUnavailable = !h0R.ok || !h1R.ok || !h2R.ok || !postseasonR.ok;
   // 系列事實只讀 API 的 series_context（#283）；calendar 只供「本站賽果紀錄至」。
-  const baseJourney = announcement && postseason?.season === selectedYear
+  const baseJourney = announcement && postseason && postseason.season === selectedYear
     ? postseasonJourneyFromContext(postseason.series_context, calendar?.items ?? null)
     : null;
   const journey = baseJourney && withScheduleChanges(baseJourney, scheduleChanges(daily, baseJourney.year));
@@ -512,7 +537,7 @@ export default async function Standings({ searchParams }: { searchParams: Promis
     : null;
   // 季後賽系列大比分改由「季後賽」分頁的 bracket 呈現；隊名旁只留簡短種子章。
   // 團隊 OPS/ERA/WHIP 來自即時彙整端點，依 code 併入
-  const adv = new Map(derived.standings.map((d) => [d.code, d]));
+  const adv = new Map((derived?.standings ?? []).map((d) => [d.code, d]));
   const sp = new Map((special?.items ?? []).map((s) => [s.team_code, s]));
   // 主戰績表發散上色比較基準（勝率與團隊攻守）
   const pcts = items.map((x) => x.win_pct);
@@ -532,11 +557,23 @@ export default async function Standings({ searchParams }: { searchParams: Promis
       {/* 一體式多軸導覽欄（§4.3 A2）：seg 主分頁帶＋kind/year 情境 controls（同列靠右；窄螢幕另列帶下方），
           以下內容接在同色 TabPanel 裡。
           特殊戰績（場地/比分型/逆轉/再見…）已移出：per-team 版見各隊球隊頁。 */}
-      <StandingsNav kind={kind} years={years} selectedYear={selectedYear} seg={segCode} segs={segTabs}>
+      <StandingsNav kind={kind} years={years} selectedYear={selectedYear ?? season ?? 0} seg={segCode} segs={segTabs}>
+
+      {/* 季後總覽的補充來源（#441）：月曆只供「本站賽果紀錄至」與單場連結、daily 只供官方賽程異動。 */}
+      {isPostseason && journey && !calendarR.ok && <SourceUnavailable label="季後場次補充（賽果紀錄至、單場連結）" className="py-2" />}
+      {isPostseason && journey && !dailyR.ok && <SourceUnavailable label="官方賽程異動核實" className="py-2" />}
+      {isPostseason && journey && (!h0R.ok || !h1R.ok || !h2R.ok) && <SourceUnavailable label="種子標記與隊名補充" className="py-2" />}
+      {!isPostseason && mainR.ok && !isMinor && (!h0R.ok || !h1R.ok || !h2R.ok) && segCode === 0 && (
+        <SourceUnavailable label="半季冠軍標記" className="py-2" />
+      )}
 
       {isPostseason ? (
         isMinor ? (
-          <FarmChampion isCurrent={useOfficial} series={postseason?.series ?? []} standings={items} />
+          !postseasonR.ok || !mainR.ok
+            ? <SourceUnavailable label="二軍總冠軍賽" className="py-8" />
+            : <FarmChampion isCurrent={useOfficial} series={postseason?.series ?? []} standings={items} />
+        ) : bracketUnavailable && !journey ? (
+          <SourceUnavailable label="季後賽對戰" className="py-8" />
         ) : (
           <PostseasonBracket
             isCurrent={useOfficial}
@@ -548,6 +585,8 @@ export default async function Standings({ searchParams }: { searchParams: Promis
             activeSeries={ps}
           />
         )
+      ) : !mainR.ok ? (
+        <SourceUnavailable label="戰績表" className="py-8" />
       ) : items.length === 0 ? (
         <p className="text-sm text-faint">此區間尚無戰績（下半季可能未開始）。</p>
       ) : (
@@ -619,6 +658,12 @@ export default async function Standings({ searchParams }: { searchParams: Promis
               </div>
             </section>
           )}
+          {!trendR.ok && (
+            <section className="mt-8">
+              <h2 className="mb-1 text-xl font-bold tracking-[0.04em]">戰績走勢</h2>
+              <SourceUnavailable label="戰績走勢" />
+            </section>
+          )}
 
           {/* 進階展開：把對戰各隊/主客場/月份收合，首屏聚焦競爭位置（§5.4）。
               原生 <details> 免 client island、SSR 友善、鍵盤可及。 */}
@@ -630,6 +675,7 @@ export default async function Standings({ searchParams }: { searchParams: Promis
               {/* #218 戰績主表精簡：OPS／ERA／WHIP 移到展開區，發散色好／差語意不變 */}
               <section className="mb-6">
                 <h3 className="mb-2 text-sm font-bold tracking-[0.04em] text-ink">團隊攻守</h3>
+                {!derivedR.ok ? <SourceUnavailable label="團隊攻守" /> : (
                 <DataTable
                   columns={[
                     { header: "球隊", cell: (t) => <LinkedTeam code={t.team_code} name={t.team_name} />, nowrap: true, className: "font-sans", sticky: true },
@@ -650,11 +696,13 @@ export default async function Standings({ searchParams }: { searchParams: Promis
                     },
                   ] satisfies Column<OfficialStanding>[]}
                   rows={items} rowKey={(t) => t.team_code} dense />
+                )}
               </section>
               <H2HTable rows={items} />
               <TeamStatsTable rows={items} />
               {sp.size > 0 && <SpecialCompareTable rows={items} sp={sp} />}
               {sp.size > 0 && <MonthsTable rows={items} sp={sp} />}
+              {!specialR.ok && <SourceUnavailable label="特殊戰績對照・月份趨勢" className="pb-4" />}
             </div>
           </details>
 
