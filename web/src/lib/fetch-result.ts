@@ -51,7 +51,7 @@ export async function settle<T>(promise: Promise<T>): Promise<Fetched<T>> {
 
 /** 已解決的成功值；失敗回 null。⚠️ 只在呼叫端另外用 `failed()` 標示錯誤時使用，
  *  ⛔ 不可把這個 null 當成「沒有資料」。 */
-export const dataOf = <T>(r: Fetched<T>): T | null => (r.ok ? r.data : null);
+export const dataOf = <T>(r: Fetched<T> | Fetched<null>): T | null => (r.ok ? r.data : null);
 
 /** 來源暫時無法取得（不含 404）。 */
 export const failed = (r: Fetched<unknown>): boolean => !r.ok && r.failure !== "not_found";

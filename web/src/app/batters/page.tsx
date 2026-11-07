@@ -2,7 +2,10 @@ import { AwardRaces, type Cat } from "@/components/award-races";
 import Leaderboard, { type Col } from "@/components/leaderboard";
 import { RankNav, type RankView } from "@/components/rank-nav";
 import { SectionTitle } from "@/components/postmark";
+import { SourceUnavailable } from "@/components/ui";
 import { api } from "@/lib/api";
+import { settle } from "@/lib/fetch-result";
+import { seasonScope } from "@/lib/season-scope";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "打者排行" };
@@ -46,11 +49,15 @@ export default async function BattersPage({ searchParams }: { searchParams: Prom
   const kind = kp === "D" ? "D" : "A";
   // 主內容視圖（§4.3 第二例）：完整清單（預設；無 view 參數向後相容）↔ 獎項排行榜分頁。
   const view: RankView = vp === "awards" ? "awards" : "list";
-  const { years } = await api.seasons(kind);
-  const currentYear = years[0] ?? new Date().getFullYear();
-  const selectedYear = yp ? Number(yp) : currentYear;
-  const isCurrent = selectedYear === currentYear && kind === "A";
-  const { season, items } = await api.battingLeaders("ops", { kind, year: isCurrent ? undefined : selectedYear });
+  // #441：年度清單與排行各自 settle。年度清單取不到時排行仍照查（未指定年份就省略 season 取正式預設年），
+  // 選單處標示暫時無法取得；排行取不到時只降級排行區，頁框與導覽照常。
+  const scope = seasonScope(await settle(api.seasons(kind)), yp);
+  const { years } = scope;
+  const isCurrent = scope.isCurrentYear && kind === "A";
+  const leadersR = await settle(api.battingLeaders("ops", { kind, year: isCurrent ? undefined : scope.selectedYear ?? undefined }));
+  const items = leadersR.ok ? leadersR.data.items : [];
+  const season = leadersR.ok ? leadersR.data.season : scope.selectedYear ?? undefined;
+  const selectedYear = scope.selectedYear ?? season ?? 0;
   // 規定打席≈球隊出賽×3.1（率值榜門檻，AwardRaces 與排行表共用）。
   const teamG = Math.max(0, ...items.map((r) => Number(r.g ?? 0)));
   const qual = Math.round(3.1 * teamG);
@@ -61,14 +68,16 @@ export default async function BattersPage({ searchParams }: { searchParams: Prom
         {/* #218：取消眉標（原「排行中心・打者」），標題自己承載；年度與層級寫在標題後。 */}
         <SectionTitle as="h1" date={season} cue={kind === "D" ? "二軍" : "一軍"}>打者排行</SectionTitle>
         <p className="-mt-1 text-sm text-muted">
-          {kind === "D" || !isCurrent ? "由逐場/逐年成績彙整（二軍逐打席自 2018 起）。" : "全名單本季打者。"}
+          {!scope.currentKnown ? "" : kind === "D" || !isCurrent ? "由逐場/逐年成績彙整（二軍逐打席自 2018 起）。" : "全名單本季打者。"}
           預設顯示主要欄位，點「完整欄位」看全部；點欄位標題排序（再點一次反向），可依球隊篩選。
         </p>
       </header>
 
       <RankNav role="batting" view={view} kind={kind} years={years} selectedYear={selectedYear}>
 
-      {view === "awards" ? (
+      {!leadersR.ok ? (
+        <SourceUnavailable label={view === "awards" ? "獎項排行榜" : "打者排行"} className="py-8" />
+      ) : view === "awards" ? (
         <AwardRaces rows={items} cats={AWARD_CATS} qualKey="pa" qualMin={qual}
           note={`規定打席約 ${qual}（打擊率/OPS 套用）。`} />
       ) : (

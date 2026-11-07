@@ -15,7 +15,10 @@ import {
   type MethodologyEntry,
 } from "@/lib/methodology-content";
 import { Card } from "@/components/ui";
+import { dataOf, settle, unavailableCopy } from "@/lib/fetch-result";
 
+// #441：即時面板走 no-store，頁面明示動態渲染，降級結果不被保存。
+export const dynamic = "force-dynamic";
 export const metadata = { title: "方法與模型透明度" };
 
 /**
@@ -93,7 +96,15 @@ function MetricsTable({
 
 /** 賽前勝率段的即時回測面板；紀錄缺席時明示退回報告快照，不空白、不拋錯。 */
 /** 只吃 backtest 一份 response：版本、閘門與 serving 狀態都出自同一次查詢。 */
-function PregameLivePanel({ backtest }: { backtest: PregameBacktestResponse | null }) {
+/** `unavailable`＝即時來源本次取不到（#441），與「API 成功但紀錄缺席（available=false）」分開說。 */
+function PregameLivePanel({ backtest, unavailable = false }: { backtest: PregameBacktestResponse | null; unavailable?: boolean }) {
+  if (unavailable) {
+    return (
+      <p role="alert" data-source-unavailable="線上回測紀錄" className="mt-2 rounded-lg bg-surface-2 px-3 py-2 text-xs text-down">
+        {unavailableCopy("線上回測紀錄")}上方 validation 數字為報告快照，仍為最近一次通過查核的結果。
+      </p>
+    );
+  }
   if (!backtest?.available || !backtest.models?.length) {
     return (
       <p className="mt-2 rounded-lg bg-surface-2 px-3 py-2 text-xs text-muted">
@@ -147,7 +158,7 @@ function PregameLivePanel({ backtest }: { backtest: PregameBacktestResponse | nu
 }
 
 /** 舊全特徵模型 benchmark 對照（§6：只作比較組，不驅動公開互動 UI）。 */
-function BenchmarkPanel({ benchmark }: { benchmark: OutcomeBenchmarkResponse | null }) {
+function BenchmarkPanel({ benchmark, unavailable = false }: { benchmark: OutcomeBenchmarkResponse | null; unavailable?: boolean }) {
   return (
     <div className="mt-4 border-t border-line pt-3">
       <h3 className="text-sm font-bold text-ink">benchmark：舊全特徵模型對照</h3>
@@ -165,7 +176,12 @@ function BenchmarkPanel({ benchmark }: { benchmark: OutcomeBenchmarkResponse | n
         </div>
       ) : (
         <p className="mt-2 rounded-lg bg-surface-2 px-3 py-2 text-xs text-muted">
-          目前無法取得 benchmark 回測紀錄；報告快照（測試 2022–2026 季、1,508 場）：全特徵邏輯回歸準確率
+          {unavailable && (
+            <span role="alert" data-source-unavailable="benchmark 回測紀錄" className="mb-1 block text-down">
+              {unavailableCopy("benchmark 回測紀錄")}
+            </span>
+          )}
+          {unavailable ? "" : "目前無法取得 benchmark 回測紀錄；"}報告快照（測試 2022–2026 季、1,508 場）：全特徵邏輯回歸準確率
           55.2%、全特徵 LightGBM 55.5%，對全押主場 52.9%。舊快照的 62.8%／61.3% 含先發投手同季彙總的
           前視洩漏，已於 2026-07-27 修正為賽前 as-of 特徵後重測。
         </p>
@@ -249,22 +265,17 @@ function ModelSection({
   );
 }
 
-async function safeFetch<T>(promise: Promise<T>): Promise<T | null> {
-  try {
-    return await promise;
-  } catch {
-    // /methodology 必須在 API 不可達時仍可讀：任何 fetch 失敗都退回報告快照。
-    return null;
-  }
-}
-
 export default async function MethodologyPage() {
   // 賽前段的回測數字與 serving 狀態同在 pregameBacktest 這一份 response 內，**不另外取**：
   // 兩個必須一致的事實分兩次請求，就會有 refresh 落在兩次之間的競態（同 iteration 3 首頁）。
-  const [pregameBacktest, benchmark] = await Promise.all([
-    safeFetch(api.pregameBacktest()),
-    safeFetch(api.outcomeBenchmark()),
+  // /methodology 必須在 API 不可達時仍可讀：兩個即時面板各自 settle，失敗時標示暫時無法取得並退回報告快照；
+  // API 成功但 available=false 仍走原本「紀錄缺席」語意（#441）。
+  const [backtestR, benchmarkR] = await Promise.all([
+    settle(api.pregameBacktest()),
+    settle(api.outcomeBenchmark()),
   ]);
+  const pregameBacktest = dataOf(backtestR);
+  const benchmark = dataOf(benchmarkR);
 
   return (
     <div>
@@ -318,8 +329,8 @@ export default async function MethodologyPage() {
             {id === "pregame" && (
               <div className="mt-4 border-t border-line pt-3">
                 <h3 className="text-sm font-bold text-ink">線上回測對照</h3>
-                <PregameLivePanel backtest={pregameBacktest} />
-                <BenchmarkPanel benchmark={benchmark} />
+                <PregameLivePanel backtest={pregameBacktest} unavailable={!backtestR.ok} />
+                <BenchmarkPanel benchmark={benchmark} unavailable={!benchmarkR.ok} />
               </div>
             )}
           </ModelSection>
