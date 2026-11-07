@@ -562,3 +562,29 @@ test("#237 歷史 E 2025 不受影響：snapshot=null＋比分＝終場", () => 
   const html = postseasonBoard({ kind_code: "E", year: 2025, away_score: 4, home_score: 3 }, 1);
   assertSituationHidden(html, "E 2025");
 });
+
+// ───── #394 記分條近 10 場 ─────
+const scoreRecords = (records: Live["records"]) => scorebar(
+  <GameBoard data={data({ records })} idx={1} setIdx={() => {}} view="overview" gameSno="276"
+    tabs={<hr id="tabs-sentinel" />} />,
+).replace(/<!-- -->/g, "");
+
+test("#394 記分條除 W-L 外顯示兩隊近 10 場，含和局為三段", () => {
+  const html = scoreRecords({ ACN011: { w: 30, l: 24, form: "6-4" }, AAA011: { w: 20, l: 31, form: "2-1-7" } });
+  assert.match(html, /客・30-24/);
+  assert.match(html, /主・20-31/);
+  assert.match(html, /近10 6-4/);
+  assert.match(html, /近10 2-1-7/);
+});
+
+test("#394 近 10 場不拆行：整組 nowrap，單獨成一個 span", () => {
+  const html = scoreRecords({ ACN011: { w: 30, l: 24, form: "6-4" } });
+  assert.match(html, /<span class="[^"]*whitespace-nowrap[^"]*">近10 6-4<\/span>/);
+});
+
+test("#394 戰績缺或 w+l=0 時留空，不寫 0-0 也不顯示近 10", () => {
+  const html = scoreRecords({ ACN011: { w: 0, l: 0, form: "0-1-0" } });
+  assert.doesNotMatch(html, /0-0/);
+  assert.doesNotMatch(html, /近10/);
+  assert.match(html, /客/);
+});

@@ -352,7 +352,7 @@ test("canonical snapshot 覆蓋每日 DB 的比分與事件，並正規化 raw �
   assert.equal(out.game?.away_hits, 2);
   assert.equal(out.scoreboard.every((row) => row.hitting_cnt === null && row.error_cnt === null), true);
   assert.equal(out.batting[0].hitter_acnt, "11");
-  assert.equal(out.batter_avg["11"], 0.3);
+  assert.deepEqual(out.batter_avg, {}, "A 賽別打擊率由 API 截至該場提供，不用快照 Avg（#394）");
   assert.equal(out.live_snapshot?.phase, "live");
 });
 
@@ -877,4 +877,37 @@ test("#268 單場頁取數入口：官方空白隊名以現役隊碼補成顯示
   const full = { ...response(null), game: { away_team_code: "ACN011", away_team_name: "中信兄弟",
     home_team_code: "AAA011", home_team_name: "味全龍" } };
   assert.equal(applyLiveSnapshot(full), full);
+});
+
+// ───── #394 打擊率：A 賽別以 API 為準，快照 Avg 不是任一種語意 ─────
+/** 公開 API 真實擷取（2026 C-2 final）；hitters 形狀與 A 賽別同為官方 stats 原始列。 */
+const realFinal = (): LiveApiResponse => JSON.parse(readFileSync(
+  new URL("./__fixtures__/highlights-parity_2026-C2.json", import.meta.url), "utf8")).live;
+
+test("#394 A 賽別完賽：API 的截至該場打擊率不被快照 Avg 覆蓋", () => {
+  const raw = realFinal();
+  const snap = raw.live_snapshot as LiveSnapshot;
+  const id = String(snap.away.hitters[0].HitterAcnt);
+  const out = applyLiveSnapshot({
+    ...raw, batter_avg: { [id]: 0.321 }, live_snapshot: { ...snap, kind_code: "A" },
+  });
+  assert.deepEqual(out.batter_avg, { [id]: 0.321 });
+  assert.ok(out.batting.some((row) => row.hitter_acnt === id), "box 仍由快照供，只有打擊率改由 API");
+});
+
+test("#394 A 賽別 API 沒給的打者維持空值，不退回快照 Avg", () => {
+  const raw = realFinal();
+  const snap = raw.live_snapshot as LiveSnapshot;
+  const out = applyLiveSnapshot({ ...raw, batter_avg: {}, live_snapshot: { ...snap, kind_code: "A" } });
+  assert.deepEqual(out.batter_avg, {});
+});
+
+test("#394 非 A 賽別維持現行：快照 Avg 仍疊在 API 值上", () => {
+  const raw = realFinal();
+  const snap = raw.live_snapshot as LiveSnapshot;
+  const hitter = snap.away.hitters[0];
+  const id = String(hitter.HitterAcnt);
+  assert.equal(snap.kind_code, "C");
+  const out = applyLiveSnapshot({ ...raw, batter_avg: { [id]: 0.321 } });
+  assert.equal(out.batter_avg[id], Number(hitter.Avg));
 });

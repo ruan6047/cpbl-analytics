@@ -19,7 +19,7 @@ from cpbl.api.helpers import (
 from cpbl.api.live_cache import get_public_live_snapshot, status_snapshot
 from cpbl.completion import completed_games_sql_with_evidence, requires_official_completion
 from cpbl.db import conn
-from cpbl.models import matchup, pitch_type_live, pitcher_decisions
+from cpbl.models import as_of, matchup, pitch_type_live, pitcher_decisions
 
 router = APIRouter()
 
@@ -280,6 +280,57 @@ def merge_livelog_rows(main: list[dict], extra: list[dict]) -> list[dict]:
     return [r for _, r in keyed]
 
 
+def _snapshot_result(snapshot: dict, game: dict) -> dict | None:
+    """快照終場比分 → 尚未入庫的本場結果。0:0 無法分辨真和局或沒資料，不補（fail closed）。"""
+    away = (snapshot.get("away") or {}).get("score")
+    home = (snapshot.get("home") or {}).get("score")
+    if not isinstance(away, int) or not isinstance(home, int) or away + home == 0:
+        return None
+    return {"home_team_code": game.get("home_team_code"), "away_team_code": game.get("away_team_code"),
+            "home_score": home, "away_score": away}
+
+
+def _snapshot_hitters(snapshot: dict) -> list[dict]:
+    return [row for side in ("away", "home") for row in (snapshot.get(side) or {}).get("hitters") or []]
+
+
+def _snapshot_lines(snapshot: dict) -> list[dict]:
+    """快照 box → 尚未入庫的本場打者列。官方欄名 `HitCnt`＝打數、`HittingCnt`＝安打；`Avg` 不用：
+    它有時是賽前值、有時已含本場（2026 C-3／C-4 實測）。"""
+    return [{"hitter_acnt": str(row["HitterAcnt"]), "at_bats": row["HitCnt"], "hits": row["HittingCnt"]}
+            for row in _snapshot_hitters(snapshot)
+            if row.get("HitterAcnt") and isinstance(row.get("HitCnt"), int)
+            and isinstance(row.get("HittingCnt"), int)]
+
+
+def _as_of_options(snapshot: dict | None, game: dict, batting: list[dict]) -> tuple[dict, dict]:
+    """決定這一場算不算進截至該場的數字，回 (戰績, 打擊率) 的 `as_of` 關鍵字參數。
+
+    無快照時 DB 說了算；賽中等非 final 一律排除本場（賽前值），順帶擋掉保留賽續賽當天帶著
+    中止比分被判完成的情況；final 而 DB 還沒有本場時，用快照補上，所以入庫前也含本場
+    （需求方 6700041668）。`games` 先於 box 同步，故戰績與打者分開判。
+    """
+    if snapshot is None:
+        return {}, {}
+    if snapshot.get("phase") != "final":
+        return {"include_game": False}, {"include_game": False}
+    completed = bool(game.get("completed"))
+    team_opts = {} if completed else {"include_game": False,
+                                      "extra_result": _snapshot_result(snapshot, game)}
+    # 未判完成時 DB 的本場 box 會被 as_of 的完賽條件濾掉，要改用快照才含得到本場。
+    bat_opts = {} if completed and batting else {"include_game": False,
+                                                 "extra_lines": _snapshot_lines(snapshot)}
+    return team_opts, bat_opts
+
+
+def _as_of_hitter_ids(livelog: list[dict], batting: list[dict], snapshot: dict | None) -> list[str]:
+    """逐打席與 box 的聯集（代跑、替補守備只在 box）；賽中 DB 兩者皆空，名單來自快照。"""
+    ids = {r.get("hitter_acnt") for r in (*livelog, *batting)}
+    if snapshot:
+        ids |= {r.get("HitterAcnt") for r in (*_snapshot_hitters(snapshot), *(snapshot.get("livelog") or []))}
+    return sorted(str(i) for i in ids if i)
+
+
 @router.get("/api/v1/games/{game_sno}/live")
 def game_live(
     game_sno: int,
@@ -287,6 +338,7 @@ def game_live(
     kind_code: str = Query("A", pattern="^(A|C|E|D)$"),
 ) -> dict:
     """單場賽況：賽事資訊 + 逐局比分 + 逐打席事件流 + 雙方 box score + 關鍵球員。"""
+    snapshot = get_public_live_snapshot(season, kind_code, game_sno)
     with conn() as c:
         cur = c.cursor()
         # closer_id 回的是官方救援成功投手（旗標優先、再退 games.closer_id 欄；見
@@ -344,19 +396,27 @@ def game_live(
             if ids:
                 cur.execute("SELECT id, name FROM cpbl.players WHERE id = ANY(%s)", (ids,))
                 people = {pid: nm for pid, nm in cur.fetchall()}
-        # 兩隊本季戰績（W-L + 近 10 場），缺則不放
+        # 兩隊本季戰績（W-L + 近 10 場）與出賽打者本季打擊率，缺則不放。
+        # 一軍例行賽截至該場（#394）；其餘賽別維持全季累計與 batting_current。
         records: dict[str, dict] = {}
-        if g:
-            ts = matchup.team_stats(season)
-            for code in (g[0].get("away_team_code"), g[0].get("home_team_code")):
-                if code in ts:
-                    records[code] = {"w": ts[code]["w"], "l": ts[code]["l"], "form": ts[code]["last10"]}
-        # 出賽打者本季打擊率（batting_current），缺則不放
         batter_avg: dict[str, float] = {}
-        bids = sorted({str(r["hitter_acnt"]) for r in livelog if r.get("hitter_acnt")})
-        if bids:
-            cur.execute("SELECT player_id, avg FROM cpbl.batting_current WHERE player_id = ANY(%s)", (bids,))
-            batter_avg = {pid: float(a) for pid, a in cur.fetchall() if a is not None}
+        if g and kind_code == "A":
+            team_opts, bat_opts = _as_of_options(snapshot, g[0], batting)
+            cutoff = (season, kind_code, g[0]["game_date"], game_sno)
+            records = as_of.team_records_as_of(
+                cur, *cutoff, [g[0]["away_team_code"], g[0]["home_team_code"]], **team_opts)
+            batter_avg = as_of.batter_avg_as_of(
+                cur, *cutoff, _as_of_hitter_ids(livelog, batting, snapshot), **bat_opts)
+        else:
+            if g:
+                ts = matchup.team_stats(season)
+                for code in (g[0].get("away_team_code"), g[0].get("home_team_code")):
+                    if code in ts:
+                        records[code] = {"w": ts[code]["w"], "l": ts[code]["l"], "form": ts[code]["last10"]}
+            bids = sorted({str(r["hitter_acnt"]) for r in livelog if r.get("hitter_acnt")})
+            if bids:
+                cur.execute("SELECT player_id, avg FROM cpbl.batting_current WHERE player_id = ANY(%s)", (bids,))
+                batter_avg = {pid: float(a) for pid, a in cur.fetchall() if a is not None}
         # 逐球 TrackMan 僅消費已發布 canonical PA 的 mapped 列：同局重複投打對戰不能以
         # (投手、打者、局數) 猜測。缺 published build／任一球 mapping_failed 時不回傳該球，
         # 前端因而 fail-closed 顯示「無對應逐球資料」而非誤配。
@@ -438,8 +498,7 @@ def game_live(
             gg.get("winning_pitcher_id"), gg.get("losing_pitcher_id"),
             gg.get("closer_id"), gg.get("mvp_id"), hold_acnts)
     # 賽中逐球補推算球種 `trackman.pitch_type_est`（models/pitch_type_live；前端標「推算」）。
-    live_snapshot = pitch_type_live.annotate(
-        get_public_live_snapshot(season, kind_code, game_sno), season)
+    live_snapshot = pitch_type_live.annotate(snapshot, season)
     return {"game": g[0] if g else None, "scoreboard": scoreboard, "livelog": livelog,
             "batting": batting, "pitching": pitching, "people": people,
             "records": records, "batter_avg": batter_avg, "detail": gd[0] if gd else None,

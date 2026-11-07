@@ -105,6 +105,8 @@ function ScoreBar({ game, e, records, snapshot, plain }: {
   const side = (code: string, name: StatRow[string], rec: Rec | undefined, alignRight: boolean, role: string) => {
     const label = String(name ?? "");
     const box = `flex min-w-0 items-center gap-2.5 ${alignRight ? "flex-row-reverse text-right" : ""}`;
+    // 戰績缺或還沒有勝負時留空，不寫 0-0（§1.1.1）。
+    const played = rec && rec.w + rec.l > 0;
     // `decorative`：旁邊已有隊名，印記即裝飾（§9.3）。兩個分支都設，否則同一個視覺會因
     // 球隊是否現役而有不同的無障礙行為。
     const inner = (linked: boolean) => (
@@ -112,7 +114,11 @@ function ScoreBar({ game, e, records, snapshot, plain }: {
         <TeamLogo code={code} name={label} size={28} decorative />
         <div className="min-w-0">
           <div className={`text-base font-bold leading-tight [word-break:keep-all] ${linked ? ENTITY_LINK_TEXT : ""}`}>{label}</div>
-          <div className="text-xs text-muted">{role}{rec ? `・${rec.w}-${rec.l}` : ""}</div>
+          {/* 窄欄放不下時近 10 整組換到下一行，不拆開（#394）。 */}
+          <div className={`flex flex-wrap gap-x-1.5 text-xs text-muted ${alignRight ? "justify-end" : ""}`}>
+            <span>{role}{played ? `・${rec.w}-${rec.l}` : ""}</span>
+            {played && <span className="whitespace-nowrap font-mono tabular-nums text-faint">近10 {rec.form}</span>}
+          </div>
         </div>
       </>
     );
