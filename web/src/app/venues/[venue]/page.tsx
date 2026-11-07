@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { DataTable, type Column } from "@/components/table";
-import { Card, Eyebrow, PlayerLink, SourceUnavailable, StatGrid } from "@/components/ui";
+import { Card, EmptyState, Eyebrow, PlayerLink, SourceUnavailable, StatGrid } from "@/components/ui";
 import {
   FACTOR_STATS,
   api,
@@ -60,6 +60,9 @@ export default async function VenuePage({ params }: { params: Promise<{ venue: s
   const bat = dataOf(batR);
   const pit = dataOf(pitR);
   const playersFailed = failed(batR) || failed(pitR);
+  // D2：可選分析端點明確 404＝本站沒有這項資料（與「暫時無法取得」區分）；其他獨立區照常。
+  const playersMissing = notFoundResult(batR) || notFoundResult(pitR);
+  const NO_DATA = "本站尚無此項資料。";
 
   const batSplit = bat && split(bat.best, bat.worst, (r) => r.delta_ops, false);
   const pitSplit = pit && split(pit.best, pit.worst, (r) => r.delta_era, true);
@@ -156,10 +159,12 @@ export default async function VenuePage({ params }: { params: Promise<{ venue: s
       )}
 
       {factors && <ParkFactors factors={factors} />}
-      {failed(factorsR) && (
+      {(failed(factorsR) || notFoundResult(factorsR)) && (
         <section>
           <h2 className="mb-1 text-lg font-bold tracking-[0.04em]">Park Factor（主客對照法）</h2>
-          <SourceUnavailable label="Park Factor" />
+          {failed(factorsR)
+            ? <SourceUnavailable label="Park Factor" />
+            : <EmptyState className="py-4"><span data-no-data="Park Factor">{NO_DATA}</span></EmptyState>}
         </section>
       )}
 
@@ -179,15 +184,17 @@ export default async function VenuePage({ params }: { params: Promise<{ venue: s
           <p className="mt-2 text-[11px] text-faint">{stats.note}</p>
         </section>
       )}
-      {failed(statsR) && (
+      {(failed(statsR) || notFoundResult(statsR)) && (
         <section>
           <h2 className="mb-1 text-lg font-bold tracking-[0.04em]">逐年打擊數據</h2>
-          <SourceUnavailable label="逐年打擊數據" />
+          {failed(statsR)
+            ? <SourceUnavailable label="逐年打擊數據" />
+            : <EmptyState className="py-4"><span data-no-data="逐年打擊數據">{NO_DATA}</span></EmptyState>}
         </section>
       )}
 
       {/* 選手極端表現（生涯口徑，含 2018 以前）。任一端暫時無法取得時區塊照出，失敗那一端就地標示。*/}
-      {(showBat || showPit || playersFailed) && (
+      {(showBat || showPit || playersFailed || playersMissing) && (
         <section>
           <h2 className="mb-1 text-lg font-bold tracking-[0.04em]">在此球場與自身生涯基準差距最大的選手</h2>
           <p className="mb-2 text-sm text-muted">
@@ -214,6 +221,12 @@ export default async function VenuePage({ params }: { params: Promise<{ venue: s
                 <SourceUnavailable label="打者比較" />
               </Card>
             )}
+            {notFoundResult(batR) && (
+              <Card>
+                <h3 className="mb-2 text-sm font-bold text-ink">打者</h3>
+                <EmptyState className="py-4"><span data-no-data="打者比較">{NO_DATA}</span></EmptyState>
+              </Card>
+            )}
             {pit && pitSplit && showPit && (
               <Card>
                 <h3 className="mb-2 text-sm font-bold text-ink">
@@ -227,6 +240,12 @@ export default async function VenuePage({ params }: { params: Promise<{ venue: s
               <Card>
                 <h3 className="mb-2 text-sm font-bold text-ink">投手</h3>
                 <SourceUnavailable label="投手比較" />
+              </Card>
+            )}
+            {notFoundResult(pitR) && (
+              <Card>
+                <h3 className="mb-2 text-sm font-bold text-ink">投手</h3>
+                <EmptyState className="py-4"><span data-no-data="投手比較">{NO_DATA}</span></EmptyState>
               </Card>
             )}
           </div>
