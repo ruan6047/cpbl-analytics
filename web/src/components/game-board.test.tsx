@@ -569,6 +569,22 @@ const scoreRecords = (records: Live["records"]) => scorebar(
     tabs={<hr id="tabs-sentinel" />} />,
 ).replace(/<!-- -->/g, "");
 
+for (const kind of ["C", "E", "D"]) {
+  test(`#394 ${kind} 賽別記分條維持基準畫面：有 records 也不顯示近 10`, () => {
+    const html = scorebar(
+      <GameBoard
+        data={data({
+          game: { ...GAME, kind_code: kind } as unknown as StatRow,
+          records: { ACN011: { w: 56, l: 62, form: "6-4" }, AAA011: { w: 0, l: 0, form: "0-0" } },
+        })}
+        idx={1} setIdx={() => {}} view="overview" gameSno="276" tabs={<hr id="tabs-sentinel" />} />,
+    ).replace(/<!-- -->/g, "");
+    assert.doesNotMatch(html, /近10/);
+    assert.match(html, /<div class="text-xs text-muted">客・56-62<\/div>/);
+    assert.match(html, /<div class="text-xs text-muted">主・0-0<\/div>/, "w+l=0 留空只適用 A 賽別");
+  });
+}
+
 test("#394 記分條除 W-L 外顯示兩隊近 10 場，含和局為三段", () => {
   const html = scoreRecords({ ACN011: { w: 30, l: 24, form: "6-4" }, AAA011: { w: 20, l: 31, form: "2-1-7" } });
   assert.match(html, /客・30-24/);
