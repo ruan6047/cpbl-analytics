@@ -245,11 +245,10 @@ def own_api_route_paths() -> frozenset[str]:
     ⭐ 用途是**證明** `SELF_REFERENCED_API_ROUTES` 每一筆的理由為真，不是拿來當排除規則
     （那會變成一個會自己長大的集合）。排除本身走逐字封閉清單。
     """
-    from fastapi.routing import APIRoute
-
     from cpbl.api.main import app
+    from tests.api_routes_support import api_route_paths
 
-    return frozenset(r.path for r in app.routes if isinstance(r, APIRoute))
+    return api_route_paths(app)
 
 
 def _module_docstring_of(name: str, ingest_dir: Path = INGEST_DIR) -> str:
