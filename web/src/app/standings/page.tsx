@@ -566,6 +566,9 @@ export default async function Standings({ searchParams }: { searchParams: Promis
       {!isPostseason && mainR.ok && !isMinor && (!h0R.ok || !h1R.ok || !h2R.ok) && segCode === 0 && (
         <SourceUnavailable label="半季冠軍標記" className="py-2" />
       )}
+      {!isPostseason && mainR.ok && segCode === 0 && !postseasonR.ok && (
+        <SourceUnavailable label="年度總冠軍標記" className="py-2" />
+      )}
 
       {isPostseason ? (
         isMinor ? (

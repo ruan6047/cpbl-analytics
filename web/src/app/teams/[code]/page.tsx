@@ -492,7 +492,7 @@ export default async function TeamPage({ params, searchParams }: {
           <div className="min-w-0">
             <h1 className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[24px] font-black leading-tight tracking-[0.04em] text-ink md:text-[26px]">
               {displayName}
-              {!isActive && <span className="pm-tag">已解散</span>}
+              {!isActive && eraList.length > 0 && <span className="pm-tag">已解散</span>}
             </h1>
             <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1 text-[13px] text-muted">
               {team ? (
@@ -504,14 +504,15 @@ export default async function TeamPage({ params, searchParams }: {
               ) : isActive ? (
                 // 現役隊但當季戰績取不到（#441）：身分照常，戰績數字就地標示。
                 <span role="alert" data-source-unavailable="當季戰績" className="text-down">{unavailableCopy("當季戰績")}</span>
-              ) : eras ? (
+              ) : eras && eraList.length > 0 ? (
                 <>
                   <span>{`${eraList[0]?.from}–${lastEra?.to} · 已退出一軍`}</span>
                   <span><b className="mr-1 font-[family-name:var(--font-wide)] text-lg font-extrabold text-ink [font-stretch:80%]">{eras.total.w}-{eras.total.t}-{eras.total.l}</b>隊史戰績</span>
                   <span><b className="mr-1 font-[family-name:var(--font-wide)] text-lg font-extrabold text-ink [font-stretch:80%]">{f3(eras.total.win_pct)}</b>隊史勝率</span>
                 </>
               ) : (
-                <span role="alert" data-source-unavailable="隊史戰績" className="text-down">{unavailableCopy("隊史戰績")}</span>
+                // 隊史取不到，或當季戰績取不到而隊史為空：身分無從確認，⛔ 不標「已解散」也不推 404（D2）。
+                <span role="alert" data-source-unavailable="球隊身分與戰績" className="text-down">{unavailableCopy("球隊身分與戰績")}</span>
               )}
             </div>
           </div>

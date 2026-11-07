@@ -68,13 +68,15 @@ export default async function Home({
     : null;
   // 單場賽況入口（#237）：資料庫還沒有 E 列時，依公告官方場號查既有單場狀態（最多 4 支、no-store、
   // 有逾時），身分全部相符才給連結；任何失敗都等於沒有入口。只補連結，不改進度與截至。
-  const probes = baseJourney && live.live ? liveEntryProbes(baseJourney) : [];
+  // 年度清單取不到時，改以 calendar 回應的 season（省略 season＝當季）判斷是否已公告季後，入口核實照做（#441）。
+  const announced = live.live || (!seasonsR.ok && season != null && announcementFor(season) !== null);
+  const probes = baseJourney && announced ? liveEntryProbes(baseJourney) : [];
   // 查核失敗（非 404）仍不給連結，但要說「無法核實」而不是讓它看起來像沒有入口（#441）。
   const probeR = await Promise.allSettled(probes.map((p) => api.liveEntryCheck(p.sno, p.kind, baseJourney!.year)));
   const journey = baseJourney && withLiveEntries(baseJourney, liveEntryResults(probes, probeR));
   const entryUnverified = probeR.some((r) => r.status === "rejected" && !(r.reason instanceof ApiError && r.reason.failure === "not_found"));
   // 季後區塊只在已知適用（當季已公告季後）時才因來源失敗補上提示；年度清單也取不到時無從判斷，不憑空新增。
-  const postseasonUnavailable = !postR.ok && live.live;
+  const postseasonUnavailable = !postR.ok && announced;
   // #218 首頁：頂部品牌大區併入「今日賽事」標題（品牌已在頂欄字標；全站搜尋在頂欄／行動選單），
   // 主位直接給 7:3 賽事；戰績摘要在下方左欄（7）。
   return (
