@@ -27,8 +27,10 @@ function letterOf(code: string, names?: Record<string, string>) {
 // dy 供垂直錯位（避免多隊末值相近時徽章重疊）。
 function makeEndBadge(color: string, letter: string, lastIndex: number, dy: number) {
   const txt = contrastText(color);
-  function EndBadge(props: { x?: number; y?: number; index?: number }) {
-    const { x, y, index } = props;
+  function EndBadge(props: { x?: number | string; y?: number | string; index?: number }) {
+    const { index } = props;
+    const x = props.x == null ? null : Number(props.x);
+    const y = props.y == null ? null : Number(props.y);
     if (index !== lastIndex || x == null || y == null) return <g />;
     return (
       <g transform={`translate(${x + 5}, ${y + dy})`}>
@@ -76,7 +78,7 @@ export function StandingsTrend({ teams, points, names }: { teams: string[]; poin
           contentStyle={chartTooltip(ct)}
           labelStyle={{ color: ct.muted }}
           itemSorter={(i) => -(i.value as number)}
-          formatter={(v: number, name: string) => [fmt(v), name]}
+          formatter={(v, name) => [fmt(Number(v)), name ?? ""]}
         />
         {teams.map((t) => (
           <Line

@@ -59,7 +59,7 @@ export function CompositionPie({ items, m }: { items: { k: string; label: string
             <Pie data={data} dataKey="value" nameKey="name" innerRadius={26} outerRadius={52} paddingAngle={2} stroke="none">
               {data.map((d) => <Cell key={d.name} fill={d.color} />)}
             </Pie>
-            <Tooltip formatter={(v: number | string) => `${v}%`} />
+            <Tooltip formatter={(v) => `${v}%`} />
           </PieChart>
         </ResponsiveContainer>
       </div>

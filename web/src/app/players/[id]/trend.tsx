@@ -57,7 +57,7 @@ function TrendChart({ data, metric, categorical }: {
         {/* 生涯=時段類別；本季=逐場/週期日期 */}
         <XAxis dataKey="name" {...axis} minTickGap={categorical ? 4 : 28} />
         <YAxis {...axis} domain={["auto", "auto"]} />
-        <Tooltip contentStyle={chartTooltip(ct)} formatter={(v: number) => v?.toFixed(metric.dp)} />
+        <Tooltip contentStyle={chartTooltip(ct)} formatter={(v) => (typeof v === "number" ? v.toFixed(metric.dp) : v)} />
         {metric.ref != null && (
           <ReferenceLine y={metric.ref} stroke={ct.faint} strokeDasharray="4 3"
             label={{ value: `聯盟 ${metric.ref}`, position: "insideTopRight", fill: ct.faint, fontSize: 10 }} />

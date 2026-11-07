@@ -36,8 +36,8 @@ function YearTooltip({ active, payload }: { active?: boolean; payload?: { payloa
 }
 
 // slice 上直接標奪冠數（白字，位於環帶中央）。
-function sliceLabel({ cx, cy, midAngle, innerRadius, outerRadius, value }: {
-  cx: number; cy: number; midAngle: number; innerRadius: number; outerRadius: number; value: number;
+function sliceLabel({ cx = 0, cy = 0, midAngle = 0, innerRadius = 0, outerRadius = 0, value }: {
+  cx?: number; cy?: number; midAngle?: number; innerRadius?: number; outerRadius?: number; value?: number;
 }) {
   const rad = Math.PI / 180;
   const r = innerRadius + (outerRadius - innerRadius) * 0.5;

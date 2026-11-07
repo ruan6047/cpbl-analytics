@@ -59,8 +59,8 @@ export function WinProbChart({ items, homeName, awayName, homeColor, onSelect }:
           <ReferenceLine y={50} stroke={ct.faint} strokeDasharray="4 4" />
           <Tooltip
             formatter={(v) => [`${v}%`, `${homeName} 勝率`]}
-            labelFormatter={(v: number) => {
-              const p = data[v];
+            labelFormatter={(label) => {
+              const p = typeof label === "number" ? data[label] : undefined;
               if (!p) return "";
               if (p.inning == null) return `終場 ${p.away}-${p.home}`;
               return `${p.inning}${p.half === "1" ? "上" : "下"} ${p.hitter ?? ""}（${awayName} ${p.away}-${p.home} ${homeName}）`;

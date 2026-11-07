@@ -268,7 +268,7 @@ export function BattedMixSection({ pitchMix, arsenal, role }: {
 // 取代僅座標數值的預設 tooltip——同色點與 ◆ 才知道屬於哪個球種。
 function ptTip(ct: ReturnType<typeof useChartTheme>, fmt: (d: Record<string, number>) => string) {
   function PtTipContent({ active, payload }: {
-    active?: boolean; payload?: { payload?: Record<string, unknown> }[];
+    active?: boolean; payload?: ReadonlyArray<{ payload?: Record<string, unknown> }>;
   }) {
     const d = payload?.[0]?.payload as ({ pt: string; mark?: string } & Record<string, number>) | undefined;
     if (!active || !d?.pt) return null;

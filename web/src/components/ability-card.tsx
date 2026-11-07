@@ -10,6 +10,7 @@ import {
 } from "recharts";
 import { contrastText } from "@/lib/teams";
 import { gradeColor, useChartTheme } from "@/lib/chart-theme";
+import { legacyAngleTick } from "./polar-angle-tick";
 import { Tooltip } from "./tooltip";
 
 // 能力值卡：以全史生涯 rate 的全聯盟百分位 [PR] 畫遊戲風雷達 + 等級條。
@@ -101,14 +102,15 @@ export function AbilityCard({
   const data = axes.map((a) => ({ axis: a.label, pr: a.pr ?? 0 }));
   const byLabel = Object.fromEntries(axes.map((a) => [a.label, a]));
   // 自訂軸名刻度：包共用 Tooltip（取代原生 SVG <title>：無延遲、觸控可點、內容可排版）。
-  const renderTick = (props: { x: number; y: number; textAnchor: "inherit" | "start" | "middle" | "end"; payload: { value: string } }) => {
-    const a = byLabel[props.payload.value];
+  const renderTick = (props: { x?: number | string; y?: number | string; textAnchor?: "inherit" | "start" | "middle" | "end"; payload: { value?: unknown } }) => {
+    const label = String(props.payload.value ?? "");
+    const a = byLabel[label];
     const g = a?.grade ?? null;
     // #220：軸名墨色＋等級字母（原本只用等級色上色，金／黃字在紙色上對比不足，且等級只靠顏色）。
     const txt = (
-      <text x={props.x} y={props.y} textAnchor={props.textAnchor} dominantBaseline="central"
+      <text x={Number(props.x)} y={Number(props.y)} textAnchor={props.textAnchor} dominantBaseline="central"
         fontSize={12} fontWeight={700} style={{ cursor: "help" }} fill={ct.ink}>
-        {props.payload.value}{g ? <tspan dx={3} fill={ct.muted} fontWeight={800}>{g}</tspan> : null}
+        {label}{g ? <tspan dx={3} fill={ct.muted} fontWeight={800}>{g}</tspan> : null}
       </text>
     );
     if (!a) return txt;
@@ -155,7 +157,7 @@ export function AbilityCard({
         <ResponsiveContainer width="100%" height="100%">
           <RadarChart data={data} outerRadius={compact ? "70%" : "78%"}>
             <PolarGrid stroke={ct.line} />
-            <PolarAngleAxis dataKey="axis" tick={compact ? { fontSize: 10, fill: ct.muted } : renderTick} />
+            <PolarAngleAxis dataKey="axis" tick={compact ? legacyAngleTick({ fontSize: 10, fill: ct.muted }) : renderTick} />
             {/* 半徑軸釘死 0–100：不設的話 recharts 自動縮放到本人最大值，
                 圖形變「相對自己」而等級是絕對 PR（羅戈 續航78/B 被畫到滿格）*/}
             <PolarRadiusAxis domain={[0, 100]} tick={false} axisLine={false} />
@@ -196,7 +198,7 @@ export function AbilityRadarVS({
       <ResponsiveContainer width="100%" height="100%">
         <RadarChart data={data} outerRadius="70%">
           <PolarGrid stroke={ct.line} />
-          <PolarAngleAxis dataKey="axis" tick={{ fontSize: 10, fill: ct.muted }} />
+          <PolarAngleAxis dataKey="axis" tick={legacyAngleTick({ fontSize: 10, fill: ct.muted })} />
           {/* 同上：兩人疊圖更不能各自縮放，0–100 絕對刻度才可比 */}
           <PolarRadiusAxis domain={[0, 100]} tick={false} axisLine={false} />
           <Radar dataKey="away" stroke={awayColor ?? ct.accent} fill={awayColor ?? ct.accent} fillOpacity={0.25} />
