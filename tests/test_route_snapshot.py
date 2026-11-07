@@ -6,9 +6,8 @@
 
 from __future__ import annotations
 
-from fastapi.routing import APIRoute
-
 from cpbl.api.main import app
+from tests.api_routes_support import MIN_EXPECTED_ROUTES, api_route_paths, api_routes
 
 EXPECTED = {
     "/api/info",
@@ -96,7 +95,10 @@ EXPECTED = {
 
 
 def test_all_routes_present():
-    actual = {r.path for r in app.routes if isinstance(r, APIRoute)}
+    actual = set(api_route_paths(app))
+    assert len(actual) >= MIN_EXPECTED_ROUTES, (
+        f"FastAPI 路由表只抓到 {len(actual)} 條，抓法可能失效了"
+    )
     missing = EXPECTED - actual
     extra = actual - EXPECTED
     assert not missing, f"重構弄丟端點: {sorted(missing)}"
@@ -105,6 +107,9 @@ def test_all_routes_present():
 
 def test_all_routes_are_get_only():
     """API 唯讀契約：只允許 GET（含自動 HEAD 不在此列）。"""
-    for r in app.routes:
-        if isinstance(r, APIRoute):
-            assert r.methods <= {"GET", "HEAD"}, f"{r.path} 有非 GET 方法: {r.methods}"
+    routes = api_routes(app)
+    assert len(routes) >= MIN_EXPECTED_ROUTES, (
+        f"FastAPI 路由表只抓到 {len(routes)} 條，抓法可能失效了"
+    )
+    for path, methods in routes:
+        assert methods <= {"GET", "HEAD"}, f"{path} 有非 GET 方法: {set(methods)}"

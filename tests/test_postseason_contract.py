@@ -274,8 +274,14 @@ def test_contract_reports_official_change_signals_but_never_invents_games():
 def test_contract_has_no_write_or_endpoint_surface():
     """契約只是函式：不得在 API 新增路由（路由快照另由 test_route_snapshot 釘住）。"""
     from cpbl.api.main import app
+    from tests.api_routes_support import MIN_EXPECTED_ROUTES, api_route_paths
 
     assert not [r for r in app.routes if "series-contract" in getattr(r, "path", "")]
+    paths = api_route_paths(app)
+    assert len(paths) >= MIN_EXPECTED_ROUTES, (
+        f"FastAPI 路由表只抓到 {len(paths)} 條，抓法可能失效了"
+    )
+    assert not [p for p in paths if "series-contract" in p]
     for sql in (contract.GAMES_SQL, contract.REVISIONS_SQL, contract.REFRESH_SQL,
                 contract.CHANGE_SIGNALS_SQL):
         assert not any(w in sql.upper() for w in ("INSERT", "UPDATE", "DELETE", "CREATE", "DROP"))
