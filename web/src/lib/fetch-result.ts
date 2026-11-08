@@ -21,8 +21,8 @@ function isTimeout(error: unknown): boolean {
   return error instanceof Error && (error.name === "TimeoutError" || error.name === "AbortError");
 }
 
-/** 取 JSON；任何失敗都轉成帶分類的 ApiError。快取一律 no-store：降級結果與舊成功資料都不得被
- *  跨請求保存（驗收 3「API 恢復後下一次請求即恢復」）。 */
+/** 取 JSON；任何失敗都轉成帶分類的 ApiError。這一層的 fetch 一律 no-store：不讓 Next 另存原始 HTTP 回應
+ *  （包括 HTTP 200 的壞 JSON）。跨請求共用只發生在外層 api-cache.ts，且只存成功解析的資料（#441 規劃 v2）。 */
 export async function fetchApiJson<T>(base: string, path: string, timeoutMs = SSR_FETCH_TIMEOUT_MS): Promise<T> {
   let res: Response;
   try {

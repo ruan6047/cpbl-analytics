@@ -1,16 +1,22 @@
 import assert from "node:assert/strict";
-import { afterEach, test } from "node:test";
+import { afterEach, beforeEach, test } from "node:test";
 
 import { api } from "./api.ts";
+import { apiCacheKey, setSharedCacheForTest } from "./api-cache.ts";
+import { memorySharedCache } from "./api-cache.testkit.ts";
 import { dataOf, failed, fetchApiJson, notFoundResult, settle, unavailableCopy } from "./fetch-result.ts";
 import { ApiError } from "./http-error.ts";
 
-// #441：SSR 取數失敗要保留成可辨識的結果（不整頁錯誤、不冒充空資料、不轉 404），
-// 且不經跨請求快取（API 恢復後下一次請求即恢復）。
+// #441：SSR 取數失敗要保留成可辨識的結果（不整頁錯誤、不冒充空資料、不轉 404）。
+// 規劃 v2：成功共享、失敗不共享、live 語意保留——成功解析的資料依原 TTL 跨請求共用，
+// 失敗不進共享快取（API 恢復後下一次請求即恢復），即時端點每次都取。
+// node:test 沒有 Next 的 incrementalCache，共享快取以記憶體替身代入；真正的 Next 行為由 standalone 矩陣驗證。
 
 type Init = RequestInit & { next?: { revalidate?: number } };
 const realFetch = globalThis.fetch;
-afterEach(() => { globalThis.fetch = realFetch; });
+let shared = memorySharedCache();
+beforeEach(() => { shared = memorySharedCache(); setSharedCacheForTest(shared.impl); });
+afterEach(() => { globalThis.fetch = realFetch; setSharedCacheForTest(null); });
 
 function respond(make: () => Response | Promise<Response>) {
   const calls: { url: string; init: Init }[] = [];
@@ -68,7 +74,7 @@ test("settle 只吸收 ApiError；其他例外（頁面程式錯誤）照常拋�
   assert.deepEqual(r, { ok: false, failure: "http", status: 502 });
 });
 
-test("所有伺服器 API 取用都是 no-store＋逾時訊號，不帶 next.revalidate", async () => {
+test("內層 fetch 一律 no-store＋逾時訊號、不帶 next.revalidate（不讓 Next 另存原始 HTTP 回應）", async () => {
   const calls = respond(() => new Response("{}", { status: 200 }));
   await Promise.all([
     api.records(), api.franchises(), api.championships(), api.postseason(), api.teamRecords(),
@@ -82,6 +88,53 @@ test("所有伺服器 API 取用都是 no-store＋逾時訊號，不帶 next.rev
     assert.equal(c.init.next, undefined, c.url);
     assert.ok(c.init.signal instanceof AbortSignal, `${c.url} 要有逾時訊號`);
   }
+});
+
+test("成功共享：可快取端點在 TTL 內第二次呼叫不再發 API，鍵含路徑與原端點 TTL", async () => {
+  const calls = respond(() => new Response(JSON.stringify({ years: [2026] }), { status: 200 }));
+  assert.deepEqual(await api.seasons("A"), { years: [2026] });
+  assert.deepEqual(await api.seasons("A"), { years: [2026] });
+  assert.equal(calls.length, 1);
+  await api.battingLeaders("ops");
+  await api.officialStandings(0);
+  await api.fielding("g");
+  const ttls = shared.keys.map((k) => `${k[2].split("?")[0]} ${k[3]}`);
+  assert.ok(ttls.includes("/api/v1/seasons ttl=600"), ttls.join("\n"));
+  assert.ok(ttls.includes("/api/v1/season/batting-leaders ttl=60"), ttls.join("\n"));
+  assert.ok(ttls.includes("/api/v1/standings ttl=120"), ttls.join("\n"));
+  assert.ok(ttls.includes("/api/v1/season/fielding ttl=300"), ttls.join("\n"));
+});
+
+test("快取鍵：格式版本＋基底＋完整路徑與 query＋TTL；不同 query 不共用", () => {
+  assert.deepEqual(apiCacheKey("http://api", "/api/v1/seasons?kind_code=D", 600),
+    ["cpbl-441-v2-json-1", "http://api", "/api/v1/seasons?kind_code=D", "ttl=600"]);
+  assert.notDeepEqual(apiCacheKey("http://api", "/x?kind_code=A", 600), apiCacheKey("http://api", "/x?kind_code=D", 600));
+});
+
+test("失敗不共享：500／斷線／壞 JSON 都不寫入共享快取，下一次呼叫重新請求並取得成功值", async () => {
+  for (const [label, bad] of [
+    ["500", () => new Response("{}", { status: 500 })],
+    ["斷線", () => { throw new TypeError("fetch failed"); }],
+    ["壞 JSON", () => new Response("<html>", { status: 200 })],
+  ] as const) {
+    shared = memorySharedCache(); setSharedCacheForTest(shared.impl);
+    let up = false;
+    const calls = respond(() => up ? new Response(JSON.stringify({ items: ["ok"] }), { status: 200 }) : bad());
+    assert.equal(failed(await settle(api.franchises())), true, label);
+    assert.equal(shared.store.size, 0, `${label} 不得寫入`);
+    up = true;
+    assert.deepEqual(dataOf(await settle(api.franchises())), { items: ["ok"] }, label);
+    assert.equal(calls.length, 2, label);
+    assert.equal(shared.store.size, 1, `${label} 成功後才寫入`);
+  }
+});
+
+test("live 語意保留：即時端點（daily summary、賽前回測）每次都打 API，不進共享快取", async () => {
+  const calls = respond(() => new Response("{}", { status: 200 }));
+  await api.dailySummary(); await api.dailySummary();
+  await api.pregameBacktest(); await api.pregameBacktest();
+  assert.equal(calls.length, 4);
+  assert.equal(shared.keys.length, 0);
 });
 
 test("恢復：同一路徑失敗後下一次呼叫重新請求並取得新值（本層不保存失敗）", async () => {

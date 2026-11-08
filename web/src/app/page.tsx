@@ -21,7 +21,7 @@ export const metadata = {
   description: "用視覺化與數據分析，把中華職棒 [CPBL] 的比賽、球員與歷史看得更懂——賽況復盤、進階數據與賽前勝率。",
 };
 
-// #441：頁面明示動態渲染；取數一律 no-store，降級結果與舊成功資料都不被保存。
+// #441：頁面明示動態渲染（HTML 與降級結果不被保存）；API 成功資料依原 TTL 共享、失敗不共享（api-cache.ts）。
 export const dynamic = "force-dynamic";
 
 export default async function Home({
@@ -48,7 +48,8 @@ export default async function Home({
   // #441：各來源 settle 後依區塊標示「暫時無法取得」，不再靜默消失或混成「沒有資料」。
   const seasonsR = await settle(api.seasons("A"));
   const years = seasonsR.ok ? seasonsR.data.years : [];
-  const live = { live: years.length > 0 && announcementFor(years[0]) !== null };
+  // 年度清單取不到時無從判斷當季是否已公告季後：保守走即時讀取，避免恢復 TTL 後季後卡組到不同時間的快照（#441 規劃 v2 §4.2）。
+  const live = { live: seasonsR.ok ? years.length > 0 && announcementFor(years[0]) !== null : true };
   const [dailyR, standR, calR, postR] = await Promise.all([
     settle(api.dailySummary()),
     settle(api.officialStandings(0)),

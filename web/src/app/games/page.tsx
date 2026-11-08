@@ -72,14 +72,15 @@ export default async function GamesPage({
   const isCurrent = scope.isCurrentYear && kind === "A";
   // 季後公告（#237）：只在當季一軍且有官方公告時啟用；歷史年份與二軍走原路徑。
   // 啟用時 calendar 與季後摘要都不走跨請求快取，避免同一頁組到不同時間的快照（api.ts journeyGet）。
-  // 年度未知（清單取不到且未指定）時，先以非即時取月曆，等月曆回應的 season（省略 season＝當季）再判斷公告（#441 審核 F2）。
-  const live = { live: isCurrent && scope.selectedYear != null && announcementFor(scope.selectedYear) !== null };
+  // 年度未知（清單取不到且未指定）時，等月曆回應的 season（省略 season＝當季）再判斷公告（#441 審核 F2）。
+  // 規劃 v2 §4.2：一軍預設年而年度清單取不到時，月曆保守走即時讀取（不能先讀可快取月曆、再只把摘要改即時），
+  // 待月曆回應的 season 確認公告後，季後摘要沿 live 語意。
+  const live = { live: isCurrent && (scope.selectedYear == null || announcementFor(scope.selectedYear) !== null) };
   const calendarR = await settle(api.gamesCalendar(isCurrent ? undefined : scope.selectedYear ?? undefined, kind, live));
   const calendarRes = dataOf(calendarR);
   const season = calendarRes?.season;
   const selectedYear = scope.selectedYear ?? season ?? null;
-  if (!live.live && isCurrent && scope.selectedYear == null && season != null && announcementFor(season) !== null) live.live = true;
-  const announced = live.live;
+  const announced = isCurrent && selectedYear != null && announcementFor(selectedYear) !== null;
   // #268：官方空白隊名（台灣大賽 C 列）以現役隊碼補齊顯示名，日曆格、即時卡與篩選共用同一份。
   const items = (calendarRes?.items ?? []).map(withGameTeamNames);
   const hasDetail = (selectedYear ?? Infinity) >= 2018;
