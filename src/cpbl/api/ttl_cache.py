@@ -81,10 +81,28 @@ class SWRCache:
         # 過期但仍回舊值時呼叫（背景刷新者據此排程）；None＝不排程（測試或無背景刷新者）。
         self.on_stale = on_stale
 
+    # ------------------------------------------------------------------ 准入（唯一）
+    def _admit(self, key: Hashable, now: float) -> tuple[str, Any]:
+        """**唯一**決定「誰可以呼叫 compute()」的地方；呼叫端必須持有 ``self._lock``。
+
+        回傳 ``("cooldown", 失敗紀錄)``／``("follow", 進行中的 flight)``／``("lead", 新 flight)``。
+        G3 失敗冷卻只在這裡判斷（#442 審核 r2 F1：冷卻曾分散在同步讀取與 ``due_keys`` 篩選兩處，
+        已排入背景佇列的鍵繞過了它）。所有觸發計算的入口——同步讀取 :meth:`get`（含預熱
+        ``warm`` → ``get(pin=True)``）與背景刷新 :meth:`refresh_key`——都只從這裡取得領頭權；
+        :meth:`_lead` 只接受這裡發出的 flight。⛔ 新增計算入口時不得繞過本方法。
+        """
+        failed = self._failed.get(key)
+        if failed is not None and now < failed[0]:
+            return "cooldown", failed
+        flight = self._inflight.get(key)
+        if flight is not None:
+            return "follow", flight
+        flight = self._inflight[key] = _Flight()
+        return "lead", flight
+
     # ------------------------------------------------------------------ 讀取路徑
     def get(self, key: Hashable, compute: Callable[[], Any], *, pin: bool = False) -> Any:
         now = self._clock()
-        stale_hit = False
         with self._lock:
             e = self._data.get(key)
             if e is not None:
@@ -95,26 +113,25 @@ class SWRCache:
                 if age < self.ttl_s:
                     return e.value
                 if age < self.max_stale_s:
-                    stale_hit = True
                     value = e.value
-            if not stale_hit:
-                failed = self._failed.get(key)
-                if failed is not None and now < failed[0]:
-                    # G3 冷卻（#442 審核 r1b F1）：剛失敗過的鍵在冷卻期內⛔ 不重算——有舊值回舊值，
-                    # 沒有舊值回同一個例外。兩者都不再占池。
+                    stale = True
+                else:
+                    stale = False
+            else:
+                stale = False
+            if not stale:
+                verdict, obj = self._admit(key, now)
+                if verdict == "cooldown":
+                    # 冷卻中⛔ 不重算：有舊值回舊值，沒有舊值回同一個例外（G3）。
                     if e is not None:
                         return e.value
-                    raise failed[1]
-                flight = self._inflight.get(key)
-                leader = flight is None
-                if leader:
-                    flight = self._inflight[key] = _Flight()
-        if stale_hit:
+                    raise obj[1]
+        if stale:
             if self.on_stale is not None:
                 self.on_stale(key)
             return value
-        assert flight is not None
-        if not leader:
+        flight: _Flight = obj
+        if verdict == "follow":
             if not flight.done.wait(self._wait):
                 raise TimeoutError(f"等待同鍵計算逾時（{self._wait}s）：{key!r}")
             if flight.error is not None:
@@ -169,15 +186,18 @@ class SWRCache:
                     if now - e.computed_at >= self._ahead * self.ttl_s
                     and (e.pinned or now - e.last_read < self.max_stale_s)
                     and k not in self._inflight
-                    and not (k in self._failed and now < self._failed[k][0])]  # 冷卻中的鍵延後
+                    # 只是省事的前置過濾；冷卻的判斷依據在 _admit（refresh_key 會再過一次）
+                    and not (k in self._failed and now < self._failed[k][0])]
 
     def refresh_key(self, key: Hashable) -> bool:
         """背景重算一個鍵；失敗保留舊值並回 False。與讀取路徑共用單飛（同鍵已在算就略過）。"""
         with self._lock:
             e = self._data.get(key)
-            if e is None or key in self._inflight:
+            if e is None:
                 return False
-            flight = self._inflight[key] = _Flight()
+            verdict, flight = self._admit(key, self._clock())
+            if verdict != "lead":  # 冷卻中或同鍵已在算：不計算（G3 冷卻只在 _admit 判斷）
+                return False
             compute, pin, before = e.compute, e.pinned, e.computed_at
         try:
             self._lead(key, compute, flight, pin)
