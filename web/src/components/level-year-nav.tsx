@@ -6,6 +6,7 @@ const LEVELS = [{ v: "A", label: "一軍" }, { v: "D", label: "二軍" }];
 // 一軍/二軍 + 年份選擇器：全站 kind＋year 基底軸的共用件（§4.3；戰績/排行/賽況共用）。
 // 輸出裸 controls（置於導覽欄 controls 插槽）；層級走路由切換語彙（Link + aria-current，§4.1）。
 // params：切換層級/年份時要一併保留的頁面主軸參數（如 seg/view）；年份清單隨 kind 不同，切層級時重置年份。
+// years 為空＝年度清單來源暫時無法取得（#441）：層級切換照常，年份處只標示暫時無法取得，⛔ 不憑空補年份。
 export function LevelYearNav({ kind, years, selectedYear, base, params }: {
   kind: string; years: number[]; selectedYear: number; base: string;
   params?: Record<string, string | undefined>;
@@ -39,7 +40,11 @@ export function LevelYearNav({ kind, years, selectedYear, base, params }: {
           })}
         </span>
       </span>
-      <YearSelect years={years} value={selectedYear} kind={kind} basePath={base} params={params} />
+      {years.length > 0 ? (
+        <YearSelect years={years} value={selectedYear} kind={kind} basePath={base} params={params} />
+      ) : (
+        <span role="status" data-source-unavailable="年度選單" className="whitespace-nowrap text-xs text-down">年度選單資料暫時無法取得</span>
+      )}
     </>
   );
 }

@@ -197,24 +197,6 @@ def events_from_rows(rows: Iterable[Mapping]) -> list[PAEvent]:
     return events
 
 
-def resolve_pa_event_no(rows: list[Mapping], event_no: int) -> int | None:
-    """將換人宣告事件確定性映射到同半局下一個真實打席事件。"""
-    index = next(
-        (i for i, row in enumerate(rows) if int(row["event_no"]) == event_no), None,
-    )
-    if index is None:
-        return None
-    target = rows[index]
-    half_key = (target.get("inning"), str(target.get("half")))
-    for row in rows[index:]:
-        if (row.get("inning"), str(row.get("half"))) != half_key:
-            return None
-        if (not row.get("is_change_player") and row.get("hitter")
-                and row.get("pitcher")):
-            return int(row["event_no"])
-    return None
-
-
 def _state(event: PAEvent) -> GameState:
     if event.outs is None:
         raise ValueError("建立 GameState 前必須解析出局數")
@@ -475,43 +457,6 @@ def load_pa_dataset(from_year: int, to_year: int, kind: str = "A") -> PADataset:
         for year, audit in audits.items()
     }
     return PADataset(snapshots=snapshots, audits=audits)
-
-
-def load_game_pa_snapshot(
-    year: int, kind: str, game_sno: int, event_no: int,
-) -> PASnapshot | None:
-    """解析指定事件所屬打席；無法唯一定位即回 None。"""
-    with conn() as connection:
-        cur = connection.cursor()
-        cur.execute(
-            """
-            SELECT l.year, l.game_sno, g.game_date, l.main_event_no::bigint AS event_no,
-                   l.inning_seq AS inning, l.visiting_home_type AS half,
-                   l.hitter_acnt AS hitter, l.pitcher_acnt AS pitcher,
-                   l.first_base, l.second_base, l.third_base, l.out_cnt AS outs,
-                   l.visiting_score AS post_away, l.home_score AS post_home,
-                   l.batting_action_name AS action, l.is_change_player,
-                   g.away_score AS final_away, g.home_score AS final_home
-            FROM cpbl.game_livelog l
-            JOIN cpbl.games g ON g.year=l.year AND g.kind_code=l.kind_code
-                             AND g.game_sno=l.game_sno
-            WHERE l.year=%s AND l.kind_code=%s AND l.game_sno=%s
-            ORDER BY l.main_event_no::bigint
-            """,
-            (year, kind, game_sno),
-        )
-        columns = [column.name for column in cur.description]
-        rows = [dict(zip(columns, values, strict=True)) for values in cur.fetchall()]
-    if not rows:
-        return None
-    resolved_event_no = resolve_pa_event_no(rows, event_no)
-    if resolved_event_no is None:
-        return None
-    events = events_from_rows(rows)
-    final_score = (int(rows[-1]["final_away"]), int(rows[-1]["final_home"]))
-    matches = [snapshot for snapshot in build_pa_snapshots(events, final_score)
-               if snapshot.event_no <= resolved_event_no <= snapshot.end_event_no]
-    return matches[0] if len(matches) == 1 else None
 
 
 def fit_empirical_bayes(

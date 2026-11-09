@@ -1,6 +1,8 @@
 import type { Report, ReportAnchor, ReportKind, ReportRequest } from "./report-types";
 // FastAPI 資料層 client（Server Component 用）。prod 走 Docker 內網，dev 走 localhost。
-import { ApiError } from "./http-error.ts";
+import { cache } from "react";
+import { cachedApiJson } from "./api-cache.ts";
+import { fetchApiJson } from "./fetch-result.ts";
 import type { DailySummary, PregameServingMeta } from "./daily-summary";
 import type { LiveEntryStatus } from "./postseason-journey";
 import type { PostseasonSeriesContextV2 } from "./postseason-series-contract";
@@ -96,18 +98,23 @@ export type TeamUpcomingRecordsResponse = {
   franchise_records: TeamRecordsFranchise[];
 };
 
-async function get<T>(path: string, revalidate = 600): Promise<T> {
-  const res = await fetch(`${API_URL}${path}`, { next: { revalidate } });
-  if (!res.ok) throw new ApiError(path, res.status);
-  return res.json() as Promise<T>;
+/** 可快取的伺服器端 API 取用（#441 規劃 v2）：成功且解析成功的 JSON 依原端點 TTL 跨請求共用；
+ *  失敗（非 2xx、斷線、逾時、壞 JSON）拋帶分類的 ApiError、不進快取，由頁面以 `settle()` 轉成區塊降級。
+ *  TTL 沿用 7e9c55c1 的逐端點設定，不要全部改成預設值。同一請求內相同路徑＋TTL 由 React `cache` 去重
+ *  （帶逾時訊號的 fetch 不會被 Next 自動去重）。實作與「為何內層 no-store」見 api-cache.ts。 */
+const getShared = cache(<T>(path: string, revalidate: number): Promise<T> => cachedApiJson<T>(API_URL, path, revalidate));
+
+function get<T>(path: string, revalidate = 600): Promise<T> {
+  return getShared(path, revalidate) as Promise<T>;
 }
 
 /** 不進快取的取用。只給「必須即時」的狀態用（目前只有賽前模型的 serving 降級揭露）：
- *  快取住的降級提示會在 refresh 恢復後續顯示，讓上線程序的驗證步驟失去意義。 */
-async function getLive<T>(path: string): Promise<T> {
-  const res = await fetch(`${API_URL}${path}`, { cache: "no-store" });
-  if (!res.ok) throw new ApiError(path, res.status);
-  return res.json() as Promise<T>;
+ *  快取住的降級提示會在 refresh 恢復後續顯示，讓上線程序的驗證步驟失去意義。
+ *  #441：失敗同樣拋帶分類的 ApiError（有界逾時）；同請求內相同路徑去重，鍵與可快取讀取分開。 */
+const getLiveDeduped = cache(<T>(path: string): Promise<T> => fetchApiJson<T>(API_URL, path));
+
+function getLive<T>(path: string): Promise<T> {
+  return getLiveDeduped(path) as Promise<T>;
 }
 
 /** 季後旅程的兩個輸入（季後摘要、calendar）。當季已公告季後時，呼叫端傳 `live` 走 no-store（#237 方案 A）。
@@ -125,17 +132,17 @@ function journeyGet<T>(path: string, { live = false }: JourneyFetch): Promise<T>
 const LIVE_ENTRY_TIMEOUT_MS = 2000;
 
 /** 單場狀態，只給季後單場入口判斷「要不要給連結」（#237；身分比對在 postseason-journey 的 withLiveEntries）。
- *  no-store：入口要跟著快照出現與消失，不能被快取留住。任何失敗（4xx／5xx／例外／逾時／壞 JSON）
- *  都回 null，等同沒有入口，不讓頁面出錯。 */
+ *  no-store：入口要跟著快照出現與消失，不能被快取留住。失敗時 reject 帶分類的 ApiError，
+ *  讓頁面能區分「無法核實」與「確實沒有入口」（#441）；兩者都不給連結。 */
+async function liveEntryCheck(sno: number, kind: string, year: number, timeoutMs = LIVE_ENTRY_TIMEOUT_MS): Promise<LiveEntryStatus> {
+  const body = await fetchApiJson<unknown>(API_URL, `/api/v1/games/${sno}/status?kind_code=${kind}&season=${year}`, timeoutMs);
+  return body && typeof body === "object" ? (body as LiveEntryStatus) : null;
+}
+
+/** 同上，但任何失敗（4xx／5xx／例外／逾時／壞 JSON）都回 null，等同沒有入口。 */
 async function liveEntryStatus(sno: number, kind: string, year: number, timeoutMs = LIVE_ENTRY_TIMEOUT_MS): Promise<LiveEntryStatus> {
   try {
-    const res = await fetch(`${API_URL}/api/v1/games/${sno}/status?kind_code=${kind}&season=${year}`, {
-      cache: "no-store",
-      signal: AbortSignal.timeout(timeoutMs),
-    });
-    if (!res.ok) return null;
-    const body: unknown = await res.json();
-    return body && typeof body === "object" ? (body as LiveEntryStatus) : null;
+    return await liveEntryCheck(sno, kind, year, timeoutMs);
   } catch {
     return null;
   }
@@ -552,6 +559,7 @@ export const api = {
   gamesCalendar: (year?: number, kind = "A", fetchMode: JourneyFetch = {}) =>
     journeyGet<GamesCalendarResponse>(`/api/v1/games/calendar?kind_code=${kind}${year ? `&season=${year}` : ""}`, fetchMode),
   liveEntryStatus,
+  liveEntryCheck,
   standings: (season?: number) =>
     get<StandingsResponse>(`/api/v1/season/standings${season ? `?season=${season}` : ""}`),
   teamSplit: (season?: number) =>

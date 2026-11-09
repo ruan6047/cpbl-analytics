@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { codeFromName, eraBadge, isCurrentTeam, teamPageCode } from "@/lib/teams";
+import { unavailableCopy } from "@/lib/fetch-result";
 import { LetterMark, TeamIcon } from "./postmark";
 import { Tooltip } from "./tooltip";
 
@@ -309,6 +310,11 @@ export function EmptyState({ children = "無資料", className = "" }: { childre
 }
 export function ErrorState({ children = "載入失敗", className = "" }: { children?: React.ReactNode; className?: string }) {
   return <p className={`py-8 text-center text-sm text-down ${className}`} role="alert">{children}</p>;
+}
+/** 區塊資料來源暫時無法取得（#441）：放在該區塊原位置，與 EmptyState（確實沒有資料）區分。
+ *  `label`＝區塊名稱；文案固定為「〈區塊〉資料暫時無法取得，請稍後重新整理。」 */
+export function SourceUnavailable({ label, className = "py-4" }: { label: string; className?: string }) {
+  return <ErrorState className={className}><span data-source-unavailable={label}>{unavailableCopy(label)}</span></ErrorState>;
 }
 
 // 場次狀態章（#218 `.st`）：全站唯一狀態語彙，必含文字。done＝終場、scheduled＝賽前（中性章）；

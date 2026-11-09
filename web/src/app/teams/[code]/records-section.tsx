@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { Card, EmptyState, InfoDot, PlayerLink, RECORD_GRID, RecordCard } from "@/components/ui";
+import { Card, EmptyState, InfoDot, PlayerLink, RECORD_GRID, RecordCard, SourceUnavailable } from "@/components/ui";
 import { SubTabs } from "@/components/sub-tabs";
 import { isSelfRefresh, splitFranchiseByRole } from "@/lib/team-records-format";
 import type {
@@ -193,7 +193,16 @@ function FranchiseList({ items }: { items: TeamRecordsFranchise[] }) {
 
 type RecordsCategory = "milestones" | "streaks" | "franchise_batting" | "franchise_pitching";
 
-export function TeamRecordsSection({ data }: { data: TeamUpcomingRecordsResponse | null }) {
+// unavailable（#441）：來源暫時無法取得時就地標示；原本失敗時整個區塊消失，看不出是故障。
+export function TeamRecordsSection({ data, unavailable = false }: { data: TeamUpcomingRecordsResponse | null; unavailable?: boolean }) {
+  if (unavailable) {
+    return (
+      <Card padding="p-4">
+        <div className="mb-3 border-b border-line pb-2 text-sm font-bold text-ink">即將挑戰的紀錄</div>
+        <SourceUnavailable label="即將挑戰的紀錄" className="py-3" />
+      </Card>
+    );
+  }
   if (!data) return null;
   const isEmpty = data.milestones.length === 0 && data.streaks.length === 0 && data.franchise_records.length === 0;
 

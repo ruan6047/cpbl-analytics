@@ -7,7 +7,6 @@ from fastapi import APIRouter, Query
 from cpbl.api.helpers import DEFAULT_SEASON, _ip_disp
 from cpbl.api.response_cache import cached
 from cpbl.api.rows import _batting_rows, _pitching_rows, _primary_positions
-from cpbl.api.scoreless import RUN_BASIS, streak_payload
 from cpbl.completion import completed_games_sql_with_evidence
 from cpbl.db import conn
 from cpbl.franchises import franchise_of
@@ -349,59 +348,6 @@ def _resolve_names(cur, codes: set[str]) -> dict[str, str]:
           ) g GROUP BY code, name) r WHERE rn=1
     """, (codes, codes))
     return dict(cur.fetchall())
-
-
-@router.get("/api/v1/records/earned-run-free-streak")
-def earned_run_free_streak(
-    season: int = Query(DEFAULT_SEASON),
-    # 值域鎖死在**例行賽**賽別。放行任意 kind_code 會讓 payload 自打嘴巴：帶 `C` 時
-    # kinds_counted 變成 ['C'] 而 scope_note 仍宣稱「只計例行賽」，回傳資料與自身宣稱矛盾；
-    # 不存在的代碼（如 `Z`）更會靜默回空榜。保留 D 是因為二軍紀錄同樣有效且已完整對帳
-    # （對帳腳本本來就跑兩個層級），只是預設與前端消費面為 A。
-    kind_code: str = Query("A", pattern="^(A|D)$"),
-    player_id: str | None = Query(None),
-    team: str | None = Query(None),
-    limit: int = Query(10, ge=1, le=100),
-) -> dict:
-    """投手**連續無自責分出賽**（零推論）——注意：不是「連續無失分」。
-
-    失誤造成的非自責失分不中斷本指標（與 ERA 語意一致）；自責分一律採官方
-    `pitching_gamelog.earned_runs`，本專案**不重建自責分**（規則 9.16 讓自動重建不可行）。
-    主值 `appearances_counted` 只計官方自責分為 0 的整場出賽。局數 `outs`／`innings` 降為
-    輔助下界，尾段仍有鴿籠推論；這是改變宣稱，不是解決中途登板／退場的粒度限制。口徑與
-    保守性規則的單一來源是 `cpbl.models.scoreless_streak` 的 docstring；回應本身帶 `note`
-    與 `boundary_note` 供前端原樣呈現。
-
-    `season`／`team` 只篩母體（誰進榜、算哪一隊），連續紀錄本身可回溯到更早球季。
-    """
-    return streak_payload(season=season, kind_code=kind_code, player_id=player_id,
-                          team=team, limit=limit)
-
-
-@router.get("/api/v1/records/run-free-streak")
-def run_free_streak(
-    season: int = Query(DEFAULT_SEASON),
-    # 值域與自責分口徑同理鎖在例行賽（見上方端點註解）。
-    kind_code: str = Query("A", pattern="^(A|D)$"),
-    player_id: str | None = Query(None),
-    team: str | None = Query(None),
-    limit: int = Query(10, ge=1, le=100),
-) -> dict:
-    """投手**連續無失分出賽**（零推論）——媒體慣用的那個口徑。
-
-    與 `/api/v1/records/earned-run-free-streak` **是兩個不同的紀錄**：失誤造成的非自責
-    失分會中斷本指標、不中斷那一個。失分一律採官方 `pitching_gamelog.runs`；9.16(g) 的
-    繼承跑者歸屬已由聯盟記錄員套用於該欄，本專案直接讀取、不重算，也不觸及 9.16(c)(d)(f)
-    的主觀判斷（反事實重播與「有疑慮時對投手有利」）。
-
-    主值 `appearances_counted` 只計官方失分為 0 的整場出賽。局數 `outs`／`innings` 降為
-    輔助下界；中途登板／中途退場且該場後段有得分時仍只能給鴿籠下界（多半為 0），見
-    payload 的 `lower_bound_note`。這是改變宣稱，不是解決該粒度限制。
-
-    `season`／`team` 只篩母體，連續紀錄本身可回溯到更早球季。
-    """
-    return streak_payload(season=season, kind_code=kind_code, player_id=player_id,
-                          team=team, limit=limit, basis=RUN_BASIS)
 
 
 @router.get("/api/v1/records/team")

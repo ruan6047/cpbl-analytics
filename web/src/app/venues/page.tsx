@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { api } from "@/lib/api";
-import { Card } from "@/components/ui";
+import { Card, EmptyState, SourceUnavailable } from "@/components/ui";
+import { settle } from "@/lib/fetch-result";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "球場" };
@@ -24,12 +25,17 @@ function DistBar({ label, ft, max = 410 }: { label: string; ft: number | null; m
   );
 }
 
-export default async function VenuesPage() {
-  const data = await api.venues();
-  const active = data.items.filter((v) => (v.games_played ?? 0) > 0);
-  const historic = data.items.filter((v) => !v.games_played && v.first_year != null);
+type VenueItem = Awaited<ReturnType<typeof api.venues>>["items"][number];
 
-  const card = (v: (typeof data.items)[number]) => (
+export default async function VenuesPage() {
+  // #441：清單來源取不到時只降級清單區，頁標與導覽照常；成功但空清單才是真空態。
+  const dataR = await settle(api.venues());
+  const data = dataR.ok ? dataR.data : null;
+  const items = data?.items ?? [];
+  const active = items.filter((v) => (v.games_played ?? 0) > 0);
+  const historic = items.filter((v) => !v.games_played && v.first_year != null);
+
+  const card = (v: VenueItem) => (
     <Card key={v.venue} hoverable={hasDetail(v)}>
       <div className="flex items-baseline justify-between gap-2">
         <h3 className="text-base font-bold text-ink">
@@ -60,7 +66,7 @@ export default async function VenuesPage() {
         </div>
         <div>
           <div className="font-mono text-lg font-bold tabular-nums text-ink">{v.games_played ?? "—"}</div>
-          <div className="text-[11px] text-faint">{data.season} 場次</div>
+          <div className="text-[11px] text-faint">{data?.season} 場次</div>
         </div>
         <div>
           <div className="font-mono text-lg font-bold tabular-nums text-ink">{num(v.avg_attendance)}</div>
@@ -97,9 +103,15 @@ export default async function VenuesPage() {
       <header className="mb-6">
         <h1 className="text-[24px] font-bold leading-tight tracking-[0.04em] text-ink md:text-[26px]">球場</h1>
         <p className="mt-1.5 text-sm text-muted">
-          規格來自官網球場介紹（外野距離單位：呎）；場次與觀眾為 {data.season} 一軍例行賽統計。
+          規格來自官網球場介紹（外野距離單位：呎）{data ? `；場次與觀眾為 ${data.season} 一軍例行賽統計` : ""}。
         </p>
       </header>
+      {!data ? (
+        <SourceUnavailable label="球場清單" className="py-8" />
+      ) : items.length === 0 ? (
+        <EmptyState>目前沒有球場資料。</EmptyState>
+      ) : (
+      <>
       <section className="mb-8">
         <h2 className="mb-3 text-lg font-bold tracking-[0.04em]">本季使用中（{active.length}）</h2>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{active.map(card)}</div>
@@ -109,6 +121,8 @@ export default async function VenuesPage() {
           <h2 className="mb-3 text-lg font-bold tracking-[0.04em]">歷史球場（{historic.length}）</h2>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{historic.map(card)}</div>
         </section>
+      )}
+      </>
       )}
     </div>
   );

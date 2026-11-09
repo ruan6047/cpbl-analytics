@@ -1,13 +1,14 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ActivePill, Card, EraBadge, StatTile, TeamLogo } from "@/components/ui";
+import { ActivePill, Card, EraBadge, SourceUnavailable, StatTile, TeamLogo } from "@/components/ui";
 import { DataTable, type Column } from "@/components/table";
 import { Tabs } from "@/components/tabs";
 import { type FieldCells, type FieldPosition } from "@/components/field-diagram";
 import type { Metadata } from "next";
 import { RosterBoard, type RosterGroup } from "@/components/roster-board";
 import { api } from "@/lib/api";
-import { nameMeta, teamColor, teamName3 } from "@/lib/teams";
+import { dataOf, notFoundResult, settle, unavailableCopy } from "@/lib/fetch-result";
+import { isCurrentTeam, nameMeta, teamColor, teamName3 } from "@/lib/teams";
 import { streakZh } from "@/lib/team-streak";
 import { CoachGrid, GROUPS, ManagersTable, RetiredNumbers, RosterChips, RosterTable, f2, f3 } from "./parts";
 import { TeamFocusSection } from "./focus-section";
@@ -33,50 +34,76 @@ export default async function TeamPage({ params, searchParams }: {
   const rawYear = Number((await searchParams).year) || undefined;
 
   // Hero＝當季身分橫幅（永遠當季）；賽季 tab 內容＝所選年度（UX-TEAM-SPLIT-SCOPE1）。
-  const currentStd = await api.officialStandings(0);
-  const season = currentStd.season;
-  const year = rawYear && rawYear >= MIN_SPLIT_YEAR && rawYear <= season ? rawYear : season;
+  // #441：每支來源各自 settle，只降級依賴它的區塊。當季戰績取不到時，隊史／名單等能獨立查詢的請求照發；
+  // 當季型端點在年度未知時省略 season（取正式預設年），⛔ 不以主機年份冒充當季。
+  const currentStdR = await settle(api.officialStandings(0));
+  const currentStd = dataOf(currentStdR);
+  const season = currentStd?.season ?? null;
+  const year = season != null
+    ? (rawYear && rawYear >= MIN_SPLIT_YEAR && rawYear <= season ? rawYear : season)
+    : (rawYear && rawYear >= MIN_SPLIT_YEAR ? rawYear : null);
+  const yearArg = year ?? undefined;
 
-  const [split, special, games, cal, bat, pit, field, eras, roster, der, yearStd, style, hotZone, pregame, upcomingRecords] = await Promise.all([
-    api.teamSplit(year),
-    api.specialRecords(year),
-    api.gamesRecent(200),         // 近日焦點：當季近期賽事
-    api.gamesCalendar(),          // 近日焦點：下一場未開打
-    api.battingLeaders("ops", { limit: 500, minPa: 0, year }),
-    api.pitchingLeaders("ip", { limit: 500, minIp: 0, year }),
-    api.fielding("g", { limit: 1000, season: year }),
-    api.teamEras(code),
-    api.teamPlayers(code),
-    api.teamDer(code).catch(() => ({ team: code, franchise: code, items: [] })),
-    year === season ? Promise.resolve(currentStd) : api.officialStandings(0, year),
-    api.teamStyle(code).catch(() => null),  // 球風（UX-TEAM-STYLE1）；失敗不擋整頁
+  const [splitR, specialR, gamesR, calR, batR, pitR, fieldR, erasR, rosterR, derR, yearStdR, styleR, hotZoneR, pregameR, upcomingRecordsR] = await Promise.all([
+    settle(api.teamSplit(yearArg)),
+    settle(api.specialRecords(yearArg)),
+    settle(api.gamesRecent(200)),         // 近日焦點：當季近期賽事
+    settle(api.gamesCalendar()),          // 近日焦點：下一場未開打
+    settle(api.battingLeaders("ops", { limit: 500, minPa: 0, year: yearArg })),
+    settle(api.pitchingLeaders("ip", { limit: 500, minIp: 0, year: yearArg })),
+    settle(api.fielding("g", { limit: 1000, season: yearArg })),
+    settle(api.teamEras(code)),
+    settle(api.teamPlayers(code)),
+    settle(api.teamDer(code)),
+    // 所選年即當季（或年度未知、同一支端點同一組參數）時沿用當季那份結果。
+    year === season ? Promise.resolve(currentStdR) : settle(api.officialStandings(0, yearArg)),
+    settle(api.teamStyle(code)),  // 球風（UX-TEAM-STYLE1）
     // 近日焦點・近期球員熱區（UX-TEAM-HOTZONE1）：一律當季（不帶 year），與「近日焦點＝當季近況」語意一致。
-    api.teamHotZone(code).catch(() => ({
-      season, window_days: 14, available: false, window: null, coverage: null,
-      batters: { min_bip: 0, items: [] }, pitchers: { min_pitches: 0, items: [] },
-    })),
-    api.outcomePregame(60).catch(() => null),  // 失敗不擋整頁：NextGameCard 走 resolvePregameCard 的 fetchFailed 分支
-    // 近日焦點・即將挑戰的紀錄（UX-TEAM-RECORDS1）：一律當季；失敗不擋整頁（區塊直接不渲染）。
-    api.teamUpcomingRecords(code).catch(() => null),
+    settle(api.teamHotZone(code)),
+    settle(api.outcomePregame(60)),  // 失敗時 NextGameCard 走 resolvePregameCard 的 fetchFailed 分支
+    // 近日焦點・即將挑戰的紀錄（UX-TEAM-RECORDS1）：一律當季。
+    settle(api.teamUpcomingRecords(code)),
   ]);
+  const eras = dataOf(erasR);
+  const roster = dataOf(rosterR);
+  const yearStd = dataOf(yearStdR);
+  const split = dataOf(splitR);
+  const special = dataOf(specialR);
+  const games = dataOf(gamesR);
+  const cal = dataOf(calR);
+  const bat = dataOf(batR);
+  const pit = dataOf(pitR);
+  const field = dataOf(fieldR);
+  const der = dataOf(derR);
+  const style = dataOf(styleR);
+  const hotZone = dataOf(hotZoneR);
+  const pregame = dataOf(pregameR);
+  const upcomingRecords = dataOf(upcomingRecordsR);
 
-  const team = currentStd.items.find((t) => t.team_code === code);
-  // 已解散球隊不在現役 standings，但仍有 franchise 隊史；無隊史才真正 404。
-  if (!team && eras.eras.length === 0) notFound();
+  const team = currentStd?.items.find((t) => t.team_code === code);
+  // 已解散球隊不在現役 standings，但仍有 franchise 隊史；只有「當季戰績成功且查無此隊」加上
+  // 「隊史成功且為空（或明確 404）」才是不存在的證據（D2）。⛔ API 故障不轉 404。
+  if (currentStdR.ok && !team && (erasR.ok ? erasR.data.eras.length === 0 : notFoundResult(erasR))) notFound();
+  // 現役與否：當季戰績成功時以它為準；取不到時以既有靜態隊碼表判斷（不據此推任何戰績）。
+  const isActive = !!team || (!currentStdR.ok && isCurrentTeam(code));
 
-  const yearTeam = yearStd.items.find((t) => t.team_code === code);   // 賽季 tab 該年度隊資料
-  const coaches = roster.coaches ?? [];
-  const managers = roster.managers ?? [];
-  const rst = roster.roster ?? { first_batters: [], first_pitchers: [], farm: [] };
-  const retired = roster.retired ?? [];
-  const lastEra = eras.eras[eras.eras.length - 1];
-  const displayName = team?.team_name ?? lastEra?.name ?? code;
+  const yearTeam = yearStd?.items.find((t) => t.team_code === code);   // 賽季 tab 該年度隊資料
+  const coaches = roster?.coaches ?? [];
+  const managers = roster?.managers ?? [];
+  const rst = roster?.roster ?? { first_batters: [], first_pitchers: [], farm: [] };
+  const retired = roster?.retired ?? [];
+  const eraList = eras?.eras ?? [];
+  const lastEra = eraList[eraList.length - 1];
+  const displayName = team?.team_name ?? lastEra?.name ?? (teamName3(code) || code);
   // 攻守概覽三範圍走同一 gamelog+games 聚合路徑（/api/v1/season/team-split）；名次同範圍內比。
-  const teamN = split.scopes[0]?.teams.length ?? 0;
-  const derNow = der.items.find((d) => d.year === year);
+  const teamN = split?.scopes[0]?.teams.length ?? 0;
+  const derNow = der?.items.find((d) => d.year === (year ?? split?.season));
   // 年度選擇器可選年：2018–當季 ∩ 該 franchise 活躍年（依 eras 區間；含改名/回歸空窗）。降冪＝當季在前。
-  const availableYears = Array.from({ length: season - MIN_SPLIT_YEAR + 1 }, (_, i) => season - i)
-    .filter((y) => eras.eras.some((e) => y >= e.from && y <= e.to));
+  // 當季或隊史取不到時無從列出（不憑空補年份），選擇器不顯示。
+  const availableYears = season != null && eras
+    ? Array.from({ length: season - MIN_SPLIT_YEAR + 1 }, (_, i) => season - i)
+      .filter((y) => eraList.some((e) => y >= e.from && y <= e.to))
+    : [];
 
   // 歷史/已解散隊：以隊名取 era-correct 隊色(如 三商虎 水藍)；現役 fallback 到 franchise 色。
   const _bd = nameMeta(displayName);
@@ -87,10 +114,10 @@ export default async function TeamPage({ params, searchParams }: {
   const now = new Date();
   const todayStr = `${now.getFullYear()}-${pad2(now.getMonth() + 1)}-${pad2(now.getDate())}`;
   const isTeamGame = (g: { home_team_code: string; away_team_code: string }) => g.home_team_code === code || g.away_team_code === code;
-  const upcoming = team ? cal.items
+  const upcoming = isActive && cal ? cal.items
     .filter((g) => isTeamGame(g) && g.home_score + g.away_score === 0 && g.game_date >= todayStr)
     .sort((a, b) => a.game_date.localeCompare(b.game_date))[0] : undefined;
-  const teamCompleted = team ? games.items
+  const teamCompleted = isActive && games ? games.items
     .filter(isTeamGame)
     .sort((a, b) => b.game_date.localeCompare(a.game_date)) : [];
   // 近期賽事（近日焦點）：只放已完賽場次，固定 6 場。下一場已由對戰卡呈現，此處不再重複
@@ -106,15 +133,19 @@ export default async function TeamPage({ params, searchParams }: {
   }).reverse();
 
   // ── 賽季 tab：主力選手（依所選年度該隊名稱過濾逐年排行）──
-  const yearName = yearTeam?.team_name ?? team?.team_name;
-  const opponents = yearStd.items.filter((t) => t.team_code !== code);
+  // 該年戰績取不到且所選年即當季（含年度未知＝當季）時，以隊史最後一個時期的隊名過濾（#441 審核修訂輪 1 同類修正）。
+  const yearName = yearTeam?.team_name ?? team?.team_name
+    ?? (year == null || year === season ? lastEra?.name : undefined);
+  const opponents = (yearStd?.items ?? []).filter((t) => t.team_code !== code);
   const POS_ZH_TO_FIELD: Record<string, FieldPosition> = {
     "左外野手": "LF", "中外野手": "CF", "右外野手": "RF",
     "三壘手": "3B", "游擊手": "SS", "二壘手": "2B", "一壘手": "1B", "捕手": "C",
   };
-  const teamBat = yearName ? bat.items.filter((b) => b.team === yearName) : [];
-  const teamPit = yearName ? pit.items.filter((p) => p.team === yearName) : [];
-  const teamField = yearName ? field.items.filter((f) => f.team === yearName) : [];
+  const teamBat = yearName && bat ? bat.items.filter((b) => b.team === yearName) : [];
+  const teamPit = yearName && pit ? pit.items.filter((p) => p.team === yearName) : [];
+  const teamField = yearName && field ? field.items.filter((f) => f.team === yearName) : [];
+  // 主力選手依「該年隊名」過濾個人排行；隊名來自該年戰績，取不到就無從過濾（#441 就地標示）。
+  const lineupNameUnknown = !yearName && !yearStdR.ok;
   const opsPlusById = new Map(teamBat.map((b) => [b.player_id, b.ops_plus]));
   const opsSub = (id: string, fallback: string) => {
     const op = opsPlusById.get(id);
@@ -150,13 +181,14 @@ export default async function TeamPage({ params, searchParams }: {
   }
 
   // 指定打擊：守備出賽≤打擊出賽半數（主要 DH）、打席最多者
-  const dh = teamBat
+  // 指定打擊與替補野手都由守備出賽推導；守備來源取不到時不推（否則會把先發野手誤列為 DH／替補），就地標示（#441）。
+  const dh = !fieldR.ok ? undefined : teamBat
     .filter((b) => (b.pa ?? 0) >= 80 && (fieldTotG.get(b.player_id) ?? 0) * 2 <= (b.g ?? 0))
     .sort((a, b) => (b.pa ?? 0) - (a.pa ?? 0))[0];
   const dhCell = dh ? { main: dh.name ?? "—", sub: dh.ops_plus != null ? `OPS+ ${dh.ops_plus}` : `${dh.pa} 打席`, href: `/players/${dh.player_id}` } : null;
 
   // 主要替補：非各守位主力、非 DH，達 30 打席者，依打席取前 6
-  const bench = teamBat
+  const bench = !fieldR.ok ? [] : teamBat
     .filter((b) => !starterIds.has(b.player_id) && b.player_id !== dh?.player_id && (b.pa ?? 0) >= 30)
     .sort((a, b) => (b.pa ?? 0) - (a.pa ?? 0))
     .slice(0, 6);
@@ -191,22 +223,30 @@ export default async function TeamPage({ params, searchParams }: {
     }] : []),
   ];
 
-  const sp = special.items.find((s) => s.team_code === code);
-  const yearLabel = year === season ? "本季" : `${year} 年`;
+  const sp = special?.items.find((s) => s.team_code === code);
+  const yearLabel = year == null || year === season ? "本季" : `${year} 年`;
 
   // ── 賽季 tab 的支撐區塊（攻守概覽以下；隨年度、不隨半季）：主力選手 / 對戰各隊 / 戰績分項 ──
-  const seasonSupporting = team ? (
+  const seasonSupporting = isActive ? (
     // key：跨 RSC→client 邊界傳入 TeamTabs 的節點會被視為 list child，需 key 以免 React 警告。
     <div key="season-supporting" className="space-y-5">
       <section key="lineup">
         <h2 className="mb-3 text-xl font-bold tracking-[0.04em]">主力選手</h2>
-        <RosterBoard fieldCells={lineupCells} designatedHitter={dhCell} groups={rosterGroups}
-          caption={`${displayName}${yearLabel}各守位主力`}
-          emptyField={year >= 2025 ? "尚無守備資料。" : `${year} 年守備位置圖尚未提供（歷史守備待補）。`} />
+        {lineupNameUnknown ? <SourceUnavailable label="主力選手" /> : (
+          <>
+            <RosterBoard fieldCells={lineupCells} designatedHitter={dhCell} groups={rosterGroups}
+              caption={`${displayName}${yearLabel}各守位主力`}
+              emptyField={!fieldR.ok ? unavailableCopy("守位主力、指定打擊與替補野手")
+                : year == null || year >= 2025 ? "尚無守備資料。" : `${year} 年守備位置圖尚未提供（歷史守備待補）。`} />
+            {!batR.ok && <SourceUnavailable label="打者主力（指定打擊、替補野手、OPS+）" className="py-2" />}
+            {!pitR.ok && <SourceUnavailable label="投手主力" className="py-2" />}
+          </>
+        )}
       </section>
 
       <section key="h2h">
         <h2 className="mb-3 text-xl font-bold tracking-[0.04em]">對戰各隊</h2>
+        {!yearStdR.ok ? <SourceUnavailable label="對戰各隊" /> : (
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
           {opponents.map((o) => (
             <Card key={o.team_code} teamColor={teamColor(o.team_code)} className="flex items-center gap-2 p-3">
@@ -216,6 +256,7 @@ export default async function TeamPage({ params, searchParams }: {
             </Card>
           ))}
         </div>
+        )}
       </section>
 
       <section key="splits">
@@ -223,6 +264,7 @@ export default async function TeamPage({ params, searchParams }: {
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
           <Card teamColor={color} className="p-4">
             <div className="mb-2 text-sm font-semibold text-ink">主客場</div>
+            {!yearStdR.ok ? <SourceUnavailable label="主客場戰績" className="py-2" /> : (
             <dl className="space-y-1.5">
               <div className="flex items-center justify-between text-sm">
                 <dt className="text-muted">主場</dt>
@@ -233,7 +275,14 @@ export default async function TeamPage({ params, searchParams }: {
                 <dd className="font-mono tabular-nums">{yearTeam?.away_record ?? "—"}</dd>
               </div>
             </dl>
+            )}
           </Card>
+          {!specialR.ok && (
+            <Card teamColor={color} className="p-4">
+              <div className="mb-2 text-sm font-semibold text-ink">特殊戰績</div>
+              <SourceUnavailable label="特殊戰績分項" className="py-2" />
+            </Card>
+          )}
           {sp && GROUPS.map((grp) => (
             <Card key={grp.title} teamColor={color} className="p-4">
               <div className="mb-2 text-sm font-semibold text-ink">{grp.title}</div>
@@ -265,7 +314,12 @@ export default async function TeamPage({ params, searchParams }: {
   // 仍會觸發卻只剩約半寬，6 欄會把每張比分卡片擠到不到 100px。改
   // `sm:grid-cols-2 lg:grid-cols-3`（上限 3 欄）：右欄實測寬度約 540px，
   // 3 欄每卡約 175px，logo+比分+日期還撐得開；手機 <640px 仍是原本的單欄。
-  const recentGamesSection = teamGames.length > 0 ? (
+  const recentGamesSection = !gamesR.ok ? (
+    <section key="recent-games">
+      <h2 className="mb-1 text-xl font-bold tracking-[0.04em]">近期賽事</h2>
+      <SourceUnavailable label="近期賽事" />
+    </section>
+  ) : teamGames.length > 0 ? (
     <section key="recent-games">
       <h2 className="mb-1 text-xl font-bold tracking-[0.04em]">近期賽事</h2>
       <p className="mb-3 text-xs text-muted">當季最近完賽（點入看賽況）。下一場見上方對戰卡。</p>
@@ -294,28 +348,34 @@ export default async function TeamPage({ params, searchParams }: {
     </section>
   ) : null;
 
-  if (team) {
+  if (isActive) {
     groups.push({ value: "focus", label: "近日焦點", content: (
       <div key="focus">
         <TeamFocusSection upcoming={upcoming} pregame={pregame} hotZone={hotZone}
-          records={<TeamRecordsSection data={upcomingRecords} />} recentGames={recentGamesSection} />
+          upcomingUnavailable={!calR.ok}
+          records={<TeamRecordsSection data={upcomingRecords} unavailable={!upcomingRecordsR.ok} />} recentGames={recentGamesSection} />
       </div>
     ) });
   }
 
   // 賽季佔位：內容（攻守概覽＋半季子頁籤＋支撐區塊）由 TeamTabs 接手渲染。
-  if (team) groups.push({ value: SEASON_GROUP, label: "賽季", content: null });
+  if (isActive) groups.push({ value: SEASON_GROUP, label: "賽季", content: null });
 
   // 球風：獨立頁籤（UX-TEAM-STYLE1，需求方 2026-07-27 裁定改獨立頁籤）。
   // 全年口徑：本群組無子頁籤，結構上不受賽季 group 的半季切換影響；季切換在頁籤內
   // client 端做（API 一次回全部季，不經 ?year= 重抓）。無 2018+ 資料（如已解散隊）不出頁籤。
   if (style && style.seasons.length > 0) {
     groups.push({ value: "style", label: "球風", content: (
-      <TeamStyleSection key="style" data={style} defaultYear={year} />
+      <TeamStyleSection key="style" data={style} defaultYear={year ?? style.seasons[style.seasons.length - 1]?.year} />
     ) });
+  } else if (!styleR.ok && isActive) {
+    // 現役隊一定有 2018+ 資料，來源取不到時保留頁籤並就地標示；已解散隊無從判斷是否適用，不憑空新增。
+    groups.push({ value: "style", label: "球風", content: <SourceUnavailable key="style" label="球風" className="py-8" /> });
   }
 
-  if (team && (rst.first_batters.length > 0 || rst.first_pitchers.length > 0 || rst.farm.length > 0 || coaches.length > 0)) {
+  if (isActive && !rosterR.ok) {
+    groups.push({ value: "roster", label: "現役陣容", content: <SourceUnavailable key="roster" label="現役陣容" className="py-8" /> });
+  } else if (isActive && (rst.first_batters.length > 0 || rst.first_pitchers.length > 0 || rst.farm.length > 0 || coaches.length > 0)) {
     groups.push({ value: "roster", label: "現役陣容", content: (
       <div key="roster" className="space-y-8">
         {(rst.first_batters.length > 0 || rst.first_pitchers.length > 0 || rst.farm.length > 0) && (
@@ -334,7 +394,9 @@ export default async function TeamPage({ params, searchParams }: {
     ) });
   }
 
-  if (roster.batters.length > 0 || roster.pitchers.length > 0 || managers.length > 0) {
+  if (!roster) {
+    groups.push({ value: "legends", label: "歷屆成員", content: <SourceUnavailable key="legends" label="歷屆成員" className="py-8" /> });
+  } else if (roster.batters.length > 0 || roster.pitchers.length > 0 || managers.length > 0) {
     groups.push({ value: "legends", label: "歷屆成員", content: (
       <section key="legends">
         <h2 className="mb-1 text-xl font-bold tracking-[0.04em]">歷代成員</h2>
@@ -360,7 +422,18 @@ export default async function TeamPage({ params, searchParams }: {
     ) });
   }
 
-  if (eras.eras.length >= 1) {
+  if (!eras) {
+    // 隊史（eras）取不到只降級隊史紀錄與沿革；退休背號來自名單（players）來源，照常呈現（#441 審核 F3）。
+    groups.push({ value: "eras", label: "隊史", content: (
+      <div key="eras" className="space-y-8">
+        <section key="records">
+          <h2 className="mb-1 text-xl font-bold tracking-[0.04em]">隊史紀錄</h2>
+          <SourceUnavailable label="隊史紀錄與球隊沿革" />
+        </section>
+        {roster ? <RetiredNumbers key="retired" retired={retired} color={color} /> : <SourceUnavailable key="retired" label="退休背號" />}
+      </div>
+    ) });
+  } else if (eras.eras.length >= 1) {
     groups.push({ value: "eras", label: "隊史", content: (
       <div key="eras" className="space-y-8">
         <section key="records">
@@ -395,7 +468,7 @@ export default async function TeamPage({ params, searchParams }: {
           )}
         </section>
 
-        <RetiredNumbers key="retired" retired={retired} color={color} />
+        {roster ? <RetiredNumbers key="retired" retired={retired} color={color} /> : <SourceUnavailable key="retired" label="退休背號" />}
 
         {eras.eras.length > 1 && (
           <section key="timeline">
@@ -403,7 +476,7 @@ export default async function TeamPage({ params, searchParams }: {
             <p className="mb-3 text-xs text-muted">改名/轉賣視為同一支球隊，依隊名/年代分時期（一軍例行賽）。</p>
             <DataTable
               columns={[
-                { header: "時期", cell: (e, i) => <span className="inline-flex items-center gap-1.5 font-medium"><EraBadge name={e.name} code={e.code} size={18} />{e.name}{team && i === eras.eras.length - 1 && <ActivePill className="ml-0.5 font-normal" />}</span>, nowrap: true, className: "font-sans" },
+                { header: "時期", cell: (e, i) => <span className="inline-flex items-center gap-1.5 font-medium"><EraBadge name={e.name} code={e.code} size={18} />{e.name}{isActive && i === eras.eras.length - 1 && <ActivePill className="ml-0.5 font-normal" />}</span>, nowrap: true, className: "font-sans" },
                 { header: "年代", cell: (e) => (e.from === e.to ? e.from : `${e.from}–${e.to}`), className: "text-muted" },
                 { header: "勝-和-敗", cell: (e) => `${e.w}-${e.t}-${e.l}` },
                 { header: "勝率", cell: (e) => (e.win_pct == null ? "—" : f3(e.win_pct)), className: "font-bold text-ink" },
@@ -431,7 +504,7 @@ export default async function TeamPage({ params, searchParams }: {
           <div className="min-w-0">
             <h1 className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[24px] font-black leading-tight tracking-[0.04em] text-ink md:text-[26px]">
               {displayName}
-              {!team && <span className="pm-tag">已解散</span>}
+              {!isActive && eraList.length > 0 && <span className="pm-tag">已解散</span>}
             </h1>
             <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1 text-[13px] text-muted">
               {team ? (
@@ -440,12 +513,18 @@ export default async function TeamPage({ params, searchParams }: {
                   <span><b className="mr-1 font-[family-name:var(--font-wide)] text-lg font-extrabold text-ink [font-stretch:80%]">{f3(team.win_pct)}</b>勝率</span>
                   <span><b className="mr-1 font-[family-name:var(--font-wide)] text-lg font-extrabold text-ink [font-stretch:80%]">{team.gb && team.gb > 0 ? String(team.gb) : "—"}</b>勝差</span>
                 </>
-              ) : (
+              ) : isActive ? (
+                // 現役隊但當季戰績取不到（#441）：身分照常，戰績數字就地標示。
+                <span role="alert" data-source-unavailable="當季戰績" className="text-down">{unavailableCopy("當季戰績")}</span>
+              ) : eras && eraList.length > 0 ? (
                 <>
-                  <span>{`${eras.eras[0]?.from}–${lastEra?.to} · 已退出一軍`}</span>
+                  <span>{`${eraList[0]?.from}–${lastEra?.to} · 已退出一軍`}</span>
                   <span><b className="mr-1 font-[family-name:var(--font-wide)] text-lg font-extrabold text-ink [font-stretch:80%]">{eras.total.w}-{eras.total.t}-{eras.total.l}</b>隊史戰績</span>
                   <span><b className="mr-1 font-[family-name:var(--font-wide)] text-lg font-extrabold text-ink [font-stretch:80%]">{f3(eras.total.win_pct)}</b>隊史勝率</span>
                 </>
+              ) : (
+                // 隊史取不到，或當季戰績取不到而隊史為空：身分無從確認，⛔ 不標「已解散」也不推 404（D2）。
+                <span role="alert" data-source-unavailable="球隊身分與戰績" className="text-down">{unavailableCopy("球隊身分與戰績")}</span>
               )}
             </div>
           </div>
@@ -458,17 +537,24 @@ export default async function TeamPage({ params, searchParams }: {
           )}
         </div>
 
-        {team && (
+        {/* 連勝敗／淘汰指數來自當季戰績；近況來自近期賽事。兩者獨立，當季戰績取不到時近況照常（#441 審核同類修正）。 */}
+        {(team || (isActive && (form.length > 0 || !gamesR.ok))) && (
           <div className="mt-3 flex flex-wrap items-center gap-x-6 gap-y-3 rounded-md bg-surface-2 px-3 py-2.5">
-            {[
+            {(team ? [
               { label: "", value: streakZh(team.streak) },
               { label: "淘汰指數", value: team.elim && team.elim !== "" ? team.elim : "—" },
-            ].map((s, i) => (
+            ] : []).map((s, i) => (
               <div key={s.label || i} className="flex items-baseline gap-1.5">
                 {s.label && <span className="text-xs text-muted">{s.label}</span>}
                 <span className="font-mono text-base font-bold tabular-nums text-ink">{s.value}</span>
               </div>
             ))}
+            {!gamesR.ok && (
+              <div className="ml-auto flex items-center gap-2">
+                <span className="text-xs text-muted">近況</span>
+                <span role="alert" data-source-unavailable="近況" className="text-xs text-down">暫時無法取得</span>
+              </div>
+            )}
             {form.length > 0 && (
               <div className="ml-auto flex items-center gap-2">
                 <span className="text-xs text-muted">近況</span>
@@ -487,15 +573,17 @@ export default async function TeamPage({ params, searchParams }: {
         )}
       </div>
 
-      {team ? (
+      {isActive ? (
         <TeamTabs
           code={code}
           teamN={teamN}
-          scopes={split.scopes}
+          scopes={split?.scopes ?? []}
+          scopesUnavailable={!splitR.ok}
           der={derNow ? { value: Number(derNow.der).toFixed(3), rank: derNow.rnk ?? null } : null}
+          derUnavailable={!derR.ok}
           seasonSupporting={seasonSupporting}
           groups={groups}
-          year={year}
+          year={year ?? split?.season ?? 0}
           years={availableYears}
           landOnSeason={!!rawYear}
         />

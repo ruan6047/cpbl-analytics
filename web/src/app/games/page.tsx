@@ -2,11 +2,14 @@ import Link from "next/link";
 import { PostseasonRefreshHint } from "@/components/postseason-refresh-hint";
 import { taipeiDate } from "@/lib/taipei-date";
 import { TaipeiDayRefresh } from "@/components/taipei-day-refresh";
-import { TeamLogo, StatusBadge, EmptyState, type StatusTone } from "@/components/ui";
+import { TeamLogo, StatusBadge, EmptyState, SourceUnavailable, type StatusTone } from "@/components/ui";
 import { SectionTitle } from "@/components/postmark";
 import { LevelYearNav } from "@/components/level-year-nav";
 import { NavBarRow, StickyNavBar } from "@/components/sticky-nav-bar";
 import { api, type CalendarGame } from "@/lib/api";
+import { dataOf, settle } from "@/lib/fetch-result";
+import { ApiError } from "@/lib/http-error";
+import { seasonScope } from "@/lib/season-scope";
 import { hasFinalResult } from "@/lib/live-game";
 import { teamFullName, teamNamesFromGames, withGameTeamNames } from "@/lib/teams";
 import { LiveCalendarGame } from "@/components/live-calendar-game";
@@ -62,30 +65,37 @@ export default async function GamesPage({
 }) {
   const { year: yearParam, kind: kindParam, team, month: monthParam } = await searchParams;
   const kind = kindParam === "D" ? "D" : "A";
-  const { years } = await api.seasons(kind);
-  const currentYear = years[0] ?? new Date().getFullYear();
-  const selectedYear = yearParam ? Number(yearParam) : currentYear;
-  const isCurrent = selectedYear === currentYear && kind === "A";
+  // #441：年度清單、月曆、季後摘要、賽程異動與單場入口各自 settle，只降級依賴失敗來源的區塊。
+  // 年度清單取不到時，未指定年份就省略 season 讓月曆端點回正式預設年（不以主機年份冒充當季）。
+  const scope = seasonScope(await settle(api.seasons(kind)), yearParam);
+  const { years, currentYear } = scope;
+  const isCurrent = scope.isCurrentYear && kind === "A";
   // 季後公告（#237）：只在當季一軍且有官方公告時啟用；歷史年份與二軍走原路徑。
   // 啟用時 calendar 與季後摘要都不走跨請求快取，避免同一頁組到不同時間的快照（api.ts journeyGet）。
-  const announced = isCurrent && announcementFor(selectedYear) !== null;
-  const live = { live: announced };
-  const calendarRes = await api.gamesCalendar(isCurrent ? undefined : selectedYear, kind, live);
-  const season = calendarRes.season;
+  // 年度未知（清單取不到且未指定）時，等月曆回應的 season（省略 season＝當季）再判斷公告（#441 審核 F2）。
+  // 規劃 v2 §4.2：一軍預設年而年度清單取不到時，月曆保守走即時讀取（不能先讀可快取月曆、再只把摘要改即時），
+  // 待月曆回應的 season 確認公告後，季後摘要沿 live 語意。
+  const live = { live: isCurrent && (scope.selectedYear == null || announcementFor(scope.selectedYear) !== null) };
+  const calendarR = await settle(api.gamesCalendar(isCurrent ? undefined : scope.selectedYear ?? undefined, kind, live));
+  const calendarRes = dataOf(calendarR);
+  const season = calendarRes?.season;
+  const selectedYear = scope.selectedYear ?? season ?? null;
+  const announced = isCurrent && selectedYear != null && announcementFor(selectedYear) !== null;
   // #268：官方空白隊名（台灣大賽 C 列）以現役隊碼補齊顯示名，日曆格、即時卡與篩選共用同一份。
-  const items = calendarRes.items.map(withGameTeamNames);
-  const hasDetail = selectedYear >= 2018;
+  const items = (calendarRes?.items ?? []).map(withGameTeamNames);
+  const hasDetail = (selectedYear ?? Infinity) >= 2018;
 
   // 季後旅程的系列事實只讀 API 的 series_context（#283）；摘要取不到時不畫公告格，不擋日曆本身。
-  const postSummary = announced
-    ? await api.postseasonSummary(selectedYear, "A", live).catch(() => null)
-    : null;
+  // 公告季後時才取；失敗就近標示（#441），不擋日曆。月曆取不到時旅程退回只用摘要（同首頁），季後說明照常呈現。
+  const postR = announced ? await settle(api.postseasonSummary(selectedYear ?? undefined, "A", live)) : null;
+  const postSummary = postR ? dataOf(postR) : null;
   const baseJourney = isCurrent && postSummary?.season === selectedYear
-    ? postseasonJourneyFromContext(postSummary.series_context, items)
+    ? postseasonJourneyFromContext(postSummary.series_context, calendarRes ? items : null)
     : null;
-  // #268 B2：與首頁同一支既有 daily summary（no-store），只取 coverage 的官方賽程異動；失敗＝不顯示，不擋日曆。
-  const changes = baseJourney && announced
-    ? scheduleChanges(await api.dailySummary().catch(() => null), baseJourney.year)
+  // #268 B2：與首頁同一支既有 daily summary（no-store），只取 coverage 的官方賽程異動；失敗時就近說明無法核實，不擋日曆。
+  const dailyR = baseJourney && announced ? await settle(api.dailySummary()) : null;
+  const changes = baseJourney && dailyR
+    ? scheduleChanges(dataOf(dailyR), baseJourney.year)
     : [];
   const changeCopy = scheduleChangeCopy(changes);
   const changedRow = (g: CalendarGame) => hasScheduleChange(changes, g);
@@ -94,8 +104,9 @@ export default async function GamesPage({
   // 單場賽況入口（#237）：資料庫還沒有 E 列的公告格，依官方場號查既有單場狀態（最多 4 支、no-store、
   // 有逾時），身分全部相符才整格連到單場頁；任何失敗都等於沒有入口。有資料庫列的場次不查也不覆蓋。
   const probes = baseJourney && announced ? liveEntryProbes(baseJourney) : [];
-  const probeR = await Promise.allSettled(probes.map((p) => api.liveEntryStatus(p.sno, p.kind, baseJourney!.year)));
+  const probeR = await Promise.allSettled(probes.map((p) => api.liveEntryCheck(p.sno, p.kind, baseJourney!.year)));
   const journey = baseJourney && withLiveEntries(baseJourney, liveEntryResults(probes, probeR));
+  const entryUnverified = probeR.some((r) => r.status === "rejected" && !(r.reason instanceof ApiError && r.reason.failure === "not_found"));
   const slotByRow = new Map<string, JourneySlot>();
   const announcedByDate = new Map<string, JourneySlot[]>();
   for (const s of journey?.slots ?? []) {
@@ -128,7 +139,8 @@ export default async function GamesPage({
   const qs = (extra: Record<string, string>) => {
     const p = new URLSearchParams();
     if (kind === "D") p.set("kind", "D");
-    if (selectedYear !== currentYear) p.set("year", String(selectedYear));
+    // 年度未知（#441）不寫進網址；當季未知而年份是網址指定的，保留該年脈絡。
+    if (selectedYear != null && selectedYear !== currentYear) p.set("year", String(selectedYear));
     if (team) p.set("team", team);
     if (month !== defaultMonth) p.set("month", month);
     for (const [k, v] of Object.entries(extra)) { if (v) p.set(k, v); else p.delete(k); }
@@ -181,7 +193,7 @@ export default async function GamesPage({
         </p>
       )}
       <header className="mb-5">
-        <SectionTitle as="h1" date={season} cue={kind === "D" ? "二軍" : "一軍・季後賽"}>賽程與賽況</SectionTitle>
+        <SectionTitle as="h1" date={season ?? selectedYear ?? undefined} cue={kind === "D" ? "二軍" : "一軍・季後賽"}>賽程與賽況</SectionTitle>
         <p className="-mt-1 text-sm text-muted">
           {hasDetail ? "月曆檢視；點任一場看逐局比分與逐打席賽況（play-by-play）。" : "2018 年前僅逐場結果（無逐局/逐打席）。"}
         </p>
@@ -211,9 +223,21 @@ export default async function GamesPage({
               })}
             </div>
           }
-          controls={<LevelYearNav kind={kind} years={years} selectedYear={selectedYear} base="/games" />}
+          controls={<LevelYearNav kind={kind} years={years} selectedYear={selectedYear ?? 0} base="/games" />}
         />
       </StickyNavBar>
+
+      {postR && !postR.ok && <SourceUnavailable label="季後賽公告與系列進度" className="mb-3 py-2" />}
+      {dailyR && !dailyR.ok && <SourceUnavailable label="官方賽程異動核實" className="mb-3 py-2" />}
+      {entryUnverified && <SourceUnavailable label="季後單場入口" className="mb-3 py-2" />}
+
+      {!calendarR.ok ? (
+        <>
+          <SourceUnavailable label="賽程月曆" className="py-12" />
+          {journey && <PostseasonExplainer journey={journey} className="mt-2" />}
+        </>
+      ) : (
+      <>
 
       {/* 月份導覽 */}
       <div className="mb-3 flex items-center justify-center gap-4">
@@ -408,6 +432,8 @@ export default async function GamesPage({
       {/* 季後未定場次說明（#237 驗收 6）：G3／G4 與未定場次為何未定、何時確定。 */}
       {journey && monthHasPostseason && (
         <PostseasonExplainer journey={journey} showAsOf={false} className="mt-6" />
+      )}
+      </>
       )}
 
       <p className="mt-4 text-center text-xs text-muted">
