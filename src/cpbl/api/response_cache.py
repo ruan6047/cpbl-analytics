@@ -125,7 +125,7 @@ class Refresher:
             n += bool(self._cache.refresh_key(key))
         return n
 
-    def start(self, prewarm: Callable[[threading.Event], None] | None = None) -> None:
+    def start(self, prewarm: Callable[[threading.Event], object] | None = None) -> None:
         self.stop()
         self._stop = threading.Event()
         stop = self._stop
