@@ -29,7 +29,8 @@ const BASE: Record<string, string> = { batting: "/batters", pitching: "/pitchers
 function hrefFor(role: string, view: RankView, kind: string, year: number, defaultYear: number) {
   const p = new URLSearchParams();
   if (kind === "D") p.set("kind", "D");
-  if (year !== defaultYear) p.set("year", String(year));
+  // year=0＝年度未知（年度清單與排行都取不到，#441）：不寫進網址。
+  if (year && year !== defaultYear) p.set("year", String(year));
   if (view !== "list") p.set("view", view);
   const qs = p.toString();
   return qs ? `${BASE[role]}?${qs}` : BASE[role];

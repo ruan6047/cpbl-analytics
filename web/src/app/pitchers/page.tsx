@@ -2,7 +2,10 @@ import { AwardRaces, type Cat } from "@/components/award-races";
 import Leaderboard, { type Col } from "@/components/leaderboard";
 import { RankNav, type RankView } from "@/components/rank-nav";
 import { SectionTitle } from "@/components/postmark";
+import { SourceUnavailable } from "@/components/ui";
 import { api } from "@/lib/api";
+import { settle } from "@/lib/fetch-result";
+import { seasonScope } from "@/lib/season-scope";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "投手排行" };
@@ -61,11 +64,14 @@ export default async function PitchersPage({ searchParams }: { searchParams: Pro
   const kind = kp === "D" ? "D" : "A";
   // 主內容視圖（§4.3 第二例）：完整清單（預設；無 view 參數向後相容）↔ 獎項排行榜分頁。
   const view: RankView = vp === "awards" ? "awards" : "list";
-  const { years } = await api.seasons(kind);
-  const currentYear = years[0] ?? new Date().getFullYear();
-  const selectedYear = yp ? Number(yp) : currentYear;
-  const isCurrent = selectedYear === currentYear && kind === "A";
-  const { season, items } = await api.pitchingLeaders("era", { kind, year: isCurrent ? undefined : selectedYear });
+  // #441：年度清單與排行各自 settle（同打者排行）。
+  const scope = seasonScope(await settle(api.seasons(kind)), yp);
+  const { years } = scope;
+  const isCurrent = scope.isCurrentYear && kind === "A";
+  const leadersR = await settle(api.pitchingLeaders("era", { kind, year: isCurrent ? undefined : scope.selectedYear ?? undefined }));
+  const items = leadersR.ok ? leadersR.data.items : [];
+  const season = leadersR.ok ? leadersR.data.season : scope.selectedYear ?? undefined;
+  const selectedYear = scope.selectedYear ?? season ?? 0;
   const rows = items.map((r) => ({ ...r, role: pitcherRole(r) }));
   // 規定投球局數≈球隊出賽×1.0（率值榜門檻，AwardRaces 與排行表共用）。
   const teamG = Math.max(0, ...items.map((r) => Number(r.g ?? 0)));
@@ -77,14 +83,16 @@ export default async function PitchersPage({ searchParams }: { searchParams: Pro
         {/* #218：取消眉標（原「排行中心・投手」），標題自己承載；年度與層級寫在標題後。 */}
         <SectionTitle as="h1" date={season} cue={kind === "D" ? "二軍" : "一軍"}>投手排行</SectionTitle>
         <p className="-mt-1 text-sm text-muted">
-          {kind === "D" || !isCurrent ? "由逐場/逐年成績彙整（二軍逐打席自 2018 起；救援/中繼僅當季與歷年彙總有）。" : "全名單本季投手。"}
+          {!scope.currentKnown ? "" : kind === "D" || !isCurrent ? "由逐場/逐年成績彙整（二軍逐打席自 2018 起；救援/中繼僅當季與歷年彙總有）。" : "全名單本季投手。"}
           預設顯示主要欄位，點「完整欄位」看全部；點欄位標題排序，可依球隊篩選。
         </p>
       </header>
 
       <RankNav role="pitching" view={view} kind={kind} years={years} selectedYear={selectedYear}>
 
-      {view === "awards" ? (
+      {!leadersR.ok ? (
+        <SourceUnavailable label={view === "awards" ? "獎項排行榜" : "投手排行"} className="py-8" />
+      ) : view === "awards" ? (
         <AwardRaces rows={items} cats={AWARD_CATS} qualKey="ip" qualMin={qual}
           note={`規定投球局數約 ${qual}（防禦率/WHIP/K9 套用）。`} />
       ) : (

@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { Card, EmptyState, InfoDot, PlayerLink, RECORD_GRID, RecordCard, SectionHeading, StatusBadge, TeamLogo } from "@/components/ui";
+import { Card, EmptyState, InfoDot, PlayerLink, RECORD_GRID, RecordCard, SectionHeading, SourceUnavailable, StatusBadge, TeamLogo } from "@/components/ui";
 import { PregameCard } from "@/components/pregame-card";
 import { Tooltip } from "@/components/tooltip";
 import { resolvePregameCard, type PregameResponse } from "@/lib/pregame-card";
@@ -25,9 +25,11 @@ import type { CalendarGame, TeamHotZoneResponse } from "@/lib/api";
 // 空間。`records` 由 page.tsx 傳入（保持 TeamFocusSection 不需認識 TeamRecordsSection
 // 的資料型別，關注點分離）。
 
-function NextGameCard({ upcoming, pregame }: {
+function NextGameCard({ upcoming, pregame, unavailable = false }: {
   upcoming: CalendarGame | undefined;
   pregame: PregameResponse | null;
+  /** #441：賽程來源暫時無法取得，與「本季近期無排定賽事」區分。 */
+  unavailable?: boolean;
 }) {
   const model = upcoming
     ? resolvePregameCard({
@@ -47,7 +49,9 @@ function NextGameCard({ upcoming, pregame }: {
           </span>
         )}
       </div>
-      {!upcoming ? (
+      {unavailable ? (
+        <SourceUnavailable label="下一場賽程" className="py-3" />
+      ) : !upcoming ? (
         <EmptyState className="py-3">本季近期無排定賽事。</EmptyState>
       ) : (
         <div className="space-y-3">
@@ -233,12 +237,14 @@ function HotZoneCard({ data }: { data: TeamHotZoneResponse }) {
   );
 }
 
-export function TeamFocusSection({ upcoming, pregame, hotZone, records, recentGames }: {
+export function TeamFocusSection({ upcoming, pregame, hotZone, records, recentGames, upcomingUnavailable = false }: {
   upcoming: CalendarGame | undefined;
   pregame: PregameResponse | null;
-  hotZone: TeamHotZoneResponse;
+  /** null＝熱區來源暫時無法取得（#441）；⛔ 不再以 available=false 冒充「本季尚無完賽」。 */
+  hotZone: TeamHotZoneResponse | null;
   records: ReactNode;
   recentGames: ReactNode;
+  upcomingUnavailable?: boolean;
 }) {
   // items-start：兩段式熱區（打者＋投手）比 FOCUS2 單段熱區高很多，預設 grid 拉伸
   // 會把左欄撐到跟右欄同高。改各欄依自身內容收高，兩欄不再被迫等高。
@@ -250,11 +256,16 @@ export function TeamFocusSection({ upcoming, pregame, hotZone, records, recentGa
   return (
     <div className="grid grid-cols-1 items-start gap-3 md:grid-cols-2">
       <div className="space-y-3">
-        <NextGameCard upcoming={upcoming} pregame={pregame} />
+        <NextGameCard upcoming={upcoming} pregame={pregame} unavailable={upcomingUnavailable} />
         {records}
       </div>
       <div className="space-y-3">
-        <HotZoneCard data={hotZone} />
+        {hotZone ? <HotZoneCard data={hotZone} /> : (
+          <Card padding="p-4">
+            <div className="mb-3 border-b border-line pb-2 text-sm font-bold text-ink">近期球員熱區</div>
+            <SourceUnavailable label="近期球員熱區" className="py-3" />
+          </Card>
+        )}
         {recentGames}
       </div>
     </div>

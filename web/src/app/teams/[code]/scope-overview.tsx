@@ -17,11 +17,13 @@ type MetricKey = "ops" | "era" | "whip" | "rs_pg" | "ra_pg" | "run_diff";
  * 依所選範圍在**同範圍** 6 隊內比、不跨範圍。半季小樣本照常顯示並標場數／「樣本偏小」。DER 無半季
  * 粒度且非口徑四指標，切半季固定全年值並去名次、標「· 全年」以免誤導。
  */
-export function TeamScopeOverview({ teamCode, scope, teamN, der, half }: {
+// derUnavailable（#441）：DER 來源暫時無法取得，與「該年沒有 DER」（—）區分。
+export function TeamScopeOverview({ teamCode, scope, teamN, der, half, derUnavailable = false }: {
   teamCode: string;
   scope: TeamSplitScope;
   teamN: number;
   der?: { value: string; rank: number | null } | null;
+  derUnavailable?: boolean;
   half: ScopeKey;
 }) {
   const teams = scope.teams;
@@ -63,7 +65,7 @@ export function TeamScopeOverview({ teamCode, scope, teamN, der, half }: {
             <StatTile label="WHIP" value={f2(mine?.whip)} rank={rankOf("whip", true)} rankTotal={teamN} />
             <StatTile label="失分/場" value={f2(mine?.ra_pg)} rank={rankOf("ra_pg", true)} rankTotal={teamN} />
             {/* DER 無半季粒度：切半季固定全年值、去名次、標「· 全年」以免誤導。 */}
-            <StatTile label={isHalf ? "DER · 全年" : "DER"} value={der?.value ?? "—"}
+            <StatTile label={isHalf ? "DER · 全年" : "DER"} value={derUnavailable ? "暫時無法取得" : der?.value ?? "—"}
               rank={isHalf ? null : (der?.rank ?? null)} rankTotal={teamN} />
           </div>
         </div>

@@ -4,6 +4,7 @@ import { useState, type ReactNode } from "react";
 import { HierarchicalTabs, TabPanel, type HierarchicalTabGroup } from "@/components/hierarchical-tabs";
 import { StickyNavBar } from "@/components/sticky-nav-bar";
 import { YearSelect } from "@/components/year-select";
+import { SourceUnavailable } from "@/components/ui";
 import { TeamScopeOverview } from "./scope-overview";
 import type { TeamSplitScope } from "@/lib/api";
 
@@ -27,11 +28,15 @@ export type TeamGroup = { value: string; label: string; content: ReactNode | nul
  */
 export const SEASON_GROUP = "season";
 
-export function TeamTabs({ code, teamN, scopes, der, seasonSupporting, groups, year, years, landOnSeason }: {
+export function TeamTabs({ code, teamN, scopes, der, seasonSupporting, groups, year, years, landOnSeason,
+  scopesUnavailable = false, derUnavailable = false }: {
   code: string;
   teamN: number;
   scopes: TeamSplitScope[];
   der?: { value: string; rank: number | null } | null;
+  /** #441：攻守概覽（team-split）來源暫時無法取得；賽季頁籤其餘區塊照常。 */
+  scopesUnavailable?: boolean;
+  derUnavailable?: boolean;
   seasonSupporting: ReactNode;
   groups: TeamGroup[];
   year: number;
@@ -84,8 +89,10 @@ export function TeamTabs({ code, teamN, scopes, der, seasonSupporting, groups, y
       <TabPanel label={panelLabel}>
       {onSeason ? (
         <div className="space-y-5">
+          {scopesUnavailable && <SourceUnavailable label="攻守概覽" />}
           {activeScope && (
-            <TeamScopeOverview teamCode={code} scope={activeScope} teamN={teamN} der={der} half={activeHalf} />
+            <TeamScopeOverview teamCode={code} scope={activeScope} teamN={teamN} der={der} half={activeHalf}
+              derUnavailable={derUnavailable} />
           )}
           {isHalf && (
             <p className="-mt-3 text-[11px] text-faint">

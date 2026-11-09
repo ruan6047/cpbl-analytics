@@ -7,6 +7,7 @@ import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
 import { Pill, TeamBadge } from "@/components/ui";
 import { chartTooltip, useChartTheme } from "@/lib/chart-theme";
 import { teamColor } from "@/lib/teams";
+import { unavailableCopy } from "@/lib/fetch-result";
 
 export type DynastyRow = { team_code: string; team: string | null; titles: number; years: number[]; rk: number };
 export type RegularRow = { code: string; name: string | null; win_pct: number | null; w: number; l: number };
@@ -51,7 +52,10 @@ function sliceLabel({ cx = 0, cy = 0, midAngle = 0, innerRadius = 0, outerRadius
   );
 }
 
-export function DynastyChart({ rows, regular }: { rows: DynastyRow[]; regular: RegularRow[] }) {
+// regularUnavailable（#441）：例行賽勝率來源（franchises）取不到時，只降級這一欄、王朝榜照常。
+export function DynastyChart({ rows, regular, regularUnavailable = false }: {
+  rows: DynastyRow[]; regular: RegularRow[]; regularUnavailable?: boolean;
+}) {
   const total = rows.reduce((s, r) => s + r.titles, 0);
   return (
     <div className="card grid items-start gap-5 p-4 sm:grid-cols-[190px_1fr] lg:grid-cols-[190px_minmax(0,1fr)_minmax(0,1fr)]">
@@ -90,6 +94,9 @@ export function DynastyChart({ rows, regular }: { rows: DynastyRow[]; regular: R
       {/* 欄二：例行賽勝率（全史 kind A）——與冠軍分布對照 */}
       <div className="hidden self-center lg:block">
         <div className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-faint">例行賽勝率・全史</div>
+        {regularUnavailable ? (
+          <p role="alert" className="text-sm text-down" data-source-unavailable="例行賽勝率">{unavailableCopy("例行賽勝率")}</p>
+        ) : (
         <ul className="space-y-1.5">
           {regular.map((t) => (
             <li key={t.code} className="flex items-center gap-2 text-sm">
@@ -103,6 +110,7 @@ export function DynastyChart({ rows, regular }: { rows: DynastyRow[]; regular: R
             </li>
           ))}
         </ul>
+        )}
       </div>
     </div>
   );

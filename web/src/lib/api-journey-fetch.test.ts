@@ -1,10 +1,13 @@
 import assert from "node:assert/strict";
-import { afterEach, test } from "node:test";
+import { afterEach, beforeEach, test } from "node:test";
 
 import { api } from "./api.ts";
+import { setSharedCacheForTest } from "./api-cache.ts";
+import { memorySharedCache } from "./api-cache.testkit.ts";
 
-// #237 方案 A：當季已公告季後時，季後摘要與 calendar 不走跨請求快取（no-store）；
-// 其他呼叫（歷史年份、二軍）照舊 120 秒快取。判準落在實際送出的 fetch 選項與網址。
+// #237 方案 A：當季已公告季後時，季後摘要與 calendar 不走跨請求快取（no-store）。
+// 其他呼叫（歷史年份、二軍）依原 120 秒跨請求共用成功資料（#441 規劃 v2：成功共享、失敗不共享、live 語意保留）。
+// 內層 fetch 一律 no-store（只防 Next 另存原始回應）；有無跨請求共用看是否經過共享快取，不能只看 fetch 選項。
 // 正式建置實測的舊新快照混用見 ui-r3 production 自檢；這裡只驗快取選項，不代表資料庫原子快照。
 
 type Call = { url: string; init: RequestInit & { next?: { revalidate?: number } } };
@@ -19,36 +22,40 @@ function stubFetch() {
   }) as typeof fetch;
 }
 
+let shared = memorySharedCache();
+beforeEach(() => { shared = memorySharedCache(); setSharedCacheForTest(shared.impl); });
 afterEach(() => {
   globalThis.fetch = realFetch;
+  setSharedCacheForTest(null);
 });
 
-test("live：季後摘要與 calendar 走 no-store，不帶 revalidate；網址與原本相同", async () => {
+test("live：季後摘要與 calendar 不進共享快取（每次都取），網址與原本相同", async () => {
   stubFetch();
   await api.postseasonSummary(2026, "A", { live: true });
   await api.gamesCalendar(undefined, "A", { live: true });
   await api.postseasonSummary(undefined, "A", { live: true });
+  await api.postseasonSummary(2026, "A", { live: true });
   assert.deepEqual(calls.map((c) => c.url.replace(/^https?:\/\/[^/]+/, "")), [
     "/api/v1/postseason-summary?kind_code=A&season=2026",
     "/api/v1/games/calendar?kind_code=A",
     "/api/v1/postseason-summary?kind_code=A",
+    "/api/v1/postseason-summary?kind_code=A&season=2026",
   ]);
   for (const c of calls) {
     assert.equal(c.init.cache, "no-store");
     assert.equal(c.init.next, undefined);
   }
+  assert.equal(shared.keys.length, 0, "live 不經共享快取");
 });
 
-test("不傳 live（歷史年份、二軍、未公告）：照舊 120 秒快取", async () => {
+test("不傳 live（歷史年份、二軍、未公告）：照原 120 秒共享成功資料", async () => {
   stubFetch();
   await api.postseasonSummary(2025, "A");
   await api.gamesCalendar(2025, "A");
   await api.gamesCalendar(undefined, "D", { live: false });
+  await api.postseasonSummary(2025, "A");   // TTL 內第二次：不再發 API
   assert.equal(calls.length, 3);
-  for (const c of calls) {
-    assert.equal(c.init.cache, undefined);
-    assert.equal(c.init.next?.revalidate, 120);
-  }
+  assert.deepEqual(shared.keys.map((k) => k[3]), ["ttl=120", "ttl=120", "ttl=120", "ttl=120"]);
 });
 
 // #237 單場賽況入口：首頁與日曆在伺服器端查公告場號的單場狀態，只用來決定要不要給連結。

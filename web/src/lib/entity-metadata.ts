@@ -1,11 +1,17 @@
 import type { Metadata } from "next";
 
+import { cachedApiJson } from "./api-cache.ts";
+
 const API_URL = process.env.API_URL ?? "http://localhost:4001";
+
+/** metadata 用的實體讀取：成功資料沿用原 300 秒跨請求快取；失敗（非 2xx、斷線、逾時、壞 JSON）
+ *  不進快取，在快取外回 null，讓標題退回中性字樣，恢復後下一次請求即可取得（#441 規劃 v2）。
+ *  ⛔ 這個 null 不代表實體不存在，內文由 client 自己判斷。 */
+const ENTITY_TTL_SECONDS = 300;
 
 async function readEntity<T>(path: string): Promise<T | null> {
   try {
-    const response = await fetch(`${API_URL}${path}`, { next: { revalidate: 300 } });
-    return response.ok ? response.json() as Promise<T> : null;
+    return await cachedApiJson<T>(API_URL, path, ENTITY_TTL_SECONDS);
   } catch {
     return null;
   }

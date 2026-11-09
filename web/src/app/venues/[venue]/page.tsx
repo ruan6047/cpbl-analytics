@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { DataTable, type Column } from "@/components/table";
-import { Card, Eyebrow, PlayerLink, StatGrid } from "@/components/ui";
+import { Card, EmptyState, Eyebrow, PlayerLink, SourceUnavailable, StatGrid } from "@/components/ui";
 import {
   FACTOR_STATS,
   api,
@@ -10,7 +10,7 @@ import {
   type VenueFactorsResponse,
   type VenuePitcher,
 } from "@/lib/api";
-import { optionalNotFound } from "@/lib/http-error";
+import { dataOf, failed, notFoundResult, settle } from "@/lib/fetch-result";
 import { canonicalVenue, hasSplitRows } from "./page-logic";
 import { FACTOR_LABEL, LowSample, PfBar, VsLeague, f1, f2, f3, num, pfPhrase } from "./parts";
 
@@ -43,15 +43,26 @@ function split<T extends { player_id: string }>(
 export default async function VenuePage({ params }: { params: Promise<{ venue: string }> }) {
   const { venue: rawParam } = await params;
   const venueParam = canonicalVenue(decodeURIComponent(rawParam));
-  const [list, factors, stats, bat, pit] = await Promise.all([
-    api.venues(),
-    optionalNotFound(api.venueFactors(venueParam)),
-    optionalNotFound(api.venueStats(venueParam)),
-    optionalNotFound(api.venuePlayers<VenueBatter>(venueParam, "batting", POOL)),
-    optionalNotFound(api.venuePlayers<VenuePitcher>(venueParam, "pitching", POOL)),
+  // #441：五支來源各自 settle。分析端點 404＝本站沒有該項分析（歷史場地仍可有規格）；
+  // 500／斷線／逾時＝暫時無法取得，⛔ 不當成「沒有分析」也⛔ 不推定球場不存在。
+  // 只有清單成功且查無此場、Park Factor 與打擊環境都明確 404 時才 notFound（D2）。
+  const [listR, factorsR, statsR, batR, pitR] = await Promise.all([
+    settle(api.venues()),
+    settle(api.venueFactors(venueParam)),
+    settle(api.venueStats(venueParam)),
+    settle(api.venuePlayers<VenueBatter>(venueParam, "batting", POOL)),
+    settle(api.venuePlayers<VenuePitcher>(venueParam, "pitching", POOL)),
   ]);
-  const spec = list.items.find((v) => v.venue === venueParam);
-  if (!factors && !stats && !spec) notFound();
+  const spec = listR.ok ? listR.data.items.find((v) => v.venue === venueParam) : undefined;
+  if (listR.ok && !spec && notFoundResult(factorsR) && notFoundResult(statsR)) notFound();
+  const factors = dataOf(factorsR);
+  const stats = dataOf(statsR);
+  const bat = dataOf(batR);
+  const pit = dataOf(pitR);
+  const playersFailed = failed(batR) || failed(pitR);
+  // D2：可選分析端點明確 404＝本站沒有這項資料（與「暫時無法取得」區分）；其他獨立區照常。
+  const playersMissing = notFoundResult(batR) || notFoundResult(pitR);
+  const NO_DATA = "本站尚無此項資料。";
 
   const batSplit = bat && split(bat.best, bat.worst, (r) => r.delta_ops, false);
   const pitSplit = pit && split(pit.best, pit.worst, (r) => r.delta_era, true);
@@ -97,6 +108,12 @@ export default async function VenuePage({ params }: { params: Promise<{ venue: s
       </header>
 
       {/* 規格（沿用 venue_dim；外野距離單位為呎）*/}
+      {!listR.ok && (
+        <section>
+          <Eyebrow className="mb-2">球場規格</Eyebrow>
+          <SourceUnavailable label="球場規格" />
+        </section>
+      )}
       {spec && (
         <section>
           <Eyebrow className="mb-2">球場規格</Eyebrow>
@@ -131,7 +148,7 @@ export default async function VenuePage({ params }: { params: Promise<{ venue: s
         </section>
       )}
 
-      {!factors && !stats && spec && (
+      {notFoundResult(factorsR) && notFoundResult(statsR) && spec && (
         <Card>
           <p className="text-sm font-medium text-ink">歷史 CPBL 場地</p>
           <p className="mt-1 text-sm text-muted">
@@ -142,6 +159,14 @@ export default async function VenuePage({ params }: { params: Promise<{ venue: s
       )}
 
       {factors && <ParkFactors factors={factors} />}
+      {(failed(factorsR) || notFoundResult(factorsR)) && (
+        <section>
+          <h2 className="mb-1 text-lg font-bold tracking-[0.04em]">Park Factor（主客對照法）</h2>
+          {failed(factorsR)
+            ? <SourceUnavailable label="Park Factor" />
+            : <EmptyState className="py-4"><span data-no-data="Park Factor">{NO_DATA}</span></EmptyState>}
+        </section>
+      )}
 
       {/* 打擊環境：球場逐年 vs 聯盟同年 */}
       {stats && stats.seasons.length > 0 && (
@@ -159,9 +184,17 @@ export default async function VenuePage({ params }: { params: Promise<{ venue: s
           <p className="mt-2 text-[11px] text-faint">{stats.note}</p>
         </section>
       )}
+      {(failed(statsR) || notFoundResult(statsR)) && (
+        <section>
+          <h2 className="mb-1 text-lg font-bold tracking-[0.04em]">逐年打擊數據</h2>
+          {failed(statsR)
+            ? <SourceUnavailable label="逐年打擊數據" />
+            : <EmptyState className="py-4"><span data-no-data="逐年打擊數據">{NO_DATA}</span></EmptyState>}
+        </section>
+      )}
 
-      {/* 選手極端表現（生涯口徑，含 2018 以前）*/}
-      {(showBat || showPit) && (
+      {/* 選手極端表現（生涯口徑，含 2018 以前）。任一端暫時無法取得時區塊照出，失敗那一端就地標示。*/}
+      {(showBat || showPit || playersFailed || playersMissing) && (
         <section>
           <h2 className="mb-1 text-lg font-bold tracking-[0.04em]">在此球場與自身生涯基準差距最大的選手</h2>
           <p className="mb-2 text-sm text-muted">
@@ -182,6 +215,18 @@ export default async function VenuePage({ params }: { params: Promise<{ venue: s
                 <ExtremeTable rows={batSplit.bottom} columns={batColumns} title="OPS 低於自身生涯" className="mt-4" />
               </Card>
             )}
+            {failed(batR) && (
+              <Card>
+                <h3 className="mb-2 text-sm font-bold text-ink">打者</h3>
+                <SourceUnavailable label="打者比較" />
+              </Card>
+            )}
+            {notFoundResult(batR) && (
+              <Card>
+                <h3 className="mb-2 text-sm font-bold text-ink">打者</h3>
+                <EmptyState className="py-4"><span data-no-data="打者比較">{NO_DATA}</span></EmptyState>
+              </Card>
+            )}
             {pit && pitSplit && showPit && (
               <Card>
                 <h3 className="mb-2 text-sm font-bold text-ink">
@@ -189,6 +234,18 @@ export default async function VenuePage({ params }: { params: Promise<{ venue: s
                 </h3>
                 <ExtremeTable rows={pitSplit.top} columns={pitColumns} title="ERA 優於自身生涯" />
                 <ExtremeTable rows={pitSplit.bottom} columns={pitColumns} title="ERA 差於自身生涯" className="mt-4" />
+              </Card>
+            )}
+            {failed(pitR) && (
+              <Card>
+                <h3 className="mb-2 text-sm font-bold text-ink">投手</h3>
+                <SourceUnavailable label="投手比較" />
+              </Card>
+            )}
+            {notFoundResult(pitR) && (
+              <Card>
+                <h3 className="mb-2 text-sm font-bold text-ink">投手</h3>
+                <EmptyState className="py-4"><span data-no-data="投手比較">{NO_DATA}</span></EmptyState>
               </Card>
             )}
           </div>
