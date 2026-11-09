@@ -121,7 +121,8 @@ class Refresher:
         for key in self._pending():
             if stop is not None and stop.is_set():
                 break
-            wait_until_idle(stop)
+            if not wait_until_idle(stop):  # 池忙就延後；回 False＝關機，⛔ 不在池忙時照跑
+                break
             n += bool(self._cache.refresh_key(key))
         return n
 

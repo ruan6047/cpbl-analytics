@@ -10,8 +10,8 @@
   池忙時讓路，見 :mod:`cpbl.api.pool_yield`）；背景刷新者也會在到期前主動重算「釘選鍵」
   （啟動預熱的鍵）與近期被讀過的鍵，所以穩態下爆量遇到的是暖快取。
 - **G3 領頭者失敗**：有舊值就回舊值（例外只記 log，不交給等待者）；沒有舊值時等待者收到同一個
-  例外、⛔ 不各自重算（避免重工作量翻倍），並在 :attr:`fail_cooldown_s` 內對同一個鍵直接回同一個
-  例外，不在爆量裡反覆重算。
+  例外、⛔ 不各自重算（避免重工作量翻倍）。**兩種情形**都在 :attr:`fail_cooldown_s` 內對同一個鍵
+  延後重算（有舊值回舊值、沒有舊值回同一個例外；背景刷新者也跳過冷卻中的鍵），不在爆量裡反覆重算。
 
 界線（⛔ 不得推出的事）：
 
@@ -100,6 +100,10 @@ class SWRCache:
             if not stale_hit:
                 failed = self._failed.get(key)
                 if failed is not None and now < failed[0]:
+                    # G3 冷卻（#442 審核 r1b F1）：剛失敗過的鍵在冷卻期內⛔ 不重算——有舊值回舊值，
+                    # 沒有舊值回同一個例外。兩者都不再占池。
+                    if e is not None:
+                        return e.value
                     raise failed[1]
                 flight = self._inflight.get(key)
                 leader = flight is None
@@ -125,11 +129,12 @@ class SWRCache:
             with self._lock:
                 old = self._data.get(key)
                 self._inflight.pop(key, None)
+                # 不論有沒有舊值都登記冷卻：同鍵下一次重算要延後（PLAN v4 G3；#442 審核 r1b F1）。
+                self._failed[key] = (self._clock() + self.fail_cooldown_s, exc)
                 if old is not None:
                     flight.value = old.value
                 else:
                     flight.error = exc
-                    self._failed[key] = (self._clock() + self.fail_cooldown_s, exc)
             flight.done.set()
             if old is not None:
                 log.warning("cache: 重算失敗，回舊值 key=%r err=%s", key, type(exc).__name__)
@@ -163,7 +168,8 @@ class SWRCache:
             return [k for k, e in self._data.items()
                     if now - e.computed_at >= self._ahead * self.ttl_s
                     and (e.pinned or now - e.last_read < self.max_stale_s)
-                    and k not in self._inflight]
+                    and k not in self._inflight
+                    and not (k in self._failed and now < self._failed[k][0])]  # 冷卻中的鍵延後
 
     def refresh_key(self, key: Hashable) -> bool:
         """背景重算一個鍵；失敗保留舊值並回 False。與讀取路徑共用單飛（同鍵已在算就略過）。"""

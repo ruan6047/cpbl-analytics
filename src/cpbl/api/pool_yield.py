@@ -10,7 +10,10 @@ PoolTimeout，還會改成每 5 s 重試，形成正回饋（#442 PLAN v4 §0.2�
 界線（⛔ 不得推出的事）：
 
 - 只是 API 行程內的時機判斷；⛔ 不改 pool 設定、``/api/info`` 的 TTL 60 s 與回應契約。
-- 等待有上限 :data:`MAX_YIELD_S`：池一直忙也不無限延後，到上限就照常執行（退化回沒有讓路的行為）。
+- **池忙就一直延後，⛔ 沒有等待上限**（PLAN v4 G4「延後重試、不搶連線」）：:func:`wait_until_idle`
+  只在池不忙時回 True；``stop`` 被設（關機）回 False，呼叫端據此決定執行或結束，⛔ 不因等待逾時而在
+  池仍忙時照跑（#442 審核 r1b F2，撤除先前自行加的 30 s 上限）。對 ``/api/info`` 的效果是快照可能
+  更舊（PLAN v4 §5 R-c 已核定）；超過 300 s 由既有規則退成 maintenance，仍回 200。
 - 池尚未建立時（行程剛啟動、測試）視為不忙；⛔ 不為了讀狀態而建立池。
 """
 
@@ -19,7 +22,6 @@ from __future__ import annotations
 import threading
 import time
 
-MAX_YIELD_S = 30.0
 POLL_S = 0.5
 
 
@@ -39,17 +41,12 @@ def pool_busy() -> bool:
     return avail == 0 and size >= mx > 0
 
 
-def wait_until_idle(stop: threading.Event | None = None, *, max_wait_s: float = MAX_YIELD_S,
-                    poll_s: float = POLL_S) -> float:
-    """池忙就等，直到不忙、``stop`` 被設、或等滿 ``max_wait_s``；回傳實際等了幾秒。"""
-    t0 = time.monotonic()
+def wait_until_idle(stop: threading.Event | None = None, *, poll_s: float = POLL_S) -> bool:
+    """池忙就等，直到池不忙（回 True）或 ``stop`` 被設（回 False）。⛔ 沒有時間上限。"""
     while pool_busy():
-        waited = time.monotonic() - t0
-        if waited >= max_wait_s:
-            break
         if stop is not None:
             if stop.wait(poll_s):
-                break
+                return False
         else:
             time.sleep(poll_s)
-    return time.monotonic() - t0
+    return not (stop is not None and stop.is_set())

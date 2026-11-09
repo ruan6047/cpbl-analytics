@@ -245,9 +245,10 @@ class _InfoCache:
 
         def loop() -> None:
             while not stop.wait(next_wait()):
-                # #442 G4：池忙（有請求在等池）時先讓路再借連線；只改時機，TTL 與回應契約不變。
-                wait_until_idle(stop)
-                if stop.is_set():
+                # #442 G4：池忙（有請求在等池）時延後，直到池不忙才借連線；只改時機，TTL 與回應契約不變。
+                # 回 False＝關機。⛔ 不設等待上限（審核 r1b F2）：快照因此可能更舊，超過
+                # CACHE_MAX_STALE_SECONDS 時 _render 依既有規則退成 maintenance，仍回 200。
+                if not wait_until_idle(stop):
                     break
                 _refresh()
 

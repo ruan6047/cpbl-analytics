@@ -200,14 +200,19 @@ def test_pool_busy_reads_stats(monkeypatch):
 def test_wait_until_idle_waits_then_proceeds(monkeypatch):
     seq = iter([True, True, False])
     monkeypatch.setattr(pool_yield, "pool_busy", lambda: next(seq))
-    waited = pool_yield.wait_until_idle(max_wait_s=5, poll_s=0.01)
-    assert 0.015 <= waited < 1
+    t0 = time.monotonic()
+    assert pool_yield.wait_until_idle(poll_s=0.01) is True
+    assert 0.015 <= time.monotonic() - t0 < 1
 
 
-def test_wait_until_idle_is_bounded(monkeypatch):
+def test_wait_until_idle_has_no_time_cap(monkeypatch):
+    """池一直忙就一直等（審核 r1b F2：撤除 30 s 上限）；只有 stop 能讓它回 False。"""
     monkeypatch.setattr(pool_yield, "pool_busy", lambda: True)
-    waited = pool_yield.wait_until_idle(max_wait_s=0.05, poll_s=0.01)
-    assert 0.05 <= waited < 1
+    stop = threading.Event()
+    threading.Timer(0.3, stop.set).start()
+    t0 = time.monotonic()
+    assert pool_yield.wait_until_idle(stop, poll_s=0.01) is False
+    assert time.monotonic() - t0 >= 0.29
 
 
 def test_info_background_refresh_yields_when_pool_busy(monkeypatch):
@@ -244,7 +249,7 @@ def test_refresher_runs_due_keys_after_yield(monkeypatch):
     cache = SWRCache(10, clock=clk)
     r = response_cache.Refresher(cache)
     yields = []
-    monkeypatch.setattr(response_cache, "wait_until_idle", lambda stop=None: yields.append(1) or 0.0)
+    monkeypatch.setattr(response_cache, "wait_until_idle", lambda stop=None: yields.append(1) or True)
     n = {"v": 0}
 
     def comp():
