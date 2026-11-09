@@ -38,7 +38,7 @@ scripts/refresh-cpbl-prod.sh — 把本機 CPBL 資料同步到 production（四
   4/4  VPS 重跑賽事預測回測與 serving 模型，最後驗證線上 /api/info freshness
 
 會寫什麼（⚠️ 高後果，且沒有 dry-run）
-  · production PostgreSQL：逐表 upsert；game_features 為整表重建；PA build 家族逐場替換＋全族對帳
+  · production PostgreSQL：逐表 upsert；game_features 單交易與本機一致（刪本機沒有的鍵，不清空）；PA build 家族逐場替換＋全族對帳
   · production 主機檔案系統：資料庫備份檔、模型 artifact
   · 本機 PostgreSQL：cpbl-scrape-* 與 cpbl-build-features 的寫入
   · 完整鏈另起可用性哨兵（#353）：logs/availability-sentinel-*.tsv；正式站任一筆 000／≥5s 或 0 樣本
@@ -528,6 +528,10 @@ sync_table() {
     _sync_table_scoped "$t" "$pk" "$set_clause" "${tgt_row%,}" "${new_row%,}"
     return
   fi
+  if [ "${SYNC_TABLE_EXACT:-}" = 1 ]; then
+    _sync_table_exact "$t" "$pk" "$set_clause" "${tgt_row%,}" "${new_row%,}" "$@"
+    return
+  fi
   {
     echo "CREATE TEMP TABLE _stg (LIKE cpbl.${t} INCLUDING DEFAULTS) ON COMMIT DROP;"
     docker exec "$LOCAL_DB" pg_dump -U cpbl -d cpbl --data-only -t "cpbl.${t}" \
@@ -583,6 +587,66 @@ _sync_table_scoped() {  # $1=表 $2=PK $3=SET 子句 $4=tgt 列 $5=new 列
   fi
   rm -f "$payload"
   echo "    ✓ ${t}（目標場）"
+}
+
+# sync_table 的「與本機完全一致」版本（#443；只由 game_features 以 SYNC_TABLE_EXACT=1 呼叫）。
+# 與 sync_table 同一份欄位漂移守衛與 SET／比較清單（由 sync_table 產生後傳入），差別：
+#   1) **單一交易**：暫存表 → COPY → 刪掉本機沒有的鍵 → 只更新有變的列。取代原本「獨立 ssh 先
+#      TRUNCATE（自己 commit）、下一個交易再灌回」——兩者之間正式站是空表，/api/daily 的賽前機率
+#      會讀到空表。DELETE／INSERT 只取 ROW EXCLUSIVE，讀者走 MVCC 看到交易前快照，不排隊、不讀到
+#      中間狀態；交易中途失敗整個回滾，正式站保留舊的完整資料。
+#      ⛔ 不得改回 TRUNCATE，即使移進同一交易：ACCESS EXCLUSIVE 一路持有到 commit，讀者全部排隊
+#      （sync_pa_build 上方記載的 PA 表事故形狀）；且較早取快照的 REPEATABLE READ 讀者在 commit 後
+#      仍可能讀到空表（TRUNCATE 不是 MVCC-safe）。
+#   2) 資料來源是 `COPY cpbl.<表> (<明列欄位>) TO STDOUT`，暫存表 COPY 也明列欄位：兩端欄序不同仍對得上。
+#   3) fail-closed：本機 0 列（或取不到列數）拒寫 exit 67——「刪掉本機沒有的鍵」對空本機＝清空正式站。
+#   4) payload 先落地，斷言恰 1 個 COPY 段、1 個限定本表的 DELETE、1 個 INSERT，且無
+#      TRUNCATE／CASCADE／DROP／ALTER／setval 才送出（同 _sync_table_scoped／mirror_table 的做法）。
+_sync_table_exact() {  # $1=表 $2=PK $3=SET 子句 $4=tgt 列 $5=new 列 其餘=非 PK 欄位
+  local t="$1" pk="$2" set_clause="$3" tgt_row="$4" new_row="$5"; shift 5
+  local cols join_cond="" k n payload why rc
+  cols="${pk},$(printf '%s,' "$@")"; cols="${cols%,}"
+  for k in ${pk//,/ }; do join_cond="${join_cond}s.${k}=tgt.${k} AND "; done
+  join_cond="${join_cond% AND }"
+  n="$(docker exec "$LOCAL_DB" psql -U cpbl -d cpbl -At -c "SELECT count(*) FROM cpbl.${t}" || true)"
+  if ! [[ "$n" =~ ^[0-9]+$ ]] || [ "$n" -eq 0 ]; then
+    echo "FATAL: sync_table ${t}（與本機一致）：本機列數為 '${n}'，拒絕（會刪光 production；未送出，生產未被觸碰）" >&2
+    exit 67
+  fi
+  payload="$(mktemp "${TMPDIR:-/tmp}/cpbl-exact-${t}.XXXXXX")"
+  {
+    echo "CREATE TEMP TABLE _stg (LIKE cpbl.${t} INCLUDING DEFAULTS) ON COMMIT DROP;"
+    echo "COPY _stg (${cols}) FROM stdin;"
+    printf '%s\n' "\\set QUIET on" "\\set ON_ERROR_STOP on" \
+      "COPY cpbl.${t} (${cols}) TO STDOUT;" \
+      | docker exec -i "$LOCAL_DB" psql -U cpbl -d cpbl -X
+    echo '\.'
+    echo "DELETE FROM cpbl.${t} AS tgt WHERE NOT EXISTS (SELECT 1 FROM _stg s WHERE ${join_cond});"
+    echo "INSERT INTO cpbl.${t} AS tgt SELECT * FROM _stg ON CONFLICT (${pk}) DO UPDATE SET ${set_clause}" \
+      "WHERE ROW(${tgt_row}) IS DISTINCT FROM ROW(${new_row});"
+  } > "$payload"
+  why="$(awk -v t="$t" '
+    in_copy { if ($0 == "\\.") in_copy = 0; next }
+    /^COPY _stg / { copies++; in_copy = 1; next }
+    toupper($0) ~ /^DELETE([^A-Z_]|$)/ { deletes++; if (index($0, "DELETE FROM cpbl." t " AS tgt WHERE NOT EXISTS (SELECT 1 FROM _stg s WHERE ") != 1) print "DELETE 對象不符：" substr($0, 1, 80); next }
+    /^INSERT INTO / { inserts++; if (index($0, "INSERT INTO cpbl." t " AS tgt ") != 1) print "INSERT 對象不符：" substr($0, 1, 80) }
+    toupper($0) ~ /^(TRUNCATE|DROP|ALTER)([^A-Z_]|$)|(^|[^A-Z_])(CASCADE|SETVAL)([^A-Z_]|$)/ { print "禁止語句：" substr($0, 1, 80) }
+    END { if (copies != 1 || deletes != 1 || inserts != 1 || in_copy) print "形狀不符：COPY=" copies+0 " DELETE=" deletes+0 " INSERT=" inserts+0 " 未結束=" in_copy+0 }
+  ' "$payload")"
+  if [ -n "$why" ]; then
+    echo "FATAL: ${t} 的 payload 未通過送出前守衛（未送出；payload 保留於 ${payload}）：${why}" >&2
+    exit 67
+  fi
+  rc=0
+  ssh -o BatchMode=yes "$VPS" \
+      "cd ${DEPLOY_PATH} && set -a && . ./.env && docker exec -i prod_pg psql \
+        -v ON_ERROR_STOP=1 -q --single-transaction -U \"\$DB_USER\" -d \"\$DB_NAME\"" < "$payload" || rc=$?
+  if [ "$rc" -ne 0 ]; then
+    echo "FATAL: ${t} 同步失敗 rc=${rc}（單一交易已整個回滾；payload 保留於 ${payload}）" >&2
+    exit "$rc"
+  fi
+  rm -f "$payload"
+  echo "    ✓ ${t}（與本機一致：刪本機沒有的鍵＋只更新有變的列；本機 ${n} 列）"
 }
 
 # box 七表的欄位清單（完整鏈 WITH_DETAIL 與 #293 POSTSEASON_BOXPA_ONLY 共用**同一份**；各寫一份會漂，
@@ -1284,7 +1348,7 @@ cd "$REPO_DIR"
 
 # —— #364 §3.5 VPS 訓練閘門（只決定跑不跑；單次尖峰與記憶體屬 #353）——
 # 只在每日鏈帶 DAILY_DAY_TYPE 時生效；手動直呼（未設定）＝現況四步照跑。
-# RUN_OUTCOME 管三件同條件的事：本機 cpbl-build-features、3/4 的 game_features 清空＋全鏡像、
+# RUN_OUTCOME 管三件同條件的事：本機 cpbl-build-features、3/4 的 game_features 全表同步（單交易、不清空）、
 # 4/4 的 cpbl-train-outcome（無新完賽場時三者內容都不變，PLAN-r2 §3.5）。
 # RUN_SIMPLE＝auto 時於 4/4 讀正式站 artifact 的 trained_through 再決定。
 #
@@ -1479,20 +1543,19 @@ sync_table game_completion_evidence "year,kind_code,game_sno,evidence_kind" \
 # 總冠軍成員：本機每日 TRUNCATE 重建，故整表鏡像（見 mirror_table）。
 mirror_table championship_members
 
-# 賽事預測特徵：完整鏡像（先 TRUNCATE 清掉 prod 舊版＝早期未過濾 kind 混入的二軍/季後列），
-# 再把本機全史 kind A 特徵灌入。derived 資料，安全可重建。
-# #364 §3.5：本機特徵沒重建（RUN_OUTCOME=0）時不重灌——內容不變，清空＋全鏡像只是白做。
+# 賽事預測特徵：與本機完全一致（本機沒有的鍵刪掉＝早期未過濾 kind 混入的二軍/季後列，其餘只更新
+# 有變的列），單一交易、不清空——讀者任何時點都讀得到完整舊版或完整新版（#443，見 _sync_table_exact）。
+# derived 資料，安全可重建。
+# #364 §3.5：本機特徵沒重建（RUN_OUTCOME=0）時不重灌——內容不變，全表比對只是白做。
 if [ "$RUN_OUTCOME" = 1 ]; then
-ssh -o BatchMode=yes "$VPS" \
-  "cd ${DEPLOY_PATH} && set -a && . ./.env && docker exec -i prod_pg psql -q -U \"\$DB_USER\" -d \"\$DB_NAME\" -c 'TRUNCATE cpbl.game_features'"
-sync_table game_features "year,kind_code,game_season_code,game_sno" \
+SYNC_TABLE_EXACT=1 sync_table game_features "year,kind_code,game_season_code,game_sno" \
   game_date season home_team_code away_team_code home_team_name away_team_name home_win completed \
   winrate_diff prior_winpct_diff runs_scored_diff runs_allowed_diff recent_form_diff rest_days_diff \
   h2h_home home_field starter_era_diff starter_whip_diff starter_k9_diff \
   prior_team_ops_diff prior_team_slg_diff prior_team_era_diff prior_team_whip_diff \
   team_ops_now_diff team_avg_now_diff team_sb_now_diff team_wp_now_diff team_err_now_diff run_diff_diff
 else
-  echo "    ⏭ 略過 game_features 清空＋全鏡像（§3.5 訓練閘門：${OUTCOME_REASON}）"
+  echo "    ⏭ 略過 game_features 全表同步（§3.5 訓練閘門：${OUTCOME_REASON}）"
 fi
 
 if [ -n "${WITH_DETAIL:-}" ]; then
