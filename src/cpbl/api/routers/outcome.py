@@ -13,14 +13,12 @@ from datetime import date
 import numpy as np
 from fastapi import APIRouter, Query
 
-from cpbl.api.helpers import DEFAULT_SEASON
 from cpbl.api.pregame_serving import serving_state
 from cpbl.config import settings
 from cpbl.db import conn
 from cpbl.models.outcome_simple import ORIENT, load_outcome_rows
 from cpbl.models.pa_sim import (
     GameState,
-    load_game_pa_snapshot,
     load_pa_artifact,
     predict_outcomes,
     simulate_plate_appearance,
@@ -189,22 +187,3 @@ def outcome_plate_appearance(
         return {"available": False, "reason": reason}
     return _pa_response(artifact, hitter, pitcher,
                         GameState(inning, half, bases, outs, away_score, home_score))
-
-
-@router.get("/api/v1/outcome/plate-appearance/from-game")
-def outcome_plate_appearance_from_game(
-    year: int = Query(DEFAULT_SEASON), kind_code: str = Query("A", pattern="^A$"),
-    game_sno: int = Query(..., ge=1), main_event_no: int = Query(..., ge=1),
-) -> dict:
-    snapshot = load_game_pa_snapshot(year, kind_code, game_sno, main_event_no)
-    if not snapshot or not snapshot.game_date:
-        return {"available": False, "reason": "無法唯一定位完整打席"}
-    artifact, reason = _read_pa_artifact()
-    if artifact is None:
-        return {"available": False, "reason": reason}
-    if artifact["trained_through"] >= snapshot.game_date.year:
-        return {"available": False, "reason": "無符合 trained_through < game_date 的 artifact"}
-    return {"source": {"year": year, "kind_code": kind_code, "game_sno": game_sno,
-                        "main_event_no": main_event_no, "pa_start": snapshot.event_no,
-                        "pa_end": snapshot.end_event_no},
-            **_pa_response(artifact, snapshot.hitter, snapshot.pitcher, snapshot.before)}

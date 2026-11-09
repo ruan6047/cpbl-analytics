@@ -19,7 +19,6 @@ from cpbl.models.pa_sim import (
     fit_transition_kernel,
     load_pa_artifact,
     predict_outcomes,
-    resolve_pa_event_no,
     save_pa_artifact,
     simulate_plate_appearance,
     train_pa_artifact,
@@ -159,21 +158,6 @@ def test_events_from_rows_skips_change_player_but_keeps_score_progression():
     assert len(events) == 1
     assert events[0].hitter == "pinch-hitter"
     assert (events[0].away_score, events[0].home_score) == (3, 2)
-
-
-def test_resolve_pa_event_no_maps_change_announcement_to_next_real_pa():
-    rows = [
-        {"event_no": 1000, "inning": 7, "half": "2", "hitter": "replaced",
-         "pitcher": "old", "is_change_player": True},
-        {"event_no": 2000, "inning": 7, "half": "2", "hitter": "pinch",
-         "pitcher": "new", "is_change_player": True},
-        {"event_no": 3000, "inning": 7, "half": "2", "hitter": "pinch",
-         "pitcher": "new", "is_change_player": False},
-    ]
-
-    assert resolve_pa_event_no(rows, 1000) == 3000
-    assert resolve_pa_event_no(rows, 3000) == 3000
-    assert resolve_pa_event_no(rows, 9999) is None
 
 
 def test_audit_counts_missing_action_and_invalid_state_as_unrebuilt():
