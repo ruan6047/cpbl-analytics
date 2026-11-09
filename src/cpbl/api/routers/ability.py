@@ -13,6 +13,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Query
 
 from cpbl.api.helpers import DEFAULT_SEASON
+from cpbl.api.response_cache import cached
 from cpbl.db import conn
 from cpbl.ingest.advanced_snapshot import gating_predicate
 
@@ -463,6 +464,7 @@ def ability_cards(cur, player_ids: list[str], role: str, year: int) -> dict[str,
 
 
 @router.get("/api/v1/players/{player_id}/ability-card")
+@cached
 def player_ability_card(player_id: str, season: int = Query(DEFAULT_SEASON)) -> dict:
     """遊戲風能力值卡：打者/投手雷達，含生涯與本季兩種尺度（rate 的全聯盟百分位）。"""
     with conn() as c:

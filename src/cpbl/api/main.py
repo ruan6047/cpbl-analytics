@@ -14,6 +14,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from cpbl import __version__, db
+from cpbl.api import prewarm, response_cache
 from cpbl.api.routers import (
     ability,
     daily,
@@ -50,6 +51,8 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     1. WP2：讀端逾時。⛔ 不放在 import 時：migrate／訓練／ingest CLI 也會 import cpbl 套件，
        它們合法地跑超過 statement_timeout（``tests/test_api_db_timeouts_353.py`` 守門）。
     2. WP3：``/api/info`` 快取預熱＋背景重算。預熱受 1 的逾時約束，不會無限期擋住 startup。
+    3. #442 G2：唯讀端點回應快取的預熱＋背景刷新，跑在背景執行緒（不擋 startup、fail-open），
+       依序執行、一次只借 1 條連線；見 ``cpbl.api.response_cache``／``cpbl.api.prewarm``。
     """
     db.configure_api_timeouts(
         pool_timeout_s=settings.api_db_pool_timeout_seconds,
@@ -57,9 +60,11 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
         lock_timeout_ms=settings.api_db_lock_timeout_ms,
     )
     await asyncio.to_thread(info.start_cache)
+    response_cache.start(prewarm.jobs)
     try:
         yield
     finally:
+        await asyncio.to_thread(response_cache.stop)
         await asyncio.to_thread(info.stop_cache)
 
 

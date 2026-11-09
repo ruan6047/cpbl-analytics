@@ -19,6 +19,7 @@ from typing import Any
 from fastapi import APIRouter, Response
 
 from cpbl.api.helpers import DEFAULT_SEASON
+from cpbl.api.pool_yield import wait_until_idle
 from cpbl.completion import TAIPEI_TODAY_SQL, completed_games_sql_with_evidence
 from cpbl.config import settings
 from cpbl.db import conn
@@ -244,6 +245,10 @@ class _InfoCache:
 
         def loop() -> None:
             while not stop.wait(next_wait()):
+                # #442 G4：池忙（有請求在等池）時先讓路再借連線；只改時機，TTL 與回應契約不變。
+                wait_until_idle(stop)
+                if stop.is_set():
+                    break
                 _refresh()
 
         self._thread = threading.Thread(target=loop, name=_THREAD_NAME, daemon=True)

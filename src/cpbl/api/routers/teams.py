@@ -5,6 +5,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Query
 
 from cpbl.api.helpers import DEFAULT_SEASON, _dicts
+from cpbl.api.response_cache import cached
 from cpbl.api.routers.venues import _NORM_VENUE
 from cpbl.api.rows import _ERA_SPLIT
 from cpbl.api.team_hotzone import hot_zone
@@ -63,6 +64,7 @@ _ORIGINS: dict[str, str] = {}
 
 
 @router.get("/api/v1/teams/{code}/eras")
+@cached
 def team_eras(code: str, kind_code: str = Query("A")) -> dict:
     """球隊沿革：franchise（改名/轉賣視為同隊）各時期全名+年代+戰績。
 
@@ -154,6 +156,7 @@ def team_eras(code: str, kind_code: str = Query("A")) -> dict:
 
 
 @router.get("/api/v1/franchises")
+@cached
 def franchises() -> dict:
     """所有 franchise（現役 + 已解散）索引：年代、隊史總戰績、era 名單。供歷史球隊入口。"""
     from collections import defaultdict
@@ -208,6 +211,7 @@ def franchises() -> dict:
 
 
 @router.get("/api/v1/teams/{code}/players")
+@cached
 def team_players(code: str) -> dict:
     """franchise 歷代球員（OB 入口）：曾效力者依生涯出賽數排序，標注現役。
 
@@ -405,6 +409,7 @@ def venues_dim(season: int = Query(DEFAULT_SEASON)) -> dict:
 
 
 @router.get("/api/v1/special-records")
+@cached
 def special_records_endpoint(
     season: int = Query(DEFAULT_SEASON),
     kind_code: str = Query("A"),
@@ -426,6 +431,7 @@ def special_records_endpoint(
 
 
 @router.get("/api/v1/teams/{code}/style")
+@cached
 def team_style(code: str) -> dict:
     """球隊「球風」七軸（TEAM-STYLE1 凍結口徑）：逐季 z／raw／聯盟排名＋軸級語意
     標注＋教練時間標記（UX-TEAM-STYLE1）。
@@ -438,6 +444,7 @@ def team_style(code: str) -> dict:
 
 
 @router.get("/api/v1/teams/{code}/hot-zone")
+@cached
 def team_hot_zone(code: str, season: int = Query(DEFAULT_SEASON)) -> dict:
     """球隊頁「近日焦點」素材 2：近期球員熱區——擊球品質（打者）＋投球宰制力（投手）。
 
@@ -449,6 +456,7 @@ def team_hot_zone(code: str, season: int = Query(DEFAULT_SEASON)) -> dict:
 
 
 @router.get("/api/v1/teams/{code}/upcoming-records")
+@cached
 def team_upcoming_records(code: str, season: int = Query(DEFAULT_SEASON)) -> dict:
     """球隊頁「近日焦點」素材 3：即將挑戰的紀錄——生涯里程碑＋進行中連續安打＋
     隊史紀錄（僅計數型、含本季；連續型不做）。範圍限定一軍現役名單。口徑與退化語意見
@@ -458,6 +466,7 @@ def team_upcoming_records(code: str, season: int = Query(DEFAULT_SEASON)) -> dic
 
 
 @router.get("/api/v1/teams/{code}/der")
+@cached
 def team_der_endpoint(code: str) -> dict:
     """球隊守備效率 DER（推算=零；純官方投球總計算術）逐年 + 年度名次/聯盟均值。
 

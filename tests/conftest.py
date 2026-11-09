@@ -270,3 +270,20 @@ def _isolate_calendar_closure(monkeypatch):
     from cpbl.api.routers import games
 
     monkeypatch.setattr(games, "_season_closure", lambda season: None)
+
+
+# ---------------------------------------------- #442 行程內回應快取的測試隔離
+#
+# `cpbl.api.response_cache.CACHE` 是行程全域的；不清掉的話，前一個測試以替身資料算出的回應會被下一個
+# 測試讀到（同鍵命中），測試結果就取決於執行順序。每個測試開始前清空。
+# lifespan 的預熱／背景刷新執行緒在測試中預設不啟動：它會真的連 DB（本機可達時讀本機 DB、不可達時在池上
+# 排隊讓 G4 讓路判定為忙），讓不相干的 lifespan 測試變慢或依環境而變。要測它的測試直接呼叫
+# `response_cache.Refresher`／`run_prewarm`（tests/test_api_swr_cache_442.py）。
+@pytest.fixture(autouse=True)
+def _isolate_response_cache(monkeypatch):
+    from cpbl.api import response_cache
+
+    monkeypatch.setattr(response_cache, "start", lambda jobs_factory=None: None)
+    response_cache.CACHE.clear()
+    yield
+    response_cache.CACHE.clear()

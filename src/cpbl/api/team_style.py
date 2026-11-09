@@ -24,6 +24,7 @@ import json
 from functools import lru_cache
 from pathlib import Path
 
+from cpbl.api import response_cache
 from cpbl.db import conn
 from cpbl.franchises import franchise_of
 from cpbl.models import team_style as ts
@@ -204,14 +205,23 @@ def _in_progress_years(c) -> set[int]:
     return {int(y) for y, pending in rows if int(pending or 0) > 0}
 
 
-def team_style_payload(code: str) -> dict:
-    """IO 入口：載入 gamelog 聚合（request-time，唯讀）＋塑形。"""
-    fc = franchise_of(code)
-    with conn() as c:
-        by_team = ts.load_team_games(c)
-        names = ts.load_team_names(c)
-        in_progress = _in_progress_years(c)
+# #442 G1：``load_team_games``／``load_team_names`` 是 2018 起**全隊**彙總，與請求的球隊無關；
+# 每次請求重算時，6 隊頁面同時載入就是 6 支相同的重語句同時跑。改成行程內共用快取的單一鍵
+# （釘選：背景刷新者會讓它一直保持新鮮），各隊共用同一份唯讀結果（``build_team_style`` 不修改輸入）。
+# 只快取載入，⛔ 不改 ``cpbl.models.team_style`` 的凍結計算。
+STYLE_LOAD_KEY = ("cpbl.api.team_style", "load_style_inputs")
 
+
+def _load_style_inputs() -> tuple[dict, dict, set[int]]:
+    with conn() as c:
+        return ts.load_team_games(c), ts.load_team_names(c), _in_progress_years(c)
+
+
+def team_style_payload(code: str) -> dict:
+    """IO 入口：載入 gamelog 聚合（request-time，唯讀；全隊共用快取）＋塑形。"""
+    fc = franchise_of(code)
+    by_team, names, in_progress = response_cache.CACHE.get(STYLE_LOAD_KEY, _load_style_inputs, pin=True)
+    with conn() as c:
         def _coach_lookup(year: int) -> str | None:
             """當季一軍總教練（官網 coaches；pos 精確比對）。查無 → None。"""
             row = c.execute(
