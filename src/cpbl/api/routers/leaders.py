@@ -5,6 +5,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Query
 
 from cpbl.api.helpers import DEFAULT_SEASON, _ip_disp
+from cpbl.api.response_cache import cached
 from cpbl.api.rows import _batting_rows, _pitching_rows, _primary_positions
 from cpbl.completion import completed_games_sql_with_evidence
 from cpbl.db import conn
@@ -45,6 +46,7 @@ def _active_expr(alias: str) -> str:
 
 
 @router.get("/api/v1/records")
+@cached
 def records(kind_code: str = Query("A"), limit: int = Query(5, ge=1, le=50)) -> dict:
     """歷史紀錄室：比賽紀錄 + 單季之最 + 生涯排行（一軍；單季/生涯以官方歷年彙總，近兩季另計）。
 
@@ -137,6 +139,7 @@ def records(kind_code: str = Query("A"), limit: int = Query(5, ge=1, le=50)) -> 
 
 
 @router.get("/api/v1/records/championships")
+@cached
 def championships(limit: int = Query(10, ge=1, le=50)) -> dict:
     """冠軍編：逐年冠亞軍＋奪冠總教練、球團王朝榜、球員冠軍次數榜。
 
@@ -247,6 +250,7 @@ def championships(limit: int = Query(10, ge=1, le=50)) -> dict:
 
 
 @router.get("/api/v1/records/postseason")
+@cached
 def postseason_records() -> dict:
     """季後賽球團戰績（**僅完整資料**）：台灣大賽亞軍數、最長連霸、季後賽勝率、出賽年數。
 
@@ -347,6 +351,7 @@ def _resolve_names(cur, codes: set[str]) -> dict[str, str]:
 
 
 @router.get("/api/v1/records/team")
+@cached
 def team_records() -> dict:
     """例行賽球隊紀錄集錦（**僅完整資料**，全史 kind A / 官方季彙總）：每項僅列現任保持者。
 
@@ -421,6 +426,7 @@ def team_records() -> dict:
 
 
 @router.get("/api/v1/season/batting-leaders")
+@cached
 def batting_leaders(
     season: int = Query(DEFAULT_SEASON),
     sort: str = Query("ops", pattern="^(ops|avg|obp|slg|hr|rbi|r|h|sb|bb|so)$"),
@@ -461,6 +467,7 @@ def batting_leaders(
     items.sort(key=lambda x: (x.get(sort) is not None, x.get(sort) or 0), reverse=True)
     return {"season": season, "sort": sort, "items": items[:limit]}
 @router.get("/api/v1/season/pitching-leaders")
+@cached
 def pitching_leaders(
     season: int = Query(DEFAULT_SEASON),
     sort: str = Query("era", pattern="^(era|whip|w|sv|hld|k9|gs|ip)$"),
@@ -500,6 +507,7 @@ def pitching_leaders(
 
 
 @router.get("/api/v1/season/fielding")
+@cached
 def fielding(
     season: int = Query(DEFAULT_SEASON),
     pos: str | None = Query(None, description="守備位置；省略則全部"),

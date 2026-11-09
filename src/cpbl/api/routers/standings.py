@@ -7,6 +7,7 @@ import logging
 from fastapi import APIRouter, Query
 
 from cpbl.api.helpers import DEFAULT_SEASON, _dicts
+from cpbl.api.response_cache import cached
 from cpbl.api.rows import _team_advanced
 from cpbl.completion import completed_games_sql_with_evidence
 from cpbl.db import conn
@@ -204,6 +205,7 @@ def _team_scoped_metrics(cur, season: int, half: str | None) -> dict[str, dict]:
 
 
 @router.get("/api/v1/season/team-split")
+@cached
 def season_team_split(season: int = Query(DEFAULT_SEASON)) -> dict:
     """球隊頁攻守概覽的全年／上半季／下半季範圍切換資料（單一 gamelog+games 聚合路徑）。
 
@@ -223,6 +225,7 @@ def season_team_split(season: int = Query(DEFAULT_SEASON)) -> dict:
 
 
 @router.get("/api/v1/season/standings")
+@cached
 def season_standings(season: int = Query(DEFAULT_SEASON)) -> dict:
     """本季戰績榜（games 即時彙整 + team_current 團隊進階：OPS/ERA/WHIP）。"""
     stats = matchup.team_stats(season)
@@ -369,6 +372,7 @@ def _computed_standings(season: int, kind_code: str, season_code: int = 0) -> li
 
 
 @router.get("/api/v1/seasons")
+@cached
 def seasons(kind_code: str = Query("A")) -> dict:
     """有逐場資料的年份清單（供歷史年份選擇器）。"""
     with conn() as c:
@@ -417,6 +421,7 @@ def _annotate_half_champion(items: list[dict], remaining: dict[str, int]) -> dic
 
 
 @router.get("/api/v1/standings")
+@cached
 def official_standings(
     season: int = Query(DEFAULT_SEASON),
     season_code: int = Query(0, ge=0, le=2, description="0=全年 1=上半季 2=下半季"),
@@ -443,6 +448,7 @@ def official_standings(
 
 
 @router.get("/api/v1/standings-trend")
+@cached
 def standings_trend(
     season: int = Query(DEFAULT_SEASON),
     kind_code: str = Query("A"),

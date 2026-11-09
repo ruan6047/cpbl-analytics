@@ -26,6 +26,7 @@ from cpbl.api.matchups import (
     resolve_matchup_scope,
     sort_matchup_items,
 )
+from cpbl.api.response_cache import cached
 from cpbl.api.rows import _ERA_SPLIT, _MANAGER_ERAS_SQL, _POS_CANON, _batting_rows, _pitching_rows
 from cpbl.db import conn
 from cpbl.franchises import franchise_of, franchise_prefixes
@@ -322,6 +323,7 @@ def _sum_pitching_career(per: dict[int, list]) -> dict[str, float]:
 
 
 @router.get("/api/v1/players/{player_id}/career")
+@cached
 def player_career(player_id: str) -> dict:
     """球員生涯：累計成績、最佳單季、里程碑日期、史上排名脈絡（打者）+ 效力球隊。"""
     with conn() as c:
@@ -882,6 +884,7 @@ def player_splits(
 
 
 @router.get("/api/v1/players/{player_id}/profile")
+@cached
 def player_profile(player_id: str, season: int = Query(DEFAULT_SEASON)) -> dict:
     """球員基本資料 + 角色（本季是否登錄為打者/投手），供個人頁標頭。"""
     with conn() as c:
