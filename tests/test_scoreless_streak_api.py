@@ -1,54 +1,16 @@
-"""連續無自責分出賽的 API 契約（需本機 DB；無 DB 時 skip）。
+"""連續無自責分出賽的取數層契約（需本機 DB 的項目在無 DB 時 skip）。
 
-純函式的保守性紅線在 `tests/test_scoreless_streak.py`；本檔只釘 API 對外契約：
-名詞（紅線 5）、下界關係、資料邊界標示（紅線 4），以及真實資料上的 R1 抽驗。
+純函式的保守性紅線在 `tests/test_scoreless_streak.py`；本檔釘取數層（`cpbl.api.scoreless`）：
+真實資料上的 R1 抽驗、載入層的 NULL 處理、輸入指紋與漂移分類。
+兩支對外端點（`/api/v1/records/earned-run-free-streak`、`/run-free-streak`）已於 #443 下線，
+只打端點的 payload 契約測試隨之移除；取數層由對帳／比較腳本沿用。
 """
 
 from __future__ import annotations
 
-from types import SimpleNamespace
-
 import pytest
 
-from cpbl.models.scoreless_streak import DATA_FROM_YEAR
-
 PATH = "/api/v1/records/earned-run-free-streak"
-
-
-def _get(path: str):
-    try:
-        from fastapi.testclient import TestClient
-
-        from cpbl.api.main import app
-
-        r = TestClient(app).get(path)
-    except Exception as exc:  # noqa: BLE001 — 無 DB 時跳過（CI 無 Postgres）
-        pytest.skip(f"需本機 DB：{exc}")
-    if r.status_code != 200:
-        pytest.skip(f"需本機 DB（{r.status_code}）")
-    return r.json()
-
-
-def test_metric_wording_says_earned_run():
-    """主標是零推論的無自責分出賽，不可被讀成無失分或局數下界。"""
-    d = _get(f"{PATH}?limit=5")
-
-    assert d["metric_label"] == "連續無自責分出賽"
-    assert "自責" in d["note"] and "無失分" in d["note"]      # 明講兩者不同
-    assert "零推論" in d["note"]
-    assert d["metric"] == "consecutive_earned_run_free_appearances"
-    assert d["data_from_year"] == DATA_FROM_YEAR
-
-
-def test_extended_is_never_below_strict():
-    """`outs` 是 `strict_outs` 加上尾段，兩者都是下界，前者不得小於後者。"""
-    d = _get(f"{PATH}?limit=25")
-    if not d["items"]:
-        pytest.skip("本季無資料")
-
-    for i in d["items"]:
-        assert i["outs"] >= i["strict_outs"] >= 0
-        assert i["outs"] == i["strict_outs"] + i["tail_outs"]
 
 
 def test_every_counted_appearance_is_officially_er_zero():
@@ -73,61 +35,6 @@ def test_every_counted_appearance_is_officially_er_zero():
             assert a.kind_code == "A", f"{pid} {a.key} 非例行賽卻被計入局數"
         for a in res.skipped:
             assert a.earned_runs == 0 and a.kind_code != "A"
-
-
-def test_kind_code_domain_rejects_non_regular_season():
-    """**F2 迴歸**：`kind_code` 值域必須鎖在例行賽。
-
-    放行任意值時 payload 會自打嘴巴——帶 `C` 會產生 `kinds_counted=['C']` 而
-    `scope_note` 仍宣稱「只計例行賽」，回傳資料與自身宣稱矛盾；不存在的代碼（`Z`）
-    更會靜默回空榜。契約層擋掉，而不是靠呼叫端自律。
-    """
-    try:
-        from fastapi.testclient import TestClient
-
-        from cpbl.api.main import app
-
-        client = TestClient(app)
-        for bad in ("C", "E", "F", "Z", "", "a"):
-            assert client.get(f"{PATH}?kind_code={bad}").status_code == 422, bad
-        for good in ("A", "D"):
-            assert client.get(f"{PATH}?kind_code={good}&limit=1").status_code in (200, 500), good
-    except AssertionError:
-        raise
-    except Exception as exc:  # noqa: BLE001 — 無 DB 時跳過
-        pytest.skip(f"需本機 DB：{exc}")
-
-
-def test_scope_is_regular_season_only():
-    """需求方裁定：只計例行賽局數；季後賽仍在載入範圍內（乾淨跳過、掉分中斷）。"""
-    d = _get(f"{PATH}?limit=5")
-
-    assert d["kinds_counted"] == ["A"]
-    assert set(d["kinds_in_scope"]) >= {"A", "E", "C"}
-    assert "例行賽" in d["scope_note"] and "季後賽" in d["scope_note"]
-    for i in d["items"]:
-        assert i["skipped_postseason_appearances"] == len(i["skipped_postseason_games"])
-
-
-def test_boundary_note_present_exactly_when_limited():
-    """**紅線 4**：受 2018 資料邊界限制時必須明說，不得沉默截斷。"""
-    d = _get(f"{PATH}?limit=25")
-
-    for i in d["items"]:
-        assert (i["boundary_note"] is not None) == i["boundary_limited"]
-
-
-def test_single_player_lookup():
-    d = _get(f"{PATH}?limit=1")
-    if not d["items"]:
-        pytest.skip("本季無資料")
-    pid = d["items"][0]["player_id"]
-
-    one = _get(f"{PATH}?player_id={pid}")
-
-    assert len(one["items"]) == 1
-    assert one["items"][0]["player_id"] == pid
-    assert one["items"][0]["outs"] == d["items"][0]["outs"]
 
 
 class _FakeCursor:
@@ -222,26 +129,14 @@ def test_row_mapper_keeps_none_for_every_null_row():
 
 
 # --------------------------------------------------------------------------
-# ML-PITCHER-RUNLESS1：兩支端點的 payload 形狀凍結（並列裁決後兩支對稱）
+# ML-PITCHER-SCORELESS-CLAIM1：兩個口徑的主指標語意（Basis 純值；端點已於 #443 下線，
+# 路徑只作為口徑標籤沿用）
 # --------------------------------------------------------------------------
 
 RUN_PATH = "/api/v1/records/run-free-streak"
 
-# **兩個口徑共用的凍結 key 集合。**
-#
-# iteration 1 的版本只凍結自責分口徑，因為當時卡面寫「既有端點行為不得改變」，兩個揭露
-# 欄位只掛在失分口徑上。需求方 2026-08-08 裁決為**並列、失分為預設呈現面**，並定案把
-# `basis_field`／`lower_bound_note` **回填到自責分端點**——理由是並列的前提就是兩支對外
-# 語意對稱。回填**刻意破壞了既有 payload 的相容性**（對做嚴格 key 比對的消費者而言，
-# 多一個 key 就是破壞），所以這份清單跟著改；改清單是留痕，不是繞過守衛。
-#
-# 斷言仍是**雙向**且**兩支都驗**：key 集合必須與清單**完全相等**，少一個或多一個都 fail。
-# 未來要動 payload 形狀，必須連同這份清單一起改——不得只改實作讓測試自動跟著鬆。
-FROZEN_TOP_LEVEL_KEYS = {
-    "metric", "metric_label", "note", "basis_field", "lower_bound_note",
-    "season", "kind_code", "kinds_counted", "kinds_in_scope", "scope_note",
-    "tail_basis_note", "team", "data_from_year", "as_of", "items",
-}
+# `build_item` 的 item key 集合（對帳／比較腳本的 artifact item 仍是這個形狀）；下方
+# `test_every_artifact_item_key_is_traceable_to_a_digested_input` 以它判斷欄位來源分類。
 FROZEN_ITEM_KEYS = {
     "player_id", "player_name", "team_code", "outs", "innings", "strict_outs",
     "strict_innings", "basis", "strict_basis", "appearances_counted",
@@ -249,10 +144,6 @@ FROZEN_ITEM_KEYS = {
     "last_appearance", "boundary_limited", "boundary_note", "break_reason",
     "break_game", "skipped_postseason_appearances", "skipped_postseason_games",
 }
-
-# iteration 1 的自責分 payload 形狀（回填前）。留著是為了讓「這次破壞了什麼」可被斷言，
-# 而不是只存在於交付文件的敘述裡——差集由測試算出來，不是人工列的。
-PRE_BACKFILL_ER_TOP_LEVEL_KEYS = FROZEN_TOP_LEVEL_KEYS - {"basis_field", "lower_bound_note"}
 
 # ML-PITCHER-SCORELESS-CLAIM1 前的公開主指標。這次沒有增減 key，卻把兩支已存在端點
 # 從「局數下界」改成「零推論出賽數」；因此相容性破壞在值語意，不可被 key 集合不變掩蓋。
@@ -280,119 +171,6 @@ def test_claim_changes_only_declared_metric_semantics_for_both_bases():
     assert RUN_BASIS.metric_label == "連續無失分出賽"
     assert "零推論" in EARNED_RUN_BASIS.metric_note
     assert "零推論" in RUN_BASIS.metric_note
-
-
-def test_ranking_and_membership_follow_zero_inference_appearances(monkeypatch):
-    """尾段局數再長也不能壓過或納入零推論出賽榜。"""
-    from cpbl.api import scoreless
-
-    apps = {
-        "tail_only": [SimpleNamespace(year=2026, team_code="T", game_date=None)],
-        "one_clean": [SimpleNamespace(year=2026, team_code="T", game_date=None)],
-        "two_clean": [SimpleNamespace(year=2026, team_code="T", game_date=None)],
-    }
-    rows = {
-        "tail_only": {"player_id": "tail_only", "appearances_counted": 0,
-                      "strict_outs": 0, "outs": 99},
-        "one_clean": {"player_id": "one_clean", "appearances_counted": 1,
-                      "strict_outs": 3, "outs": 3},
-        "two_clean": {"player_id": "two_clean", "appearances_counted": 2,
-                      "strict_outs": 4, "outs": 4},
-    }
-    monkeypatch.setattr(scoreless, "kinds_of", lambda _kind: ("A",))
-    monkeypatch.setattr(scoreless, "load_appearances", lambda *_args: (apps, {}))
-    monkeypatch.setattr(scoreless, "compute_all", lambda by_player, *_args, **_kwargs:
-                        {pid: object() for pid in by_player})
-    monkeypatch.setattr(scoreless, "build_item", lambda pid, *_args: rows[pid])
-
-    payload = scoreless.streak_payload(season=2026)
-
-    assert [item["player_id"] for item in payload["items"]] == ["two_clean", "one_clean"]
-
-
-@pytest.mark.parametrize("path", [PATH, RUN_PATH])
-def test_payload_shape_is_frozen_for_both_bases(path):
-    """**兩支端點**的頂層與 item key 集合都必須與凍結清單完全相同（雙向）。
-
-    只驗「沒有少 key」不夠：多一個 key 對嚴格比對的消費者同樣是破壞，而且會讓兩支
-    端點悄悄不對稱——並列裁決要的正是對稱。故兩個方向都驗，且兩支都驗。
-    """
-    d = _get(f"{path}?limit=5")
-
-    assert set(d) == FROZEN_TOP_LEVEL_KEYS
-    for i in d["items"]:
-        assert set(i) == FROZEN_ITEM_KEYS
-
-
-def test_backfill_is_recorded_as_a_deliberate_breaking_change():
-    """把「本次刻意破壞自責分端點相容性」釘成斷言，而不是只寫在交付文件裡。
-
-    交付文件會過期、也可能被讀成「向後相容的新增欄位」。這條測試讓破壞的**範圍**
-    （恰好兩個 key、且只多不少）可被機器複核：若哪天有人以為可以悄悄再加第三個欄位，
-    上面的凍結斷言會擋下來，而這一條說明為什麼那需要另一次裁決。
-    """
-    d = _get(f"{PATH}?limit=1")
-    added = set(d) - PRE_BACKFILL_ER_TOP_LEVEL_KEYS
-    removed = PRE_BACKFILL_ER_TOP_LEVEL_KEYS - set(d)
-
-    assert added == {"basis_field", "lower_bound_note"}, "破壞範圍與裁決不符"
-    assert removed == set(), "回填不得移除任何既有欄位——那會是第二種破壞"
-    assert d["basis_field"] == "earned_runs"
-
-
-def test_run_free_metric_wording_says_run_not_earned_run():
-    """失分口徑同樣以零推論出賽為主標，不可只改自責分端點。"""
-    d = _get(f"{RUN_PATH}?limit=5")
-
-    assert d["metric"] == "consecutive_run_free_appearances"
-    assert d["metric_label"] == "連續無失分出賽"
-    assert "失分" in d["note"] and "自責" in d["note"]      # 明講兩者不同
-    assert "零推論" in d["note"]
-    assert d["basis_field"] == "runs"
-    assert d["data_from_year"] == DATA_FROM_YEAR
-
-
-@pytest.mark.parametrize("path", [PATH, RUN_PATH])
-def test_payload_discloses_the_lower_bound_limit(path):
-    """誠實揭露：中途登板／退場的下界限制**不因換口徑而消失**，兩支 payload 都要自己講。"""
-    d = _get(f"{path}?limit=1")
-
-    assert "下界" in d["lower_bound_note"]
-    assert "換口徑不會" in d["lower_bound_note"] or "無關" in d["lower_bound_note"]
-
-
-def test_both_endpoints_are_shape_symmetric():
-    """並列裁決的可執行形式：兩支端點的 key 集合**完全相同**，差異只在值。
-
-    回填之前失分口徑多帶兩個揭露欄位，讀者無從判斷自責分那支的判準與下界性質——
-    這條斷言把「對稱」釘死，任何一支單方面增減欄位都會 fail。
-    """
-    er = _get(f"{PATH}?limit=5")
-    run = _get(f"{RUN_PATH}?limit=5")
-    if not er["items"] or not run["items"]:
-        pytest.skip("本季無資料")
-
-    assert set(run) == set(er)                          # 頂層對稱
-    assert set(run["items"][0]) == set(er["items"][0])  # item 對稱
-    # 對稱的是形狀不是內容：判準欄位與指標名必須不同，否則兩支端點就是同一個東西。
-    assert (er["basis_field"], run["basis_field"]) == ("earned_runs", "runs")
-    assert er["metric"] != run["metric"]
-
-
-def test_run_free_kind_code_domain_rejects_non_regular_season():
-    """值域與自責分口徑同理鎖在例行賽——新端點不得比舊端點鬆。"""
-    try:
-        from fastapi.testclient import TestClient
-
-        from cpbl.api.main import app
-
-        client = TestClient(app)
-        for bad in ("C", "E", "F", "Z", "", "a"):
-            assert client.get(f"{RUN_PATH}?kind_code={bad}").status_code == 422, bad
-    except AssertionError:
-        raise
-    except Exception as exc:  # noqa: BLE001 — 無 DB 時跳過
-        pytest.skip(f"需本機 DB：{exc}")
 
 
 def test_every_run_free_counted_appearance_is_officially_run_zero():

@@ -2648,22 +2648,6 @@
                     "endColumn": 60,
                     "lineCount": 1
                 }
-            },
-            {
-                "code": "reportOptionalIterable",
-                "range": {
-                    "startColumn": 45,
-                    "endColumn": 60,
-                    "lineCount": 1
-                }
-            },
-            {
-                "code": "reportArgumentType",
-                "range": {
-                    "startColumn": 44,
-                    "endColumn": 48,
-                    "lineCount": 1
-                }
             }
         ],
         "./src/cpbl/models/pitch_type.py": [

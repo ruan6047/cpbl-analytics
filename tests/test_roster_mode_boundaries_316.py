@@ -89,9 +89,14 @@ def _outside_roster(data):
 # 區塊之前24241→24669 bytes；舊hash a12bc146ddcc1eed26852c620bc4ca67514bc831ca7eb25d260a74664f4682dd。
 # suffix 80410 bytes及#316合併結果的ROSTER_ONLY 3906 bytes均不變。仍雜湊完整prefix，
 # 包含help／guard及所有原業務位元組，不剝除、正規化或略過任何區段；其他模式逐項保護照舊。
+# #443 WP-C（核定規劃 §2：game_features 同步改單一交易；只改基準、保護不減，待需求方追認）：區塊之前 --help
+# 「會寫什麼」的 game_features 說明改寫、§3.5 訓練閘門註解改寫（24669 → 24717 bytes）；區塊之後拿掉獨立 ssh
+# TRUNCATE、新增 _sync_table_exact 與 sync_table 的 SYNC_TABLE_EXACT 分派、game_features 呼叫與略過訊息改寫
+# （80410 → 84894 bytes）。ROSTER_ONLY 區塊未動（下方 ROSTER_RESULT 比對照舊）。
+# 舊值：區塊之前 14ca9e67…9ad7（24669 bytes）、區塊之後 51ecd63c…424b（80410 bytes，origin/main bef5ac60）。
 OUTSIDE_ROSTER_SHA256 = (
-    "14ca9e67317da4e448f591e3d6ccb18b346fd0ac38c49d4d5032042a56759ad7",   # 區塊之前（24669 bytes）
-    "51ecd63ca96caa79a1bb2a3289c62ccfe511dd28ab4fc44d6bbfe556da6a424b",   # 區塊之後（80410 bytes）
+    "4cf7b059d22bdf4efdab4b09c5a2fea8dd613890dd2e837c6adb240511c3a876",   # 區塊之前（24717 bytes）
+    "a5093d38db64198f9cec1ea1fed63859e95b2258ee59673b61f854a04b1ad46a",   # 區塊之後（84894 bytes）
 )
 # #316 的成果（ROSTER_ONLY 區塊本身）以 main 上合併後的版本為準：#293 不得改動它。
 ROSTER_RESULT = "a473695dfca536e365b08c44aa2e85374e8f3e69"

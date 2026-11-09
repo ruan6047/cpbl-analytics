@@ -536,9 +536,9 @@ host 缺 `libomp.dylib`。**勿 `brew install libomp` 污染 host**；需 LightG
 | 戰績 | `/season/standings`、`/standings` |
 | 球員頁 | `/players/{id}/batting|pitching|season|profile|fielding|vs-team|splits|matchups|advanced|discipline|arsenal|pitch-mix|trend`、`/players/roster`、`/matchups` |
 | 賽況 | `/games/recent`、`/games/{sno}/live`（含 records/batter_avg/has_tracking/tracking） |
-| 紀錄室 | `/records`、`/records/championships`、`/records/postseason`、`/records/team`、`/records/earned-run-free-streak`（投手連續無**自責**分局數，見下） |
+| 紀錄室 | `/records`、`/records/championships`、`/records/postseason`、`/records/team` |
 
-### 連續無自責分局數 contract（`/records/earned-run-free-streak`）
+### 連續無自責分局數 contract（`/records/earned-run-free-streak`：端點已於 #443 下線，演算法由對帳腳本沿用）
 
 - **不是「連續無失分」**：失誤造成的非自責失分不中斷本指標。前端文案必須帶「自責」二字，
   回應的 `note` 是該說明的單一來源。實例：呂彥青 2026-07-26 時點無自責分 28.1 局、無失分僅 9.0 局。

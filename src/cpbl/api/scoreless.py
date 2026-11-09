@@ -6,6 +6,9 @@
 
 兩個口徑共用同一條取數與組裝路徑，差別只有 `Basis`（判準欄位＋對外名詞）。自責分讀
 官方 `earned_runs`、失分讀官方 `runs`，本層對兩者都不做任何判定或補算。
+
+對外端點 `/api/v1/records/earned-run-free-streak`、`/run-free-streak` 已於 #443 下線（web 零呼叫、
+正式站與 Cloudflare 期間零命中）；本層的取數與組裝由對帳／比較腳本沿用。
 """
 
 from __future__ import annotations
@@ -16,7 +19,7 @@ import json
 from collections.abc import Mapping, Sequence
 from datetime import date
 
-from cpbl.api.helpers import _dicts, kinds_of
+from cpbl.api.helpers import _dicts
 from cpbl.db import conn
 from cpbl.models.scoreless_streak import (
     BOUNDARY_NOTE,
@@ -42,7 +45,6 @@ __all__ = [
     "load_opponent_runs",
     "map_opponent_runs",
     "population_fingerprint",
-    "streak_payload",
     "tail_lookup_factory",
 ]
 
@@ -50,22 +52,6 @@ __all__ = [
 def _extended_basis(basis: Basis) -> str:
     return (f"{basis.strict_basis} ＋ 中斷場的零得分後綴（鴿籠下界：官方逐局比分 ＋ "
             "官方局數，不讀逐打席資料、不假設任何事件完整性）")
-TAIL_BASIS_NOTE = (
-    "尾段以官方逐局比分界定「零得分後綴」，再用鴿籠原理取下界："
-    "他在後綴的出局數 ≥ 官方總出局數 − 3 × 前綴局數。零得分的局不管誰投都是零失分，"
-    "故此下界與投手更替、再入賽、牽制出局皆無關，也不需要逐打席資料完整。"
-)
-# 兩個口徑共用的下界揭露：換口徑**不會**讓這個限制消失。
-LOWER_BOUND_NOTE = (
-    "中途登板／中途退場、且該場後段仍有得分時，官方逐場資料只記整場的量、不記事件時點，"
-    "因此該場只能給鴿籠下界（多半為 0）——**此限制與判準用自責分或失分無關，換口徑不會"
-    "消除它**。要消除只有取得官方的「逐局責任投手」對照。"
-)
-SCOPE_NOTE = (
-    "只計例行賽局數（與媒體／MLB／NPB 慣例一致，季後賽另計）。"
-    "跨季時中間的季後賽出賽：官方自責分為 0 則跳過（不計局數也不中斷），"
-    "掉自責分則中斷——被跳過的場次列在 skipped_postseason_games，不做沉默跳過。"
-)
 
 # 出賽（官方 box）＋ 場次脈絡。ER 與局數原樣取官方欄位，不加工。
 _APPEARANCES_SQL = """
@@ -189,7 +175,7 @@ def load_appearances(
 ) -> tuple[dict[str, list[Appearance]], dict[str, str]]:
     """→ (player_id → 出賽清單【舊→新】, player_id → 姓名)。
 
-    含全部年份（2018+），**不以球季裁切連續紀錄**；球季只用來篩母體（見 streak_payload）。
+    含全部年份（2018+），**不以球季裁切連續紀錄**；球季只用來篩母體（由呼叫端篩）。
     """
     with conn() as c:
         cur = c.cursor()
@@ -262,80 +248,6 @@ def build_item(player_id: str, name: str | None, apps: Sequence[Appearance],
         # 明列而非沉默跳過——讀者要能看見紀錄中間發生過什麼。
         "skipped_postseason_appearances": len(res.skipped),
         "skipped_postseason_games": [_game_ref(a) for a in reversed(res.skipped)],
-    }
-
-
-def streak_payload(
-    season: int,
-    kind_code: str = "A",
-    player_id: str | None = None,
-    team: str | None = None,
-    limit: int = 10,
-    basis: Basis = EARNED_RUN_BASIS,
-) -> dict:
-    """連續無（自責）失分出賽。`appearances_counted` 是零推論主值；局數是輔助下界。
-
-    `basis` 決定判準與對外名詞（`EARNED_RUN_BASIS` 預設／`RUN_BASIS`）。payload 形狀
-    兩者完全相同，前端可用同一個元件消費；差異全在 `metric`／`metric_label`／`note`／
-    `basis`／`break_reason`。
-
-    `season`／`team` 只篩**母體**（誰進榜、算哪一隊），不裁切連續紀錄本身——紀錄可回溯到
-    更早球季，資料邊界見 `DATA_FROM_YEAR`。
-
-    `kind_code` 是**計入出賽**的例行賽賽別；同層的季後賽仍需載入（乾淨跳過、掉分中斷，
-    見 `scoreless_streak` 模組 docstring），故查詢範圍為 `kinds_of(kind_code)`。
-    """
-    kinds = kinds_of(kind_code)
-    counted_kinds = (kind_code,)
-    by_player, names = load_appearances(kinds, player_id)
-
-    if player_id is None:
-        by_player = {pid: apps for pid, apps in by_player.items()
-                     if any(a.year == season for a in apps)}
-        if team:
-            by_player = {
-                pid: apps for pid, apps in by_player.items()
-                if next((a.team_code for a in reversed(apps) if a.year == season), None) == team
-            }
-
-    results = compute_all(by_player, counted_kinds, basis=basis)
-    items = [build_item(pid, names.get(pid), by_player[pid], res, basis)
-             for pid, res in results.items()]
-    if player_id is None:
-        items = [i for i in items if i["appearances_counted"] > 0]
-    # 主標已改為零推論的出賽數，排行必須用同一個值；`outs`／`innings` 是含鴿籠尾段的
-    # 輔助下界，不能繼續反過來決定榜單。後兩項只在同出賽數時提供穩定的次序。
-    items.sort(key=lambda i: (-i["appearances_counted"], -i["strict_outs"],
-                              -i["outs"], i["player_id"]))
-    if player_id is None:
-        items = items[:limit]
-
-    as_of = max((a.game_date for apps in by_player.values() for a in apps if a.game_date),
-                default=None)
-    # 揭露欄位**兩個口徑都掛**（需求方裁決 2026-08-08：並列，失分為預設呈現面）。
-    # iteration 1 曾只掛在失分口徑上，理由是卡面「既有端點行為不得改變」；裁決既定為
-    # 並列，前提就變成**兩支對外語意必須對稱**——只有一支帶 `basis_field`／
-    # `lower_bound_note`，讀者無從判斷另一支的判準欄位與下界性質。
-    #
-    # 這是**刻意的相容性破壞**，不是「向後相容的新增欄位」：對做嚴格 key 比對的消費者
-    # 而言，多一個 key 就是破壞。目前 `web/` 兩支端點皆零消費者，破壞面僅止於 API 契約
-    # 本身。兩支的 key 集合由 `tests/test_scoreless_streak_api.py` 的雙向凍結斷言釘住。
-    return {
-        "metric": basis.metric,
-        "metric_label": basis.metric_label,
-        "note": basis.metric_note,
-        "basis_field": basis.field,          # 判準的官方欄位名，供前端／稽核直接對照
-        "lower_bound_note": LOWER_BOUND_NOTE,
-        "season": season,
-        "kind_code": kind_code,
-        "kinds_counted": list(counted_kinds),   # 計入出賽的賽別（例行賽）
-        "kinds_in_scope": kinds,                # 一併載入、可中斷紀錄的賽別（含季後賽）
-        "scope_note": SCOPE_NOTE,
-        "tail_basis_note": TAIL_BASIS_NOTE,
-        "team": team,
-        "data_from_year": DATA_FROM_YEAR,
-        "as_of": str(as_of) if as_of else None,
-        "items": items,
     }
 
 

@@ -881,8 +881,11 @@ def test_d_f1_parse_prod_metrics() -> None:
 
 
 _TRAIN_SSH_PREFIX = '''\
-import json, os, sys
+import io, json, os, sys
 _cmd = sys.argv[-1] if len(sys.argv) > 1 else ""
+# game_features 改為單一交易資料包（#443，經 stdin 送出），偵測要讀 stdin；讀完放回給原樁記錄。
+_stdin = sys.stdin.read()
+sys.stdin = io.StringIO(_stdin)
 _mv = os.environ.get("STUB_MODEL_VERSIONS")
 if _mv and "cpbl-train-outcome" in _cmd:
     task = "outcome_simple" if "cpbl-train-outcome-simple" in _cmd else "outcome"
@@ -894,8 +897,8 @@ if _mv and "cpbl-train-outcome" in _cmd:
     print("已寫入 model_versions：%s" % rows[-1]["id"])
     raise SystemExit(0)
 _feat = os.environ.get("STUB_PROD_FEATURES")
-if _feat and "TRUNCATE cpbl.game_features" in _cmd:
-    # 3/4 全鏡像：正式站 game_features 的完成數變成本機的；之後交給原樁記錄這次 ssh（不 exit）。
+if _feat and "INSERT INTO cpbl.game_features " in _stdin:
+    # 3/4 全表同步：正式站 game_features 的完成數變成本機的；之後交給原樁記錄這次 ssh（不 exit）。
     open(_feat, "w", encoding="utf-8").write(os.environ["STUB_LOCAL_COMPLETED"])
 if _mv and "FROM cpbl.model_versions WHERE task = 'outcome'" in _cmd:
     if os.environ.get("STUB_PROD_DOWN") == "1":
@@ -972,8 +975,13 @@ esac
     result = subprocess.run(["/bin/bash", str(harness["repo"] / "scripts" / "refresh-cpbl-prod.sh")],
                             env=env, text=True, capture_output=True, stdin=subprocess.DEVNULL, check=False)
     ids = [r["id"] for r in json.loads(model_versions.read_text())]
-    ssh_cmds = [json.loads(p.read_text())["argv"][-1] for p in sorted((harness["log"] / "ssh").glob("*.json"))]
-    return result, ids, (uv_calls.read_text().splitlines() if uv_calls.exists() else []), ssh_cmds
+    ssh_calls = [json.loads(p.read_text()) for p in sorted((harness["log"] / "ssh").glob("*.json"))]
+    return result, ids, (uv_calls.read_text().splitlines() if uv_calls.exists() else []), ssh_calls
+
+
+def _gf_sync_payloads(ssh_calls: list[dict]) -> int:
+    """送往正式站的 game_features 同步資料包份數（#443 起為單一交易 stdin 資料包，不再有獨立 TRUNCATE）。"""
+    return sum(1 for c in ssh_calls if "INSERT INTO cpbl.game_features " in c["stdin"])
 
 
 def _prev_year() -> str:
@@ -990,7 +998,7 @@ def test_d_no_new_completed_games_skips_training_and_adds_no_model_version(tmp_p
     assert "略過 cpbl-build-features" in result.stdout
     assert ids == ["outcome-1", "outcome_simple-2"]                    # model_versions 無新 id
     assert not [c for c in uv_calls if "cpbl-build-features" in c]
-    assert not [c for c in ssh_cmds if "TRUNCATE cpbl.game_features" in c]
+    assert _gf_sync_payloads(ssh_cmds) == 0
 
 
 def test_d_new_completed_games_train(tmp_path: Path) -> None:
@@ -1001,7 +1009,7 @@ def test_d_new_completed_games_train(tmp_path: Path) -> None:
     assert result.returncode == 0, result.stderr[-2000:]
     assert ids[2:] == ["outcome-3", "outcome_simple-4"]
     assert any("cpbl-build-features" in c for c in uv_calls)
-    assert any("TRUNCATE cpbl.game_features" in c for c in ssh_cmds)
+    assert _gf_sync_payloads(ssh_cmds) == 1
 
 
 def test_d_f1_production_restored_to_older_model_retrains_without_any_local_state(tmp_path: Path) -> None:
@@ -1264,7 +1272,7 @@ def test_d_f1_tie_only_addition_rebuilds_mirrors_and_retrains_end_to_end(tmp_pat
     assert "含和局" in result.stdout
     assert ids[2:] == ["outcome-3"]
     assert any("cpbl-build-features" in c for c in uv_calls)
-    assert any("TRUNCATE cpbl.game_features" in c for c in ssh_cmds)
+    assert _gf_sync_payloads(ssh_cmds) == 1
 
 
 # ============================================================== 第 2 輪 F2：讀不懂的日期 ≠ 確定無新場
