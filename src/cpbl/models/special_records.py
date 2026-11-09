@@ -323,19 +323,26 @@ def _add_walkoff(season: int, kind_code: str, out: dict[str, dict]) -> None:
     用「全場最後事件」而非最後得分事件——遊戲若繼續，最後事件會在客隊半局；
     主隊再見致勝時遊戲即止，最後事件必在主隊半局。致勝方式由 `_walkoff_type()`
     依致勝打席結果分類（安打/全壘打/保送/觸身/犧牲打/失誤/野手選擇/趁傳進壘/暴投/捕逸）。
+
+    查詢形狀（#442 F-A）：以 games 驅動、每場 LATERAL 取最後一個事件，走
+    ``idx_livelog_game (year, kind_code, game_sno, inning_seq)`` 反向掃描，每場只讀最後幾列。
+    舊形狀是 ``DISTINCT ON (game_sno)`` 對整季 livelog（約 11 萬列）排序，work_mem 4MB 下會溢到
+    temp；1 CPU 爆量時這一條就超過 statement_timeout。排序鍵（含 inning_seq DESC 的 NULLS FIRST
+    預設）與舊式逐字相同，結果集已在全年度全賽別比對相同（#442 執行證據）。
     """
     with conn() as c:
         rows = c.execute(
-            "WITH last_ev AS ("
-            "  SELECT DISTINCT ON (game_sno) game_sno, visiting_home_type, batting_action_name, "
-            "         action_name, visiting_score, home_score "
-            "  FROM cpbl.game_livelog WHERE year=%s AND kind_code=%s "
-            "  ORDER BY game_sno, inning_seq DESC, main_event_no DESC) "
             "SELECT g.home_team_code, g.away_team_code, e.batting_action_name, e.action_name "
-            "FROM last_ev e JOIN cpbl.games g "
-            "  ON g.game_sno=e.game_sno AND g.year=%s AND g.kind_code=%s "
-            "WHERE e.visiting_home_type='2' AND e.home_score > e.visiting_score",
-            (season, kind_code, season, kind_code),
+            "FROM cpbl.games g "
+            "CROSS JOIN LATERAL ("
+            "  SELECT l.visiting_home_type, l.batting_action_name, l.action_name, "
+            "         l.visiting_score, l.home_score "
+            "  FROM cpbl.game_livelog l "
+            "  WHERE l.year=g.year AND l.kind_code=g.kind_code AND l.game_sno=g.game_sno "
+            "  ORDER BY l.inning_seq DESC, l.main_event_no DESC LIMIT 1) e "
+            "WHERE g.year=%s AND g.kind_code=%s "
+            "  AND e.visiting_home_type='2' AND e.home_score > e.visiting_score",
+            (season, kind_code),
         ).fetchall()
     for hc, ac, ban, an in rows:
         o = out.setdefault(hc, _blank())
