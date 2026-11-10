@@ -857,7 +857,8 @@ def test_today_query_is_scoped_to_the_requested_season():
     """
     import inspect
 
-    source = inspect.getsource(daily.daily_summary)
+    # #448：端點本體搬進到達後合併的 `_daily_summary`（端點函式只轉呼叫），查詢 SQL 在那裡。
+    source = inspect.getsource(daily._daily_summary)
     per_day = source[source.index("WHERE g.kind_code = ANY(%s) AND g.game_date = ANY(%s)"):]
     per_day = per_day[:per_day.index("ORDER BY")]
 
