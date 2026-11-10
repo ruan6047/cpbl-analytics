@@ -10,6 +10,7 @@ import logging
 
 from fastapi import APIRouter, HTTPException, Query
 
+from cpbl.api.coalesce import coalesced
 from cpbl.api.helpers import DEFAULT_SEASON
 from cpbl.db import conn
 
@@ -22,6 +23,14 @@ def playoffs_overview(
     season: int = Query(DEFAULT_SEASON),
     series: str | None = Query(None, pattern="^(E|C)$"),
 ) -> dict:
+    return _playoffs_overview(season=season, series=series)
+
+
+@coalesced
+def _playoffs_overview(season: int, series: str | None) -> dict:
+    """季後專頁封套本體；#448 到達後合併（:mod:`cpbl.api.coalesce`，⛔ 不是快取）。
+
+    503 屬「計算失敗」：同批成員各自重新排入下一批一次，不連坐。"""
     from cpbl.api.live_cache import get_public_live_snapshot
     from cpbl.playoffs.overview import playoffs_overview as read
 

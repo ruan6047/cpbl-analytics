@@ -7,6 +7,7 @@ from typing import Any
 
 from fastapi import APIRouter, Query
 
+from cpbl.api.coalesce import coalesced
 from cpbl.api.helpers import (
     DEFAULT_SEASON,
     OFFICIAL_SCHEDULE_ORDER_BY,
@@ -181,6 +182,12 @@ def games_calendar(
 
     `completed` 是 #237 新增欄位（向下相容）：前端對 2026 起的 E／C 只讀它、不再以比分自證；
     A／D 與歷史年份前端仍沿用比分判斷，欄位值不影響它們。"""
+    return _games_calendar(season=season, kind_code=kind_code)
+
+
+@coalesced
+def _games_calendar(season: int, kind_code: str) -> dict:
+    """月曆本體；#448 到達後合併（:mod:`cpbl.api.coalesce`，⛔ 不是快取）。"""
     kinds = kinds_of(kind_code)
     with conn() as c:
         cur = c.cursor()
@@ -338,6 +345,12 @@ def game_live(
     kind_code: str = Query("A", pattern="^(A|C|E|D)$"),
 ) -> dict:
     """單場賽況：賽事資訊 + 逐局比分 + 逐打席事件流 + 雙方 box score + 關鍵球員。"""
+    return _game_live(game_sno=game_sno, season=season, kind_code=kind_code)
+
+
+@coalesced
+def _game_live(game_sno: int, season: int, kind_code: str) -> dict:
+    """單場賽況本體；#448 到達後合併（:mod:`cpbl.api.coalesce`，⛔ 不是快取）。"""
     snapshot = get_public_live_snapshot(season, kind_code, game_sno)
     with conn() as c:
         cur = c.cursor()
@@ -408,11 +421,6 @@ def game_live(
             batter_avg = as_of.batter_avg_as_of(
                 cur, *cutoff, _as_of_hitter_ids(livelog, batting, snapshot), **bat_opts)
         else:
-            if g:
-                ts = matchup.team_stats(season)
-                for code in (g[0].get("away_team_code"), g[0].get("home_team_code")):
-                    if code in ts:
-                        records[code] = {"w": ts[code]["w"], "l": ts[code]["l"], "form": ts[code]["last10"]}
             bids = sorted({str(r["hitter_acnt"]) for r in livelog if r.get("hitter_acnt")})
             if bids:
                 cur.execute("SELECT player_id, avg FROM cpbl.batting_current WHERE player_id = ANY(%s)", (bids,))
@@ -486,6 +494,13 @@ def game_live(
                     "FROM cpbl.game_detail "
                     "WHERE year=%s AND kind_code=%s AND game_sno=%s", (season, kind_code, game_sno))
         gd = _dicts(cur)
+    # 非一軍例行賽的兩隊戰績：team_stats 會自借連線，所以在上面那條連線歸還後才呼叫
+    # （#448：⛔ 不要搬回 `with conn()` 內——池滿時拿著一條等第二條會放大 PoolTimeout）。
+    if g and kind_code != "A":
+        ts = matchup.team_stats(season)
+        for code in (g[0].get("away_team_code"), g[0].get("home_team_code")):
+            if code in ts:
+                records[code] = {"w": ts[code]["w"], "l": ts[code]["l"], "form": ts[code]["last10"]}
     # 投手角色：W/L/HLD 官方（game_result/relief_point）；救援成功與救援失敗皆官方優先、
     # 該場沒有官方來源才推算（pitcher_decisions.official_saves／blown_for_game，需求方 2026-09-23 裁定）。
     decisions = pitcher_decisions.game_decisions(season, kind_code, game_sno)
@@ -573,6 +588,12 @@ def game_winprob(
     每打席一點（打席開始時的局面 WP）；完賽補終點 1/0/0.5。中性隊伍 + 主場優勢，
     不含先發/戰力差 → 開局 ≈ 聯盟主場基準 0.528。
     """
+    return _game_winprob(game_sno=game_sno, season=season, kind_code=kind_code)
+
+
+@coalesced
+def _game_winprob(game_sno: int, season: int, kind_code: str) -> dict:
+    """逐打席勝率本體；#448 到達後合併（:mod:`cpbl.api.coalesce`，⛔ 不是快取）。"""
     from cpbl.models.winprob import wp_state
     span = "2018-2025"
     try:
@@ -709,10 +730,20 @@ def game_milestones(
 ) -> dict:
     """本場達成的生涯里程碑（安×500/轟×50/打點×500/盜×100/出賽×500；投手 K×500/出賽×500/勝投×50）
     ＋中職史上紀錄（生涯累計 8 項的打破/追平/刷新，置頂；單場型紀錄因 gamelog 僅 2018+ 不做）。"""
+    return _game_milestones(game_sno=game_sno, season=season, kind_code=kind_code)
+
+
+@coalesced
+def _game_milestones(game_sno: int, season: int, kind_code: str) -> dict:
+    """生涯里程碑本體；#448 到達後合併（:mod:`cpbl.api.coalesce`，⛔ 不是快取）。"""
     if kind_code != "A" or season < 2018:
         return {"items": []}
     items: list[dict] = []
     rec_items: list[dict] = []   # 中職史上紀錄（打破/追平/刷新），排序置頂
+    # 全季逐場 decisions：lru 未命中時會自借一條連線，所以在下面的 `with conn()` 之前取
+    # （#448：⛔ 不要搬回連線內——池滿時拿著一條等第二條會放大 PoolTimeout）。
+    # 此處 kind_code 必為 "A"（上面已早退），與原本 `if kind_code == "A" else {}` 同值。
+    season_dec = _season_decisions(season, "A")
     with conn() as c:
         cur = c.cursor()
         cur.execute("SELECT game_date, winning_pitcher_id FROM cpbl.games "
@@ -828,7 +859,6 @@ def game_milestones(
             """,
             {"y": season, "sno": game_sno, "d": gdate})
         pit_rows = cur.fetchall()
-        season_dec = _season_decisions(season, "A") if kind_code == "A" else {}
         # 全聯盟投手生涯累計（截至該場開打前）→ 各項 top2，供史上紀錄判定。
         # SV/HLD 本季增量與里程碑同源（season_dec 重建 / relief_point），與 hist 欄位口徑一致。
         pp = {"y": season, "sno": game_sno, "d": gdate}

@@ -29,6 +29,7 @@ from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Query
 
+from cpbl.api.coalesce import coalesced
 from cpbl.api.helpers import (
     OFFICIAL_SCHEDULE_ORDER_BY,
     _dicts,
@@ -556,6 +557,14 @@ def daily_summary(
     本端點同時是**首頁前景輪詢的目標**：SSR 首屏與瀏覽器輪詢打同一支，賽況數字與
     freshness／serving 揭露因此永遠出自同一份 response，不會出現「兩個來源、不同新鮮度」。
     """
+    return _daily_summary(season=season, kind_code=kind_code)
+
+
+@coalesced
+def _daily_summary(season: int | None, kind_code: str) -> dict:
+    """首頁聚合本體；#448 到達後合併（:mod:`cpbl.api.coalesce`，⛔ 不是快取）。
+
+    「今天」（``as_of``／``game_day``）在本批計算開始時才取，晚於每個成員的抵達。"""
     kinds = kinds_of(kind_code)
     as_of = _today_local()
     # 「今日賽事」單獨走台北日界；`as_of` 的語意一字不改（`taipei_today` 說明了為什麼

@@ -6,6 +6,7 @@ import logging
 
 from fastapi import APIRouter, Query
 
+from cpbl.api.coalesce import coalesced
 from cpbl.api.helpers import DEFAULT_SEASON, _dicts
 from cpbl.api.response_cache import cached
 from cpbl.api.rows import _team_advanced
@@ -260,6 +261,12 @@ def postseason_summary(season: int = Query(DEFAULT_SEASON), kind_code: str = Que
 
     逐場的 `game_no` 是系列內完成順序；`game_sno` 是官方場次編號，前端據以組
     `/games/{game_sno}?kind=&year=` 單場連結（#237，新增欄位、向下相容）。"""
+    return _postseason_summary(season=season, kind_code=kind_code)
+
+
+@coalesced
+def _postseason_summary(season: int, kind_code: str) -> dict:
+    """季後賽摘要本體；#448 到達後合併（:mod:`cpbl.api.coalesce`，⛔ 不是快取）。"""
     codes = ["F"] if kind_code == "D" else ["E", "C"]
     with conn() as c:
         rows = c.execute(
