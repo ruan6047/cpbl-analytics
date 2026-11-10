@@ -86,3 +86,14 @@ test("未收官、讀不到、或二軍範圍：不出現球季結束卡（沿�
   assert.equal(seasonClosedView(farmScope), null);
   assert.doesNotMatch(text(<DailyHub summary={summary(null)} calendar={null} postseason={null} />), /球季結束/);
 });
+
+test("#392 開季切回：兩軍 closed=false、override=reopened（status 照實保留）⇒ 首頁回到賽季中，不出現球季結束卡", () => {
+  const reopened = summary({
+    major: { ...MAJOR, closed: false, override: "reopened" },
+    farm: { ...FARM, closed: false, override: "reopened" },
+  });
+  assert.equal(seasonClosedView(reopened), null);
+  assert.doesNotMatch(text(<DailyHub summary={reopened} calendar={null} postseason={null} />), /球季結束/);
+  // 對照：同一份 summary 未切回時是球季結束卡（證明上一行不是因為別的欄位而空）。
+  assert.match(text(<DailyHub summary={summary({ major: MAJOR, farm: FARM })} calendar={null} postseason={null} />), /球季結束/);
+});

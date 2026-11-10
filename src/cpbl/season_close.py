@@ -12,10 +12,16 @@
 fail-open 的方向固定是「繼續爬」：主風險是誤判提早停爬（#391 風險），所以判不出來就是 ``closed=False``。
 
 **球季的選法**：省略 ``season`` 時取該軍「已有完賽例行賽」的最大年份（major 看 A、farm 看 D），⛔ 不用今天的年份——
-否則 1/1 一過就自動「未收官」而恢復每日爬 www；開季切回屬 #392（熱身賽開始）。在 #392 上線前，人工指示更新走
-既有 ``DAILY_FORCE_FULL=1``，或本模組的 ``CPBL_SEASON_CLOSE=open``（讀到即回 ``closed=False``，status 照實保留）。
+否則 1/1 一過就自動「未收官」而恢復每日爬 www。
 
-唯讀：只 ``SELECT``（單一 READ ONLY 交易），不寫 DB、不連網、沒有旗標檔。
+**開季切回（#392）**：需求方開季時手動執行 ``python -m cpbl.season_reopen apply``，在 ``cpbl.season_reopen`` 留下
+（軍, 被切回的球季）紀錄。推導完後，若該軍查詢的球季＝該軍**當下最新球季**＝紀錄的球季、且推導為已收官，即回
+``closed=False``、``override="reopened"``（status／champion／not_needed 照實保留）。新球季例行賽第一場完賽 ⇒ 最新
+球季前進 ⇒ 舊紀錄自然失效、下一季收官照常觸發（⛔ 沒有任何紀錄能讓未來球季的收官失效）。表不存在
+（部署先於 migration）＝無紀錄。套用順序：推導 → 切回紀錄 → ``CPBL_SEASON_CLOSE=open``（讀到即回 ``closed=False``，
+status 照實保留；休賽期人工指示更新另有 ``DAILY_FORCE_FULL=1``）。
+
+唯讀：只 ``SELECT``（單一 READ ONLY 交易），不寫 DB、不連網、沒有旗標檔；切回紀錄由 :mod:`cpbl.season_reopen` 寫。
 
 CLI（唯讀；週跑腳本與人工核對用）::
 
@@ -49,6 +55,9 @@ FARM_FINAL_KIND = "F"
 FARM_WINS_NEEDED = 3
 OVERRIDE_ENV = "CPBL_SEASON_CLOSE"
 OVERRIDE_OPEN = "open"
+#: #392 開季切回紀錄（寫入者只有 :mod:`cpbl.season_reopen`；本模組只讀）。
+OVERRIDE_REOPENED = "reopened"
+REOPEN_TABLE = "cpbl.season_reopen"
 
 GameKey = tuple[int, str, int]
 
@@ -177,6 +186,18 @@ def tally_farm_series(season: int, games: Iterable[FarmGame], *,
                          decided_game_date=decided.game_date, not_needed_keys=not_needed, basis=basis)
 
 
+def apply_reopen(closure: LeagueClosure, latest_season: int | None,
+                 reopened: frozenset[tuple[str, int]]) -> LeagueClosure:
+    """#392：該軍查詢的球季＝當下最新球季＝切回紀錄的球季，且推導為已收官 ⇒ 回「未收官」（override 標明）。
+
+    比對的是「當下最新球季」：新球季首場完賽後舊紀錄自然失效；指定舊季的查詢（月曆、``?season=``）維持歷史值。
+    未收官的軍原樣回傳（切回只會打開，⛔ 不會關上）。"""
+    if (not closure.closed or latest_season is None or closure.season != latest_season
+            or (closure.league, latest_season) not in reopened):
+        return closure
+    return replace(closure, closed=False, override=OVERRIDE_REOPENED)
+
+
 def apply_override(closure: LeagueClosure, env: Mapping[str, str] | None = None) -> LeagueClosure:
     """``CPBL_SEASON_CLOSE=open``：人工指示更新期間一律回「未收官」（status 照實保留，override 標明）。"""
     value = (os.environ if env is None else env).get(OVERRIDE_ENV, "").strip()
@@ -202,6 +223,20 @@ FARM_GAMES_SQL = f"""
     WHERE g.year = %(year)s AND g.kind_code = 'F'
     ORDER BY g.game_date, g.game_sno
 """
+
+
+# 有效的切回紀錄（作廢者 revoked_at 非空，不算）。
+REOPENED_SQL = f"SELECT league, season FROM {REOPEN_TABLE} WHERE revoked_at IS NULL"
+
+
+def read_reopened(cur) -> frozenset[tuple[str, int]]:
+    """#392 切回紀錄。表不存在（``to_regclass`` 為 NULL：部署先於 migration）＝無紀錄、⛔ 不查表。"""
+    cur.execute("SELECT to_regclass(%s) IS NOT NULL", (REOPEN_TABLE,))
+    row = cur.fetchone()
+    if not row or not row[0]:
+        return frozenset()
+    cur.execute(REOPENED_SQL)
+    return frozenset((str(league), int(season)) for league, season in cur.fetchall())
 
 
 def _latest_season(cur, kind: str, as_of: date) -> int | None:
@@ -236,8 +271,11 @@ def read_farm(cur, season: int, *, as_of: date) -> LeagueClosure:
 
 
 def league_closure(season: int | None = None, *, now: datetime | None = None, connect: Callable | None = None,
-                   leagues: Iterable[str] = LEAGUES, env: Mapping[str, str] | None = None) -> dict[str, LeagueClosure]:
-    """兩軍（或指定軍）的收官判定。單一 ``READ ONLY`` 交易；DB 錯誤上浮（呼叫端自行決定 fail-open）。"""
+                   leagues: Iterable[str] = LEAGUES, env: Mapping[str, str] | None = None,
+                   reopen: bool = True) -> dict[str, LeagueClosure]:
+    """兩軍（或指定軍）的收官判定。單一 ``READ ONLY`` 交易；DB 錯誤上浮（呼叫端自行決定 fail-open）。
+
+    ``reopen=False``：不讀 #392 切回紀錄（純推導；切回工具的計畫用）。"""
     if connect is None:
         from cpbl.db import conn as connect
     now = now or datetime.now(UTC)
@@ -247,14 +285,17 @@ def league_closure(season: int | None = None, *, now: datetime | None = None, co
         with c.transaction():
             cur = c.cursor()
             cur.execute("SET TRANSACTION READ ONLY")
+            reopened = read_reopened(cur) if reopen else frozenset()
             for league in leagues:
-                year = season if season is not None else _latest_season(
-                    cur, "A" if league == MAJOR else "D", as_of)
+                # 指定 season 且沒有切回紀錄時不查最新球季（切回比對才需要；省一次查詢）。
+                latest = (_latest_season(cur, "A" if league == MAJOR else "D", as_of)
+                          if season is None or reopened else None)
+                year = season if season is not None else latest
                 if year is None:
                     out[league] = LeagueClosure(league, None, False, "no_data", reason="no_season")
                     continue
                 result = read_major(cur, year, as_of=as_of) if league == MAJOR else read_farm(cur, year, as_of=as_of)
-                out[league] = apply_override(result, env)
+                out[league] = apply_override(apply_reopen(result, latest, reopened), env)
     return out
 
 
