@@ -57,6 +57,8 @@ scripts/refresh-cpbl-prod.sh — 把本機 CPBL 資料同步到 production（四
     BOXPA_MANIFEST=<絕對路徑> ./scripts/refresh-cpbl-prod.sh   # 季後目標場 box 七表＋PA 五表 scoped 同步
   TEAM_COMPARISON_ONLY=1 SKIP_SCRAPE=1 BACKUP_DIR=<獨立目錄> ./scripts/refresh-cpbl-prod.sh
                                                               # 隊伍比較摘要三表 insert-only 同步（手動、需授權）
+  SEASON_REOPEN_ONLY=1 SKIP_SCRAPE=1 SEASON_REOPEN_ACTION=apply SEASON_REOPEN_ROWS=major:2026,farm:2026 \
+    BACKUP_DIR=<獨立目錄> ./scripts/refresh-cpbl-prod.sh      # #392 開季切回紀錄單表（由 python -m cpbl.season_reopen 呼叫）
 
 環境變數
   LOCAL_DB      本機 PostgreSQL 容器名（預設 cpbl-analytics-db-1）
@@ -80,6 +82,10 @@ scripts/refresh-cpbl-prod.sh — 把本機 CPBL 資料同步到 production（四
   TEAM_COMPARISON_ONLY
                 1＝搭配 SKIP_SCRAPE=1 與獨立 BACKUP_DIR，只做隊伍比較摘要三表 insert-only 同步
                 （與 ROSTER_ONLY 同形：唯讀比對；無變更不備份不寫；有待寫才備份＋單交易寫入＋事後對帳）
+  SEASON_REOPEN_ONLY
+                1＝搭配 SKIP_SCRAPE=1、SEASON_REOPEN_ACTION（apply／revoke）、SEASON_REOPEN_ROWS（major|farm:YYYY，
+                逗號分隔、每軍最多一列）與獨立 BACKUP_DIR：已驗證備份 → prod_cpbl_api 內 migrate → 單交易寫
+                cpbl.season_reopen → 讀回比對（#392；不爬、不同步其他表、不訓練、不寫 refresh 標記）
   DAILY_DAY_TYPE
                 每日鏈（scrape-daily.sh）帶入的日型（#364）；未設定＝手動直呼，行為同現況（不套閘門）。
                 full：§3.5 訓練閘門——本機一軍完成場自正式站上次 model_versions(task='outcome') 後
@@ -112,6 +118,8 @@ scripts/refresh-cpbl-prod.sh — 把本機 CPBL 資料同步到 production（四
   TEAM_COMPARISON_ONLY：67 本機自檢／欄位漂移 · 69 production 尚無摘要表（待部署窗口）
                70 同 build_id 內容不同或目標有本機沒有的 build（不寫、不重試） · 71 事後對帳不等
                72 目標 psql／ssh 失敗
+  SEASON_REOPEN_ONLY：64 參數錯 · 69 production 尚無 cpbl.season_reopen（migrate 未生效；未寫入）
+               71 讀回不符 · 72 目標 psql／ssh 失敗；備份失敗＝備份腳本原碼（未寫入）
 
 背景：docs/AI_RUNBOOK.md（本機爬 → 同步生產）
 Mac切換後共用標記存在則exit78；僅核定單次救援用 CPBL_MAC_RESCUE=1，見 ops/jobs/CUTOVER.md。
@@ -330,6 +338,70 @@ if [ -n "${POSTSEASON_BOXPA_ONLY:-}" ]; then
     echo 'FATAL: POSTSEASON_BOXPA_ONLY=1 必須搭配 SKIP_SCRAPE=1，且不得與 WITH_DETAIL／LINEUP_ONLY／ROSTER_ONLY／POSTSEASON_RESULTS_ONLY／TEAM_COMPARISON_ONLY 併用' >&2
     exit 64
   fi
+fi
+
+# #392 開季切回紀錄單表（`python -m cpbl.season_reopen apply|revoke` 呼叫）：比照 LINEUP_ONLY 早退。
+#   已驗證備份（獨立 BACKUP_DIR）→ prod_cpbl_api 內 db.migrate()（建 cpbl.season_reopen）→ 單交易寫入＋讀回
+#   （存在檢查／SQL／讀回全在 cpbl.season_reopen remote，只碰 cpbl.season_reopen 一張表）。
+#   ⛔ 不爬（必須 SKIP_SCRAPE=1）、不同步其他表、不 build-features、不訓練、不寫 refresh 標記、不檢查整鏈 freshness；
+#   ⛔ 不進每日鏈（帶 DAILY_DAY_TYPE 一律拒絕）。放在其他早退模式之前：同時設定時由本段拒絕。
+if [ -n "${SEASON_REOPEN_ONLY:-}" ]; then
+  if [ "$SEASON_REOPEN_ONLY" != 1 ] || [ "${SKIP_SCRAPE:-}" != 1 ] || [ -n "${WITH_DETAIL:-}" ] \
+     || [ -n "${LINEUP_ONLY:-}" ] || [ -n "${ROSTER_ONLY:-}" ] || [ -n "${POSTSEASON_RESULTS_ONLY:-}" ] \
+     || [ -n "${POSTSEASON_BOXPA_ONLY:-}" ] || [ -n "${TEAM_COMPARISON_ONLY:-}" ] || [ -n "${DAILY_DAY_TYPE:-}" ]; then
+    echo 'FATAL: SEASON_REOPEN_ONLY=1 必須搭配 SKIP_SCRAPE=1，且不得與 WITH_DETAIL／LINEUP_ONLY／ROSTER_ONLY／POSTSEASON_RESULTS_ONLY／POSTSEASON_BOXPA_ONLY／TEAM_COMPARISON_ONLY／DAILY_DAY_TYPE 併用' >&2
+    exit 64
+  fi
+  case "${SEASON_REOPEN_ACTION:-}" in
+    apply|revoke) ;;
+    *)
+      echo 'FATAL: SEASON_REOPEN_ACTION 只接受 apply 或 revoke' >&2
+      exit 64
+      ;;
+  esac
+  SR_ROWS_RE='^(major|farm):(19|20)[0-9]{2}(,(major|farm):(19|20)[0-9]{2})?$'
+  if [[ ! "${SEASON_REOPEN_ROWS:-}" =~ $SR_ROWS_RE ]]; then
+    echo 'FATAL: SEASON_REOPEN_ROWS 格式須為 major|farm:YYYY，以單一逗號分隔、最多兩列' >&2
+    exit 64
+  fi
+  SR_FIRST="${SEASON_REOPEN_ROWS%%,*}"
+  SR_REST="${SEASON_REOPEN_ROWS#*,}"
+  if [ "$SR_REST" != "$SEASON_REOPEN_ROWS" ] && [ "${SR_FIRST%%:*}" = "${SR_REST%%:*}" ]; then
+    echo 'FATAL: SEASON_REOPEN_ROWS 每軍最多一列' >&2
+    exit 64
+  fi
+  # BACKUP_DIR 規則與 ROSTER_ONLY 相同（絕對路徑、realpath 不得等於每日鏈輪替目錄）。
+  if [ -z "${BACKUP_DIR:-}" ] || [ "${BACKUP_DIR#/}" = "$BACKUP_DIR" ]; then
+    echo 'FATAL: SEASON_REOPEN_ONLY 需明示獨立的 BACKUP_DIR（絕對路徑；不得與每日鏈共用輪替視窗）' >&2
+    exit 64
+  fi
+  SR_BACKUP_DIR="$(python3 -c 'import os,sys; print(os.path.realpath(sys.argv[1]))' "$BACKUP_DIR")"
+  SR_DAILY_BACKUP_DIR="$(python3 -c 'import os,sys; print(os.path.realpath(sys.argv[1]))' \
+    "$HOME/Library/Application Support/cpbl-analytics/backups")"
+  if [ -z "$SR_BACKUP_DIR" ] || [ "$SR_BACKUP_DIR" = "$SR_DAILY_BACKUP_DIR" ]; then
+    echo 'FATAL: SEASON_REOPEN_ONLY 的 BACKUP_DIR 與每日鏈備份目錄是同一個目錄（不得共用輪替視窗）' >&2
+    exit 64
+  fi
+  cd "$REPO_DIR"
+  echo "==> 開季切回（${SEASON_REOPEN_ACTION} ${SEASON_REOPEN_ROWS}）：獨立目錄備份 production（整庫）；驗證不過即中止"
+  BACKUP_PATH="$(VPS="$VPS" DEPLOY_PATH="$DEPLOY_PATH" BACKUP_DIR="$SR_BACKUP_DIR" \
+    BACKUP_KEEP="${BACKUP_KEEP:-3}" "$REPO_DIR/scripts/backup-prod-db.sh")"
+  echo "    ✓ 已驗證備份：${BACKUP_PATH}"
+  echo '==> 開季切回：prod_cpbl_api 內套 schema（cpbl.season_reopen）'
+  ssh -o BatchMode=yes "$VPS" 'docker exec prod_cpbl_api python -c "
+from cpbl import db
+try:
+    print(\"migrated:\", db.migrate())
+finally:
+    if db._pool is not None:
+        db._pool.close()
+    print(\"migration pool closed\")"'
+  echo '==> 開季切回：單交易寫入＋讀回'
+  # 非零（69／71／72／64）在 set -e 下原碼結束。
+  uv run python -m cpbl.season_reopen remote --action "$SEASON_REOPEN_ACTION" --rows "$SEASON_REOPEN_ROWS" \
+    --target-psql "ssh -o BatchMode=yes ${VPS} 'cd ${DEPLOY_PATH} && set -a && . ./.env && docker exec -i prod_pg psql -U \"\$DB_USER\" -d \"\$DB_NAME\"'"
+  echo '==> 開季切回：正式站完成（只代表 cpbl.season_reopen 單表，不代表整鏈刷新）'
+  exit 0
 fi
 
 # 隊伍比較摘要三表（#287 S06 WP4b；PLAN r2 §7）：比照 ROSTER_ONLY 早退的獨立 insert-only 步驟。
