@@ -64,7 +64,6 @@ SRC_ROOT = REPO_ROOT / "src"
 
 # 這些檔案由 INGEST-GAME-TM-REFACTOR1-G4 觀測凍結，本卡只盤點不修改。
 FROZEN_MODULES = {
-    "cpbl.ingest.run_refresh_recent",
     "cpbl.ingest.cpbl_pitch_tracking",
 }
 

@@ -63,6 +63,7 @@
 
 from __future__ import annotations
 
+import argparse
 import json
 import logging
 import os
@@ -79,6 +80,7 @@ from cpbl.completion import (
 )
 from cpbl.config import parse_postseason_kinds, settings
 from cpbl.db import conn, migrate
+from cpbl.ingest._cli import cli_parser
 from cpbl.ingest.championships import build_championships
 from cpbl.ingest.cpbl_advanced import AdvancedScrapeResult, scrape_advanced_result
 from cpbl.ingest.cpbl_fighting import YEAR_CAREER, scrape_matchups
@@ -1193,15 +1195,24 @@ def _games_written(detail_inc: dict, backfill: list[dict], postseason_detail: di
     return total
 
 
+def _parser() -> argparse.ArgumentParser:
+    p = cli_parser("cpbl-refresh-recent", __doc__)
+    p.add_argument("mode", nargs="?", choices=("fast",), help="fast＝只更新 games＋累計（省略＝完整流程）")
+    return p
+
+
 def main(argv: list[str] | None = None, *, jobs: bool = False) -> None:
     argv = sys.argv[1:] if argv is None else argv
     if "--plan" in argv:
         # #364 (b)：只印日型與步驟清單，不 migrate、不爬、不寫 refresh_log（交給 daily_gate 的唯讀 plan）。
+        # 刻意排在 _parser 之前（#416）：--date 等選項與未知旗標都由 gate 的 parser 處理，這裡不重複宣告。
         from cpbl.ingest.daily_gate import main as gate_main
 
         sys.exit(gate_main(["plan", *[a for a in argv if a != "--plan"]]))
+    # #416：解析必須在任何副作用之前。#364 事故時 --help 落進完整流程，真跑了一次 refresh。
+    args = _parser().parse_args(argv)
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s | %(message)s")
-    skip_detail = bool(argv and argv[0] == "fast")
+    skip_detail = args.mode == "fast"
     # #364 日型（PLAN-r5 §3.2、§3.2.3）：⛔ 不依日型直接略過衍生步驟。乙型（light）與甲型只同步
     # （sync_only）的衍生步驟一律依「來源變動訊號」決定；sync_only 另不爬（只做衍生＋交給同步）。
     from cpbl.ingest import daily_gate as gate

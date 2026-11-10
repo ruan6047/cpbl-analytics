@@ -809,15 +809,9 @@ WRITE_ADJUDICATION: dict[str, tuple[bool, str]] = {
               "executemany(_STATEMENTS[role], records) 寫入三季表；SQL 從模組常數傳入，"
               "W1 無法靜態解析該索引，但 W2 可見 INSERT/ON CONFLICT。"),
     # --- ⚠️ W1 是、W2 否是**沒有**的；反過來這一支是 W1 的結構性盲點 ---
-    "docs/research/INGEST-DEEP-TM-BACKFILL1/sync_deep_tm_prod.py": (
-        True,
-        "⚠️ **W1 的結構性偽陰性**：它以 `subprocess.run(['ssh', VPS, ... 'psql'], input=script)` "
-        "把 `COPY cpbl.pitch_tracking_deep_staging` ＋ `UPDATE cpbl.pitch_tracking` 串進"
-        "**生產** psql——寫入完全不經過 Python 的 DB cursor，AST 呼叫圖看不到。"
-        "W2 掃字面才抓得到。這一支就是兩套判準必須並存的理由"),
     "docs/research/ISSUE-383/replace_derived_tables.py": (
         True,
-        "#383 段 2 P-B：與 sync_deep_tm_prod.py 同形的 W1 結構性偽陰性——`replace --apply` 以 "
+        "#383 段 2 P-B：W1 的結構性偽陰性（#416 刪除的 sync_deep_tm_prod.py 也是同形）——`replace --apply` 以 "
         "`subprocess.run(['docker'|'ssh', … 'psql'], input=sql)` 送出單一交易的 "
         "`DELETE FROM cpbl.<11 表>` ＋ `COPY … FROM stdin`，不經 Python DB cursor。"
         "預設（不加 --apply）與 `export` 只走 default_transaction_read_only 的唯讀連線"),
@@ -835,22 +829,11 @@ SINGLE_CRITERION_OVERRIDE: dict[str, tuple[bool, str]] = {
 
 # 判定為寫入型但 `--help` 不安全的既有例外。**本輪不修它們的行為**（那會讓本卡從
 # 盤點變成改一批腳本），改為具名列出＋理由＋去向。具名例外可讀，勝過偷偷放寬判準。
+#
+# 目前為空（#416 清零）：常數保留，不變式 4 仍以它為例外面，新例外要具名寫在這裡。
 HELP_SAFETY_ALLOWLIST: dict[str, str] = {
-    "cpbl-refresh-recent": (
-        "#53 INGEST-GAME-TM-REFACTOR1-G4 Phase B 凍結資源，DEV-CLI-HELP-GUARD1／2 明文不改。"
-        "`--help` 主流程觸及 cpbl.db.migrate，且它是每日鏈 scrape-daily.sh 的主要寫入者。"
-        "去向：#53 Phase B 解凍後併入 test_cli_help_guard.py 的斷言範圍"),
-    "scripts/rehearsal_backfill.py": (
-        "完全不看 argv：任何旗標（含 --help）都直接 DROP/CREATE pitch_tracking_rehearsal。"
-        "去向：本卡只標記；修行為需另卡，且該卡母卡 INGEST-DEEP-TM-BACKFILL1 已封存"),
-    "scripts/rehearsal_pa_build.py": (
-        "完全不看 argv，寫合成 year=2099 列。去向：同上，PA-DAILY 若啟動時一併處理"),
-    "scripts/verify_deep_tm_backfill.py": (
-        "判準加寬為「高後果」後**新納入射程**（對 DB 唯讀，但 `VPS` 是裸常數、"
-        "任何參數都直接 ssh 進生產跑 psql；改用呼叫圖後另見 `urllib.request.urlopen` "
-        "打生產 `/api/info`）。傷害低於同批（唯讀 SELECT），且檔頭"
-        "`LIFECYCLE: oneshot` 明寫「不要跑」。去向：修行為需另卡，"
-        "母卡 INGEST-DEEP-TM-BACKFILL1 已封存，與 sync_deep_tm_prod.py 同批處理"),
+    # --- `cpbl-refresh-recent` 曾在本表：#416 補上入口防護，由 tests/test_cli_help_guard.py 涵蓋 ---
+    #
     # --- ⚠️ `confirm_live_schema.py` 與 `replay_schedule_branches.py` 曾在這張表上 ---
     #
     # 本輪 `R2-001` 修法把它們新納入射程後，執行者主張具名放行，判準是
@@ -878,14 +861,14 @@ HELP_SAFETY_ALLOWLIST: dict[str, str] = {
     # （`literal_path_refs()` 對 `confirm_live_schema.py` 零命中），而該 JSON 的
     # `_ref_surface` 是 `scan`＝快照，本來就明載「過期是歷史事實不是缺陷」。
     # 成本比他當時估的更小，結論因此更清楚。
-    "docs/research/INGEST-DEEP-TM-BACKFILL1/sync_deep_tm_prod.py": (
-        "⚠️ **本輪射程內最危險的一支**：完全不看 argv，任何參數都直接 ssh 進生產跑 "
-        "`COPY` ＋ `UPDATE cpbl.pitch_tracking`；`VPS` 是裸常數不可覆蓋、無 dry-run、無備份。"
-        "已於 `dac8d8e` 移出 `scripts/`（＝瀏覽者不會再誤觸），"
-        "但**檔案本身的行為沒變**。去向：修行為需另卡，母卡 INGEST-DEEP-TM-BACKFILL1 已封存"),
+    #
+    # --- #416 需求方核准刪除的三支 ---
+    # `rehearsal_backfill.py`、`verify_deep_tm_backfill.py`、`sync_deep_tm_prod.py` 曾在本表。
+    # 後者是當時射程內最危險的一支：守衛只擋得住 `--help`，無參數仍直接寫生產，所以刪除。
+    #
     # --- 排程用的 shell ---
     # `refresh-cpbl-prod.sh`／`scrape-daily.sh`／`weekly-game-pitches.sh` 原本在這張表上，
-    # 需求方推翻「具名放行」的裁定改為提前處置：它們與 `sync_deep_tm_prod.py` 同級——
+    # 需求方推翻「具名放行」的裁定改為提前處置：它們與 `sync_deep_tm_prod.py`（#416 已刪）同級——
     # 探索動作即造成損害——而破壞半徑更大（前者 DROP 一張表，`refresh-cpbl-prod.sh` 是
     # 整條生產同步鏈）。三支已加 argv 守衛並由 `tests/test_shell_help_guard.py` 逐支釘住，
     # 故從本表撤除（`test_invariant_4_allowlist_has_no_stale_entries` 會擋住殘留條目）。
@@ -894,11 +877,9 @@ HELP_SAFETY_ALLOWLIST: dict[str, str] = {
     # ＝寫 DB）看不到它。實測它的 `--help` 會 ssh 進生產跑整庫 dump，然後 exit 0、
     # 產出備份、`rm -f` 掉輪替視窗最舊的那份。**清冊印得出警告，不變式卻擋不住**，
     # 這正是判準加寬為「高後果」的成因；該支已加守衛，同樣不列本表。
-    "scripts/weekly-box-revisions.sh": (
-        "無 argv 守衛，會直接跑 `cpbl-refresh-box-deep`（Playwright 打官網 + 寫本機 DB）。"
-        "⚠️ **與同批三支同性質，本卡射程外**：它是 `#132` 的資源（該卡同時持有 "
-        "`scripts/refresh_status.py` 與 `src/cpbl/api/routers/info.py`），本卡改它等於"
-        "動另一張活卡的檔案。去向：`#132` 收工後比照同批三支補上守衛"),
+    #
+    # `weekly-box-revisions.sh` 曾在本表，理由是「無 argv 守衛」與「#132 的資源」。兩點都已過期：
+    # 它一直有 `case "${1:-}"` 守衛，只是形狀不是 canonical；#132 已關閉。#416 對齊形狀後撤除。
 }
 
 # 分類的人工改判：機械推導錯的逐支列出＋理由。
@@ -923,9 +904,6 @@ CLASS_OVERRIDES: dict[str, tuple[str, str]] = {
 
 # 分類正確但**刻意不搬**的位置例外。具名＋理由，偵測器據此放行。
 POSITION_EXCEPTIONS: dict[str, str] = {
-    "scripts/verify_deep_tm_backfill.py": (
-        "需求方裁定 3：它是活卡 DEV-VERIFY-TM-ASSERTS1（T2、Backlog）的射程本體，"
-        "搬它等於改另一張活卡的資源路徑。例外具名可讀，勝過偷改別卡"),
     "scripts/data_rules_audit1.py": (
         "scripts/data_tie_remedy1.py 的 FROZEN_FILES 以**字面路徑**硬編它，"
         "而 CI 只 import `_streaks_for` 碰不到 `is_frozen`——搬走會讓守衛靜默回 False。"
@@ -964,13 +942,11 @@ ONESHOT_HOME: dict[str, str] = {
     "scripts/outcome_simple_calibration_audit.py": "ML-OUTCOME-SIMPLE-LEAK2",
     "scripts/reconcile_game_tm.py": "INGEST-GAME-TM-REFACTOR1",
     "scripts/reconcile_splits_recalc1.py": "INGEST-SPLITS-RECALC1",
-    "scripts/rehearsal_backfill.py": "INGEST-DEEP-TM-BACKFILL1",
     "scripts/rehearsal_pa_build.py": "GAME-RECAP-PA1-BUILD1",
     "scripts/replay_schedule_branches.py": "INGEST-GAME-TM-REFACTOR1-G4",
     "scripts/report_pa_rebuild_fix1.py": "GAME-RECAP-PA1-FIX1",
     "scripts/restate1_reconcile.py": "INGEST-SPLITS-IMPORT-RESTATE1",
     "scripts/team_style_vectors.py": "TEAM-STYLE1",
-    "scripts/verify_deep_tm_backfill.py": "INGEST-DEEP-TM-BACKFILL1",
     "scripts/verify_pa_build_fix1.py": "GAME-RECAP-PA1-FIX1",
     "scripts/verify_splits_pa_split1.py": "INGEST-SPLITS-PA-SPLIT1",
 }
@@ -1520,7 +1496,7 @@ def undecided_disagreements() -> list[str]:
 # CLI 側的 `--help` 安全性沿用 `tests/test_cli_help_guard.py` 的執行期證明，
 # 不另立判準：被該檔涵蓋＝安全，被 FROZEN_MODULES 排除＝具名例外。
 CLI_GUARD_PACKAGES = ("cpbl.ingest.", "cpbl.models.", "cpbl.features.")
-CLI_GUARD_FROZEN = {"cpbl.ingest.run_refresh_recent", "cpbl.ingest.cpbl_pitch_tracking"}
+CLI_GUARD_FROZEN = {"cpbl.ingest.cpbl_pitch_tracking"}
 
 
 def _cli_help_state(target: str) -> tuple[str, str]:
@@ -1766,12 +1742,11 @@ def render() -> str:
       f"`docs/research/` {sum(1 for e in entries if e.writes and e.surface == 'research')}、"
       f"CLI {sum(1 for e in entries if e.writes and e.surface == 'cli')}）")
     a("")
-    a("> [!important] **W1 有一個結構性盲點，而它剛好落在最危險的那支上。**")
-    a("> `docs/research/INGEST-DEEP-TM-BACKFILL1/sync_deep_tm_prod.py` 把 "
-      "`COPY` ＋ `UPDATE cpbl.pitch_tracking` 透過 "
-      "`subprocess.run(['ssh', VPS, …'psql'], input=…)` 串進**生產**——")
+    a("> [!important] **W1 有一個結構性盲點。**")
+    a("> `docs/research/ISSUE-383/replace_derived_tables.py` 以 "
+      "`subprocess.run(['docker'|'ssh', …'psql'], input=sql)` 把 `DELETE` ＋ `COPY` 串進 psql——")
     a("> 寫入完全不經過 Python 的 DB cursor，**AST 呼叫圖看不到**，只有 W2 掃字面抓得到。")
-    a("> 這一支就是「為什麼要兩套判準」的答案。")
+    a("> 這就是「為什麼要兩套判準」的答案；#416 刪除的 `sync_deep_tm_prod.py` 也是同形。")
     a("")
     a("### 不一致清單（逐支人工裁定）")
     a("")
@@ -1922,7 +1897,7 @@ def render() -> str:
     a("")
     a("原則上本卡只加不變式、不改既有腳本行為（那會讓本卡從盤點變成改一批腳本），"
       "但需求方對**排程 shell** 推翻了這個處置：`refresh-cpbl-prod.sh`／`scrape-daily.sh`／"
-      "`weekly-game-pitches.sh` 與 `sync_deep_tm_prod.py` **同級**——探索動作即造成損害——"
+      "`weekly-game-pitches.sh` 與 `sync_deep_tm_prod.py`（#416 已刪）**同級**——探索動作即造成損害——"
       "而破壞半徑更大（後者 DROP 一張表，`refresh-cpbl-prod.sh` 是整條生產同步鏈）。"
       "`backup-prod-db.sh` 是判準加寬後補上的第四支。"
       "四支皆已加 argv 守衛並不列下表，證明見 `tests/test_shell_help_guard.py`。")
@@ -1964,10 +1939,13 @@ def render() -> str:
       "執行期零請求由 `tests/test_script_inventory.py` 以**副本 ＋ 假 httpx 留痕**逐支證明，"
       "負控制（改回修法前的形狀）實測 `--help` 會走到 `httpx.Client()` ＋ `.get`。")
     a("")
-    a("| 入口 | 理由與去向 |")
-    a("|---|---|")
-    for ident, reason in sorted(HELP_SAFETY_ALLOWLIST.items()):
-        a(f"| `{ident}` | {_md_escape(reason)} |")
+    if HELP_SAFETY_ALLOWLIST:
+        a("| 入口 | 理由與去向 |")
+        a("|---|---|")
+        for ident, reason in sorted(HELP_SAFETY_ALLOWLIST.items()):
+            a(f"| `{ident}` | {_md_escape(reason)} |")
+    else:
+        a("目前沒有具名例外：高後果入口的 `--help` 不安全者已清零（#416）。")
     a("")
     a("> [!note] 判準沿用 `tests/test_cli_help_guard.py`，不另立一套。")
     a("> CLI 側該檔以**執行期密封探針**證明（所有 I/O 出口 stub 化後才呼叫 `main()`）；")
@@ -2084,12 +2062,11 @@ def render() -> str:
 
 # 疑似重複群組的裁定（Discovery 已完成，寫進清冊供讀者不必回頭翻卡）。
 KNOWN_TRAPS: tuple[tuple[str, str], ...] = (
-    ("TM 四支：不是重複，但參數不一致",
+    ("TM 兩支：不是重複，但參數不一致",
      "`reconcile_game_tm`（Gate 2：單場 API vs 逐投手 logs API）、"
-     "`dryrun_game_tm_fullseason`（G4 Phase A：單場 API vs 正式表存量）、"
-     "`verify_deep_tm_backfill`（本機 DB vs 生產 DB）、"
-     "`sync_deep_tm_prod`（寫生產）——四個不同的對照兩端，零重疊。\n\n"
-     "⚠️ **四支全部把年份釘死 2026**（前兩支是 argparse 預設，後兩支是 SQL 字面），"
+     "`dryrun_game_tm_fullseason`（G4 Phase A：單場 API vs 正式表存量）——"
+     "兩個不同的對照兩端，零重疊。\n\n"
+     "⚠️ **兩支都把年份預設釘在 2026**（argparse 預設），"
      "且 `reconcile_game_tm` 預設 `--kind A`、`dryrun_game_tm_fullseason` 預設 `--kinds A D`"
      "——**對同一批資料的預設母體不同，而差異沒寫在任何一支的 docstring 裡**。"),
     ("`reconcile_*` 字首同時指涉唯讀對帳與破壞性重建",
@@ -2128,7 +2105,7 @@ PURPOSE_VERIFIED: dict[str, str] = {
     "scripts/reconcile_scoreless_streak.py": "窮舉對帳；AI_RUNBOOK:380 寫「改動演算法後必跑」，義務靠人記得",
     "scripts/ability_snapshot.py": "能力值卡回歸抽驗；docstring 明寫改前後各跑一次再 diff",
     # --- CLI：高後果／訊號互斥 ---
-    "cpbl-refresh-recent": "每日鏈主要寫入者，566 行；⚠️ --help 觸及 cpbl.db.migrate（#53 凍結）",
+    "cpbl-refresh-recent": "每日鏈主要寫入者；參數解析在任何副作用之前（#416），--plan 轉交 daily_gate",
     "cpbl-research-umpire-impact": "632 行研究入口，零活引用；產物落檔案不落 DB",
     # --- CLI：9 支零活引用，觸發者是人 ---
     "cpbl-classify-pitches-v2": "手動觸發：球種細分 v2，未接排程（memory：二軍／生產未同步）",

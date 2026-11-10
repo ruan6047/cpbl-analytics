@@ -12,6 +12,7 @@ DB 路徑：首次發布 → 同來源重跑 no-op → 晚到/修正來源 recon
 
 from __future__ import annotations
 
+import argparse
 import logging
 
 from psycopg.rows import dict_row
@@ -24,6 +25,34 @@ log = logging.getLogger("rehearsal.pa")
 
 Y, K = 2099, "A"
 G = 90001
+
+USAGE = """\
+rehearsal_pa_build.py — GAME-RECAP-PA1-BUILD1 的 DB 層演練
+
+在做什麼
+  在本機 dev DB 用合成場（year=2099）演練 builder 的 DB 路徑：首次發布、同來源重跑 no-op、
+  晚到／修正來源 reconciliation、builder 升級、半局出局 fail closed、noop 自癒降級。
+  失敗即 assert 中止。
+
+會寫什麼（⚠️ 沒有 dry-run）
+  · 本機 DB 的 cpbl.game_livelog：插入、修改、刪除合成列
+  · cpbl.game_recap_builds、cpbl.game_recap_source_revisions 與 cascade 的 PA／event／mapping
+  · 開頭與結束都清理 year=2099 的合成場；中途失敗時合成列會留到下次開頭才清
+  · 不碰 pitch_tracking
+
+怎麼呼叫（不接受任何參數）
+  uv run python scripts/rehearsal_pa_build.py
+
+⚠️ 本檔是一次性產物。除非你正在重現該卡的演練，否則**不要跑它**。
+"""
+
+
+def _parser() -> argparse.ArgumentParser:
+    return argparse.ArgumentParser(
+        prog="rehearsal_pa_build",
+        description=USAGE,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
 
 
 def _ll_row(no: int, hitter: str | None, *, pitcher: str = "P1", action: str = "",
@@ -238,5 +267,11 @@ def run() -> None:
                  "builder upgrade republish → 半局出局不變式 fail closed → noop 自癒降級")
 
 
-if __name__ == "__main__":
+def main() -> None:
+    # ⚠️ argv 必須在任何 I/O 之前解析。改版前本檔完全不看 argv，`--help` 會直接開始寫 DB。
+    _parser().parse_args()
     run()
+
+
+if __name__ == "__main__":
+    main()

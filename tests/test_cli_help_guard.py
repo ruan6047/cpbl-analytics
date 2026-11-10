@@ -16,13 +16,15 @@
    `scripts/refresh-cpbl-prod.sh`）與各模組 docstring 裡的既有指令形式，逐一驗證解析結果
    與改版前語意相同。這層是本卡「不得為了加護欄而弄壞排程」的紅線。
 
-排除：`run_refresh_recent` 與 `cpbl_pitch_tracking` 由 #53 的 INGEST-GAME-TM-REFACTOR1-G4
-Phase B 資源佔用，本卡明文不改，故不納入斷言範圍（它們的現況記錄在
-`docs/research/DEV-CLI-HELP-GUARD1/cli-help-audit.md`）。
+排除：`cpbl_pitch_tracking` 由 #53 的 INGEST-GAME-TM-REFACTOR1-G4 Phase B 資源佔用，
+本卡明文不改，故不納入斷言範圍（現況記錄在
+`docs/research/DEV-CLI-HELP-GUARD1/cli-help-audit.md`）。`run_refresh_recent` 原本也在排除
+名單，#416 補上入口防護後已納入。
 """
 
 from __future__ import annotations
 
+import argparse
 import importlib
 import importlib.util
 import sys
@@ -35,7 +37,6 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 
 # #53 的 G4 Phase B 資源佔用：本卡只盤點，不把 CLI 護欄改動併入逐球 writer。
 FROZEN_MODULES = {
-    "cpbl.ingest.run_refresh_recent",
     "cpbl.ingest.cpbl_pitch_tracking",
 }
 
@@ -152,8 +153,7 @@ def test_entry_discovery_actually_found_the_clis() -> None:
             "cpbl-scrape-stats", "cpbl-scrape-detail", "cpbl-scrape-fighting",
             "cpbl-build-features", "cpbl-build-sabr", "cpbl-classify-pitches",
             "cpbl-train-outcome", "cpbl-train-outcome-simple", "cpbl-train-pa-sim",
-            "cpbl-train", "cpbl-train-pitching"} <= ids
-    assert "cpbl-refresh-recent" not in ids  # 仍有 CLI 副作用，且其 writer 由 #53 佔用
+            "cpbl-train", "cpbl-train-pitching", "cpbl-refresh-recent"} <= ids
 
 
 def test_only_declared_modules_are_unimportable_in_this_environment() -> None:
@@ -505,6 +505,167 @@ def test_scrape_transactions_rejects_half_given_range(monkeypatch: pytest.Monkey
     monkeypatch.setattr(sys, "argv", ["cpbl-scrape-transactions", "2025"])
     with pytest.raises(SystemExit) as exc:
         mod.main()
+    assert exc.value.code not in (0, None)
+
+
+# ------------------------------------------------- cpbl-refresh-recent（#416）
+# `--help`、`-h` 與未知旗標已由 GUARDED_ENTRIES 的參數化涵蓋；這裡補它特有的部分：
+# 多餘位置參數、負控制，以及每日鏈的合法呼叫不變。
+#
+# 事故：2026-10-24 `cpbl-refresh-recent --help` 真跑 refresh（#364）。這支是每日鏈的
+# 主要寫入者，防護除了擋 `--help`，還不能改變排程與 jobs 入口的呼叫。
+
+REFRESH_SCRIPT = "cpbl-refresh-recent"
+REFRESH_MODULE = "cpbl.ingest.run_refresh_recent"
+
+
+def _sealed_refresh(monkeypatch: pytest.MonkeyPatch):
+    for name in ("DAILY_DAY_TYPE", "DAILY_FORCE_FULL", "DAILY_CLOSED_LEAGUES"):
+        monkeypatch.delenv(name, raising=False)
+    mod = importlib.import_module(REFRESH_MODULE)
+    _seal(mod, monkeypatch)
+    return mod
+
+
+@pytest.mark.parametrize("argv", [
+    ["fast", "--zzz-not-a-real-flag"],
+    ["foo"],
+    ["fast", "foo"],
+    ["foo", "fast"],
+    [""],
+], ids=lambda a: " ".join(a) or "empty-string")
+def test_refresh_recent_rejects_unknown_arguments_with_no_side_effects(
+    argv: list[str], monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    mod = _sealed_refresh(monkeypatch)
+    monkeypatch.setattr(sys, "argv", [REFRESH_SCRIPT, *argv])
+
+    with pytest.raises(SystemExit) as exc:
+        mod.main()
+
+    assert exc.value.code == 2
+
+
+def test_refresh_recent_help_guard_negative_control(monkeypatch: pytest.MonkeyPatch) -> None:
+    """負控制：拿掉解析，同一個 `--help` 必須撞上封印，證明上面的通過不是「什麼都沒發生」。"""
+    mod = _sealed_refresh(monkeypatch)
+
+    class _NoParse:
+        def parse_args(self, _argv):
+            return argparse.Namespace(mode=None)
+
+    monkeypatch.setattr(mod, "_parser", _NoParse)
+    monkeypatch.setattr(sys, "argv", [REFRESH_SCRIPT, "--help"])
+
+    with pytest.raises(SideEffectReached):
+        mod.main()
+
+
+@pytest.mark.parametrize(("argv", "mode"), [([], None), (["fast"], "fast")])
+def test_refresh_recent_documented_invocations_still_parse(argv: list[str], mode: str | None) -> None:
+    assert importlib.import_module(REFRESH_MODULE)._parser().parse_args(argv).mode == mode
+
+
+def _trace_refresh_chain(mod, monkeypatch: pytest.MonkeyPatch) -> list[str]:
+    """把 main() 跑到第一個區分 fast 與完整流程的業務邊界，回傳經過的節點。
+
+    `_incremental_detail` 只有完整流程會呼叫；`_missing_gamelog_snos` 是兩者都到的邊界，
+    在這裡中止。封印保留，途中若碰到沒替換的 I/O 出口仍會炸。
+    """
+    from cpbl.config import parse_postseason_kinds
+
+    calls: list[str] = []
+
+    def stop(*_a, **_kw):
+        calls.append("boundary")
+        raise RuntimeError("synthetic boundary")
+
+    monkeypatch.setattr(mod, "parse_postseason_kinds", parse_postseason_kinds)
+    monkeypatch.setattr(mod, "migrate", lambda: calls.append("migrate"))
+    monkeypatch.setattr(mod, "_log_refresh", lambda *_a, **_kw: None)
+    for name in ("reset_standings_failures", "scrape_games", "_farm_final_games_step", "scrape_all",
+                 "scrape_standings", "scrape_transactions", "build_championships"):
+        monkeypatch.setattr(mod, name, lambda *_a, **_kw: {})
+    monkeypatch.setattr(mod, "_postseason_games_step",
+                        lambda *_a, **_kw: {"games": {}, "errors": []})
+    monkeypatch.setattr(mod, "standings_failures", lambda: [])
+    monkeypatch.setattr(mod, "_incremental_detail",
+                        lambda *_a, **_kw: calls.append("incremental") or {})
+    monkeypatch.setattr(mod, "_missing_gamelog_snos", stop)
+    return calls
+
+
+@pytest.mark.parametrize(("argv", "jobs", "expected"), [
+    ([], False, ["migrate", "incremental", "boundary"]),
+    (["fast"], False, ["migrate", "boundary"]),
+    ([], True, ["incremental", "boundary"]),      # jobs 入口的每日工作
+    (["fast"], True, ["boundary"]),               # jobs 入口的每日工作，帶 --fast 時
+])
+def test_refresh_recent_legal_invocations_keep_their_path(
+    argv: list[str], jobs: bool, expected: list[str], monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    mod = _sealed_refresh(monkeypatch)
+    calls = _trace_refresh_chain(mod, monkeypatch)
+
+    with pytest.raises(SystemExit):
+        mod.main(argv, jobs=jobs)
+
+    assert calls == expected
+
+
+@pytest.mark.parametrize(("argv", "expected"), [
+    ([], ["migrate", "incremental", "boundary"]),
+    (["fast"], ["migrate", "boundary"]),
+])
+def test_refresh_recent_console_script_reads_sys_argv(
+    argv: list[str], expected: list[str], monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """console script 以 `main()` 進入，argv 來自 sys.argv（每日鏈的 shell 就是這樣呼叫）。"""
+    mod = _sealed_refresh(monkeypatch)
+    calls = _trace_refresh_chain(mod, monkeypatch)
+    monkeypatch.setattr(sys, "argv", [REFRESH_SCRIPT, *argv])
+
+    with pytest.raises(SystemExit):
+        mod.main()
+
+    assert calls == expected
+
+
+def test_refresh_recent_plan_forwards_to_gate_without_migrate(monkeypatch: pytest.MonkeyPatch) -> None:
+    """`--plan` 不經新 parser：原樣轉 daily_gate，`--date` 等選項不必在這裡重複宣告。"""
+    from cpbl.ingest import daily_gate
+
+    mod = _sealed_refresh(monkeypatch)  # migrate 已封印，呼叫到就炸
+    forwarded: list[list[str]] = []
+    monkeypatch.setattr(daily_gate, "main", lambda argv: forwarded.append(argv) or 0)
+
+    with pytest.raises(SystemExit) as exc:
+        mod.main(["--plan", "--date", "2026-10-08"])
+
+    assert exc.value.code == 0
+    assert forwarded == [["plan", "--date", "2026-10-08"]]
+
+
+def test_refresh_recent_plan_help_is_answered_by_the_gate(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture,
+) -> None:
+    mod = _sealed_refresh(monkeypatch)
+
+    with pytest.raises(SystemExit) as exc:
+        mod.main(["--plan", "--help"])
+
+    assert exc.value.code == 0
+    assert "--date" in capsys.readouterr().out
+
+
+def test_refresh_recent_plan_rejects_unknown_flag_through_the_gate(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    mod = _sealed_refresh(monkeypatch)
+
+    with pytest.raises(SystemExit) as exc:
+        mod.main(["--plan", "--zzz-not-a-real-flag"])
+
     assert exc.value.code not in (0, None)
 
 

@@ -152,7 +152,6 @@ FROZEN_POSITION_DEBT = frozenset({
     "scripts/outcome_simple_calibration_audit.py",
     "scripts/reconcile_game_tm.py",
     "scripts/reconcile_splits_recalc1.py",
-    "scripts/rehearsal_backfill.py",
     "scripts/rehearsal_pa_build.py",
     "scripts/replay_schedule_branches.py",
     "scripts/report_pa_rebuild_fix1.py",
@@ -448,16 +447,41 @@ def test_writes_ast_is_a_projection_of_the_same_engine() -> None:
 # `tests/test_shell_help_guard.py`：**副本 ＋ 假樁**，本卡紅線「不得執行版控樹上的
 # 腳本」照舊——跑的一律是 `tmp_path` 裡 `shutil.copy2` 出來的副本。
 
-# 路徑 → (守衛那一行, 改回修法前的形狀)
+# 路徑 → (守衛那一行, 改回修法前的形狀, 主流程第一個碰到的出口)
 ONESHOT_HELP_GUARDS = {
     "docs/research/INGEST-SCORELESS-INNING-PITCHER1/confirm_live_schema.py": (
         "    gid = _parser().parse_args().gid",
         '    import sys as _s\n    gid = _s.argv[1] if len(_s.argv) > 1 else "2026-A-246"',
+        "httpx",
     ),
     "scripts/replay_schedule_branches.py": (
         "    _parser().parse_args()\n",
         "",
+        "httpx",
     ),
+    "scripts/rehearsal_pa_build.py": (
+        "    _parser().parse_args()\n",
+        "",
+        "cpbl.db.conn",
+    ),
+}
+
+# 出口是 DB 的腳本改用假 `cpbl` 套件：PYTHONPATH 排在已安裝版本之前，`cpbl.db.conn` 留痕後
+# 立刻中止，負控制走不到真實連線。`_run_oneshot` 另給死 DSN，假套件沒蓋到時也連不出去。
+_FAKE_CPBL = {
+    "cpbl/__init__.py": "",
+    "cpbl/ingest/__init__.py": "",
+    "cpbl/ingest/pa_build.py": "def build_game(*a, **k):\n    raise SystemExit(98)\n",
+    "cpbl/db.py": '''\
+import json, os, pathlib
+
+
+def conn(*a, **k):
+    log = pathlib.Path(os.environ["HTTPX_CALL_LOG"])
+    entries = json.loads(log.read_text()) if log.exists() else []
+    log.write_text(json.dumps([*entries, "cpbl.db.conn"]))
+    raise SystemExit(97)
+''',
 }
 
 # 假 httpx：import 鏈實際只用到 `Client` 與 `HTTPError`（實測 grep 全鏈）。
@@ -516,7 +540,11 @@ def _oneshot_harness(tmp_path: Path, rel: str, *, drop_guard: bool) -> dict:
     (stub_dir / "httpx.py").write_text(_HTTPX_STUB, encoding="utf-8")
 
     source = (REPO_ROOT / rel).read_text(encoding="utf-8")
-    guard, replacement = ONESHOT_HELP_GUARDS[rel]
+    guard, replacement, exit_point = ONESHOT_HELP_GUARDS[rel]
+    if exit_point == "cpbl.db.conn":
+        for name, body in _FAKE_CPBL.items():
+            (stub_dir / name).parent.mkdir(parents=True, exist_ok=True)
+            (stub_dir / name).write_text(body, encoding="utf-8")
     if drop_guard:
         assert guard in source, f"{rel} 的守衛那一行找不到——負控制會變成空斷言"
         source = source.replace(guard, replacement, 1)
@@ -533,6 +561,7 @@ def _run_oneshot(harness: dict, argv: list[str]) -> tuple[subprocess.CompletedPr
         "HOME": str(harness["work"].parent / "home"),
         "PYTHONPATH": str(harness["stub"]),
         "HTTPX_CALL_LOG": str(harness["log"]),
+        "DATABASE_URL": "postgresql://sealed.invalid/never-connects",
     }
     result = subprocess.run(
         [sys.executable, str(harness["script"]), *argv],
@@ -573,19 +602,29 @@ def test_oneshot_unknown_flag_is_refused_not_ignored(rel: str, tmp_path: Path) -
 
 
 @pytest.mark.parametrize("rel", sorted(ONESHOT_HELP_GUARDS), ids=lambda s: Path(s).name)
-def test_negative_control_unguarded_help_really_reaches_the_network(
+def test_negative_control_unguarded_help_really_reaches_its_exit(
     rel: str, tmp_path: Path,
 ) -> None:
-    """負控制：把守衛改回修法前的形狀，`--help` 必須真的走到 HTTP 出口。
+    """負控制：把守衛改回修法前的形狀，`--help` 必須真的走到主流程的出口。
 
-    這條證明修的是**實害**而不是體感——假樁留痕就是那一次請求的證據。
+    這條證明修的是**實害**而不是體感——假樁留痕就是那一次請求或連線的證據。
     """
     harness = _oneshot_harness(tmp_path, rel, drop_guard=True)
     _, calls = _run_oneshot(harness, ["--help"])
 
     assert calls, (
-        "拿掉守衛後 `--help` 沒有碰到網路——那代表假樁面沒有涵蓋這支的出口，證據力是假的")
-    assert any("httpx" in c for c in calls), calls
+        "拿掉守衛後 `--help` 沒有碰到出口——那代表假樁面沒有涵蓋這支的出口，證據力是假的")
+    exit_point = ONESHOT_HELP_GUARDS[rel][2]
+    assert any(exit_point in c for c in calls), calls
+
+
+def test_rehearsal_pa_build_without_arguments_still_runs(tmp_path: Path) -> None:
+    """無參數是它的文件化呼叫（重現指令住在 PA1-BUILD1 的 handoff），守衛不得擋下。"""
+    harness = _oneshot_harness(tmp_path, "scripts/rehearsal_pa_build.py", drop_guard=False)
+    result, calls = _run_oneshot(harness, [])
+
+    assert result.returncode == 97, f"stderr={result.stderr}"
+    assert calls == ["cpbl.db.conn"]
 
 
 def test_invariant_4_backup_prod_db_is_in_scope_and_now_guarded() -> None:
@@ -607,14 +646,18 @@ def test_invariant_4_reuses_cli_help_guard_criteria_not_a_second_copy() -> None:
     assert si.CLI_GUARD_PACKAGES == cli_guard.GUARDED_PACKAGES
 
 
-def test_refresh_recent_is_marked_unsafe_in_the_inventory() -> None:
-    """需求方裁定 2：本卡不處理它，但清冊必須標記。"""
+def test_refresh_recent_is_safe_in_the_inventory_without_an_exception() -> None:
+    """#416：它是高後果入口，判 safe 的依據是 test_cli_help_guard.py，不是具名放行。"""
     entry = next(e for e in si.build_entries() if e.ident == "cpbl-refresh-recent")
-    assert entry.help_state == "unsafe"
-    assert "#53" in si.HELP_SAFETY_ALLOWLIST["cpbl-refresh-recent"]
-    rendered = (REPO_ROOT / "scripts" / "README.md").read_text(encoding="utf-8")
-    assert "cpbl-refresh-recent" in rendered
-    assert "--help 不安全" in rendered
+    assert entry.high_consequence
+    assert entry.help_state == "safe"
+    assert "cpbl-refresh-recent" not in si.HELP_SAFETY_ALLOWLIST
+
+
+def test_no_high_consequence_entry_is_help_unsafe() -> None:
+    """#416 驗收 1：清零，不留具名例外。新增例外要回到本卡的需求方裁定層級。"""
+    assert not si.high_consequence_unsafe(si.build_entries())
+    assert not si.HELP_SAFETY_ALLOWLIST
 
 
 # ===================================== 寫入面交叉複算：不得未裁定、不得過期
@@ -876,7 +919,7 @@ def test_counts_reconcile_across_three_surfaces() -> None:
     research = [e for e in entries if e.surface == "research"]
     cli = [e for e in entries if e.surface == "cli"]
 
-    assert len(scripts) == 53, (
+    assert len(scripts) == 51, (
         "49（基準 33c7c3f）＋ 1（DEV-SCRIPT-INVENTORY1 的 script_inventory.py）"
         "＋ 3（OPS-SCHEDULE-FAILURE-BLIND1／#132：schedule_watch.py、"
         "schedule-watchdog.sh、com.cpbl.schedule-watchdog.plist）"
@@ -892,8 +935,10 @@ def test_counts_reconcile_across_three_surfaces() -> None:
         "state_plane_migrate.py——CLAUDE.md 已宣告退場的 Ledger／control-plane 工具鏈，連同 "
         "docs/control-plane/events.jsonl 與四支專屬測試一起移除；見 APPROVED_SCRIPT_DELETIONS）"
         "− 1（#405 需求方指示：roadmap_lines.py——讀已關閉的 Project #4 看板，ROADMAP §3 的對帳指令已標已移除）"
-        "＋ 1（#393 WP4：jobs.py，六個既有工作的 Linux 適配入口；不負責排程或新取源工具）")
-    assert len(research) == 24, (
+        "＋ 1（#393 WP4：jobs.py，六個既有工作的 Linux 適配入口；不負責排程或新取源工具）"
+        "− 2（#416 需求方核准：rehearsal_backfill.py、verify_deep_tm_backfill.py；"
+        "見 APPROVED_SCRIPT_DELETIONS）")
+    assert len(research) == 23, (
         "19（基準）＋ 1（OPS-SCHEDULE-FAILURE-BLIND1／#132："
         "docs/research/OPS-SCHEDULE-FAILURE-BLIND1/measure_notification_delivery.py，"
         "通知投遞的可重建量測工具。住在自己卡的目錄裡，符合 oneshot 的位置規則）"
@@ -907,7 +952,9 @@ def test_counts_reconcile_across_three_surfaces() -> None:
         "＋ 1（#383 段 2 P-B：docs/research/ISSUE-383/replace_derived_tables.py，"
         "11 張衍生表的受守衛整表替換工具。推導為 CI 繫結，具名列於 POSITION_EXCEPTIONS）"
         "＋ 1（#400 R1：docs/research/SCHED-TIMING-400/r1_measure.py，排程觸發／完成分布的"
-        "唯讀可重建量測。住在自己卡的目錄裡，符合 oneshot 的位置規則）")
+        "唯讀可重建量測。住在自己卡的目錄裡，符合 oneshot 的位置規則）"
+        "− 1（#416 需求方核准：docs/research/INGEST-DEEP-TM-BACKFILL1/sync_deep_tm_prod.py，"
+        "守衛只擋得住 --help、無參數仍直接寫生產）")
     assert len(cli) == 51, (
         "47 ＋ 1（#284 S03：cpbl-roster，季後 32 人資格名單的本機唯一會員 writer；"
         "放在 cpbl.ingest 底下以受 test_cli_help_guard 的 --help 零副作用探針涵蓋）"
@@ -915,14 +962,15 @@ def test_counts_reconcile_across_three_surfaces() -> None:
         "入口同樣放在 cpbl.ingest 底下以受 --help 零副作用探針涵蓋）"
         "＋ 2（#357 WP2：cpbl-check-livelog 唯讀檢查、cpbl-replay-livelog-extra 預設 dry-run 的"
         "回補工具；同樣放在 cpbl.ingest 底下受 --help 探針涵蓋）")
-    assert len(scripts) + len(research) + len(cli) == 128, (
+    assert len(scripts) + len(research) + len(cli) == 125, (
         "119＋1（#132 的量測工具）＋1（#100 的重測工具）＋1（#201 的收集工具）"
         "＋1（#268 的 postseason-evening.sh）＋1（#284 的 cpbl-roster CLI）"
         "＋1（#287 的 cpbl-build-team-comparison CLI）＋1（#353 的 prod_availability.py）"
         "＋2（#357 的兩支 CLI）＋1（#358 的 alert_ping.py）＋1（#358 的 alert_watch.py）"
         "＋1（#383 的 replace_derived_tables.py）＋1（#400 的 r1_measure.py）"
         "−5（#405 移除的舊制工具鏈四支＋roadmap_lines.py，見 APPROVED_SCRIPT_DELETIONS）"
-        "＋1（#393 WP4 的既有六工作 Linux jobs.py 適配入口）")
+        "＋1（#393 WP4 的既有六工作 Linux jobs.py 適配入口）"
+        "−3（#416 需求方核准刪除的三支）")
 
 
 def test_invariant_proof_enumerates_every_entry(capsys: pytest.CaptureFixture) -> None:
@@ -1001,6 +1049,8 @@ APPROVED_SCRIPT_DELETIONS: dict[str, str] = {
     "scripts/review_gate_inventory.py": "#405：讀 control-plane 事件檔的多關卡盤點，無測試載入、無活文件指令",
     "scripts/state_plane_migrate.py": "#405：Ledger → GitHub Projects 的一次性遷移，Project #4 已關閉",
     "scripts/roadmap_lines.py": "#405：ROADMAP §3 線別對帳器，輸入是已關閉的 Project #4 看板；ROADMAP 相關段已標歷史",
+    "scripts/rehearsal_backfill.py": "#416 需求方核准：母卡 INGEST-DEEP-TM-BACKFILL1 已結案，零文件引用、無呼叫者",
+    "scripts/verify_deep_tm_backfill.py": "#416 需求方核准：一次性驗證，只印不驗且會 ssh 生產；#50 掛的去留至此裁定",
 }
 
 

@@ -1,7 +1,7 @@
 """排程 shell 的 `--help` 守衛（DEV-SCRIPT-INVENTORY1，需求方裁定：提前處置）。
 
 盤點原本把這幾支具名列進 `script_inventory.HELP_SAFETY_ALLOWLIST`（＝已知危害、
-具名放行）。需求方推翻該處置：它們與 `sync_deep_tm_prod.py` **同級**——探索動作即
+具名放行）。需求方推翻該處置：它們與 `sync_deep_tm_prod.py`（#416 已刪）**同級**——探索動作即
 造成損害——而破壞半徑更大：後者 DROP 一張表，`refresh-cpbl-prod.sh` 是**整條生產
 同步鏈**（爬官網 → 備份並 upsert production → VPS 重跑訓練）。
 
@@ -23,19 +23,11 @@ Python 那層可以 monkeypatch 的出口，改以**副本 ＋ 假樁**證明，
    （守衛之前不得有任何副作用）＋執行期斷言（`--help` 時零假樁呼叫、零檔案產出）
    共同證明。
 3. **每條都附負控制。** 把守衛從副本上拿掉後同一條測試必須變紅，否則它只是剛好會過。
-
-## 為什麼 `weekly-box-revisions.sh` 不在這裡
-
-它與這三支同性質、同樣沒有守衛，但它是 `#132` 的資源（該卡同時持有
-`scripts/refresh_status.py` 與 `src/cpbl/api/routers/info.py`）。本卡改它等於動另一
-張活卡的檔案，故留在 `HELP_SAFETY_ALLOWLIST` 具名放行，去向寫在該條目上。
-`test_every_safe_shell_is_covered_here` 保證這個缺口不會靜默擴大。
 """
 
 from __future__ import annotations
 
 import json
-import os
 import re
 import shutil
 import subprocess
@@ -48,7 +40,7 @@ from scripts import script_inventory as si
 
 ROOT = Path(__file__).resolve().parents[1]
 
-# 本卡處置的四支。`weekly-box-revisions.sh` 見檔頭說明（#132 資源，射程外）。
+# 本卡處置的四支，後續補進來的各支理由見下。
 #
 # `backup-prod-db.sh` 是後補的第四支，而它**不是**從 allowlist 撤下來的——它從來
 # 沒進過那張表：舊判準問「寫不寫 DB」，而它 `pg_dump` 對 DB 唯讀。實測 `--help`
@@ -64,12 +56,16 @@ ROOT = Path(__file__).resolve().parents[1]
 #
 # `postseason-evening.sh` 是 #268 WP3 新增的第六支：守衛與 canonical 逐字相同 ⇒ 清冊判 safe
 # ⇒ 依 fail-closed 要求必須在這裡被證明。它會呼叫 refresh-cpbl-prod.sh（生產同步）與 launchctl。
+#
+# `weekly-box-revisions.sh` 是 #416 補進來的第七支。它本來就有 `case "${1:-}"` 守衛，
+# 清冊判 unsafe 只因形狀不是 canonical；#416 把形狀對齊，行為除空字串參數外不變。
 GUARDED_SHELLS = (
     "scripts/backup-prod-db.sh",
     "scripts/postseason-evening.sh",
     "scripts/refresh-cpbl-prod.sh",
     "scripts/schedule-watchdog.sh",
     "scripts/scrape-daily.sh",
+    "scripts/weekly-box-revisions.sh",
     "scripts/weekly-game-pitches.sh",
 )
 
@@ -244,6 +240,7 @@ def test_negative_control_removing_the_guard_kills_the_answer(
     "script_rel",
     ["scripts/backup-prod-db.sh",
      "scripts/refresh-cpbl-prod.sh",
+     "scripts/weekly-box-revisions.sh",
      "scripts/weekly-game-pitches.sh"],
     ids=lambda s: Path(s).name,
 )
@@ -534,11 +531,3 @@ def test_allowlist_no_longer_names_the_scripts_this_card_fixed() -> None:
     """需求方推翻「具名放行」：修好的就不該再留在放行清單上。"""
     for rel in GUARDED_SHELLS:
         assert rel not in si.HELP_SAFETY_ALLOWLIST, f"{rel} 已修好，不該還在 allowlist"
-
-
-def test_the_remaining_shell_gap_is_named_with_its_owner() -> None:
-    """缺口只剩一支，且理由必須指名持有它的卡——不得只寫「同上」。"""
-    reason = si.HELP_SAFETY_ALLOWLIST["scripts/weekly-box-revisions.sh"]
-
-    assert "#132" in reason
-    assert os.linesep not in reason
