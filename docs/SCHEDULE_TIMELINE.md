@@ -96,7 +96,7 @@ grep -nE '^(DAILY_GUARD|BLOCK_RELEASE_AT|NIGHT_START|EVENING_GRACE|FALLBACK_DEAD
 
 ## 2. 休季
 
-休季的行為都來自動作條件與收官判定，不靠 bootout（registry `_readme`；#365）。收官判定只在 `src/cpbl/season_close.py`（#391），會一直維持到開季切回（#392）。
+休季的行為都來自動作條件與收官判定，不靠 bootout（registry `_readme`；#365）。收官判定只在 `src/cpbl/season_close.py`（#391），會一直維持到需求方執行開季切回工具（#392，`python -m cpbl.season_reopen apply`，見 Runbook §3）。
 
 | 排程 | 休季行為 | 告警語意 |
 |---|---|---|

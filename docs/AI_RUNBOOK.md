@@ -318,12 +318,35 @@ docker compose exec -T db psql -U cpbl -d cpbl -c \
   一軍＝`postseason_contract` 的台灣大賽 `series_status=decided`（§63／§60；2027 起規則 `sourced_assumed`，R1 甲）；
   二軍＝二軍總冠軍賽 F 完賽列先達 3 勝、無和局（有和局＝`undecided_tie` 不切，等人判斷）；判不出來一律不切（繼續爬）。
   決勝後仍未完賽的列（如 2026/C/7）＝`not_needed`：首頁／月曆／季後頁／單場頁與今日賽程檔都不當成待打或待更新。
-- **球季**＝該軍已有完賽例行賽的最大年份（不是今天的年份）⇒ 收官會一直維持到開季切回（#392）上線。
+- **球季**＝該軍已有完賽例行賽的最大年份（不是今天的年份）⇒ 跨年不會自動解除；收官一直維持到需求方執行開季切回（#392，見下一節）。
 - **排程**：每日鏈 `decide` 印 `CLOSED_LEAGUES=` → `DAILY_CLOSED_LEAGUES` 讓 `cpbl-refresh-recent` 略過該軍爬蟲（`--plan` 會列出略過／照跑清單）；
   兩軍皆收官時日型不探測 stats、不套「上次 J1 未成功 → 乙型重試」，依未同步寫入走 `sync_only`／`skip`（狀態照寫成功、照 ping）。
   週跑（box 深抓、全季逐球）略過已收官的 kind。晚間鏈：同步成功後重算收官（`league_closed`，只對同一晚）→ 同晚後續喚醒 quiet；
   二軍 F 夜抓見 §10。補缺 gamelog、季後 E／C 明細補齊、總冠軍成員重建、衍生、同步、備份**照跑**（R3）。
 - **休賽期人工指示更新**：`DAILY_FORCE_FULL=1 scripts/scrape-daily.sh`（不判日型、不帶收官）；週跑／其他唯讀判定可用 `CPBL_SEASON_CLOSE=open` 暫時視為未收官。
+
+### 開季切回（#392）：需求方手動一條指令切回賽季中
+
+⛔ 不自動切回（需求方裁定 #9／#12）。開季（建議熱身賽開始前）由需求方在**主 checkout 的 repo 根目錄**執行：
+
+```bash
+cd ~/Dev/cpbl-analytics                        # 主 checkout，必須停在 main
+uv run python -m cpbl.season_reopen            # 只印計畫：兩軍純推導狀態與將寫的紀錄（零寫入）
+uv run python -m cpbl.season_reopen apply      # 執行切回
+uv run python -m cpbl.season_reopen revoke     # 誤跑時撤銷（正式站＋本機一起作廢本季切回紀錄）
+```
+
+- **apply 做什麼**（任一步非零即停並印出已完成到哪一步；整條冪等，排除原因後整條重跑）：
+  1. 計畫：純推導（忽略切回紀錄與 `CPBL_SEASON_CLOSE`）；只對**已收官**的軍寫紀錄。季中誤跑 ⇒ 不寫任何東西、印原因；二軍未收官（如和局 `undecided_tie`）⇒ 只切一軍，之後二軍收官再跑一次。
+  2. 正式站：`scripts/refresh-cpbl-prod.sh` 的 `SEASON_REOPEN_ONLY` 單表模式——獨立目錄已驗證整庫備份（預設 `~/Library/Application Support/cpbl-analytics/backups-season-reopen`，`--backup-dir` 可改；不得是每日鏈目錄）→ `prod_cpbl_api` 內 `migrate()`（建 `cpbl.season_reopen`）→ 單交易寫入 → 讀回比對。首頁下一次請求即回到賽季中（`daily/summary` 不經回應快取）。
+  3. 本機：`migrate()`＋寫 `cpbl.season_reopen` ⇒ 每日鏈、週跑、晚間鏈對該軍不再判為收官而**恢復爬 www**（HiNet 冷卻紅線照舊）。
+  4. 兩個先發 flag（`logs/starter-watch.enabled`、`logs/postseason-starter-checkpoints.enabled`）：已存在不動；否則把最新的 `*.enabled.paused-*` 改名回來；都沒有就建空檔。下次喚醒生效。
+  5. 驗證：本機 `uv run python -m cpbl.season_close` 該軍 `closed=false`、`override="reopened"`；正式站 `GET /api/v1/daily/summary` 的 `season_close.major.closed=false`。
+- **前提**：主 checkout 在 main；避開每日鏈與晚間鏈時段（時刻見 `scripts/schedule-registry.json`）；它會寫本機共享 DB、主 checkout `logs/` 與正式站 DB，執行前依 vNext 取得資源租用。Mac 已切換到 VPS jobs（`mac-jobs-disabled` 標記存在）時 `refresh-cpbl-prod.sh` 回 78，正式站步驟不會執行；先發 flag 在 VPS jobs state 的恢復歸 #393（需求方裁定 #14）。
+- **失效規則**：紀錄只對「被切回的那一季」有效——該軍新球季例行賽第一場完賽後最新球季前進，舊紀錄自然失效，下一季台灣大賽／二軍總冠軍賽決勝時照常收官。⛔ 不需要清除；指定舊季的查詢（月曆、`?season=`）維持歷史值。
+- **revoke**：把各軍當下最新球季的紀錄填 `revoked_at`（列保留成歷史），正式站與本機回到 #391 推導。先發 flag 不動；要一併停用就把兩個 `*.enabled` 改名回 `*.enabled.paused-YYYYMMDD`（工具會印出指令）。
+- **退出碼**：0 成功 · 64 參數錯／不在 repo 根目錄 · 69 正式站尚無表 · 70 本機寫入失敗 · 71 讀回不符 · 72 正式站 psql／ssh 失敗 · 73 寫入後驗證不符或讀不到；其餘＝`refresh-cpbl-prod.sh` 原碼。
+- **與逃生閥的關係**：`CPBL_SEASON_CLOSE=open` 仍在切回紀錄之後套用（env 讀到即回未收官）；`DAILY_FORCE_FULL=1` 不變。切回工具不刪 `cpbl.games`、不改 #391 判準（只寫 `cpbl.season_reopen`）。
 
 ### 官方 box 逐投手快照：每週深度重抓近 30 天（DATA-BOX-REVISION-SNAPSHOT1）
 
