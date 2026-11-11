@@ -422,4 +422,8 @@ def test_daily_chain_never_enables_the_marker():
     assert users == ["ingest/postseason_evening.py", "ingest/starter_watch.py"]
     importers = sorted(str(p.relative_to(root)) for p in root.rglob("*.py")
                        if "starter_watch" in p.read_text(encoding="utf-8") and p.name != "starter_watch.py")
-    assert importers == ["ingest/postseason_evening.py"]
+    # #392：開季切回工具只借用 starter_watch 的旗標路徑解析（flag_path）來恢復旗標檔，不呼叫任何抓取函式。
+    assert importers == ["ingest/postseason_evening.py", "season_reopen.py"]
+    import re
+    reopen = (root / "season_reopen.py").read_text(encoding="utf-8")
+    assert set(re.findall(r"\bstarter_watch\.(\w+)", reopen)) == {"flag_path"}

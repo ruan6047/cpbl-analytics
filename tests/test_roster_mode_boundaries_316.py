@@ -94,8 +94,13 @@ def _outside_roster(data):
 # TRUNCATE、新增 _sync_table_exact 與 sync_table 的 SYNC_TABLE_EXACT 分派、game_features 呼叫與略過訊息改寫
 # （80410 → 84894 bytes）。ROSTER_ONLY 區塊未動（下方 ROSTER_RESULT 比對照舊）。
 # 舊值：區塊之前 14ca9e67…9ad7（24669 bytes）、區塊之後 51ecd63c…424b（80410 bytes，origin/main bef5ac60）。
+# #392 WP2（核定規劃 §2：新增 SEASON_REOPEN_ONLY 單表早退模式；只改「區塊之前」基準、保護不減，待需求方追認）：
+# 區塊之前 --help 新增該模式的呼叫、環境變數與離開碼說明，並在 POSTSEASON_BOXPA_ONLY 互斥檢查之後、
+# TEAM_COMPARISON_ONLY 之前新增 SEASON_REOPEN_ONLY 段（24717 → 29543 bytes）；對 origin/main 5c8d725c 的 diff
+# 純新增（72 行、刪除 0 行）。區塊之後 84894 bytes 未變、ROSTER_ONLY 區塊未動。
+# 舊值：區塊之前 4cf7b059d22bdf4efdab4b09c5a2fea8dd613890dd2e837c6adb240511c3a876（24717 bytes，origin/main 5c8d725c）。
 OUTSIDE_ROSTER_SHA256 = (
-    "4cf7b059d22bdf4efdab4b09c5a2fea8dd613890dd2e837c6adb240511c3a876",   # 區塊之前（24717 bytes）
+    "3558bd6d60e239e155353dffc93f4e652681a0f86a4bb3efba7c0ab10781ccec",   # 區塊之前（29543 bytes）
     "a5093d38db64198f9cec1ea1fed63859e95b2258ee59673b61f854a04b1ad46a",   # 區塊之後（84894 bytes）
 )
 # #316 的成果（ROSTER_ONLY 區塊本身）以 main 上合併後的版本為準：#293 不得改動它。
