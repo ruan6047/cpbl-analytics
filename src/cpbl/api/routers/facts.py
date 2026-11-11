@@ -17,6 +17,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException, Query, Response
 
+from cpbl.api.coalesce import coalesced
 from cpbl.api.helpers import DEFAULT_SEASON
 from cpbl.api.live_cache import get_public_live_snapshot
 from cpbl.models.pa_facts import build_game_facts, cache_directive
@@ -42,9 +43,17 @@ def game_facts(
     量選取（正常路徑）；``signal='delta_re24'`` ＋ ``degraded=true``＝WP 模型不可用時的
     降級路徑，呼叫端必須顯示降級註記。
     """
-    snapshot = get_public_live_snapshot(season, kind_code, game_sno)
-    payload = build_game_facts(season, kind_code, game_sno, snapshot=snapshot)
+    payload = _facts_payload(season=season, kind_code=kind_code, game_sno=game_sno)
     if payload.get("reason") == "game_not_found":
         raise HTTPException(status_code=404, detail="查無此場次")
     response.headers["Cache-Control"] = cache_directive(payload)
     return payload
+
+
+@coalesced
+def _facts_payload(season: int, kind_code: str, game_sno: int) -> dict:
+    """事實流 payload；#448 到達後合併（:mod:`cpbl.api.coalesce`，⛔ 不是快取）。
+
+    只包 payload 計算：404 與 ``Cache-Control`` 仍由每個請求依共用 payload 自己決定（回應標頭不變）。"""
+    snapshot = get_public_live_snapshot(season, kind_code, game_sno)
+    return build_game_facts(season, kind_code, game_sno, snapshot=snapshot)
