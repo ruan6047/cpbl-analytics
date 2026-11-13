@@ -25,7 +25,8 @@ const RESULT: Record<string, { label: string; color: string }> = {
 };
 const ORDER = ["take", "foul", "out", "whiff", "hit"] as const; // 灰底→重點在上
 
-export function ZoneScatter({ points }: { points: ZonePoint[] }) {
+// staticLegend：圖例只作說明、不可點（PitchMind 示意頁要求主畫面只有戰術可切換，#452）。
+export function ZoneScatter({ points, staticLegend = false }: { points: ZonePoint[]; staticLegend?: boolean }) {
   const W = 230, H = 240, pad = 14;
   // 範圍收緊到好球帶周邊（放大好球帶、捨棄參考價值低的太外圍野球）
   const xMin = -0.5, xMax = 0.5, yMin = 0.15, yMax = 1.35;
@@ -60,7 +61,11 @@ export function ZoneScatter({ points }: { points: ZonePoint[] }) {
         <text x={W / 2} y={H - 2} textAnchor="middle" className="fill-faint" fontSize={9}>捕手視角</text>
       </svg>
       <div className="mt-1 flex flex-wrap justify-center gap-x-3 gap-y-1 text-[11px] text-muted">
-        {(["hit", "out", "foul", "whiff", "take"] as const).map((k) => (
+        {(["hit", "out", "foul", "whiff", "take"] as const).map((k) => staticLegend ? (
+          <span key={k} className="inline-flex items-center gap-1">
+            <span className="inline-block h-2 w-2 rounded-full" style={{ background: RESULT[k].color }} />{RESULT[k].label}
+          </span>
+        ) : (
           <button key={k} onClick={() => setOff((o) => ({ ...o, [k]: !o[k] }))}
             className={`inline-flex items-center gap-1 transition ${off[k] ? "opacity-35 line-through" : ""}`}>
             <span className="inline-block h-2 w-2 rounded-full" style={{ background: RESULT[k].color }} />{RESULT[k].label}
