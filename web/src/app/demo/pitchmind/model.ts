@@ -2,9 +2,10 @@
 
 export type HLoc = "inside" | "middle" | "outside";
 export type VLoc = "high" | "mid" | "low";
-/** 打者反應分類（示意）。各戰術在設定檔裡給每類一個示意點數。 */
-export type Reaction = "hard" | "take" | "foul" | "called" | "whiff" | "weak";
+export type ReactionKey = "swing" | "whiff" | "grounder";
 export type TacticTag = "共軌" | "速差" | "引誘";
+export type SourceKey = "long" | "recent" | "league" | "pitcher";
+export type CountKey = `${0 | 1 | 2 | 3}-${0 | 1 | 2}`;
 export type ZoneResult = "hit" | "out" | "foul" | "whiff" | "take";
 
 export type Bases = { first: boolean; second: boolean; third: boolean };
@@ -22,7 +23,13 @@ export type Situation = {
   bases: Bases;
 };
 
-type EventBase = { id: string; label: string; after: Situation; /** 展演劇本註記（只在展演控制區顯示） */ script?: string };
+type EventBase = {
+  id: string;
+  label: string;
+  after: Situation;
+  /** 展演劇本步驟（只在展演控制區顯示，對應裁定的 A–G） */
+  script?: string;
+};
 
 /** 打者上場：只改局面，不計入任何累積。 */
 export type PaStartEvent = EventBase & { kind: "pa_start" };
@@ -31,7 +38,7 @@ export type PaStartEvent = EventBase & { kind: "pa_start" };
 export type PitchEvent = EventBase & {
   kind: "pitch";
   seq: number;
-  /** 球種（沿用本站球種名稱，供 pitchColor 取色） */
+  /** 球種（沿用本站球種名稱） */
   pitch: string;
   h: HLoc;
   v: VLoc;
@@ -39,9 +46,21 @@ export type PitchEvent = EventBase & {
   x: number;
   y: number;
   speed: number;
-  reaction: Reaction;
+  swing: boolean;
+  whiff: boolean;
+  grounder: boolean;
   zoneResult: ZoneResult;
   resultText: string;
 };
 
 export type GameEvent = PaStartEvent | PitchEvent;
+
+/** 基準格：[符合條件來球數 n, 出棒, 揮空, 擊成滾地]；null＝缺值／待補。 */
+export type BaselineEntry = readonly [n: number, swing: number, whiff: number, grounder: number] | null;
+export type CountTable = Partial<Record<CountKey, BaselineEntry>>;
+/** 每個戰術：聯盟與投手各一張表；打者長期／近期依打者分開。 */
+export type BaselineTable = Record<string, {
+  league: CountTable;
+  pitcher: CountTable;
+  batters: Record<string, { long: CountTable; recent: CountTable }>;
+}>;
