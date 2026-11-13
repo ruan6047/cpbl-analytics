@@ -2,7 +2,10 @@
 
 export type HLoc = "inside" | "middle" | "outside";
 export type VLoc = "high" | "mid" | "low";
-export type ReactionKey = "swing" | "whiff" | "grounder";
+/** 一球的打者反應（互斥，每球恰好一類）。定義集中在 tactics.config.ts，皆為示意。 */
+export type Outcome = "take" | "whiff" | "foul" | "weak" | "solid" | "hard";
+/** 畫面上列出的反應種類：六類互斥反應，加上彙總的「出棒」（＝未出棒以外的全部）。 */
+export type ReactionKey = "swing" | Outcome;
 export type TacticTag = "共軌" | "速差" | "引誘";
 export type SourceKey = "long" | "recent" | "league" | "pitcher";
 export type CountKey = `${0 | 1 | 2 | 3}-${0 | 1 | 2}`;
@@ -46,17 +49,18 @@ export type PitchEvent = EventBase & {
   x: number;
   y: number;
   speed: number;
-  swing: boolean;
-  whiff: boolean;
-  grounder: boolean;
+  /** 打者反應（互斥六類之一） */
+  outcome: Outcome;
   zoneResult: ZoneResult;
   resultText: string;
 };
 
 export type GameEvent = PaStartEvent | PitchEvent;
 
-/** 基準格：[符合條件來球數 n, 出棒, 揮空, 擊成滾地]；null＝缺值／待補。 */
-export type BaselineEntry = readonly [n: number, swing: number, whiff: number, grounder: number] | null;
+/** 基準格：[符合條件來球數 n, 未出棒, 揮空, 界外, 無效擊球, 一般擊球, 強勁擊球]（後六項相加＝n）；null＝缺值／待補。 */
+export type BaselineEntry =
+  | readonly [n: number, take: number, whiff: number, foul: number, weak: number, solid: number, hard: number]
+  | null;
 export type CountTable = Partial<Record<CountKey, BaselineEntry>>;
 /** 每個戰術：聯盟與投手各一張表；打者長期／近期依打者分開。 */
 export type BaselineTable = Record<string, {
@@ -64,3 +68,6 @@ export type BaselineTable = Record<string, {
   pitcher: CountTable;
   batters: Record<string, { long: CountTable; recent: CountTable }>;
 }>;
+
+/** 情蒐參考值（示意指標上的參考線）：戰術 → 打者 → 精確球數。手編示意，正式指標待研究。 */
+export type ReferenceTable = Record<string, Record<string, Partial<Record<CountKey, number>>>>;
