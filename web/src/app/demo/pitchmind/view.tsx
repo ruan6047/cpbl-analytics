@@ -53,7 +53,7 @@ function CellView({ cell, reaction }: { cell: Cell | { state: "missing"; why: st
   }
   if (cell.state === "insufficient") {
     return <div><span className="pm-st pm-st--sample pm-st--sm">樣本不足</span>
-      <div className="mt-0.5 text-[11px] text-faint">{denLabel} n={cell.n}（未達示意門檻 {DEMO_MIN_N}）</div></div>;
+      <div className="mt-0.5 text-[11px] text-faint">{denLabel} n={cell.n}</div></div>;
   }
   if (cell.state === "zero") {
     return <div><span className="font-mono text-sm font-bold tabular-nums text-ink">觀察到 0 次</span>
@@ -183,7 +183,6 @@ export function PitchMindDemo() {
           <ul className="flex flex-wrap gap-1.5" aria-label="情境標籤">
             {COUNT_TAGS.map((t) => <StateTag key={t} active={t === tag}>{t}</StateTag>)}
           </ul>
-          {tag == null && <span className="text-xs text-faint">{ck} 為平球數，四類皆不適用</span>}
         </div>
       </Card>
 
@@ -281,7 +280,7 @@ export function PitchMindDemo() {
               })}
             </div>
             <p className="text-[11px] leading-relaxed text-faint">
-              每格附分母與條件；未達門檻顯示「樣本不足」，不以其他球數或舊值補上。樣本門檻 {DEMO_MIN_N} 為示意設定，實際門檻待研究。
+              每格附分母與條件；樣本過少顯示「樣本不足」，不以其他球數或舊值補上。樣本門檻待研究。
               指標各自獨立，不加總、不排序。
             </p>
           </Card>
@@ -390,7 +389,7 @@ export function PitchMindDemo() {
           <li>實測：無。本頁未接任何正式資料來源或研究檔。</li>
           <li>示意（手編）：事件序列、情蒐基準、對戰紀錄、長期來球點（固定種子產生）、球速。</li>
           <li>待補：共軌所需的逐球軌跡、投手內角低變化球分項、打者 A 以外的打者基準、正式樣本門檻與提示門檻（待研究）。</li>
-          <li>狀態用語：「缺值／待補」＝資料未接入；「觀察到 0 次」＝有足夠樣本但未發生；「樣本不足」＝分母未達門檻，不顯示比例。</li>
+          <li>狀態用語：「缺值／待補」＝資料未接入；「觀察到 0 次」＝有足夠樣本但未發生；「樣本不足」＝分母過少（門檻待研究），不顯示比例。</li>
         </ul>
       </Card>
     </main>

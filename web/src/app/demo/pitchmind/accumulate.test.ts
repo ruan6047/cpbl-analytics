@@ -14,14 +14,15 @@ const idxOfCount = (b: number, s: number) =>
   DEMO_EVENTS.findIndex((_, i) => i >= REPLAY_START && situationAt(DEMO_EVENTS, i).situation.balls === b
     && situationAt(DEMO_EVENTS, i).situation.strikes === s);
 
-test("countTag：首球／領先／落後／滿球數，平球數不歸類", () => {
+test("countTag：首球／領先／落後／滿球數／平球數，五類互斥", () => {
   assert.equal(countTag(0, 0), "首球");
   assert.equal(countTag(0, 1), "球數領先");
   assert.equal(countTag(1, 0), "球數落後");
   assert.equal(countTag(3, 1), "球數落後");
   assert.equal(countTag(3, 2), "滿球數");
-  assert.equal(countTag(1, 1), null);
-  assert.equal(countTag(2, 2), null);
+  // 0-0 只標首球，不同時標平球數
+  assert.equal(countTag(1, 1), "平球數");
+  assert.equal(countTag(2, 2), "平球數");
 });
 
 test("載入情境：打者 A、壘上無人、0-0", () => {

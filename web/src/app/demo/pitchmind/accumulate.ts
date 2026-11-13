@@ -8,16 +8,17 @@ import type {
 } from "./model.ts";
 import { REACTIONS, type Tactic } from "./tactics.config.ts";
 
-export type CountTag = "首球" | "球數領先" | "球數落後" | "滿球數";
-export const COUNT_TAGS: readonly CountTag[] = ["首球", "球數領先", "球數落後", "滿球數"];
+export type CountTag = "首球" | "球數領先" | "球數落後" | "平球數" | "滿球數";
+export const COUNT_TAGS: readonly CountTag[] = ["首球", "球數領先", "球數落後", "平球數", "滿球數"];
 
-/** 情境標籤（投手觀點）：0-0 首球、3-2 滿球數、好多於壞＝領先、壞多於好＝落後；1-1、2-2 不歸類。 */
-export function countTag(balls: number, strikes: number): CountTag | null {
+/** 情境標籤（投手觀點），五類互斥、依序判定：0-0 首球（不另標平球數）、3-2 滿球數、
+ *  好多於壞＝領先、壞多於好＝落後、其餘好壞相等（1-1、2-2）＝平球數。 */
+export function countTag(balls: number, strikes: number): CountTag {
   if (balls === 0 && strikes === 0) return "首球";
   if (balls === 3 && strikes === 2) return "滿球數";
   if (strikes > balls) return "球數領先";
   if (balls > strikes) return "球數落後";
-  return null;
+  return "平球數";
 }
 
 export const countKey = (balls: number, strikes: number) => `${balls}-${strikes}` as CountKey;

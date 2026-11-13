@@ -8,7 +8,7 @@ import type {
   BaselineTable, Family, GameEvent, HLoc, PitchEvent, Situation, VLoc, ZoneResult,
 } from "./model.ts";
 
-/** 示意頁暫用的樣本門檻：n 未達此值顯示「樣本不足」。實際門檻待研究。 */
+/** 示意頁內部判定「樣本不足」用的暫定值；畫面不顯示此數字（需求方裁定 issuecomment-6845555172），實際門檻待研究。 */
 export const DEMO_MIN_N = 10;
 
 const EMPTY = { first: false, second: false, third: false };
