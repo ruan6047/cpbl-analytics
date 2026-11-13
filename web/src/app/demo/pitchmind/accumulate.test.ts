@@ -2,114 +2,94 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
-  accumulateAt, baselineCell, countTag, currentPaPitches, situationAt,
+  countTag, dynamicAt, dynamicSeries, quickRead, referenceFor, situationAt, statusOf,
 } from "./accumulate.ts";
-import { DEMO_BASELINES, DEMO_EVENTS, DEMO_MIN_N, REPLAY_START } from "./demo-data.ts";
-import { TACTICS } from "./tactics.config.ts";
+import { DEMO_EVENTS, REPLAY_START, SCRIPTED_ADVERSE_EVENT_ID } from "./demo-data.ts";
+import { DEMO_RULES, TACTICS } from "./tactics.config.ts";
 
-const OH = TACTICS.find((t) => t.id === "outside-high")!;
-const IL = TACTICS.find((t) => t.id === "inside-low")!;
-const last = DEMO_EVENTS.length - 1;
-const idxOfCount = (b: number, s: number) =>
-  DEMO_EVENTS.findIndex((_, i) => i >= REPLAY_START && situationAt(DEMO_EVENTS, i).situation.balls === b
-    && situationAt(DEMO_EVENTS, i).situation.strikes === s);
+const OH = TACTICS.find((t) => t.id === "outside-high-fastball")!;
+const OL = TACTICS.find((t) => t.id === "outside-low-slider")!;
+const LAST = DEMO_EVENTS.length - 1;
+const idxOf = (id: string) => DEMO_EVENTS.findIndex((e) => e.id === id);
 
-test("countTag：首球／領先／落後／滿球數／平球數，五類互斥", () => {
+test("countTag：五類互斥，0-0 只標首球", () => {
   assert.equal(countTag(0, 0), "首球");
   assert.equal(countTag(0, 1), "球數領先");
   assert.equal(countTag(1, 0), "球數落後");
-  assert.equal(countTag(3, 1), "球數落後");
-  assert.equal(countTag(3, 2), "滿球數");
-  // 0-0 只標首球，不同時標平球數
   assert.equal(countTag(1, 1), "平球數");
   assert.equal(countTag(2, 2), "平球數");
+  assert.equal(countTag(3, 2), "滿球數");
 });
 
-test("載入情境：打者 A、壘上無人、0-0", () => {
-  const { situation, cutoff } = situationAt(DEMO_EVENTS, REPLAY_START);
-  assert.equal(situation.batter, "打者 A");
-  assert.deepEqual(situation.bases, { first: false, second: false, third: false });
-  assert.equal(situation.balls, 0);
-  assert.equal(situation.strikes, 0);
-  assert.equal(cutoff.kind, "pa_start");
+test("statusOf：三段狀態與界線邊界", () => {
+  assert.deepEqual(statusOf(30, 80, DEMO_RULES.nearBand), { status: "far", distance: 50 });
+  assert.deepEqual(statusOf(65, 80, DEMO_RULES.nearBand), { status: "near", distance: 15 });
+  assert.equal(statusOf(64, 80, DEMO_RULES.nearBand).status, "far");
+  assert.deepEqual(statusOf(80, 80, DEMO_RULES.nearBand), { status: "over", distance: 0 });
+  assert.deepEqual(statusOf(84, 80, DEMO_RULES.nearBand), { status: "over", distance: -4 });
 });
 
-test("事件序列含 2-2 → 3-2，且資料截至事件隨推進", () => {
-  const i22 = idxOfCount(2, 2);
-  const i32 = idxOfCount(3, 2);
-  assert.ok(i22 > REPLAY_START);
-  assert.equal(i32, i22 + 1);
-  assert.notEqual(situationAt(DEMO_EVENTS, i22).cutoff.id, situationAt(DEMO_EVENTS, i32).cutoff.id);
+test("referenceFor：兩好球時改用兩好球界線", () => {
+  const s = situationAt(DEMO_EVENTS, REPLAY_START).situation;
+  assert.equal(referenceFor(OH, s), 80);
+  assert.equal(referenceFor(OH, { ...s, balls: 3, strikes: 2 }), 75);
+  assert.equal(referenceFor(OH, { ...s, balls: 1, strikes: 2 }), 75);
 });
 
-test("baselineCell 區分缺值／樣本不足／觀察到 0 次／一般", () => {
-  assert.deepEqual(baselineCell(null, "swing", DEMO_MIN_N), { state: "missing" });
-  assert.equal(baselineCell([5, 3, 0, 2], "swing", DEMO_MIN_N).state, "insufficient");
-  assert.equal(baselineCell([11, 0, 0, 0], "swing", DEMO_MIN_N).state, "zero");
-  // 分母為出棒數、出棒 0 次 → 分母不足，不是 0%
-  assert.equal(baselineCell([11, 0, 0, 0], "whiff", DEMO_MIN_N).state, "insufficient");
-  const ok = baselineCell([27, 15, 6, 1], "swing", DEMO_MIN_N);
-  assert.equal(ok.state, "ok");
-  if (ok.state === "ok") { assert.equal(ok.k, 15); assert.equal(ok.n, 27); }
+test("動態值由事件序列推導：載入時 30，劇本序列含接近、超過與回落", () => {
+  const vals: number[] = [];
+  for (let i = REPLAY_START; i <= LAST; i++) vals.push(dynamicAt(DEMO_EVENTS, i, OH).value);
+  assert.equal(vals[0], 30);
+  const changes = vals.filter((v, i) => i === 0 || v !== vals[i - 1]);
+  assert.deepEqual(changes, [30, 42, 50, 62, 70, 82, 94, 82, 70, 60]);
+  const states: string[] = [];
+  for (let i = REPLAY_START; i <= LAST; i++) states.push(quickRead(DEMO_EVENTS, i, OH).status);
+  assert.ok(states.includes("far") && states.includes("near") && states.includes("over"));
+  assert.equal(states[states.length - 1], "far");
 });
 
-test("3-2 打者長期基準樣本不足，不沿用 2-2 數值", () => {
-  const at22 = baselineCell(DEMO_BASELINES[OH.id].long["2-2"] ?? null, "swing", DEMO_MIN_N);
-  const at32 = baselineCell(DEMO_BASELINES[OH.id].long["3-2"] ?? null, "swing", DEMO_MIN_N);
-  assert.equal(at22.state, "ok");
-  assert.equal(at32.state, "insufficient");
-  assert.ok(!("rate" in at32));
+test("方向：回落時標示下降，上升時標示上升", () => {
+  const up = dynamicAt(DEMO_EVENTS, idxOf("ev-68"), OH);
+  assert.equal(up.direction, "up");
+  assert.equal(up.delta, 12);
+  const down = dynamicAt(DEMO_EVENTS, idxOf("ev-71"), OH);
+  assert.equal(down.direction, "down");
+  assert.equal(down.delta, -12);
+  // 不符合此戰術的事件不改變值，方向沿用最近一次更新
+  assert.equal(dynamicAt(DEMO_EVENTS, idxOf("ev-62"), OH).value, 42);
 });
 
-test("累積由事件序列＋索引推導：重算、切換戰術、上一球下一球皆不重複也不清除", () => {
-  const i = REPLAY_START + 2;
-  const a1 = accumulateAt(DEMO_EVENTS, i, OH, DEMO_BASELINES, DEMO_MIN_N);
-  // 切到另一戰術再切回
-  accumulateAt(DEMO_EVENTS, i, IL, DEMO_BASELINES, DEMO_MIN_N);
-  const a2 = accumulateAt(DEMO_EVENTS, i, OH, DEMO_BASELINES, DEMO_MIN_N);
-  assert.deepEqual(a2, a1);
-  // 下一球再上一球
-  accumulateAt(DEMO_EVENTS, i + 1, OH, DEMO_BASELINES, DEMO_MIN_N);
-  const a3 = accumulateAt(DEMO_EVENTS, i, OH, DEMO_BASELINES, DEMO_MIN_N);
-  assert.deepEqual(a3, a1);
-  // 載入時已含前幾局的累積（不因展演起點而清除）
-  assert.ok(accumulateAt(DEMO_EVENTS, REPLAY_START, OH, DEMO_BASELINES, DEMO_MIN_N).batter.opp > 0);
-});
-
-test("累積機會數隨索引單調不減，終點等於逐筆手算", () => {
-  for (const t of [OH, IL]) {
-    let prev = -1;
-    for (let i = REPLAY_START; i <= last; i++) {
-      const a = accumulateAt(DEMO_EVENTS, i, t, DEMO_BASELINES, DEMO_MIN_N, "打者 A");
-      assert.ok(a.batter.opp >= prev);
-      prev = a.batter.opp;
-    }
+test("提示（接近或超過）排在事先安排的明顯不利結果之前", () => {
+  const adverse = idxOf(SCRIPTED_ADVERSE_EVENT_ID);
+  let firstAlert = -1;
+  for (let i = REPLAY_START; i <= LAST; i++) {
+    if (quickRead(DEMO_EVENTS, i, OH).status !== "far") { firstAlert = i; break; }
   }
-  const end = accumulateAt(DEMO_EVENTS, last, OH, DEMO_BASELINES, DEMO_MIN_N, "打者 A");
-  // 外角高・速球・壘上無人，打者 A：h1 h3 a2 p1 p3 p5 共 6 球；出棒 h1 h3 p3 共 3 次；揮空 h3 1 次
-  assert.equal(end.batter.opp, 6);
-  assert.equal(end.batter.reactions.swing.k, 3);
-  assert.equal(end.batter.reactions.whiff.k, 1);
-  assert.equal(end.batter.reactions.whiff.den, 3);
-  // 隊友：c1 d1 d2
-  assert.equal(end.teammates.opp, 3);
-  // 打席結束後局面換到打者 C；預設關注目前打者：打者 C 本場只有 1 局的 c1 一球符合
-  assert.equal(situationAt(DEMO_EVENTS, last).situation.batter, "打者 C");
-  assert.equal(accumulateAt(DEMO_EVENTS, last, OH, DEMO_BASELINES, DEMO_MIN_N).batter.opp, 1);
+  assert.ok(firstAlert > REPLAY_START && firstAlert < adverse);
+  // 超過也先於不利結果出現
+  assert.equal(quickRead(DEMO_EVENTS, adverse - 1, OH).status, "over");
 });
 
-test("相對預期：基準樣本不足的機會不納入預期並如實計數", () => {
-  const end = accumulateAt(DEMO_EVENTS, last, IL, DEMO_BASELINES, DEMO_MIN_N, "打者 A");
-  // 內角低打者 A：h2(0-1) a1(0-0) p2(1-0) p6(3-2)；3-2 長期基準不足
-  assert.equal(end.batter.opp, 4);
-  assert.equal(end.expected.swing.used, 3);
-  assert.equal(end.expected.swing.skipped, 1);
+test("切換戰術不重置、不重複計入：結果只由（事件、索引、戰術）決定", () => {
+  const i = idxOf("ev-66");
+  const a1 = quickRead(DEMO_EVENTS, i, OH);
+  const b = quickRead(DEMO_EVENTS, i, OL);
+  const a2 = quickRead(DEMO_EVENTS, i, OH);
+  assert.deepEqual(a2, a1);
+  assert.notEqual(b.reference, a1.reference); // 各戰術有自己的參考值
+  assert.equal(b.value, 20);
+  // 上一事件再下一事件
+  quickRead(DEMO_EVENTS, i + 1, OH);
+  assert.deepEqual(quickRead(DEMO_EVENTS, i, OH), a1);
+  // 每一次更新都對應一個符合條件的事件，沒有重複
+  const series = dynamicSeries(DEMO_EVENTS, LAST, OH);
+  assert.equal(new Set(series.map((p) => p.eventIdx)).size, series.length);
 });
 
-test("我方投手本打席來球：只含目前打席，並標示是否符合戰術條件", () => {
-  const i = idxOfCount(3, 2);
-  const list = currentPaPitches(DEMO_EVENTS, i, OH);
-  assert.equal(list.length, 5);
-  assert.deepEqual(list.map((p) => p.matched), [true, false, true, false, true]);
-  assert.equal(list[0].speedDiff, null);
+test("球數改變時累積延續（不重置）", () => {
+  const before = dynamicAt(DEMO_EVENTS, idxOf("ev-64"), OH); // 2-2
+  const after = dynamicAt(DEMO_EVENTS, idxOf("ev-65"), OH); // 3-2
+  assert.equal(before.value, 50);
+  assert.equal(after.value, 62);
+  assert.equal(situationAt(DEMO_EVENTS, idxOf("ev-64")).situation.strikes, 2);
 });

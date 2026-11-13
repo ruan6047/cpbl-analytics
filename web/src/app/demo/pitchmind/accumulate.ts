@@ -1,12 +1,17 @@
-// PitchMind 示意頁的純函式（#452）：局面、情境標籤、基準格狀態與本場累積。
+// PitchMind 示意頁的純函式（#452）：局面、情境標籤、參考界線、動態累積與三段狀態。
 //
-// 累積一律由「事件序列＋目前事件索引」重新推導，不存任何可變計數器——
-// 所以切換戰術、上一球／下一球、重複渲染都不會重複累積或清除已發生的事件。
+// 動態累積一律由「事件序列＋目前事件索引＋戰術」重新推導，不存任何可變計數器——
+// 切換戰術、上一事件／下一事件、重複渲染都不會重置或重複計入。
+//
+// 示意規則（展演說明區逐條列出，非已驗證方法）：
+//   1. 只有「符合戰術條件（球種＋區域＋壘上無人）」的實際來球會更新該戰術的動態值。
+//   2. 每次更新加上設定檔中該反應的示意點數，結果夾在 0–100。
+//   3. 球數改變、換打者都不重置累積；參考界線依目前球數：兩好球時用兩好球界線，否則用一般界線。
+//   4. 動態值 ≥ 參考值＝已超過；差距在 nearBand 以內＝正在接近；其餘＝距離尚遠。
+//   5. 方向＝最近一次更新相對前一次的增減。
 
-import type {
-  BaselineEntry, BaselineTable, CountKey, GameEvent, PitchEvent, ReactionKey, Situation,
-} from "./model.ts";
-import { REACTIONS, type Tactic } from "./tactics.config.ts";
+import type { GameEvent, PitchEvent, Situation } from "./model.ts";
+import { DEMO_RULES, type Tactic } from "./tactics.config.ts";
 
 export type CountTag = "首球" | "球數領先" | "球數落後" | "平球數" | "滿球數";
 export const COUNT_TAGS: readonly CountTag[] = ["首球", "球數領先", "球數落後", "平球數", "滿球數"];
@@ -21,133 +26,87 @@ export function countTag(balls: number, strikes: number): CountTag {
   return "平球數";
 }
 
-export const countKey = (balls: number, strikes: number) => `${balls}-${strikes}` as CountKey;
+const clampIdx = (events: readonly GameEvent[], idx: number) => Math.max(0, Math.min(idx, events.length - 1));
 
 /** idx 事件發生後、下一球投出前的局面，以及「資料截至」的事件。 */
 export function situationAt(events: readonly GameEvent[], idx: number): { situation: Situation; cutoff: GameEvent } {
-  const e = events[Math.max(0, Math.min(idx, events.length - 1))];
+  const e = events[clampIdx(events, idx)];
   return { situation: e.after, cutoff: e };
 }
 
-const before = (events: readonly GameEvent[], i: number): Situation | null => (i > 0 ? events[i - 1].after : null);
 const basesEmpty = (s: Situation) => !s.bases.first && !s.bases.second && !s.bases.third;
 
 export function matchesTactic(p: PitchEvent, pre: Situation, t: Tactic): boolean {
-  return basesEmpty(pre) && p.family === t.condition.family
-    && t.condition.h.includes(p.h) && t.condition.v.includes(p.v);
+  return basesEmpty(pre) && p.pitch === t.condition.pitch && t.condition.h.includes(p.h) && t.condition.v.includes(p.v);
 }
 
-export type Cell =
-  | { state: "missing" }
-  | { state: "insufficient"; k: number; n: number }
-  | { state: "zero"; k: 0; n: number }
-  | { state: "ok"; k: number; n: number; rate: number };
-
-/** 基準格 → 顯示狀態。缺值、樣本不足、觀察到 0 次、一般四態互斥。 */
-export function baselineCell(entry: BaselineEntry, reaction: ReactionKey, minN: number): Cell {
-  if (entry == null) return { state: "missing" };
-  const [n, swing, whiff, grounder] = entry;
-  const k = reaction === "swing" ? swing : reaction === "whiff" ? whiff : grounder;
-  const den = REACTIONS[reaction].den === "n" ? n : swing;
-  if (den < minN) return { state: "insufficient", k, n: den };
-  if (k === 0) return { state: "zero", k: 0, n: den };
-  return { state: "ok", k, n: den, rate: k / den };
+/** 參考界線（示意規則 3）。 */
+export function referenceFor(t: Tactic, s: Situation): number {
+  return s.strikes >= 2 ? t.reference.twoStrike : t.reference.preTwoStrike;
 }
 
-type Tally = { opp: number; reactions: Record<ReactionKey, { k: number; den: number }> };
-const emptyTally = (): Tally => ({
-  opp: 0,
-  reactions: { swing: { k: 0, den: 0 }, whiff: { k: 0, den: 0 }, grounder: { k: 0, den: 0 } },
-});
-function addTo(t: Tally, p: PitchEvent) {
-  t.opp += 1;
-  t.reactions.swing.den += 1;
-  if (p.swing) {
-    t.reactions.swing.k += 1;
-    t.reactions.whiff.den += 1;
-    t.reactions.grounder.den += 1;
-    if (p.whiff) t.reactions.whiff.k += 1;
-    if (p.grounder) t.reactions.grounder.k += 1;
-  }
+export type Status = "far" | "near" | "over";
+/** distance＝參考值 − 動態值（正＝尚未到界線，≤0＝已超過）。 */
+export function statusOf(value: number, reference: number, nearBand: number): { status: Status; distance: number } {
+  const distance = reference - value;
+  return { status: distance <= 0 ? "over" : distance <= nearBand ? "near" : "far", distance };
 }
 
-export type Accumulation = {
-  /** 本場、目前打者、符合戰術條件的來球。 */
-  batter: Tally;
-  /** 本場、同一投手對其他打者、符合條件的來球（隊友共同反應的原始次數）。 */
-  teammates: Tally;
-  /** 相對預期：每次機會依該球精確球數的打者長期基準加總；基準不足者不納入並計數。 */
-  expected: Record<ReactionKey, { observed: number; expected: number; used: number; skipped: number }>;
-};
+export type SeriesPoint = { eventIdx: number; value: number; delta: number; reference: number };
 
-export function accumulateAt(
-  events: readonly GameEvent[], idx: number, t: Tactic, baselines: BaselineTable, minN: number,
-  /** 關注打者；省略＝目前局面的打者。 */
-  focusBatter?: string,
-): Accumulation {
-  const end = Math.max(0, Math.min(idx, events.length - 1));
-  const cur = events[end].after;
-  const who = focusBatter ?? cur.batter;
-  const batter = emptyTally();
-  const teammates = emptyTally();
-  const expected = {
-    swing: { observed: 0, expected: 0, used: 0, skipped: 0 },
-    whiff: { observed: 0, expected: 0, used: 0, skipped: 0 },
-    grounder: { observed: 0, expected: 0, used: 0, skipped: 0 },
-  };
-  const long = baselines[t.id]?.long ?? {};
-  for (let i = 0; i <= end; i++) {
+/** 截至 idx，此戰術每一次更新後的動態值（只含符合條件的事件）。 */
+export function dynamicSeries(events: readonly GameEvent[], idx: number, t: Tactic): SeriesPoint[] {
+  const end = clampIdx(events, idx);
+  const out: SeriesPoint[] = [];
+  let v = DEMO_RULES.min;
+  for (let i = 1; i <= end; i++) {
     const e = events[i];
-    const pre = before(events, i);
-    if (e.kind !== "pitch" || !pre || pre.pitcher !== cur.pitcher || !matchesTactic(e, pre, t)) continue;
-    if (pre.batter !== who) { addTo(teammates, e); continue; }
-    addTo(batter, e);
-    const entry = long[countKey(pre.balls, pre.strikes)] ?? null;
-    for (const r of ["swing", "whiff", "grounder"] as const) {
-      const inDen = REACTIONS[r].den === "n" || e.swing;
-      if (!inDen) continue;
-      const hit = r === "swing" ? e.swing : r === "whiff" ? e.whiff : e.grounder;
-      expected[r].observed += hit ? 1 : 0;
-      const c = baselineCell(entry, r, minN);
-      if (c.state === "ok" || c.state === "zero") {
-        expected[r].expected += c.state === "ok" ? c.rate : 0;
-        expected[r].used += 1;
-      } else expected[r].skipped += 1;
-    }
-  }
-  return { batter, teammates, expected };
-}
-
-export type PaPitch = {
-  event: PitchEvent; pre: Situation; matched: boolean; speedDiff: number | null;
-};
-
-/** 目前打席（idx 之前最近一次打者上場起）我方投手的實際來球，標示是否符合目前戰術條件。 */
-export function currentPaPitches(events: readonly GameEvent[], idx: number, t: Tactic): PaPitch[] {
-  const end = Math.max(0, Math.min(idx, events.length - 1));
-  let start = end;
-  while (start > 0 && events[start].kind !== "pa_start") start--;
-  const out: PaPitch[] = [];
-  for (let i = start + 1; i <= end; i++) {
-    const e = events[i];
-    const pre = before(events, i);
-    if (e.kind !== "pitch" || !pre) continue;
-    const prev = out[out.length - 1];
-    out.push({ event: e, pre, matched: matchesTactic(e, pre, t), speedDiff: prev ? e.speed - prev.event.speed : null });
+    const pre = events[i - 1].after;
+    if (e.kind !== "pitch" || !matchesTactic(e, pre, t)) continue;
+    const next = Math.max(DEMO_RULES.min, Math.min(DEMO_RULES.max, v + t.points[e.reaction]));
+    out.push({ eventIdx: i, value: next, delta: next - v, reference: referenceFor(t, e.after) });
+    v = next;
   }
   return out;
 }
 
-/** 本場目前打者已結束的打席結果（對戰紀錄用）。 */
-export function batterPaResults(events: readonly GameEvent[], idx: number, batter: string): { inning: number; text: string }[] {
-  const end = Math.max(0, Math.min(idx, events.length - 1));
-  const out: { inning: number; text: string }[] = [];
-  for (let i = 1; i <= end; i++) {
+export type Direction = "up" | "down" | "flat" | "none";
+export function dynamicAt(events: readonly GameEvent[], idx: number, t: Tactic):
+  { value: number; delta: number; direction: Direction; updates: number; lastEventIdx: number | null } {
+  const s = dynamicSeries(events, idx, t);
+  const last = s[s.length - 1];
+  if (!last) return { value: DEMO_RULES.min, delta: 0, direction: "none", updates: 0, lastEventIdx: null };
+  return {
+    value: last.value, delta: last.delta, updates: s.length, lastEventIdx: last.eventIdx,
+    direction: last.delta > 0 ? "up" : last.delta < 0 ? "down" : "flat",
+  };
+}
+
+/** 快讀區一次需要的全部數值。 */
+export function quickRead(events: readonly GameEvent[], idx: number, t: Tactic) {
+  const { situation } = situationAt(events, idx);
+  const reference = referenceFor(t, situation);
+  const d = dynamicAt(events, idx, t);
+  const st = statusOf(d.value, reference, DEMO_RULES.nearBand);
+  return { reference, ...d, ...st };
+}
+
+export type PaPitch = { event: PitchEvent; pre: Situation; matched: boolean };
+
+/** 目前（或剛結束的）打席內我方投手的實際來球，標示是否符合目前戰術條件。 */
+export function currentPaPitches(events: readonly GameEvent[], idx: number, t: Tactic): PaPitch[] {
+  const end = clampIdx(events, idx);
+  let start = end;
+  // 往回找到這個打席的第一球：遇到打者上場事件，或前一球的打者不同即停
+  const batterOf = (i: number) => (i > 0 ? events[i - 1].after.batter : null);
+  const target = events[end].kind === "pitch" ? batterOf(end) : null;
+  if (target == null) return [];
+  while (start - 1 > 0 && events[start - 1].kind === "pitch" && batterOf(start - 1) === target) start--;
+  const out: PaPitch[] = [];
+  for (let i = start; i <= end; i++) {
     const e = events[i];
-    const pre = before(events, i);
-    if (e.kind === "pitch" && pre && pre.batter === batter && e.after.batter !== batter) {
-      out.push({ inning: pre.inning, text: e.resultText });
-    }
+    const pre = events[i - 1].after;
+    if (e.kind === "pitch") out.push({ event: e, pre, matched: matchesTactic(e, pre, t) });
   }
   return out;
 }
