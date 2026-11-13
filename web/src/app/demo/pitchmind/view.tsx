@@ -30,7 +30,7 @@ const TACTIC_IDS = TACTICS.map((t) => t.id);
 const pct = (r: number) => `${Math.round(r * 100)}%`;
 const half = (h: "top" | "bottom") => (h === "top" ? "上" : "下");
 const signed = (n: number) => (n > 0 ? `+${n}` : n < 0 ? `−${Math.abs(n)}` : "0");
-const STATUS_TEXT: Record<Status, string> = { far: "距離尚遠", near: "正在接近", over: "已超過" };
+const STATUS_TEXT: Record<Status, string> = { far: "距離尚遠", near: "接近區內", over: "已超過" };
 
 /** 反應名稱；結果文字與名稱相同時不重複。 */
 const reactionText = (o: Outcome, resultText: string) =>
@@ -55,7 +55,7 @@ function StateTag({ active, round = false, children }: { active: boolean; round?
   );
 }
 
-// ───────── 狀態形狀：距離尚遠＝空心圓、正在接近＝三角、已超過＝實心方塊（不只靠顏色）─────────
+// ───────── 狀態形狀：距離尚遠＝空心圓、接近區內＝三角、已超過＝實心方塊（不只靠顏色）─────────
 function StatusShape({ status, x = 0, y = 0, size = 14 }: { status: Status; x?: number; y?: number; size?: number }) {
   const h = size / 2;
   if (status === "far") return <circle cx={x} cy={y} r={h - 1} className="fill-surface stroke-ink" strokeWidth={2.5} />;
@@ -579,7 +579,7 @@ export function PitchMindDemo() {
               <li>一球要球種、區域都符合所選戰術且壘上無人才納入；否則顯示未納入的原因。實投符合條件不等於已知投捕意圖。</li>
               <li>只算目前打者自己的球，可含他本場先前打席；其他打者只出現在隊友共同反應欄位。換打者不帶走前一位的累積。</li>
               <li>每納入一球，動態值依反應增減（{tactic.name}）：{(Object.keys(tactic.points) as Outcome[]).map((o) => `${REACTIONS[o].label} ${signed(tactic.points[o])}`).join("、")}；限制在 0–100。</li>
-              <li>與參考線差距在 {DEMO_RULES.nearBand} 以內＝正在接近；達到或高於參考線＝已超過；其餘＝距離尚遠。</li>
+              <li>與參考線差距在 {DEMO_RULES.nearBand} 以內＝接近區內；達到或高於參考線＝已超過；其餘＝距離尚遠。</li>
               <li>觀察記在投出前的球數；參考線依目前球數取值（滿球數另給一個值）。球數改變造成的參考線變動來自情境，不是打者。跨情境如何共享累積尚未定案。</li>
             </ol>
           </div>

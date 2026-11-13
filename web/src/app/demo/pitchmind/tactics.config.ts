@@ -44,7 +44,7 @@ export const REACTIONS: Record<ReactionKey, { label: string; def: string }> = {
 /** 畫面列出反應時的固定順序。 */
 export const REACTION_ORDER: readonly ReactionKey[] = ["swing", "whiff", "foul", "weak", "solid", "hard", "take"];
 
-/** 示意指標的共用設定：尺度 0–100；與參考線差距在 nearBand 以內算「正在接近」。 */
+/** 示意指標的共用設定：尺度 0–100；與參考線差距在 nearBand 以內算「接近區內」。 */
 export const DEMO_RULES = { min: 0, max: 100, nearBand: 15 };
 
 /** 引誘型戰術共用的示意點數：沒被引誘或打得紮實＝上升；追打揮空、打不好＝下降。 */

@@ -33,7 +33,7 @@ test("baselineCell：缺值／樣本不足／觀察到 0 次／一般，分母�
   if (swing.state === "ok") assert.equal(swing.k, 8); // 出棒＝來球數減未出棒
 });
 
-test("statusOf：距離尚遠／正在接近／已超過", () => {
+test("statusOf：距離尚遠／接近區內／已超過", () => {
   assert.equal(statusOf(62, 80, DEMO_RULES.nearBand).status, "far");
   assert.equal(statusOf(74, 80, DEMO_RULES.nearBand).status, "near");
   assert.deepEqual(statusOf(82, 80, DEMO_RULES.nearBand), { status: "over", distance: -2 });
