@@ -203,7 +203,7 @@ def _build_harness(tmp_path: Path) -> dict:
 
 
 def _run_refresh(
-    tmp_path: Path, *, with_detail: bool = True, **stub_env: str
+    tmp_path: Path, *, with_detail: bool = True, external_game_features: bool = False, **stub_env: str
 ) -> tuple[subprocess.CompletedProcess, list[dict]]:
     tmp_path.mkdir(parents=True, exist_ok=True)
     harness = _build_harness(tmp_path)
@@ -226,6 +226,10 @@ def _run_refresh(
     }
     if with_detail:
         env["WITH_DETAIL"] = "1"
+    if external_game_features:
+        marker = Path(env["HOME"]) / "Library/Application Support/cpbl-analytics/mac-game-features-external"
+        marker.parent.mkdir(parents=True)
+        marker.touch()
 
     result = subprocess.run(
         ["/bin/bash", str(harness["repo"] / "scripts" / SCRIPT.name)],

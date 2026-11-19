@@ -123,6 +123,7 @@ scripts/refresh-cpbl-prod.sh — 把本機 CPBL 資料同步到 production（四
 
 背景：docs/AI_RUNBOOK.md（本機爬 → 同步生產）
 Mac切換後共用標記存在則exit78；僅核定單次救援用 CPBL_MAC_RESCUE=1，見 ops/jobs/CUTOVER.md。
+僅交接 game_features 時，mac-game-features-external 標記只略過 launchd 的特徵重建與同步。
 EOF
 }
 
@@ -1477,6 +1478,15 @@ if [ -n "${DAILY_DAY_TYPE:-}" ] && [ "${DAILY_FORCE_FULL:-0}" != "1" ]; then
   echo "==> 訓練閘門（§3.5，日型 ${DAILY_DAY_TYPE}）：RUN_OUTCOME=${RUN_OUTCOME} — ${OUTCOME_REASON}"
 fi
 
+RUN_GAME_FEATURES="$RUN_OUTCOME"
+GAME_FEATURES_REASON="$OUTCOME_REASON"
+MAC_GAME_FEATURES_MARKER="${MAC_CUTOVER_MARKER%/*}/mac-game-features-external"
+if [ "${REFRESH_TRIGGER:-manual}" = launchd ] &&
+   { [ -e "$MAC_GAME_FEATURES_MARKER" ] || [ -L "$MAC_GAME_FEATURES_MARKER" ]; }; then
+  RUN_GAME_FEATURES=0
+  GAME_FEATURES_REASON="game_features 已交接給 Pi 發布"
+fi
+
 # SKIP_SCRAPE=1：本機 DB 已是最新時，跳過重爬、直接把現有資料同步到 prod。
 if [ -n "${SKIP_SCRAPE:-}" ]; then
   echo "==> 1/4 略過爬取（SKIP_SCRAPE），直接同步本機現有資料"
@@ -1497,11 +1507,11 @@ fi
 
 # 本機重建賽事預測特徵（全史 kind A；leakage-safe）。game_features 是「派生」資料，
 # 由本機完整 games 計算後直接鏡像到 prod，省去同步 1990+ 原始逐場（歷史不可變）。
-if [ "$RUN_OUTCOME" = 1 ]; then
+if [ "$RUN_GAME_FEATURES" = 1 ]; then
   echo "    + 重建 game_features（賽事預測特徵，全史 kind A）"
   uv run cpbl-build-features 2>&1 | tail -1
 else
-  echo "    ⏭ 略過 cpbl-build-features（§3.5 訓練閘門：${OUTCOME_REASON}）"
+  echo "    ⏭ 略過 cpbl-build-features（${GAME_FEATURES_REASON}）"
 fi
 
 # 記住本機真實賽事 freshness；同步後 API 必須回報相同值，不能只靠腳本自寫 marker。
@@ -1619,7 +1629,7 @@ mirror_table championship_members
 # 有變的列），單一交易、不清空——讀者任何時點都讀得到完整舊版或完整新版（#443，見 _sync_table_exact）。
 # derived 資料，安全可重建。
 # #364 §3.5：本機特徵沒重建（RUN_OUTCOME=0）時不重灌——內容不變，全表比對只是白做。
-if [ "$RUN_OUTCOME" = 1 ]; then
+if [ "$RUN_GAME_FEATURES" = 1 ]; then
 SYNC_TABLE_EXACT=1 sync_table game_features "year,kind_code,game_season_code,game_sno" \
   game_date season home_team_code away_team_code home_team_name away_team_name home_win completed \
   winrate_diff prior_winpct_diff runs_scored_diff runs_allowed_diff recent_form_diff rest_days_diff \
@@ -1627,7 +1637,7 @@ SYNC_TABLE_EXACT=1 sync_table game_features "year,kind_code,game_season_code,gam
   prior_team_ops_diff prior_team_slg_diff prior_team_era_diff prior_team_whip_diff \
   team_ops_now_diff team_avg_now_diff team_sb_now_diff team_wp_now_diff team_err_now_diff run_diff_diff
 else
-  echo "    ⏭ 略過 game_features 全表同步（§3.5 訓練閘門：${OUTCOME_REASON}）"
+  echo "    ⏭ 略過 game_features 全表同步（${GAME_FEATURES_REASON}）"
 fi
 
 if [ -n "${WITH_DETAIL:-}" ]; then
