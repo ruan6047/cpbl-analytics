@@ -191,3 +191,68 @@ def test_response_manifest_replacement_is_not_sent_even_if_result_bytes_match(fe
     path.write_text(json.dumps(replaced))
     assert not enter(send=True)["ok"]
     assert [stage for stage, _, _ in executions] == ["refresh", "compute"]
+
+
+def test_flat_notification_is_renamed_after_both_result_files():
+    run = "c" * 32
+    commands = pi._publication_batch(run, notify=True).decode().splitlines()
+    assert commands[-3:] == [
+        f"rename /incoming/features/{run}/.response.json.upload /incoming/features/{run}/response.json",
+        f'put "notification.json" /incoming/features/{run}/.ready.upload',
+        f"rename /incoming/features/{run}/.ready.upload /incoming/feature-notify/{run}.ready",
+    ]
+    assert "/feature-notify/" not in pi._publication_batch(run).decode()
+
+
+def test_notifying_existing_local_result_uses_bound_flat_marker_once(feature_run, monkeypatch):
+    enter, executions, _, _ = feature_run
+    ready = enter()
+    monkeypatch.setattr(pi, "_private_environment", lambda: pytest.fail("upload does not need a database"))
+    sent = enter(send=True, notify=True)
+    assert sent["ok"] and sent["notified"] is True
+    stage, cwd, batch = executions[-1]
+    assert stage == "publish"
+    assert batch == pi._publication_batch(sent["run_id"], notify=True)
+    assert json.loads((cwd / "notification.json").read_text()) == {
+        "version": 1, "run_id": sent["run_id"], "response_sha256": ready["response_sha256"],
+    }
+    assert enter(send=True, notify=True)["stage"] == "already_published"
+    assert [stage for stage, _, _ in executions] == ["refresh", "compute", "publish"]
+
+
+def test_source_once_keeps_first_browser_attempt_and_disables_recovery(monkeypatch):
+    from cpbl.ingest import _browser
+
+    class Browser:
+        def _new_context(self):
+            self._ctx = object()
+
+        def post(self):
+            return 403, "unlogged source data"
+
+    monkeypatch.setattr(_browser, "_Session", Browser)
+    original_post = Browser.post
+    original_backoff = _browser._BACKOFF_MS
+    with pi._one_source_attempt():
+        browser = Browser()
+        browser._new_context()
+        assert _browser._BACKOFF_MS == ()
+        with pytest.raises(pi._SourceStopped, match="browser_context_retry_disabled"):
+            browser._new_context()
+        with pytest.raises(pi._SourceStopped, match="official_post_failed"):
+            browser.post()
+    assert Browser.post is original_post and _browser._BACKOFF_MS == original_backoff
+
+
+def test_source_once_native_failure_cannot_start_a_second_source_pass(feature_run, monkeypatch):
+    enter, executions, _, _ = feature_run
+
+    def fail(command, cwd, env, deadline, payload=None):
+        assert "_refresh" in command and "--source-once" in command
+        executions.append("refresh")
+        return {"native_rc": 78, "native_wait": True, "timed_out": False}
+
+    monkeypatch.setattr(pi, "_run_native", fail)
+    assert not enter(source_once=True)["ok"]
+    assert not enter(source_once=True)["ok"]
+    assert executions == ["refresh"]

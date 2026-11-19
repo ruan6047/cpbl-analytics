@@ -327,3 +327,13 @@ stats、逐球或衍生資料流程。
 才可續行。發布未確認時保留狀態供收件端核對，重入不覆寫遠端或重送。
 已確認發布時同件重入只回覆既有結果。傳輸成功只證私有交付，正式庫
 驗收及寫入仍由現有 VPS writer 管理。
+
+私有驗收若要求官網單次嘗試，可加 `--source-once`。保留原 Playwright
+第一個 context、導頁與請求；停用錯誤後的 context 重建、退避和重送。
+來源步驟失敗即保留原生退出，當輪不再重入來源。
+同日結果可先在本機完成。接收方預備私有 `/incoming/feature-notify` 後，
+同一指令另帶 `--send --notify` 即沿原 pinned SFTP 發一批。
+先發布結果和 `response.json`，再把 run 目錄內未監看的 `.ready.upload`
+原子移到 `/incoming/feature-notify/<run_id>.ready`。
+通知僅含 `version`、`run_id` 與 `response_sha256`。原生成功退出才回
+`notified=true`；結果或通知退出未知時不重送。舊無通知傳輸維持原樣。

@@ -16,7 +16,7 @@ import stat
 import subprocess
 import sys
 import time
-from contextlib import redirect_stderr, redirect_stdout
+from contextlib import contextmanager, nullcontext, redirect_stderr, redirect_stdout
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from zoneinfo import ZoneInfo
@@ -32,18 +32,24 @@ sender = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(sender)
 
 
-def _publication_batch(run):
+def _publication_batch(run, *, notify=False):
     """The response is committed only after the result's final name exists."""
     if not re.fullmatch(r"[0-9a-f]{32}", run):
         raise ValueError("invalid_run_id")
     parent = f"/incoming/features/{run}"
-    return (
+    commands = (
         f"mkdir {parent}\n"
         f'put "result.json.gz" {parent}/.result.json.gz.upload\n'
         f"rename {parent}/.result.json.gz.upload {parent}/result.json.gz\n"
         f'put "response.json" {parent}/.response.json.upload\n'
         f"rename {parent}/.response.json.upload {parent}/response.json\n"
-    ).encode("ascii")
+    )
+    if notify:
+        commands += (
+            f'put "notification.json" {parent}/.ready.upload\n'
+            f"rename {parent}/.ready.upload /incoming/feature-notify/{run}.ready\n"
+        )
+    return commands.encode("ascii")
 
 
 def _private_environment():
@@ -100,7 +106,44 @@ def _replay_schedule(as_of, manifest, bundle):
         raise ValueError("schedule_replay_incomplete")
 
 
-def _local_refresh(as_of, manifest, bundle):
+class _SourceStopped(BaseException):
+    """Exit the single-attempt operator run before the box fetcher's recovery path."""
+
+
+@contextmanager
+def _one_source_attempt():
+    from cpbl.ingest import _browser
+
+    old_backoffs = _browser._BACKOFF_MS
+    new_context = _browser._Session._new_context
+    post = _browser._Session.post
+
+    def first_context(session):
+        if getattr(session, "_ctx", None) is not None:
+            raise _SourceStopped("browser_context_retry_disabled")
+        return new_context(session)
+
+    def first_post(session, *args, **kwargs):
+        try:
+            status, raw = post(session, *args, **kwargs)
+        except Exception as exc:
+            raise _SourceStopped("official_post_failed") from exc
+        if status != 200:
+            raise _SourceStopped("official_post_failed")
+        return status, raw
+
+    _browser._BACKOFF_MS = ()
+    _browser._Session._new_context = first_context
+    _browser._Session.post = first_post
+    try:
+        yield
+    finally:
+        _browser._BACKOFF_MS = old_backoffs
+        _browser._Session._new_context = new_context
+        _browser._Session.post = post
+
+
+def _local_refresh(as_of, manifest, bundle, *, source_once=False):
     # The child repeats the socket check before importing any writer.
     env = _private_environment()
     if (os.path.lexists(".env") or os.environ.get("DATABASE_URL") != env["DATABASE_URL"]
@@ -108,22 +151,23 @@ def _local_refresh(as_of, manifest, bundle):
         raise ValueError("private_refresh_environment")
     from cpbl.ingest import cpbl_gamelog, cpbl_site, run_refresh_recent
 
-    if manifest is not None:
-        _replay_schedule(as_of, manifest, bundle)
-    else:
-        written = cpbl_site.scrape_games(as_of.year, as_of.year, "A")
-        if not written.get(as_of.year):
-            raise ValueError("empty_schedule_refresh")
+    with _one_source_attempt() if source_once else nullcontext():
+        if manifest is not None:
+            _replay_schedule(as_of, manifest, bundle)
+        else:
+            written = cpbl_site.scrape_games(as_of.year, as_of.year, "A")
+            if not written.get(as_of.year):
+                raise ValueError("empty_schedule_refresh")
 
-    days = [as_of - timedelta(days=1), as_of]
-    games = sorted(set(run_refresh_recent._completed_snos(as_of.year, days, "A"))
-                   | set(run_refresh_recent._missing_gamelog_snos(as_of.year, "A")))
-    if games:
-        result = cpbl_gamelog.scrape_gamelogs(as_of.year, games, "A")
-        if (result.get("target") != len(games) or result.get("games") != len(games)
-                or result.get("failed")
-                or run_refresh_recent._detail_gaps(as_of.year, "A", games, SOURCE_BOX_TABLES)):
-            raise ValueError("gamelog_refresh_incomplete")
+        days = [as_of - timedelta(days=1), as_of]
+        games = sorted(set(run_refresh_recent._completed_snos(as_of.year, days, "A"))
+                       | set(run_refresh_recent._missing_gamelog_snos(as_of.year, "A")))
+        if games:
+            result = cpbl_gamelog.scrape_gamelogs(as_of.year, games, "A")
+            if (result.get("target") != len(games) or result.get("games") != len(games)
+                    or result.get("failed")
+                    or run_refresh_recent._detail_gaps(as_of.year, "A", games, SOURCE_BOX_TABLES)):
+                raise ValueError("gamelog_refresh_incomplete")
     if as_of != datetime.now(TAIPEI).date():
         raise ValueError("refresh_crossed_taipei_midnight")
 
@@ -205,6 +249,7 @@ def _stage(work, state, name, command, cwd, env, deadline, result, payload=None)
 
 
 def run(out, source_id, as_of, timeout, *, manifest=None, bundle=None, send=False,
+        notify=False, source_once=False,
         identity_file=sender.IDENTITY_FILE, known_hosts=sender.KNOWN_HOSTS):
     """One daily Pi-owned feature run, with at most one local pre-publish reentry."""
     result = {"ok": False, "stage": "precheck"}
@@ -212,7 +257,8 @@ def run(out, source_id, as_of, timeout, *, manifest=None, bundle=None, send=Fals
         from cpbl.features import handoff
 
         if (as_of != datetime.now(TAIPEI).date() or not math.isfinite(timeout)
-                or timeout <= EXIT_RESERVE_SECONDS or (manifest is None) != (bundle is None)):
+                or timeout <= EXIT_RESERVE_SECONDS or (manifest is None) != (bundle is None)
+                or (notify and not send)):
             raise ValueError("invalid_daily_feature_scope")
         deadline = time.monotonic() + timeout
         name = handoff.run_id(source_id, as_of)
@@ -246,26 +292,40 @@ def run(out, source_id, as_of, timeout, *, manifest=None, bundle=None, send=Fals
                 if (receipt["result_sha256"], response_sha) != (
                         state.get("result_sha256"), state.get("response_sha256")):
                     raise ValueError("published_result_changed")
+                if notify and state.get("notified") is not True:
+                    raise ValueError("notification_not_proved")
                 result.update(ok=True, stage="already_published", result_sha256=receipt["result_sha256"],
-                              response_sha256=response_sha)
+                              response_sha256=response_sha, notified=state.get("notified") is True)
                 return result
             if phase != "local" or state["attempts"] >= 2:
                 raise ValueError("unsafe_or_exhausted_reentry")
 
             raw_identity = _schedule_identity(manifest, bundle)
-            if state["attempts"] and state.get("raw_inputs") != raw_identity:
+            if state["attempts"] and (state.get("raw_inputs") != raw_identity
+                                      or state.get("source_once", False) != source_once
+                                      or (source_once and state.get("source_failed") is True)):
                 raise ValueError("refresh_inputs_changed")
-            env = _private_environment()
-            state.update(attempts=state["attempts"] + 1, raw_inputs=raw_identity)
-            _save(work, "state.json", state)
             freshness = work / "freshness.json"
             result_root = work / "result"
-            if _saved(freshness) is None:
+            needs_refresh = _saved(freshness) is None
+            needs_compute = not os.path.lexists(directory)
+            env = _private_environment() if needs_refresh or needs_compute else None
+            state.update(attempts=state["attempts"] + 1, raw_inputs=raw_identity, source_once=source_once)
+            _save(work, "state.json", state)
+            if needs_refresh:
                 command = [sys.executable, "-I", "-B", str(Path(__file__).resolve()),
                            "_refresh", as_of.isoformat()]
                 if manifest is not None:
                     command.extend(["--manifest", str(manifest), "--bundle", str(bundle)])
-                _stage(work, state, "refresh", command, work, env, deadline, result)
+                if source_once:
+                    command.append("--source-once")
+                try:
+                    _stage(work, state, "refresh", command, work, env, deadline, result)
+                except Exception:
+                    if source_once:
+                        state["source_failed"] = True
+                        _save(work, "state.json", state)
+                    raise
                 if _schedule_identity(manifest, bundle) != raw_identity:
                     raise ValueError("refresh_inputs_changed")
                 finished = datetime.now(UTC)
@@ -275,7 +335,7 @@ def run(out, source_id, as_of, timeout, *, manifest=None, bundle=None, send=Fals
                     "source_id": source_id, "as_of": as_of.isoformat(),
                     "finished_at": finished.isoformat(), "ok": True,
                 })
-            if not os.path.lexists(directory):
+            if needs_compute:
                 command = [sys.executable, "-I", "-B", "-m", "cpbl.features.handoff", "compute",
                            str(freshness), str(result_root)]
                 _stage(work, state, "compute", command, work, env, deadline, result)
@@ -294,11 +354,14 @@ def run(out, source_id, as_of, timeout, *, manifest=None, bundle=None, send=Fals
                 result["stage"] = "authenticate"
                 sender_auth = sender._authentication(identity_file, known_hosts)
                 command = sender._sftp_command(*sender_auth, sender.USER)
+                if notify:
+                    _save(directory, "notification.json",
+                          {"version": 1, "run_id": name, "response_sha256": response_sha})
                 _stage(work, state, "publish", command, directory, {"LANG": "C", "LC_ALL": "C"},
-                       deadline, result, _publication_batch(name))
-                state["phase"] = "published"
+                       deadline, result, _publication_batch(name, notify=notify))
+                state.update(phase="published", notified=notify)
                 _save(work, "state.json", state)
-                result["stage"] = "published"
+                result.update(stage="published", notified=notify)
             result["ok"] = True
     except Exception as exc:
         result["error_class"] = type(exc).__name__
@@ -308,6 +371,8 @@ def run(out, source_id, as_of, timeout, *, manifest=None, bundle=None, send=Fals
 def _raw_arguments(parser):
     parser.add_argument("--manifest", type=Path, help="Original local WWW schedule request")
     parser.add_argument("--bundle", type=Path, help="Its complete authentic same-day local bundle")
+    parser.add_argument("--source-once", action="store_true",
+                        help="No browser recovery or local source reentry after a source-stage failure")
 
 
 def main(argv=None):
@@ -319,6 +384,7 @@ def main(argv=None):
     daily.add_argument("--as-of", type=date.fromisoformat, required=True)
     daily.add_argument("--timeout", type=float, required=True, help="Total seconds including native exit")
     daily.add_argument("--send", action="store_true", help="Explicitly publish to the pinned private inbox")
+    daily.add_argument("--notify", action="store_true", help="Commit the bound flat notification after both files")
     _raw_arguments(daily)
     refresh = modes.add_parser("_refresh")
     refresh.add_argument("as_of", type=date.fromisoformat)
@@ -333,13 +399,13 @@ def main(argv=None):
     os.umask(0o077)
     if args.command == "_refresh":
         try:
-            _local_refresh(args.as_of, args.manifest, args.bundle)
+            _local_refresh(args.as_of, args.manifest, args.bundle, source_once=args.source_once)
             return 0
-        except Exception as exc:
+        except (Exception, _SourceStopped) as exc:
             print(json.dumps({"ok": False, "error_class": type(exc).__name__}))
             return 78
     result = run(args.out, args.source_id, args.as_of, args.timeout, manifest=args.manifest,
-                 bundle=args.bundle, send=args.send)
+                 bundle=args.bundle, send=args.send, notify=args.notify, source_once=args.source_once)
     print(json.dumps(result, sort_keys=True))
     return 0 if result["ok"] else 78
 
