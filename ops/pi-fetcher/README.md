@@ -292,3 +292,38 @@ stdout 僅安全 JSON；rc0／`transfer_complete` 只代表本機前置與整份
 這項模型須經同版必要審核與部署前明確風險接受；不得以 client 行為宣稱 server immutable。
 OpenSSH allowlist／版本／Include/Match／實際帳號與端到端 pin/key/權限相容尚未在真機驗證。
 離線程序替身只證 sender 參數、順序、拒收與 rc，不能冒稱驗過原生 server 能力。
+
+## 單次 Pi 私有每日特徵候選（#393）
+
+`cpbl_pi_feature.py run` 使用已初始化的 Pi 私有 PostgreSQL 和同版專案
+Python 執行環境。以 `CPBL_FEATURE_PI_DATABASE_URL` 明確提供
+`cpbl393_feature_bench`，且連線必須由同帳號的私有 Unix socket directory
+進入。私有庫先備妥原 schema 和既有封存的歷史資料，包含賽況 ingest 的
+支援表。這個入口不跑 migration、備份或每日共用排程。
+
+```bash
+python -I -B ops/pi-fetcher/cpbl_pi_feature.py run \
+  --out /path/to/private-feature-state --source-id pi --as-of YYYY-MM-DD --timeout SECONDS
+```
+
+`--out` 是該 Pi 資料來源固定使用的自有 0700 目錄，`--as-of` 必須是執行時的
+台北日期。光執行這個指令只會產出私有結果，沒有 SFTP 上傳。
+若已保有本機同日的一軍 schedule 原始 manifest 和完整 bundle，可同帶
+`--manifest` 與 `--bundle` 走原 `run_replay_games`。否則使用原一軍 schedule
+取源與 UPSERT。逐場打擊和投球明細沿用原近兩日完賽及當季已完賽欠明細的
+選場、既有 `scrape_gamelogs` 和寫後雙表對帳。歷年投打彙總和已確認的
+完賽證據沿用私有庫初始化的資料與其原有維護口徑。這個入口不另開官方
+stats、逐球或衍生資料流程。
+
+只有刷新程序原生成功退出才寫新鮮收據 [freshness receipt]，再由
+`cpbl.features.handoff compute` 用同一唯讀快照算原特徵。結果及提交標記
+為 `result.json.gz` 和 `response.json`。另帶 `--send` 時，驗包後才用
+原接收方身分與主機金鑰指紋 [host key pin] 發送。接收端先預備私有
+`/incoming/features` 父目錄。每輪排他建立 `<run_id>` 子目錄，先發布結果，
+最後原子改名發布 `response.json`。原 WWW manifest 和傳輸入口另按既有
+契約運作。
+
+本機已確退且尚未開始發布時，可重入一次。相同本機原件摘要和已驗結果
+才可續行。發布未確認時保留狀態供收件端核對，重入不覆寫遠端或重送。
+已確認發布時同件重入只回覆既有結果。傳輸成功只證私有交付，正式庫
+驗收及寫入仍由現有 VPS writer 管理。

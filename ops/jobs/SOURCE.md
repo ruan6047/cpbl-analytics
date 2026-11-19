@@ -81,3 +81,18 @@ SHA256 `f711488057028133b2d168e7e596b1fb7ca20ad30d2fbd90866714964667d4f9`，VERS
 供給候選不自行重寫這個WP3檔，不把依賴採入當它已獨立審核或部署。
 本機只用fixture sender/收條及mock Linux setgid metadata，實際Linux mount/群組權限／SFTP／官網／DB／時窗／量額未驗。
 手動模式可明確指定原CPBL_REPLAY_MANIFEST/BUNDLE供固定回放；scheduled trigger=jobs只要走WWW就拒用這組固定包環境，必須走新供給。
+
+## Pi 特徵結果由既有 VPS 日鏈發布
+
+`scrape-daily` 預設沿原本的特徵計算。啟用此候選時在既有 job 環境明確設定
+`CPBL_FEATURES_FROM_PI=1`、與 Pi 相同的 `CPBL_FEATURE_SOURCE_ID`，以及
+當次核定的正整數等待秒數 `CPBL_FEATURE_WAIT_SECONDS`。
+
+既有日鏈持鎖時只接受 `CPBL_JOBS_INBOX_ROOT/incoming/features/<run_id>/`
+當日固定來源的 `response.json` 和 `result.json.gz`。它核對台北日、版本、
+時間、長度、SHA-256、32 欄與 VPS 一軍全部有效賽事鍵，再用單一交易發布。
+缺件、過期、驗證或寫入失敗回非零，當輪不啟動舊特徵重算。
+原日型與其他日鏈步驟照常。
+
+正式接線前須核對既有接收帳號與 VPS job 可操作同一私有目錄，Pi 已初始化
+完整歷史輸入，且 Pi 的可用時段與 VPS 等件上限相容。

@@ -193,6 +193,28 @@ def test_daily_preserves_partial_error_and_delegates_features_without_train(jobs
     assert ("publication", False) in calls and ("gate", "mark-synced") not in calls
 
 
+@pytest.mark.parametrize("available", [True, False])
+def test_daily_pi_feature_publication_never_falls_back_to_local_build(jobs, monkeypatch, available):
+    module, root = jobs
+    calls = []
+    daily_fakes(monkeypatch, calls)
+
+    def consume(as_of):
+        assert (root / "locks/refresh.lock" / "pid").read_text() == str(os.getpid())
+        calls.append(("pi_features", as_of.isoformat()))
+        if not available:
+            raise TimeoutError("missing response")
+        return 2
+
+    monkeypatch.setenv("CPBL_FEATURES_FROM_PI", "1")
+    fake_module(monkeypatch, "cpbl.features.handoff", consume_daily=consume)
+    assert module.main(["scrape-daily"]) == (0 if available else 1)
+    assert [name for name, _ in calls].count("pi_features") == 1
+    assert all(name != "features" for name, _ in calls)
+    assert ("publication", available) in calls
+    assert (("gate", "mark-synced") in calls) is available
+
+
 def test_closed_skip_does_not_enter_any_data_step(jobs, monkeypatch):
     module, _ = jobs; calls = []
     daily_fakes(monkeypatch, calls, day_type="skip")

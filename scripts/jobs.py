@@ -194,7 +194,17 @@ def _daily(run, args):
     team_code, _ = _invoke(run_build_team_comparison.main,
                            ["--year", str(run.now.year), "--record-failure"])
     run.detail["team_comparison_exit_code"] = team_code
-    feature_code, _ = _invoke(run_build_features.main, ["--jobs"])
+    if os.environ.get("CPBL_FEATURES_FROM_PI") == "1":
+        from cpbl.features.handoff import consume_daily
+
+        try:
+            run.detail["features_rows"] = consume_daily(run.now.date())
+            feature_code = 0
+        except Exception as exc:
+            logging.error("Pi feature publication failed (%s)", type(exc).__name__)
+            feature_code = 1
+    else:
+        feature_code, _ = _invoke(run_build_features.main, ["--jobs"])
     run.detail["features_exit_code"] = feature_code
     overall = code or feature_code or (69 if team_code else 0)
     # 原 recent 及 prod-sync 使用同一個已審寫入函式；不是再同步到另一顆 DB。
