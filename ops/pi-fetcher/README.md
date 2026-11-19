@@ -337,3 +337,20 @@ stats、逐球或衍生資料流程。
 原子移到 `/incoming/feature-notify/<run_id>.ready`。
 通知僅含 `version`、`run_id` 與 `response_sha256`。原生成功退出才回
 `notified=true`；結果或通知退出未知時不重送。舊無通知傳輸維持原樣。
+
+常態 feature-only 候選為 `systemd/cpbl393-feature-only.{service,timer}`，
+預排台北 10:10、`Persistent=false`。服務以 ruan 執行，從私有
+`/etc/cpbl393-source/features.env` 取得固定的
+`CPBL_FEATURE_PI_PYTHON`、`CPBL_FEATURE_PI_DAILY_ENTRY`、
+`CPBL_FEATURE_PI_PGDATA`、`CPBL_FEATURE_PI_PG_BIN`、
+`CPBL_FEATURE_PI_DATABASE_URL` 與 `CPBL_FEATURE_PI_OUT`。若使用獨立
+解包的 PG，環境檔需帶入該 runtime 的 `LD_LIBRARY_PATH`；原瀏覽器設定同樣由
+環境檔提供。正式啟用前，環境檔與固定程式路徑由原核發綁定。
+
+入口每次驗私有 seed 根、啟動不監聽 TCP 的 PostgreSQL，帶入當日台北日期
+呼叫原 `run --source-once --send --notify`。收到正常或失敗退出都收掉自有 PG；
+systemd 停止時範圍涵蓋整個服務的子程序。工作目錄使用專用私有 out，不改舊三支
+來源計時器或服務。這些檔案未安裝或啟用。採系統層時，寫入環境檔與單元檔、
+daemon-reload 和 enable 需已授權的管理者。採使用者層時，需另用對應的
+user unit（不帶 `User=`、使用私有環境檔），且須先證明重開機後 user manager
+會自行運作；目前無此證據。

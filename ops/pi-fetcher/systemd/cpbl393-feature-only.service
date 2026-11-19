@@ -1,0 +1,15 @@
+[Unit]
+Description=Build and deliver daily CPBL features from Pi
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=ruan
+UMask=0077
+EnvironmentFile=/etc/cpbl393-source/features.env
+ExecStart=/usr/bin/env ${CPBL_FEATURE_PI_PYTHON} -I -B ${CPBL_FEATURE_PI_DAILY_ENTRY}
+TimeoutStartSec=750
+TimeoutStopSec=35
+KillMode=mixed
+Restart=no
