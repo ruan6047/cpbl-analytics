@@ -29,7 +29,8 @@ import schedule_watch  # noqa: E402
 
 TAIPEI = ZoneInfo("Asia/Taipei")
 WORKERS = ("scrape-daily", "postseason-evening", "weekly-box-revisions", "weekly-game-pitches")
-JOBS = (*WORKERS, "schedule-watchdog", "alert-watch")
+WRITERS = (*WORKERS, "features-only")
+JOBS = (*WRITERS, "schedule-watchdog", "alert-watch")
 
 
 class Interrupted(BaseException):
@@ -104,7 +105,8 @@ class Run:
         self.skipped = False
         self.detail = {}
         self.log = root / "jobs" / f"{job}-{now.strftime('%Y%m%d-%H%M%S-%f')}.log"
-        self.lock = root / "locks" / ("refresh.lock" if job in WORKERS else job + ".lock")
+        self.lock = root / "locks" / ("refresh.lock" if job in WRITERS else job + ".lock")
+        self.retain_lock = False
 
     def record(self, state, code=None):
         record = refresh_status._history_record(
@@ -148,8 +150,9 @@ class Run:
             if owned and ((self.lock / "pid").read_text() != pid
                     or (self.lock / "kind").read_text() != self.label):
                 raise RuntimeError("lock_owner_changed")
-            (self.lock / "pid").unlink(missing_ok=True); (self.lock / "kind").unlink(missing_ok=True)
-            self.lock.rmdir()
+            if not self.retain_lock:
+                (self.lock / "pid").unlink(missing_ok=True); (self.lock / "kind").unlink(missing_ok=True)
+                self.lock.rmdir()
 
     def daily_ping(self, signal_value):
         if self.job == "scrape-daily" and self.trigger == "jobs":
@@ -159,6 +162,57 @@ class Run:
                                 body=f"jobs scrape-daily signal={signal_value}")
             except Exception:
                 logging.warning("daily ping failed")  # #358 fail-open；不用 key/log tail 當訊息。
+
+
+def _features_only(run):
+    from cpbl.db import conn
+    from cpbl.features.handoff import publish, read_incoming_response
+
+    result = {"job": run.job}
+    acquired = False
+    try:
+        with run.locked():
+            acquired = True
+            manifest, rows = read_incoming_response(
+                Path(os.environ["CPBL_JOBS_INBOX_ROOT"]),
+                os.environ["CPBL_FEATURE_SOURCE_ID"],
+                run.now.date(),
+            )
+            result.update(run_id=manifest["run_id"], result_sha256=manifest["result_sha256"])
+            receipts = run.root / "features-published"
+            if receipts.is_symlink():
+                raise ValueError("feature_receipt_directory")
+            receipts.mkdir(mode=0o700, exist_ok=True)
+            receipt = receipts / f'{manifest["run_id"]}.json'
+            if receipt.is_symlink():
+                raise ValueError("feature_receipt_path")
+            if receipt.exists():
+                if not receipt.is_file() or json.loads(receipt.read_bytes()) != manifest:
+                    raise ValueError("conflicting_published_result")
+                state = "already_published"
+            else:
+                if datetime.now(TAIPEI).date() != run.now.date():
+                    raise ValueError("feature_publication_crossed_midnight")
+                try:
+                    with conn() as connection:
+                        # Keep the writer fence until the transaction and its receipt are confirmed.
+                        run.retain_lock = True
+                        publish(connection, rows)
+                finally:
+                    _close_pool(run)
+                if run.detail.get("close_failed"):
+                    raise RuntimeError("feature_connection_exit_unknown")
+                refresh_status._write_atomic(receipt, manifest)
+                run.retain_lock = False
+                state = "published"
+        code = 0
+        result.update(state=state, row_count=manifest["row_count"])
+    except Exception as exc:
+        code = 75 if isinstance(exc, FileExistsError) and not acquired else 1
+        result.update(state="busy" if code == 75 else "failed", error=type(exc).__name__,
+                      lock_retained=run.retain_lock)
+    print(json.dumps({**result, "exit_code": code}, sort_keys=True))
+    return code
 
 
 def _daily(run, args):
@@ -194,17 +248,7 @@ def _daily(run, args):
     team_code, _ = _invoke(run_build_team_comparison.main,
                            ["--year", str(run.now.year), "--record-failure"])
     run.detail["team_comparison_exit_code"] = team_code
-    if os.environ.get("CPBL_FEATURES_FROM_PI") == "1":
-        from cpbl.features.handoff import consume_daily
-
-        try:
-            run.detail["features_rows"] = consume_daily(run.now.date())
-            feature_code = 0
-        except Exception as exc:
-            logging.error("Pi feature publication failed (%s)", type(exc).__name__)
-            feature_code = 1
-    else:
-        feature_code, _ = _invoke(run_build_features.main, ["--jobs"])
+    feature_code, _ = _invoke(run_build_features.main, ["--jobs"])
     run.detail["features_exit_code"] = feature_code
     overall = code or feature_code or (69 if team_code else 0)
     # 原 recent 及 prod-sync 使用同一個已審寫入函式；不是再同步到另一顆 DB。
@@ -426,6 +470,7 @@ def _parser():
     parser = argparse.ArgumentParser(prog="jobs.py", description=__doc__, allow_abbrev=False)
     sub = parser.add_subparsers(dest="job", required=True)
     daily = sub.add_parser("scrape-daily", allow_abbrev=False); daily.add_argument("--fast", action="store_true")
+    sub.add_parser("features-only", allow_abbrev=False)
     evening = sub.add_parser("postseason-evening", allow_abbrev=False)
     evening.add_argument("--stage", choices=("all", "boxpa"), default="all")
     for name in ("weekly-box-revisions", "weekly-game-pitches"):
@@ -444,17 +489,21 @@ def main(argv=None):
         if error.code:
             print(json.dumps({"error": "arguments", "exit_code": 64}))
         return 64 if error.code else 0
-    if args.job in (*WORKERS, "alert-watch") and not os.environ.get("DATABASE_URL"):
+    if args.job in (*WRITERS, "alert-watch") and not os.environ.get("DATABASE_URL"):
         print(json.dumps({"job": args.job, "error": "explicit_database_required"})); return 64
     if args.job == "alert-watch" and not os.environ.get("REDIS_URL"):
         print(json.dumps({"job": args.job, "error": "redis_url_required"})); return 64
     if args.job in ("schedule-watchdog", "alert-watch") and not os.environ.get("CPBL_JOBS_API_URL"):
         print(json.dumps({"job": args.job, "error": "api_url_required"})); return 64
     code, run = 64, None
-    from cpbl.ingest._job_source import job_source
     try:
         with _environment() as (root, trigger):
             run = Run(args.job, root, trigger, datetime.now(TAIPEI))
+            if args.job == "features-only":
+                return _features_only(run)
+
+            from cpbl.ingest._job_source import job_source
+
             run.log.parent.mkdir(parents=True, exist_ok=True)
             with run.log.open("a") as log, contextlib.redirect_stdout(log), contextlib.redirect_stderr(log):
                 logger = logging.getLogger(); old_handlers, old_level = logger.handlers[:], logger.level

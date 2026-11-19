@@ -1,6 +1,8 @@
 """六工作 Linux 適配的直接邊界；不使用真 DB、Redis、browser 或 ping。"""
 
 import contextlib
+import gzip
+import hashlib
 import importlib.util
 import json
 import os
@@ -193,26 +195,104 @@ def test_daily_preserves_partial_error_and_delegates_features_without_train(jobs
     assert ("publication", False) in calls and ("gate", "mark-synced") not in calls
 
 
-@pytest.mark.parametrize("available", [True, False])
-def test_daily_pi_feature_publication_never_falls_back_to_local_build(jobs, monkeypatch, available):
+def _feature_result(root, inbox, now, feature=0.5):
+    from cpbl.features import handoff
+
+    source = "fixture-pi"
+    day = now.date()
+    key = handoff.run_id(source, day)
+    destination = inbox / "incoming" / "features" / key
+    destination.mkdir(parents=True, exist_ok=True)
+    row = [day.year, "A", "1", 7, day.isoformat(), day.year,
+           "ACN", "ADD", "Home", "Away", 1, True, *([feature] * 20)]
+    raw = gzip.compress(json.dumps([row]).encode(), mtime=0)
+    manifest = {
+        "version": 1, "source_id": source, "run_id": key, "as_of": day.isoformat(),
+        "refresh_finished_at": now.isoformat(), "snapshot_at": now.isoformat(),
+        "algorithm_sha256": handoff.algorithm_sha256(), "input_sha256": "a" * 64,
+        "result_bytes": len(raw), "result_sha256": hashlib.sha256(raw).hexdigest(), "row_count": 1,
+    }
+    (destination / "result.json.gz").write_bytes(raw)
+    (destination / "response.json").write_text(json.dumps(manifest))
+    return root / "features-published" / f"{key}.json", manifest
+
+
+def test_features_only_uses_daily_lock_and_deduplicates_verified_delivery(jobs, monkeypatch, capsys):
+    from cpbl import db
+    from cpbl.features import handoff
+
     module, root = jobs
-    calls = []
-    daily_fakes(monkeypatch, calls)
+    inbox = root.parent.resolve() / "inbox"
+    now = datetime.now(module.TAIPEI)
+    receipt, manifest = _feature_result(root, inbox, now)
+    calls, connection = [], object()
 
-    def consume(as_of):
+    @contextlib.contextmanager
+    def writer_conn():
+        yield connection
+        calls.append("committed")
+        assert not receipt.exists()
+
+    def publish(handle, rows):
+        assert handle is connection
         assert (root / "locks/refresh.lock" / "pid").read_text() == str(os.getpid())
-        calls.append(("pi_features", as_of.isoformat()))
-        if not available:
-            raise TimeoutError("missing response")
-        return 2
+        assert (root / "locks/refresh.lock" / "kind").read_text() == "com.cpbl.features-only"
+        assert len(rows) == 1 and len(rows[0]) == 32 and rows[0]["game_sno"] == 7
+        calls.append("publish")
+        return len(rows)
 
-    monkeypatch.setenv("CPBL_FEATURES_FROM_PI", "1")
-    fake_module(monkeypatch, "cpbl.features.handoff", consume_daily=consume)
-    assert module.main(["scrape-daily"]) == (0 if available else 1)
-    assert [name for name, _ in calls].count("pi_features") == 1
-    assert all(name != "features" for name, _ in calls)
-    assert ("publication", available) in calls
-    assert (("gate", "mark-synced") in calls) is available
+    monkeypatch.setattr(db, "conn", writer_conn)
+    monkeypatch.setattr(handoff, "publish", publish)
+    monkeypatch.setattr(module, "_daily", lambda *_: pytest.fail("entered daily ingest"))
+    monkeypatch.setenv("CPBL_FEATURE_SOURCE_ID", "fixture-pi")
+    monkeypatch.setenv("CPBL_JOBS_INBOX_ROOT", str(inbox))
+    assert module.main(["features-only"]) == 0
+    assert json.loads(capsys.readouterr().out)["state"] == "published"
+    assert json.loads(receipt.read_bytes()) == manifest
+    assert module.main(["features-only"]) == 0
+    assert json.loads(capsys.readouterr().out)["state"] == "already_published"
+    _feature_result(root, inbox, now, feature=0.25)
+    assert module.main(["features-only"]) == 1
+    assert calls == ["publish", "committed"]
+    assert not (root / "locks/refresh.lock").exists()
+    assert module.test_pings == []
+
+
+def test_features_only_retains_writer_lock_when_commit_is_unknown(jobs, monkeypatch, capsys):
+    from cpbl import db
+    from cpbl.features import handoff
+
+    module, root = jobs
+    inbox = root.parent.resolve() / "inbox"
+    receipt, _ = _feature_result(root, inbox, datetime.now(module.TAIPEI))
+    attempted = []
+
+    @contextlib.contextmanager
+    def writer_conn():
+        yield object()
+        raise ConnectionError("lost the commit response")
+
+    monkeypatch.setattr(db, "conn", writer_conn)
+    monkeypatch.setattr(handoff, "publish", lambda *a: attempted.append(True))
+    monkeypatch.setenv("CPBL_FEATURE_SOURCE_ID", "fixture-pi")
+    monkeypatch.setenv("CPBL_JOBS_INBOX_ROOT", str(inbox))
+    assert module.main(["features-only"]) == 1
+    assert json.loads(capsys.readouterr().out)["lock_retained"] is True
+    assert (root / "locks/refresh.lock" / "kind").read_text() == "com.cpbl.features-only"
+    assert not receipt.exists()
+    assert module.main(["features-only"]) == 75
+    assert attempted == [True]
+
+
+def test_features_only_does_not_wait_for_a_missing_marker(jobs, monkeypatch):
+    module, root = jobs
+    inbox = root.parent.resolve() / "inbox"
+    _, manifest = _feature_result(root, inbox, datetime.now(module.TAIPEI))
+    (inbox / "incoming/features" / manifest["run_id"] / "response.json").unlink()
+    monkeypatch.setenv("CPBL_FEATURE_SOURCE_ID", "fixture-pi")
+    monkeypatch.setenv("CPBL_JOBS_INBOX_ROOT", str(inbox))
+    assert module.main(["features-only"]) == 1
+    assert not (root / "locks/refresh.lock").exists()
 
 
 def test_closed_skip_does_not_enter_any_data_step(jobs, monkeypatch):

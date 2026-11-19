@@ -12,7 +12,6 @@ import os
 import re
 import stat
 import tempfile
-import time
 from contextlib import contextmanager
 from datetime import UTC, date, datetime
 from decimal import Decimal
@@ -272,28 +271,13 @@ def publish(connection, rows):
     return outcome.publish_feature_rows(connection, rows)
 
 
-def consume_daily(as_of: date) -> int:
-    # Called only by the opted-in existing VPS writer while it holds the daily lock.
-    from cpbl.db import conn
-
-    source_id = os.environ["CPBL_FEATURE_SOURCE_ID"]
-    root = Path(os.environ["CPBL_JOBS_INBOX_ROOT"])
+def read_incoming_response(root: Path, source_id: str, as_of: date):
+    """Read the one completed bundle for this source and Taipei date, without waiting."""
     _need(root.is_absolute(), "inbox_root")
     inbox = root / "incoming" / "features"
     directory = inbox / run_id(source_id, as_of)
     _need(inbox.resolve() == inbox, "inbox_symlink")
-    # Transport appears asynchronously on Pi; don't start another writer on timeout.
-    wait_seconds = int(os.environ["CPBL_FEATURE_WAIT_SECONDS"])
-    _need(wait_seconds > 0, "result_wait")
-    deadline = time.monotonic() + wait_seconds
-    while not (directory / "response.json").exists():
-        remaining = deadline - time.monotonic()
-        if remaining <= 0:
-            raise TimeoutError("feature_result_wait")
-        time.sleep(min(1, remaining))
-    _, rows = read_response(directory, source_id, as_of)
-    with conn() as connection:
-        return publish(connection, rows)
+    return read_response(directory, source_id, as_of)
 
 
 def main(argv=None):
