@@ -274,16 +274,13 @@ def publish(connection, rows):
     return outcome.publish_feature_rows(connection, rows)
 
 
-def read_incoming_response(root: Path, source_id: str, as_of: date, *, require_notice=False):
-    """Read the one completed bundle for this source and Taipei date, without waiting."""
+def read_incoming_response(root: Path, source_id: str, as_of: date):
+    """Read the notified bundle for this source and Taipei date, without waiting."""
     _need(root.is_absolute(), "inbox_root")
     inbox = root / "incoming" / "features"
     name = run_id(source_id, as_of)
     directory = inbox / name
     _need(inbox.resolve() == inbox, "inbox_symlink")
-    if not require_notice:
-        return read_response(directory, source_id, as_of)
-
     notifications = inbox.with_name("feature-notify")
     _need(notifications.resolve() == notifications, "notification_directory_symlink")
     notice = _object(_read(notifications / f"{name}.ready", MAX_MANIFEST))

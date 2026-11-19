@@ -86,9 +86,10 @@ SHA256 `f711488057028133b2d168e7e596b1fb7ca20ad30d2fbd90866714964667d4f9`，VERS
 
 待核發的一次性入口是 `python /app/jobs/jobs.py features-only`。它使用既有
 受保護 DB 環境、`CPBL_JOBS_STATE_DIR`、`CPBL_JOBS_INBOX_ROOT` 與固定
-`CPBL_FEATURE_SOURCE_ID`。在原 `locks/refresh.lock` 下唯讀驗當日
-`incoming/features/<run_id>/{response.json,result.json.gz}`，再核正式庫
-的一軍全部有效賽事鍵並單交易發布。缺件或不同日直接退出。
+`CPBL_FEATURE_SOURCE_ID`。在原 `locks/refresh.lock` 下，以當日
+`incoming/feature-notify/<run_id>.ready` 及其中的摘要驗原收件兩檔，再核
+正式庫的一軍全部有效賽事鍵並單交易發布。通知缺失、摘要不符、缺件或不同日
+均在開啟 DB 連線前退出。
 
 交易及連線確退才在私有 state 寫 `features-published/<run_id>.json`。
 同件重新觸發回 `already_published`，同 ID 改件回非零。進入寫入階段後，

@@ -179,11 +179,9 @@ def _features_only(run, *, verify_only):
                 Path(os.environ["CPBL_JOBS_INBOX_ROOT"]),
                 os.environ["CPBL_FEATURE_SOURCE_ID"],
                 run.now.date(),
-                require_notice=verify_only,
             )
-            result.update(run_id=manifest["run_id"], result_sha256=manifest["result_sha256"])
-            if verify_only:
-                result["response_sha256"] = manifest["response_sha256"]
+            result.update(run_id=manifest["run_id"], result_sha256=manifest["result_sha256"],
+                          response_sha256=manifest["response_sha256"])
             state = "verified" if verify_only else "published"
             receipts = run.root / f"features-{state}"
             if receipts.is_symlink():

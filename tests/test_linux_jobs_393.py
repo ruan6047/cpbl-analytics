@@ -217,6 +217,18 @@ def _feature_result(root, inbox, now, feature=0.5):
     return root / "features-published" / f"{key}.json", manifest
 
 
+def _feature_notice(inbox, manifest, *, response_sha256=None):
+    key = manifest["run_id"]
+    response = inbox / "incoming" / "features" / key / "response.json"
+    digest = response_sha256 or hashlib.sha256(response.read_bytes()).hexdigest()
+    notifications = inbox / "incoming" / "feature-notify"
+    notifications.mkdir(exist_ok=True)
+    (notifications / f"{key}.ready").write_text(json.dumps({
+        "version": 1, "run_id": key, "response_sha256": digest,
+    }))
+    return digest
+
+
 def test_features_only_uses_daily_lock_and_deduplicates_verified_delivery(jobs, monkeypatch, capsys):
     from cpbl import db
     from cpbl.features import handoff
@@ -225,6 +237,7 @@ def test_features_only_uses_daily_lock_and_deduplicates_verified_delivery(jobs, 
     inbox = root.parent.resolve() / "inbox"
     now = datetime.now(module.TAIPEI)
     receipt, manifest = _feature_result(root, inbox, now)
+    response_sha256 = _feature_notice(inbox, manifest)
     calls, connection = [], object()
 
     @contextlib.contextmanager
@@ -248,10 +261,11 @@ def test_features_only_uses_daily_lock_and_deduplicates_verified_delivery(jobs, 
     monkeypatch.setenv("CPBL_JOBS_INBOX_ROOT", str(inbox))
     assert module.main(["features-only"]) == 0
     assert json.loads(capsys.readouterr().out)["state"] == "published"
-    assert json.loads(receipt.read_bytes()) == manifest
+    assert json.loads(receipt.read_bytes()) == {**manifest, "response_sha256": response_sha256}
     assert module.main(["features-only"]) == 0
     assert json.loads(capsys.readouterr().out)["state"] == "already_published"
-    _feature_result(root, inbox, now, feature=0.25)
+    _, changed = _feature_result(root, inbox, now, feature=0.25)
+    _feature_notice(inbox, changed)
     assert module.main(["features-only"]) == 1
     assert calls == ["publish", "committed"]
     assert not (root / "locks/refresh.lock").exists()
@@ -264,7 +278,8 @@ def test_features_only_retains_writer_lock_when_commit_is_unknown(jobs, monkeypa
 
     module, root = jobs
     inbox = root.parent.resolve() / "inbox"
-    receipt, _ = _feature_result(root, inbox, datetime.now(module.TAIPEI))
+    receipt, manifest = _feature_result(root, inbox, datetime.now(module.TAIPEI))
+    _feature_notice(inbox, manifest)
     attempted = []
 
     @contextlib.contextmanager
@@ -284,14 +299,19 @@ def test_features_only_retains_writer_lock_when_commit_is_unknown(jobs, monkeypa
     assert attempted == [True]
 
 
-def test_features_only_does_not_wait_for_a_missing_marker(jobs, monkeypatch):
+@pytest.mark.parametrize("notice", ["missing", "mismatched_response"])
+def test_features_only_rejects_unconfirmed_response_before_database_access(jobs, monkeypatch, capsys, notice):
     module, root = jobs
     inbox = root.parent.resolve() / "inbox"
-    _, manifest = _feature_result(root, inbox, datetime.now(module.TAIPEI))
-    (inbox / "incoming/features" / manifest["run_id"] / "response.json").unlink()
+    receipt, manifest = _feature_result(root, inbox, datetime.now(module.TAIPEI))
+    if notice == "mismatched_response":
+        _feature_notice(inbox, manifest, response_sha256="0" * 64)
     monkeypatch.setenv("CPBL_FEATURE_SOURCE_ID", "fixture-pi")
     monkeypatch.setenv("CPBL_JOBS_INBOX_ROOT", str(inbox))
     assert module.main(["features-only"]) == 1
+    result = json.loads(capsys.readouterr().out)
+    assert result["error"] == ("FileNotFoundError" if notice == "missing" else "ValueError")
+    assert not receipt.exists()
     assert not (root / "locks/refresh.lock").exists()
 
 
