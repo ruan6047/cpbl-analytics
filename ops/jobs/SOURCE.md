@@ -98,8 +98,13 @@ Mac 手動備援須等 VPS 確退、交易結果已確認且寫入權交回。
 目前可在 Pi 原生 SFTP 確退後由原管控者手動叫用一次。既有
 `response.json` 在每日不同子目錄，監看 `features` 的目錄變更不會遞迴捕捉
 該改名。用 `PathExistsGlob` 直接監看永久 marker 會讓條件持續成立。
-若後續採 systemd 原生事件，最小差異是在同一既有 SFTP 批次的末尾，
-把通知原子改名到固定私有通知目錄，對該目錄使用 `PathChanged=` 叫用
-`Type=oneshot`。收據留在另一個目錄，入口自行推算同日 ID。事件只證明
-完整檔案已就位，SFTP 的原生退出另由 Pi 收據證明。若正式門檻要求先見
-客戶端確退，先沿手動叫用。此候選未接入任何排程或事件單元。
+systemd 原生事件的驗收使用 `features-only --verify-only`。同一 SFTP 批次先
+發布原兩檔，再將 `features/<run_id>/.ready.upload` 原子改名到平層私有
+`feature-notify/<run_id>.ready`。通知只含 `version: 1`、`run_id` 和
+`response_sha256`，摘要綁定原 `response.json` 的精確 bytes。驗收依既有
+`read_response` 契約檢查完整包，以獨立驗證鎖和 `features-verified`
+收據去重，拒帶 DB 連線環境。正式發布入口仍須由管控者另行放行。
+
+對已存在的 `feature-notify` 目錄使用 `PathChanged=` 呼叫 `Type=oneshot`。
+收據不寫進監看目錄。事件只證明檔案就位，SFTP 原生退出另由 Pi 收據證明。
+若正式門檻要求先見客戶端確退，先沿手動叫用。

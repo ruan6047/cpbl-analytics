@@ -295,6 +295,49 @@ def test_features_only_does_not_wait_for_a_missing_marker(jobs, monkeypatch):
     assert not (root / "locks/refresh.lock").exists()
 
 
+def test_feature_event_verifies_only_after_atomic_notification(jobs, monkeypatch, capsys):
+    module, root = jobs
+    inbox = root.parent.resolve() / "inbox"
+    _, manifest = _feature_result(root, inbox, datetime.now(module.TAIPEI))
+    key = manifest["run_id"]
+    package = inbox / "incoming" / "features" / key
+    notification = inbox / "incoming" / "feature-notify"
+    notification.mkdir()
+    ready = notification / f"{key}.ready"
+    pending = package / ".ready.upload"
+    digest = hashlib.sha256((package / "response.json").read_bytes()).hexdigest()
+    pending.write_text(json.dumps({"version": 1, "run_id": key, "response_sha256": digest}))
+    receipt = root / "features-verified" / f"{key}.json"
+    monkeypatch.delenv("DATABASE_URL")
+    monkeypatch.setenv("CPBL_FEATURE_SOURCE_ID", "fixture-pi")
+    monkeypatch.setenv("CPBL_JOBS_INBOX_ROOT", str(inbox))
+
+    args = ["features-only", "--verify-only"]
+    assert module.main(args) == 1
+    assert not receipt.exists()
+    assert json.loads(capsys.readouterr().out)["state"] == "failed"
+    pending.rename(ready)
+    assert module.main(args) == 0
+    assert json.loads(capsys.readouterr().out)["state"] == "verified"
+    original = receipt.stat()
+    assert json.loads(receipt.read_bytes())["response_sha256"] == digest
+    assert module.main(args) == 0
+    assert json.loads(capsys.readouterr().out)["state"] == "already_verified"
+    assert (receipt.stat().st_ino, receipt.stat().st_mtime_ns) == (original.st_ino, original.st_mtime_ns)
+    (package / "response.json").write_bytes((package / "response.json").read_bytes() + b"\n")
+    assert module.main(args) == 1
+    assert not (root / "features-published").exists()
+    assert not (root / "locks" / "refresh.lock").exists()
+    assert module.test_pings == []
+
+
+def test_feature_event_rejects_database_config(jobs, capsys):
+    module, root = jobs
+    assert module.main(["features-only", "--verify-only"]) == 64
+    assert json.loads(capsys.readouterr().out)["error"] == "verify_requires_no_database_environment"
+    assert not (root / "locks").exists()
+
+
 def test_closed_skip_does_not_enter_any_data_step(jobs, monkeypatch):
     module, _ = jobs; calls = []
     daily_fakes(monkeypatch, calls, day_type="skip")

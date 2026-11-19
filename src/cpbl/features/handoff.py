@@ -230,11 +230,14 @@ def _decode_records(raw, count):
     return rows
 
 
-def read_response(directory: Path, source_id: str, as_of: date, *, now=None):
+def read_response(directory: Path, source_id: str, as_of: date, *, now=None, response_sha256=None):
     now = now or datetime.now(UTC)
     name = run_id(source_id, as_of)
     _need(directory.name == name and directory.is_dir() and not directory.is_symlink(), "response_path")
-    manifest = _object(_read(directory / "response.json", MAX_MANIFEST))
+    response = _read(directory / "response.json", MAX_MANIFEST)
+    if response_sha256 is not None:
+        _need(hashlib.sha256(response).hexdigest() == response_sha256, "notification_response_digest")
+    manifest = _object(response)
     _need(isinstance(manifest, dict) and set(manifest) == MANIFEST_FIELDS
           and type(manifest["version"]) is int and manifest["version"] == VERSION
           and manifest["source_id"] == source_id and manifest["run_id"] == name
@@ -271,13 +274,26 @@ def publish(connection, rows):
     return outcome.publish_feature_rows(connection, rows)
 
 
-def read_incoming_response(root: Path, source_id: str, as_of: date):
+def read_incoming_response(root: Path, source_id: str, as_of: date, *, require_notice=False):
     """Read the one completed bundle for this source and Taipei date, without waiting."""
     _need(root.is_absolute(), "inbox_root")
     inbox = root / "incoming" / "features"
-    directory = inbox / run_id(source_id, as_of)
+    name = run_id(source_id, as_of)
+    directory = inbox / name
     _need(inbox.resolve() == inbox, "inbox_symlink")
-    return read_response(directory, source_id, as_of)
+    if not require_notice:
+        return read_response(directory, source_id, as_of)
+
+    notifications = inbox.with_name("feature-notify")
+    _need(notifications.resolve() == notifications, "notification_directory_symlink")
+    notice = _object(_read(notifications / f"{name}.ready", MAX_MANIFEST))
+    _need(isinstance(notice, dict) and set(notice) == {"version", "run_id", "response_sha256"}
+          and type(notice["version"]) is int and notice["version"] == VERSION
+          and notice["run_id"] == name and isinstance(notice["response_sha256"], str)
+          and SHA.fullmatch(notice["response_sha256"]), "notification_identity")
+    response_sha256 = notice["response_sha256"]
+    manifest, rows = read_response(directory, source_id, as_of, response_sha256=response_sha256)
+    return {**manifest, "response_sha256": response_sha256}, rows
 
 
 def main(argv=None):

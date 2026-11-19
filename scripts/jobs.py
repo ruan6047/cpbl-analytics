@@ -31,6 +31,9 @@ TAIPEI = ZoneInfo("Asia/Taipei")
 WORKERS = ("scrape-daily", "postseason-evening", "weekly-box-revisions", "weekly-game-pitches")
 WRITERS = (*WORKERS, "features-only")
 JOBS = (*WRITERS, "schedule-watchdog", "alert-watch")
+DATABASE_ENV = ("DATABASE_URL", "CPBL393_DATABASE_URL", "CPBL_FEATURE_PI_DATABASE_URL", "PGHOST",
+                "PGHOSTADDR", "PGPORT", "PGUSER", "PGDATABASE", "PGPASSWORD", "PGPASSFILE",
+                "PGSERVICE", "PGSERVICEFILE", "PGOPTIONS")
 
 
 class Interrupted(BaseException):
@@ -164,9 +167,8 @@ class Run:
                 logging.warning("daily ping failed")  # #358 fail-open；不用 key/log tail 當訊息。
 
 
-def _features_only(run):
-    from cpbl.db import conn
-    from cpbl.features.handoff import publish, read_incoming_response
+def _features_only(run, *, verify_only):
+    from cpbl.features.handoff import read_incoming_response
 
     result = {"job": run.job}
     acquired = False
@@ -177,9 +179,13 @@ def _features_only(run):
                 Path(os.environ["CPBL_JOBS_INBOX_ROOT"]),
                 os.environ["CPBL_FEATURE_SOURCE_ID"],
                 run.now.date(),
+                require_notice=verify_only,
             )
             result.update(run_id=manifest["run_id"], result_sha256=manifest["result_sha256"])
-            receipts = run.root / "features-published"
+            if verify_only:
+                result["response_sha256"] = manifest["response_sha256"]
+            state = "verified" if verify_only else "published"
+            receipts = run.root / f"features-{state}"
             if receipts.is_symlink():
                 raise ValueError("feature_receipt_directory")
             receipts.mkdir(mode=0o700, exist_ok=True)
@@ -188,23 +194,26 @@ def _features_only(run):
                 raise ValueError("feature_receipt_path")
             if receipt.exists():
                 if not receipt.is_file() or json.loads(receipt.read_bytes()) != manifest:
-                    raise ValueError("conflicting_published_result")
-                state = "already_published"
+                    raise ValueError("conflicting_feature_receipt")
+                state = f"already_{state}"
             else:
                 if datetime.now(TAIPEI).date() != run.now.date():
                     raise ValueError("feature_publication_crossed_midnight")
-                try:
-                    with conn() as connection:
-                        # Keep the writer fence until the transaction and its receipt are confirmed.
-                        run.retain_lock = True
-                        publish(connection, rows)
-                finally:
-                    _close_pool(run)
-                if run.detail.get("close_failed"):
-                    raise RuntimeError("feature_connection_exit_unknown")
+                if not verify_only:
+                    from cpbl.db import conn
+                    from cpbl.features.handoff import publish
+
+                    try:
+                        with conn() as connection:
+                            # Keep the writer fence until the transaction and its receipt are confirmed.
+                            run.retain_lock = True
+                            publish(connection, rows)
+                    finally:
+                        _close_pool(run)
+                    if run.detail.get("close_failed"):
+                        raise RuntimeError("feature_connection_exit_unknown")
                 refresh_status._write_atomic(receipt, manifest)
                 run.retain_lock = False
-                state = "published"
         code = 0
         result.update(state=state, row_count=manifest["row_count"])
     except Exception as exc:
@@ -470,7 +479,8 @@ def _parser():
     parser = argparse.ArgumentParser(prog="jobs.py", description=__doc__, allow_abbrev=False)
     sub = parser.add_subparsers(dest="job", required=True)
     daily = sub.add_parser("scrape-daily", allow_abbrev=False); daily.add_argument("--fast", action="store_true")
-    sub.add_parser("features-only", allow_abbrev=False)
+    features = sub.add_parser("features-only", allow_abbrev=False)
+    features.add_argument("--verify-only", action="store_true")
     evening = sub.add_parser("postseason-evening", allow_abbrev=False)
     evening.add_argument("--stage", choices=("all", "boxpa"), default="all")
     for name in ("weekly-box-revisions", "weekly-game-pitches"):
@@ -489,7 +499,11 @@ def main(argv=None):
         if error.code:
             print(json.dumps({"error": "arguments", "exit_code": 64}))
         return 64 if error.code else 0
-    if args.job in (*WRITERS, "alert-watch") and not os.environ.get("DATABASE_URL"):
+    verify_only = args.job == "features-only" and args.verify_only
+    if verify_only and any(name in os.environ for name in DATABASE_ENV):
+        print(json.dumps({"job": args.job, "error": "verify_requires_no_database_environment", "exit_code": 64}))
+        return 64
+    if not verify_only and args.job in (*WRITERS, "alert-watch") and not os.environ.get("DATABASE_URL"):
         print(json.dumps({"job": args.job, "error": "explicit_database_required"})); return 64
     if args.job == "alert-watch" and not os.environ.get("REDIS_URL"):
         print(json.dumps({"job": args.job, "error": "redis_url_required"})); return 64
@@ -498,9 +512,9 @@ def main(argv=None):
     code, run = 64, None
     try:
         with _environment() as (root, trigger):
-            run = Run(args.job, root, trigger, datetime.now(TAIPEI))
+            run = Run("features-verify" if verify_only else args.job, root, trigger, datetime.now(TAIPEI))
             if args.job == "features-only":
-                return _features_only(run)
+                return _features_only(run, verify_only=verify_only)
 
             from cpbl.ingest._job_source import job_source
 
