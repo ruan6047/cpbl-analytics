@@ -11,9 +11,14 @@
 兩段：
   snapshot  單一 REPEATABLE READ／READ ONLY 交易把 DB 輸入凍結成 CSV 快照＋manifest
             （`players` 每日會被同步，先凍結才 build；快照 digest 記入 manifest）。
-            ⚠️ 刻意不走 `cpbl.db.conn()`：該 context manager 結束時 commit，且無法宣告
-            唯讀＋REPEATABLE READ 的單一交易；本段改直接用 psycopg 並核對
-            `transaction_read_only=on`，結束時 rollback。
+            ⚠️ 刻意不走 `cpbl.db.conn()`（偏離 CLAUDE.md「連線一律走 conn()」）。conn() 本身
+            做得到唯讀單交易（反例：`src/cpbl/playoffs/watch_reader.py` 以 `c.transaction()`
+            ＋`SET TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY`）；偏離理由是：
+            (1) 一次性工具要以 `--database-url` 明示讀哪顆庫，不經全域連線池與 `.env` 推定；
+            (2) 已凍結的快照（digest 858ee54b…）就是由這條路徑產生，事後改連線方式會讓
+            committed 程式碼與產生快照的程式不一致。本段直接用 psycopg 設 read_only＋
+            REPEATABLE READ，並在第一個查詢前核對 `transaction_read_only=on` 與隔離等級，
+            結束時 rollback；只 SELECT。
   review    純計算：輸入＝快照＋REBAS zip，輸出規則結果、人工裁清單（box 有唯一候選）、
             無候選清單、佐證報告。
   export    純計算（核定規劃 WP3）：review 同一套計算＋需求方裁定檔（`manual_rulings.csv`，
@@ -338,8 +343,12 @@ def cross_conflicts(status: dict) -> dict[str, list]:
     }
 
 
-def corroborate(col: Collected, status: dict, inp: Inputs) -> dict:
-    """規則唯一的配對逐場比對官方 box（背號、PA／BF）。捕手無對應 box 計數，略過。"""
+def corroborate(col: Collected, status: dict, inp: Inputs, edges: dict | None = None) -> dict:
+    """規則唯一的配對逐場比對官方 box（背號、PA／BF）。捕手無對應 box 計數，略過。
+
+    母體是規則唯一者（打者／投手）的**全部出現場次**，不只是通過「姓名 ∩ 實際帳號」的
+    配對證據場次——後者另以 `rule_evidence_games_B_P` 計數，兩者不可混用。
+    """
     cnt: collections.Counter = collections.Counter()
     uni_ne: list[list] = []
     cnt_ne: list[list] = []
@@ -363,7 +372,11 @@ def corroborate(col: Collected, status: dict, inp: Inputs) -> dict:
             if not c_ok:
                 cnt_ne.append(rec)
     return {
-        "per_evidence_game": dict(sorted(cnt.items())),
+        "per_appearance_game": dict(sorted(cnt.items())),
+        "appearance_games_B_P": sum(cnt.values()),
+        "rule_evidence_games_B_P": sum(
+            (edges or {}).get(k, {}).get(a, 0) for k, (st, a) in status.items()
+            if st == "unique" and k[1] != "C") if edges is not None else None,
         "uniform_mismatch": uni_ne,
         "count_stat_mismatch": cnt_ne,
         "row_layout": ["year", "role", "rebas_id", "acnt", "game_sno",
@@ -540,7 +553,7 @@ def cmd_review(args: argparse.Namespace) -> int:
     edges = rule_edges(col, inp)
     status = classify_rule(col, edges)
     conflicts = cross_conflicts(status)
-    cor = corroborate(col, status, inp)
+    cor = corroborate(col, status, inp, edges)
     review, nocand, rstats = build_review(col, status, inp)
 
     rule_rows = []
@@ -583,7 +596,8 @@ def cmd_review(args: argparse.Namespace) -> int:
     summary = {k: report[k] for k in ("rule_status_per_year_role", "distinct_rebas_id_unique_by_role",
                                        "cross_year_role_conflicts", "review_stats", "review_rows",
                                        "no_candidate_rows", "outputs_sha256")}
-    summary["corroboration"] = cor["per_evidence_game"]
+    summary["corroboration"] = {k: cor[k] for k in (
+        "per_appearance_game", "appearance_games_B_P", "rule_evidence_games_B_P")}
     print(json.dumps(summary, ensure_ascii=False, indent=1))
 
     stops = stop_reasons(status, conflicts, cor, len(review))
@@ -681,7 +695,19 @@ def render_readme(ctx: dict) -> str:
     a("# player_id_map_2023_2026.csv — REBAS playerId ↔ 中職十碼 acnt 對照")
     a("")
     a(f"- 產生時間：{ctx['generated_at']}")
-    a("- 產生方式：`uv run python docs/research/ISSUE-457/rebas_id_map.py export`（cpbl-analytics #457，一次性快照，不接每日鏈）")
+    a("- 產生方式（cpbl-analytics #457，一次性快照，不接每日鏈）；於 repo 根目錄重現：")
+    a("")
+    a("  ```sh")
+    a("  uv run python docs/research/ISSUE-457/rebas_id_map.py export \\")
+    a("    --snapshot data/exports/pitchmind/_review/457_snapshot \\")
+    a(f"    --zips {DEFAULT_ZIP_DIR} \\")
+    a("    --rulings docs/research/ISSUE-457/manual_rulings.csv \\")
+    a(f"    --expect-digest {ctx['snapshot_digest'][:8]} \\")
+    a("    --out data/exports/pitchmind")
+    a("  ```")
+    a("")
+    a("  快照由 `rebas_id_map.py snapshot --out data/exports/pitchmind/_review/457_snapshot` 取得（唯讀單交易）；"
+      "`--zips` 改成 REBAS 例行賽 zip 所在目錄即可在他處重跑。")
     a(f"- 對照檔 SHA-256：`{ctx['csv_sha']}`（{ctx['n_rows']} 列，UTF-8、LF、固定排序；`acnt` 為文字、保留前導零）")
     a("")
     a("## 來源與版本")
