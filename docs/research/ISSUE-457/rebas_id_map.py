@@ -15,8 +15,10 @@
             唯讀＋REPEATABLE READ 的單一交易；本段改直接用 psycopg 並核對
             `transaction_read_only=on`，結束時 rollback。
   review    純計算：輸入＝快照＋REBAS zip，輸出規則結果、人工裁清單（box 有唯一候選）、
-            無候選清單、佐證報告。⛔ 本段不產生最終 `player_id_map_2023_2026.csv`
-            ——最終匯出要等需求方裁完清單後另行實作（核定規劃 WP3）。
+            無候選清單、佐證報告。
+  export    純計算（核定規劃 WP3）：review 同一套計算＋需求方裁定檔（`manual_rulings.csv`，
+            以 review_key 為鍵、須與人工清單 1:1，且候選帳號須相同）→
+            `player_id_map_2023_2026.csv`＋README。⛔ 不手改輸出；裁定只能改裁定檔。
 
 角色代碼：B＝打者、P＝投手、C＝捕手。
 半局（livelog `visiting_home_type`）：1＝客隊進攻、2＝主隊進攻。
@@ -517,12 +519,17 @@ def check_game_alignment(games: list[dict], inp: Inputs) -> dict:
     return res
 
 
-def cmd_review(args: argparse.Namespace) -> int:
-    snap = Path(args.snapshot)
+def _load_manifest(snap: Path) -> dict:
     manifest = json.loads((snap / "manifest.json").read_text(encoding="utf-8"))
     for name, sha in manifest["files"].items():
         if _sha256_file(snap / name) != sha:
             raise SystemExit(f"快照檔被改動：{name}")
+    return manifest
+
+
+def cmd_review(args: argparse.Namespace) -> int:
+    snap = Path(args.snapshot)
+    manifest = _load_manifest(snap)
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
 
@@ -586,6 +593,215 @@ def cmd_review(args: argparse.Namespace) -> int:
     return 0
 
 
+# ------------------------------------------------------------------ export（WP3：最終匯出）
+
+ROLE_EXPORT = {"B": "batter", "P": "pitcher", "C": "catcher"}
+FINAL_HEADER = ["rebas_player_id", "acnt", "name", "year", "role", "match_method", "match_status"]
+RULING_STATUSES = {"unique", "many_to_one"}
+
+
+def load_rulings(path: Path) -> dict[str, dict[str, str]]:
+    rows = _read_csv(path)
+    out: dict[str, dict[str, str]] = {}
+    for r in rows:
+        if r["review_key"] in out:
+            raise SystemExit(f"裁定檔 review_key 重複：{r['review_key']}")
+        if r["ruling"] not in ("accept", "reject"):
+            raise SystemExit(f"裁定值只能是 accept／reject：{r['review_key']}={r['ruling']}")
+        if r["ruling"] == "accept" and r["match_status"] not in RULING_STATUSES:
+            raise SystemExit(f"收的列 match_status 只能是 {sorted(RULING_STATUSES)}：{r['review_key']}")
+        if not r.get("ruling_url", "").startswith("https://github.com/"):
+            raise SystemExit(f"裁定列缺留言 URL：{r['review_key']}")
+        out[r["review_key"]] = r
+    return out
+
+
+def build_final(col: Collected, status: dict, review: list[list[str]],
+                rulings: dict[str, dict[str, str]]) -> list[list[str]]:
+    """一列一個 (REBAS id, 年, 角色)：規則唯一 → rule；人工清單 → 依裁定檔；其餘對不上留空。
+
+    fail closed：裁定鍵須與人工清單 1:1、候選帳號須一致；規則下有不唯一列即停
+    （已核定規則下應為 0，出現代表輸入變了）。
+    """
+    by_key = {r[0]: r for r in review}
+    if set(by_key) != set(rulings):
+        raise SystemExit(
+            f"裁定檔與人工清單鍵不 1:1：只在清單 {sorted(set(by_key) - set(rulings))}，"
+            f"只在裁定檔 {sorted(set(rulings) - set(by_key))}")
+    for k, r in rulings.items():
+        if r["candidate_acnt"] != by_key[k][7]:
+            raise SystemExit(f"裁定檔候選帳號與清單不符：{k} {r['candidate_acnt']}≠{by_key[k][7]}")
+    rows: list[list[str]] = []
+    taken: dict[tuple[int, str, str], str] = {}
+    for key in sorted(status, key=lambda k: (k[0], ROLES.index(k[1]), k[2])):
+        year, role, pid = key
+        st, acnt = status[key]
+        rkey = f"{year}|{role}|{pid}"
+        if st == "unique":
+            method, mstatus = "rule", "unique"
+        elif st == "unmatched" and rkey in rulings:
+            r = rulings[rkey]
+            if r["ruling"] == "accept":
+                acnt, method, mstatus = r["candidate_acnt"], "manual", r["match_status"]
+            else:
+                acnt, method, mstatus = "", "manual", "unmatched"
+        elif st == "unmatched":
+            acnt, method, mstatus = "", "rule", "unmatched"
+        else:
+            raise SystemExit(f"規則結果出現不唯一列，停止：{rkey} {st}")
+        if acnt:
+            prev = taken.get((year, role, acnt))
+            if prev is not None:
+                raise SystemExit(f"同年同角色同帳號被兩個 REBAS id 使用：{year}{role} {acnt} {prev}/{pid}")
+            taken[(year, role, acnt)] = pid
+        rows.append([pid, acnt, "／".join(sorted(col.names_seen[key])), str(year),
+                     ROLE_EXPORT[role], method, mstatus])
+    return rows
+
+
+def manual_count_mismatch(col: Collected, rulings: dict, inp: Inputs) -> list[list]:
+    """人工收的列逐場比對官方 box PA／BF（捕手略過），只供 README 揭露。"""
+    out = []
+    for k in sorted(rulings):
+        r = rulings[k]
+        y, role, pid = k.split("|")
+        if r["ruling"] != "accept" or role == "C":
+            continue
+        for a in sorted(col.appearances[(int(y), role, pid)], key=lambda x: (x.sno, x.half)):
+            row = inp.box.get((int(y), a.sno, a.side, role), {}).get(r["candidate_acnt"])
+            if row and a.count_stat is not None and row[2] != "" and int(row[2]) != int(a.count_stat):
+                out.append([int(y), role, pid, r["candidate_acnt"], a.sno, a.count_stat, int(row[2])])
+    return out
+
+
+def render_readme(ctx: dict) -> str:
+    """README 全文；除 `產生時間` 一行外完全由輸入決定。"""
+    L: list[str] = []
+    a = L.append
+    a("# player_id_map_2023_2026.csv — REBAS playerId ↔ 中職十碼 acnt 對照")
+    a("")
+    a(f"- 產生時間：{ctx['generated_at']}")
+    a("- 產生方式：`uv run python docs/research/ISSUE-457/rebas_id_map.py export`（cpbl-analytics #457，一次性快照，不接每日鏈）")
+    a(f"- 對照檔 SHA-256：`{ctx['csv_sha']}`（{ctx['n_rows']} 列，UTF-8、LF、固定排序；`acnt` 為文字、保留前導零）")
+    a("")
+    a("## 來源與版本")
+    a("")
+    a(f"- 本機 cpbl DB 唯讀快照：digest `{ctx['snapshot_digest']}`（取於 {ctx['snapshot_taken_at']}，單一 REPEATABLE READ／READ ONLY 交易）")
+    a("  - 讀 `cpbl.players`（姓名名冊）、`cpbl.game_livelog`／`cpbl.games`／`cpbl.batting_gamelog`／`cpbl.pitching_gamelog` 的 kind A 2023–2026")
+    a("- REBAS（野球革命）開放資料 zip，只用例行賽（需求方 2026-11-20 裁定，不含季後賽）：")
+    for name, sha in sorted(ctx["zips"].items()):
+        a(f"  - `{name}` SHA-256 `{sha}`")
+    a(f"- 場次對齊：REBAS 每年場數 {ctx['games_per_year']} 與 DB kind A 相同，(年, seq)＝(年, game_sno) 日期全數相符")
+    a(f"- 腳本 SHA-256 `{ctx['script_sha']}`；裁定檔 `docs/research/ISSUE-457/manual_rulings.csv` SHA-256 `{ctx['rulings_sha']}`")
+    a("")
+    a("## 欄位")
+    a("")
+    a("- `rebas_player_id`：REBAS playerId")
+    a("- `acnt`：中職官方十碼帳號；對不上者留空（不硬配）")
+    a("- `name`：該年 REBAS 上的姓名")
+    a("- `year`：年度（每列只在該年有效；同一人跨年各一列）")
+    a("- `role`：`batter` 打者／`pitcher` 投手／`catcher` 捕手")
+    a("- `match_method`：`rule` 規則推導／`manual` 需求方人工裁定")
+    a("- `match_status`：`unique` 唯一／`many_to_one` 多對一（該 acnt 另有其他 REBAS id）／`unmatched` 對不上")
+    a("")
+    a("## 配對規則")
+    a("")
+    a("- 規則推導（需求方 2026-11-20 裁定 https://github.com/ruan6047/cpbl-analytics/issues/457#issuecomment-7038538159 ）："
+      "名冊姓名 ∩ 同年同場同半局同角色在逐打席紀錄實際出現的帳號，恰一個才算一場證據；逐年逐角色雙向唯一才收。")
+    a("- 捕手：REBAS 只給捕手姓名，id 取自其所屬隊同場打擊 box 的同名者；沒打擊的捕手無 REBAS id，不在本檔。")
+    a("- 規則對不上者，以官方逐場 box（同場、同側、同背號，所有出現場次取交集）找唯一候選，列人工清單由需求方逐筆裁定"
+      "（ https://github.com/ruan6047/cpbl-analytics/issues/457#issuecomment-7039947454 ）；無候選者照規則留空。官方 box 只當證據，不參與規則配對。")
+    a("")
+    a("## 筆數")
+    a("")
+    for (m, st), n in sorted(ctx["by_method_status"].items()):
+        a(f"- `{m}` × `{st}`：{n}")
+    a(f"- 合計 {ctx['n_rows']} 列；distinct REBAS id 有 acnt 者 {ctx['n_pid_mapped']}、distinct acnt {ctx['n_acnt']}")
+    a("- 依年×角色（unique／many_to_one／unmatched）：")
+    for k, v in sorted(ctx["by_year_role"].items()):
+        a(f"  - {k}：{v.get('unique', 0)}／{v.get('many_to_one', 0)}／{v.get('unmatched', 0)}")
+    a("")
+    a("## 多對一（同一 acnt 在不同年份對到兩個 REBAS id）")
+    a("")
+    a("以下列經需求方裁定收、標 `many_to_one`；同一 acnt 在他年由規則配到另一個 REBAS id（REBAS 對同一人用了兩個 id）。"
+      "以 acnt 反查 REBAS 時會得到兩個 id，請以 `year` 區分：")
+    a("")
+    for r in ctx["many_to_one"]:
+        a(f"- {r}")
+    a("")
+    a("## 已知 PA／BF 與官方 box 不一致")
+    a("")
+    a("身分（背號）全數一致；以下場次只有打席數／面對打者數不同，未影響配對：")
+    a("")
+    for r in ctx["count_mismatch"]:
+        a(f"- {r}")
+    a("")
+    a("## 對不上（acnt 留空）")
+    a("")
+    a(f"- {ctx['n_unmatched']} 列，全為打者，每列 1–2 場且 REBAS 打席合計 0（代跑／守備替補）；"
+      "官方 box 同背號與逐打席紀錄皆無候選，照規則留空。")
+    a("")
+    return "\n".join(L)
+
+
+def cmd_export(args: argparse.Namespace) -> int:
+    snap = Path(args.snapshot)
+    manifest = _load_manifest(snap)
+    if args.expect_digest and not manifest["snapshot_digest"].startswith(args.expect_digest):
+        raise SystemExit(f"快照 digest 不符：{manifest['snapshot_digest']} 非 {args.expect_digest}…")
+    out = Path(args.out)
+    out.mkdir(parents=True, exist_ok=True)
+    rpath = Path(args.rulings)
+
+    inp = load_inputs(snap)
+    games, zip_sha = load_rebas_games(Path(args.zips))
+    align = check_game_alignment(games, inp)
+    col = collect_appearances(games)
+    status = classify_rule(col, rule_edges(col, inp))
+    conflicts = cross_conflicts(status)
+    cor = corroborate(col, status, inp)
+    review, _nocand, _ = build_review(col, status, inp)
+    stops = stop_reasons(status, conflicts, cor, len(review))
+    if stops:
+        raise SystemExit("觸及停止條件：" + "；".join(stops))
+    rulings = load_rulings(rpath)
+    rows = build_final(col, status, review, rulings)
+    csv_sha = _write_csv(out / "player_id_map_2023_2026.csv", FINAL_HEADER, rows)
+
+    by_ms = collections.Counter((r[5], r[6]) for r in rows)
+    by_yr: dict[str, collections.Counter] = {}
+    for r in rows:
+        by_yr.setdefault(f"{r[3]} {r[4]}", collections.Counter())[r[6]] += 1
+    rule_by_acnt = collections.defaultdict(list)
+    for r in rows:
+        if r[5] == "rule" and r[1]:
+            rule_by_acnt[r[1]].append(f"{r[3]} {r[4]} `{r[0]}`（{r[2]}）")
+    m2o = [f"`{r[0]}`（{r[2]}）{r[3]} {r[4]} → `{r[1]}`；他年規則配對：{'、'.join(rule_by_acnt[r[1]])}"
+           for r in rows if r[6] == "many_to_one"]
+    cm = [f"規則 {y} {ROLE_EXPORT[ro]} `{pid}` → `{ac}`，game_sno {sno}：REBAS {rp}／官方 {op}"
+          for y, ro, pid, ac, sno, _rn, _on, rp, op in cor["count_stat_mismatch"]]
+    cm += [f"人工 {y} {ROLE_EXPORT[ro]} `{pid}` → `{ac}`，game_sno {sno}：REBAS {rp}／官方 {op}"
+           for y, ro, pid, ac, sno, rp, op in manual_count_mismatch(col, rulings, inp)]
+    ctx = {
+        "generated_at": datetime.now(UTC).isoformat(timespec="seconds"),
+        "csv_sha": csv_sha, "n_rows": len(rows),
+        "snapshot_digest": manifest["snapshot_digest"], "snapshot_taken_at": manifest["taken_at"],
+        "zips": zip_sha, "games_per_year": align["rebas_games_per_year"],
+        "script_sha": _sha256_file(Path(__file__)), "rulings_sha": _sha256_file(rpath),
+        "by_method_status": dict(by_ms), "by_year_role": by_yr,
+        "n_pid_mapped": len({r[0] for r in rows if r[1]}), "n_acnt": len({r[1] for r in rows if r[1]}),
+        "many_to_one": m2o, "count_mismatch": cm,
+        "n_unmatched": sum(1 for r in rows if r[6] == "unmatched"),
+    }
+    readme = render_readme(ctx)
+    (out / "player_id_map_2023_2026.README.md").write_text(readme, encoding="utf-8")
+    body = "\n".join(x for x in readme.split("\n") if not x.startswith("- 產生時間："))
+    print(json.dumps({"csv_sha256": csv_sha, "readme_sha256_excl_time": hashlib.sha256(body.encode()).hexdigest(),
+                      "rows": len(rows), "by_method_status": {f"{m}/{s}": n for (m, s), n in sorted(by_ms.items())}},
+                     ensure_ascii=False, indent=1))
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -598,6 +814,14 @@ def main(argv: list[str] | None = None) -> int:
     r.add_argument("--zips", default=DEFAULT_ZIP_DIR, help=f"REBAS zip 目錄（預設 {DEFAULT_ZIP_DIR}）")
     r.add_argument("--out", required=True, help="輸出目錄")
     r.set_defaults(func=cmd_review)
+    e = sub.add_parser("export", help="純計算：套用裁定檔產出最終對照與 README")
+    e.add_argument("--snapshot", required=True, help="snapshot 產生的目錄")
+    e.add_argument("--zips", default=DEFAULT_ZIP_DIR, help=f"REBAS zip 目錄（預設 {DEFAULT_ZIP_DIR}）")
+    e.add_argument("--rulings", default=str(Path(__file__).with_name("manual_rulings.csv")),
+                   help="需求方裁定檔（預設同目錄 manual_rulings.csv）")
+    e.add_argument("--expect-digest", default=None, help="快照 digest 前綴；不符即停")
+    e.add_argument("--out", required=True, help="輸出目錄")
+    e.set_defaults(func=cmd_export)
     args = ap.parse_args(argv)
     return args.func(args)
 
