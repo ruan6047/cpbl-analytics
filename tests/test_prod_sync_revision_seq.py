@@ -150,6 +150,8 @@ log_call("ssh", argv, sys.stdin.read())
 match = re.search(r"max\\(id\\), 0\\) FROM cpbl\\.(\\w+)", argv[-1] if argv else "")
 if match:
     print(json.loads(os.environ["STUB_PROD_MAX"]).get(match.group(1), 0))
+elif "FROM cpbl.games g WHERE year =" in (argv[-1] if argv else ""):
+    print("2026-08-15|5")
 '''
 
 
@@ -192,7 +194,7 @@ def _build_harness(tmp_path: Path) -> dict:
         "printf '%s\\n' \"$@\" > \"$STUB_LOG_DIR/curl/$$.args\"\n"
         "echo '{}'\n",
     )
-    _write_exec(fake_bin / "python3", f'#!/bin/sh\ncase "$2:$3" in\n  */input.sql:*/copy.sql) exec "{sys.executable}" "$@" ;;\nesac\ncat > /dev/null\nexit 0\n')
+    _write_exec(fake_bin / "python3", f'#!/bin/sh\ncase "$2:$3" in\n  */input.sql:*/copy.sql) exec "{sys.executable}" "$@" ;;\nesac\nif [ "${{STUB_TRACE_FRESHNESS:-0}}" = 1 ] && [ "${{1##*/}}" = verify_refresh_info.py ]; then echo "stub freshness $*"; fi\ncat > /dev/null\nexit 0\n')
 
     # 腳本以絕對路徑（$REPO_DIR/scripts/…）呼叫的兩支，樁在假 repo 內。
     _write_exec(repo / "scripts" / "backup-prod-db.sh", "#!/bin/sh\necho /dev/null\n")
@@ -203,7 +205,8 @@ def _build_harness(tmp_path: Path) -> dict:
 
 
 def _run_refresh(
-    tmp_path: Path, *, with_detail: bool = True, external_game_features: bool = False, **stub_env: str
+    tmp_path: Path, *, with_detail: bool = True, external_game_features: bool = False,
+    external_a_schedule: bool = False, **stub_env: str
 ) -> tuple[subprocess.CompletedProcess, list[dict]]:
     tmp_path.mkdir(parents=True, exist_ok=True)
     harness = _build_harness(tmp_path)
@@ -228,7 +231,11 @@ def _run_refresh(
         env["WITH_DETAIL"] = "1"
     if external_game_features:
         marker = Path(env["HOME"]) / "Library/Application Support/cpbl-analytics/mac-game-features-external"
-        marker.parent.mkdir(parents=True)
+        marker.parent.mkdir(parents=True, exist_ok=True)
+        marker.touch()
+    if external_a_schedule:
+        marker = Path(env["HOME"]) / "Library/Application Support/cpbl-analytics/mac-a-schedule-external"
+        marker.parent.mkdir(parents=True, exist_ok=True)
         marker.touch()
 
     result = subprocess.run(

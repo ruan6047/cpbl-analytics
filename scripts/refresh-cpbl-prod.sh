@@ -160,6 +160,47 @@ fi
 REPO_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 YEAR="$(date +%Y)"
 PREV="$((YEAR - 1))"
+MAC_A_SCHEDULE_MARKER="${MAC_CUTOVER_MARKER%/*}/mac-a-schedule-external"
+MAC_A_SCOPE_SQL=""
+LOCAL_GAMES_WHERE=""
+if [ "${REFRESH_TRIGGER:-manual}" = launchd ] &&
+   { [ -e "$MAC_A_SCHEDULE_MARKER" ] || [ -L "$MAC_A_SCHEDULE_MARKER" ]; }; then
+  HANDOFF_YEAR="$(TZ=Asia/Taipei date +%Y)"
+  MAC_A_SCOPE_SQL="year = ${HANDOFF_YEAR} AND kind_code = 'A'"
+  LOCAL_GAMES_WHERE=" WHERE NOT (${MAC_A_SCOPE_SQL})"
+fi
+
+# Pi 只承接當年 A 賽程。其他賽別、歷史與非 schedule 來源照舊同步。
+schedule_sync_filter() {
+  [ -n "$MAC_A_SCOPE_SQL" ] || return 0
+  case "$1" in
+    games|game_schedule_status_revisions) printf ' WHERE NOT (%s)' "$MAC_A_SCOPE_SQL" ;;
+    game_source_revisions) printf " WHERE NOT (%s AND source = 'schedule')" "$MAC_A_SCOPE_SQL" ;;
+  esac
+}
+
+# API 回報全站聚合。已交接範圍取正式庫，其餘仍用本機同步前的獨立基準。
+merge_handoff_freshness() {
+  [ -n "$MAC_A_SCOPE_SQL" ] || return 0
+  local owned owned_date owned_count
+  owned="$(ssh -n -o BatchMode=yes "$VPS" \
+    "cd ${DEPLOY_PATH} && set -a && . ./.env && docker exec prod_pg psql \
+       -v ON_ERROR_STOP=1 -qAt -F '|' -U \"\$DB_USER\" -d \"\$DB_NAME\" -c \"SELECT \
+       COALESCE(max(game_date) FILTER (WHERE ${COMPLETED_GAMES_SQL})::text, ''), \
+       count(*) FILTER (WHERE year = ${YEAR} AND ${COMPLETED_GAMES_SQL}) \
+       FROM cpbl.games g WHERE ${MAC_A_SCOPE_SQL}\"")" || return 65
+  IFS='|' read -r owned_date owned_count <<< "$owned"
+  if ! [[ "$owned_count" =~ ^[0-9]+$ ]] ||
+     { [ -n "$owned_date" ] && ! [[ "$owned_date" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]]; }; then
+    echo 'FATAL: 無法取得已交接 A 賽程的正式 freshness 基準' >&2
+    return 65
+  fi
+  if [[ "$owned_date" > "$EXPECTED_LAST_GAME_DATE" ]]; then
+    EXPECTED_LAST_GAME_DATE="$owned_date"
+  fi
+  [ -n "$EXPECTED_LAST_GAME_DATE" ] || return 65
+  EXPECTED_COMPLETED="$((EXPECTED_COMPLETED + owned_count))"
+}
 
 # #353 WP3：/api/info 改為 TTL 60 秒的行程內快取（api/routers/info.py）。下方 freshness 檢查必須讀到
 # 「同步（或 marker）之後才算出」的快取，否則比到的是舊值、資料明明對卻判失敗。這裡只**等快取換代**
@@ -605,11 +646,13 @@ sync_table() {
     _sync_table_exact "$t" "$pk" "$set_clause" "${tgt_row%,}" "${new_row%,}" "$@"
     return
   fi
+  local schedule_filter
+  schedule_filter="$(schedule_sync_filter "$t")"
   {
     echo "CREATE TEMP TABLE _stg (LIKE cpbl.${t} INCLUDING DEFAULTS) ON COMMIT DROP;"
     docker exec "$LOCAL_DB" pg_dump -U cpbl -d cpbl --data-only -t "cpbl.${t}" \
       | sed -e "s/^COPY cpbl\.${t} /COPY _stg /" -e '/^\\restrict /d' -e '/^\\unrestrict /d'
-    echo "INSERT INTO cpbl.${t} AS tgt SELECT * FROM _stg ON CONFLICT (${pk}) DO UPDATE SET ${set_clause}" \
+    echo "INSERT INTO cpbl.${t} AS tgt SELECT * FROM _stg${schedule_filter} ON CONFLICT (${pk}) DO UPDATE SET ${set_clause}" \
       "WHERE ROW(${tgt_row%,}) IS DISTINCT FROM ROW(${new_row%,});"
   } | ssh -o BatchMode=yes "$VPS" \
         "cd ${DEPLOY_PATH} && set -a && . ./.env && docker exec -i prod_pg psql \
@@ -930,9 +973,9 @@ _pa_ssh_close() {  # $1=ControlPath 目錄：關掉 sync_pa_build 開的連線�
 # last_seen_at 末見、seen_count 觀測次數），且沒有 FK 網要求原子重建。增量 upsert 足夠，
 # 不必每天把 prod 的軌跡列整批重寫。
 #
-# prod 端無獨立 writer：唯二寫入者是 `record_schedule_revisions`／`record_source_revision`，
+# 原 Mac 模式的寫入來源是 `record_schedule_revisions`／`record_source_revision`，
 # 呼叫點全在 ingest（cpbl_site／cpbl_gamelog／run_refresh_recent），而爬蟲只能本機跑
-# （VPS IP 被官網擋），故本機值為權威、可整欄鏡像。
+# （VPS IP 被官網擋），故本機值為權威、可整欄鏡像。A 賽程交接後只同步仍屬 Mac 的列。
 #
 # 曾被判為「無害」而實際炸掉生產的副作用（OPS-PROD-SYNC-SEQ-COLLISION1，2026-08-14 修）：
 # `_stage` 的 `pg_dump --data-only -t` 會一併輸出該表 identity 序列的 `setval`，那一行落在
@@ -1048,7 +1091,8 @@ _revision_telemetry() {  # $1=表  $2=本機序列名
 sync_revision_table() {  # $1=表 $2=內容唯一鍵 其餘=欄位（**不含** identity 欄 id）
   local t="$1" pk="$2"; shift 2
   local cols; cols="$(printf '%s,' "$@")"; cols="${cols%,}"
-  local seq payload
+  local seq payload schedule_filter
+  schedule_filter="$(schedule_sync_filter "$t")"
   if ! seq="$(_serial_sequence "$t")"; then
     echo "FATAL: 取不到 cpbl.${t} 的 id 序列名（表結構已變？）——拒絕以可能含 setval 的 payload 同步生產" >&2
     exit 66
@@ -1056,10 +1100,14 @@ sync_revision_table() {  # $1=表 $2=內容唯一鍵 其餘=欄位（**不含** 
   payload="$(mktemp "${TMPDIR:-/tmp}/cpbl-rev-${t}.XXXXXX")"
   {
     _stage_noseq "$t" _rev_stg "$seq"
+    if [ -n "$schedule_filter" ]; then
+      # 與 VPS 的 revision INSERT 互斥，避免矯正序列時回撥到另一筆交易已配出的 ID。
+      echo "LOCK TABLE cpbl.${t} IN SHARE ROW EXCLUSIVE MODE;"
+    fi
     echo "SELECT setval(pg_get_serial_sequence('cpbl.${t}', 'id'), \
 GREATEST(COALESCE((SELECT max(id) FROM cpbl.${t}), 0), 1), \
 (SELECT count(*) FROM cpbl.${t}) > 0);"
-    echo "INSERT INTO cpbl.${t} (${cols}) SELECT ${cols} FROM _rev_stg \
+    echo "INSERT INTO cpbl.${t} (${cols}) SELECT ${cols} FROM _rev_stg${schedule_filter} \
 ON CONFLICT (${pk}) DO UPDATE SET $(_excl "$@");"
   } > "$payload"
 
@@ -1170,7 +1218,7 @@ sync_postseason_results() {
 # （G3／G4 實測約 36 分鐘；F+60 回 unchanged 時會拖到隔日每日鏈）。欄位語意不變，只改送達時點。
 # 與 sync_revision_table 同一套語意（不搬 id、矯正 setval 設到 prod 自己的 max(id)、payload 先落地斷言才送、
 # 內容唯一鍵衝突時整欄鏡像），差別只有資料取法：目標鍵 `COPY (SELECT …) TO STDOUT`（⛔ 不 pg_dump 整表）。
-#   ⛔ 不改 sync_revision_table／sync_postseason_results（完整鏈與 RESULTS_ONLY 的 payload 逐位元不變）。
+#   完整鏈與 RESULTS_ONLY 沿共用同步入口及其 A 賽程守門；這裡只處理 box 來源。
 #   ⛔ 只送 livelog／scoreboard；schedule／advanced 照舊由結果同步與每日鏈送（不搶先於 games／狀態軌跡表）。
 # 欄位清單與 sync_postseason_results 的 game_source_revisions 逐字相同（tests/test_boxpa_sync_mode.py 釘住）。
 # 不印 _revision_telemetry：那要另開一條 ssh 唯讀查詢，失敗碼不是 72／74；矯正 setval 本身是構造保證。
@@ -1282,9 +1330,10 @@ if [ -n "${POSTSEASON_RESULTS_ONLY:-}" ]; then
   LOCAL_FRESHNESS="$(docker exec "$LOCAL_DB" psql -U cpbl -d cpbl -At -F '|' -c \
     "SELECT COALESCE(max(game_date) FILTER (WHERE ${COMPLETED_GAMES_SQL})::text, ''), \
             count(*) FILTER (WHERE year = ${YEAR} AND ${COMPLETED_GAMES_SQL}) \
-     FROM cpbl.games g")"
+     FROM cpbl.games g${LOCAL_GAMES_WHERE}")"
   IFS='|' read -r EXPECTED_LAST_GAME_DATE EXPECTED_COMPLETED <<< "$LOCAL_FRESHNESS"
-  if [ -z "$EXPECTED_LAST_GAME_DATE" ] || ! [[ "$EXPECTED_COMPLETED" =~ ^[0-9]+$ ]]; then
+  if { [ -z "$LOCAL_GAMES_WHERE" ] && [ -z "$EXPECTED_LAST_GAME_DATE" ]; } ||
+     ! [[ "$EXPECTED_COMPLETED" =~ ^[0-9]+$ ]]; then
     echo "FATAL: 無法取得本機 freshness 基準：${LOCAL_FRESHNESS}" >&2
     exit 65
   fi
@@ -1296,6 +1345,7 @@ if [ -n "${POSTSEASON_RESULTS_ONLY:-}" ]; then
   sync_postseason_results
   echo '==> 季後晚間：對帳 production 真實資料 freshness（data-only；不寫 refresh 標記）'
   wait_api_info_cache_since "$(date +%s)"
+  merge_handoff_freshness || exit 65
   # 對帳不等（或取不到 /api/info）回專屬的 68：核定規劃對它的處置是「記失敗並停止當晚」，
   # 與 64–67／psql 錯誤的「立即停、bootout、交人工」不同，故不得與其他非零碼混用。
   if ! curl -fsS --retry 3 --retry-delay 15 --max-time 20 "$API_INFO_URL" \
@@ -1542,9 +1592,10 @@ COMPLETED_GAMES_SQL="$(uv run python -m cpbl.completion --with-evidence)"
 LOCAL_FRESHNESS="$(docker exec "$LOCAL_DB" psql -U cpbl -d cpbl -At -F '|' -c \
   "SELECT COALESCE(max(game_date) FILTER (WHERE ${COMPLETED_GAMES_SQL})::text, ''), \
           count(*) FILTER (WHERE year = ${YEAR} AND ${COMPLETED_GAMES_SQL}) \
-   FROM cpbl.games g")"
+   FROM cpbl.games g${LOCAL_GAMES_WHERE}")"
 IFS='|' read -r EXPECTED_LAST_GAME_DATE EXPECTED_COMPLETED <<< "$LOCAL_FRESHNESS"
-if [ -z "$EXPECTED_LAST_GAME_DATE" ] || ! [[ "$EXPECTED_COMPLETED" =~ ^[0-9]+$ ]]; then
+if { [ -z "$LOCAL_GAMES_WHERE" ] && [ -z "$EXPECTED_LAST_GAME_DATE" ]; } ||
+     ! [[ "$EXPECTED_COMPLETED" =~ ^[0-9]+$ ]]; then
   echo "FATAL: 無法取得本機 freshness 基準：${LOCAL_FRESHNESS}" >&2
   exit 65
 fi
@@ -1775,6 +1826,7 @@ fi
 
 echo "    + 對帳 production 真實資料 freshness"
 wait_api_info_cache_since "$SYNC_DONE_AT"
+merge_handoff_freshness || exit 65
 fetch_api_info \
   | python3 "$REPO_DIR/scripts/verify_refresh_info.py" --data-only \
       --expected-last-game-date "$EXPECTED_LAST_GAME_DATE" \
