@@ -704,9 +704,10 @@ def arrange(rule: SeasonRule, games: list[GameFact], series: dict, *, now: datet
             # 並讓已在別天打完的公告格落空、系列決勝後被誤判「依條件不需進行」。延賽只會往後：真實列早於
             # 公告日 ⇒ 不綁（維持 changed，該列另成公告外格）。場序取真實列排序，⛔ 不從官方場號推。
             cand = c_ordered[slot.seq - 1] if 0 < slot.seq <= len(c_ordered) else None
-            if cand and cand.key not in matched and cand.game_date.isoformat() >= slot.date:
+            cand_day = cand.game_date.isoformat() if cand and cand.game_date else None   # c_ordered 已濾掉無日期列
+            if cand and cand_day and cand.key not in matched and cand_day >= slot.date:
                 row = cand
-                if cand.game_date.isoformat() != slot.date:
+                if cand_day != slot.date:
                     change = {"kind": "moved", "announced_date": slot.date}
             else:
                 change = {"kind": "changed"}
