@@ -12,6 +12,7 @@ from datetime import date, datetime
 import pytest
 from postseason_context_inputs import (
     BRO,
+    C_MAKEUP_NOW,
     DRAGON,
     GUARDIAN,
     HAWK,
@@ -21,6 +22,7 @@ from postseason_context_inputs import (
     RAKUTEN,
     case_b_rule,
     games,
+    games_2026_c_makeup,
     inputs,
     standings,
     with_result,
@@ -213,6 +215,41 @@ def test_decided_hides_unneeded_slots_but_keeps_original_arrangement():
     assert ctx["arrangement"]["next_slot_id"] is None and ctx["arrangement"]["remaining"] is False
     # 真實 DB 列永遠輸出
     assert {g["game_key"]["game_sno"] for g in ctx["games"] if g["game_key"]["kind_code"] == "C"} == set(range(1, 8))
+
+
+def test_c_makeup_binds_announced_slot_by_real_series_order_not_same_day():
+    """#459：C5 延賽補在公告 C7 的原定日（真實 2026 列）。賽程已異動時，第 N 公告格對第 N 場真實列；
+    ⛔ 不因「同日唯一」把 C-5 綁到 C7，也不留下已在別天打完、卻被判「依條件不需進行」的空公告格。"""
+    ctx = _ctx(2026, now=C_MAKEUP_NOW, games_override=games_2026_c_makeup())
+    assert ctx["series"]["C"]["series_status"] == "decided"
+    slots = {s["slot_id"]: s for s in ctx["arrangement"]["slots"]}
+    for n in range(1, 8):
+        s = slots[f"C{n}"]
+        assert (s["seq"], s["game_key"]) == (n, _key(2026, "C", n)), s
+    assert (slots["C5"]["date"], slots["C5"]["change"]) == ("2026-10-25", {"kind": "moved", "announced_date": "2026-10-23"})
+    assert (slots["C6"]["date"], slots["C6"]["change"]) == ("2026-10-26", {"kind": "moved", "announced_date": "2026-10-24"})
+    assert (slots["C7"]["date"], slots["C7"]["change"]) == ("2026-10-27", {"kind": "moved", "announced_date": "2026-10-25"})
+    assert [slots[f"C{n}"]["display_status"] for n in range(1, 8)] == ["final"] * 6 + ["not_needed"]
+    for n in range(1, 5):
+        assert slots[f"C{n}"]["change"] is None   # 公告日即真實日：未異動的格照舊
+    # 每列只綁一格、沒有公告外的 C 格；games[] 的系列場序與所綁公告格的場序一致
+    assert not [k for k in slots if k.startswith("C-sno")]
+    for g in (g for g in ctx["games"] if g["game_key"]["kind_code"] == "C"):
+        assert g["announced_slot_id"] == f"C{g['series_game_no']}"
+        assert slots[g["announced_slot_id"]]["seq"] == g["series_game_no"]
+    # 挑戰賽不受影響
+    assert [slots[f"E{n}"]["game_key"] for n in range(1, 5)] == [_key(2026, "E", n) for n in range(1, 5)]
+    assert all(slots[f"E{n}"]["change"] is None for n in range(1, 5))
+
+
+def test_c_makeup_never_binds_row_earlier_than_announced_date():
+    """延賽只會往後：第 N 場真實列早於公告第 N 格的日期 ⇒ 不綁，維持 changed（真實列另成公告外格）。"""
+    gs = [replace(g, game_date=date(2026, 10, 22)) if (g.kind_code, g.game_sno) == ("C", 5) else g
+          for g in games_2026_c_makeup()]
+    ctx = _ctx(2026, now=C_MAKEUP_NOW, games_override=gs)
+    slots = {s["slot_id"]: s for s in ctx["arrangement"]["slots"]}
+    assert slots["C5"]["game_key"] is None and slots["C5"]["change"] == {"kind": "changed"}
+    assert slots["C-sno5"]["game_key"] == _key(2026, "C", 5) and slots["C-sno5"]["seq"] == 5
 
 
 def test_both_teams_reaching_wins_needed_is_conflict_not_first_sorted():

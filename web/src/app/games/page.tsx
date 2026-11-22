@@ -14,6 +14,7 @@ import { hasFinalResult } from "@/lib/live-game";
 import { teamFullName, teamNamesFromGames, withGameTeamNames } from "@/lib/teams";
 import { LiveCalendarGame } from "@/components/live-calendar-game";
 import { PostseasonExplainer, slotGameLabel } from "@/components/postseason-series";
+import { POST_LABEL, calendarPostseasonIndex, calendarPostseasonLabel } from "@/lib/calendar-postseason";
 import { AnnouncedCompact, AnnouncedMobile, PostseasonCalendarLegend } from "@/components/postseason-calendar";
 import { announcementFor } from "@/lib/postseason-announcement";
 import { calendarNotNeeded } from "@/lib/calendar-status";
@@ -38,8 +39,6 @@ const statusOf = (done: boolean, delay: string | null | undefined,
       : { label: "未開打", tone: "scheduled" };
 const makeupNote = (g: { orig_date: string | null; game_date: string; delay_kind: string | null }, done: boolean) =>
   !done && g.delay_kind && g.orig_date && g.orig_date !== g.game_date ? `原定 ${g.orig_date.slice(5).replace("-", "/")}` : null;
-// 季後賽層級標記（C=台灣大賽/E=季後挑戰賽/F=二軍季後；例行賽 A/D 無標記）
-const POST_LABEL: Record<string, string> = { C: "台灣大賽", E: "季後挑戰賽", F: "二軍季後" };
 // 完賽但帶 delay_kind＝在改期後的日子打完（延賽→補賽、保留→續賽）。原本用 ☔ 小標記，
 // #218 emoji 處置改文字；不寫成因（全庫沒有延賽理由欄位）。
 const MADEUP_LABEL: Record<string, string> = { 延賽: "補賽", 保留: "續賽" };
@@ -107,12 +106,7 @@ export default async function GamesPage({
   const probeR = await Promise.allSettled(probes.map((p) => api.liveEntryCheck(p.sno, p.kind, baseJourney!.year)));
   const journey = baseJourney && withLiveEntries(baseJourney, liveEntryResults(probes, probeR));
   const entryUnverified = probeR.some((r) => r.status === "rejected" && !(r.reason instanceof ApiError && r.reason.failure === "not_found"));
-  const slotByRow = new Map<string, JourneySlot>();
-  const announcedByDate = new Map<string, JourneySlot[]>();
-  for (const s of journey?.slots ?? []) {
-    if (s.row) slotByRow.set(`${s.row.kind_code}-${s.row.game_sno}`, s);
-    else (announcedByDate.get(s.date) ?? announcedByDate.set(s.date, []).get(s.date)!).push(s);
-  }
+  const { slotByRow, announcedByDate } = calendarPostseasonIndex(journey?.slots ?? []);
   const reserveDates = new Set((journey?.reserveDays ?? []).map((d) => d.date));
 
   // 依日期分組
@@ -296,7 +290,7 @@ export default async function GamesPage({
                     const extra = slotExtra(js, done);
                     const body = (
                       <>
-                        {POST_LABEL[g.kind_code] && <div className="mb-0.5 text-center text-xs font-bold leading-none text-ink">{POST_LABEL[g.kind_code]}{js ? ` ${slotGameLabel(js)}` : ""}</div>}
+                        {POST_LABEL[g.kind_code] && <div className="mb-0.5 text-center text-xs font-bold leading-none text-ink">{calendarPostseasonLabel(g.kind_code, js)}</div>}
                         {isCurrent && c.key === todayStr && !notNeeded ? (
                           <LiveCalendarGame game={g} variant="compact" startsAt={js?.start ? `${js.date}T${js.start}:00+08:00` : null} />
                         ) : <div className="flex items-center justify-between gap-1 leading-none">
@@ -376,7 +370,7 @@ export default async function GamesPage({
                   <>
                     {POST_LABEL[g.kind_code] && (
                       <p className="mb-1.5 flex flex-wrap gap-1.5 leading-none">
-                        <span className="pm-tag !text-ink">{POST_LABEL[g.kind_code]}{js ? ` ${slotGameLabel(js)}` : ""}</span>
+                        <span className="pm-tag !text-ink">{calendarPostseasonLabel(g.kind_code, js)}</span>
                         {extra && <span className="pm-tag !text-ink">{extra}</span>}
                       </p>
                     )}
@@ -387,7 +381,7 @@ export default async function GamesPage({
                     <div className="flex items-center justify-between">
                       <span className="flex max-w-fit flex-wrap items-center gap-1.5 leading-none">
                         <StatusBadge tone={st.tone}>{st.label}</StatusBadge>
-                        {POST_LABEL[g.kind_code] && <span className="pm-tag !text-ink">{POST_LABEL[g.kind_code]}{js ? ` ${slotGameLabel(js)}` : ""}</span>}
+                        {POST_LABEL[g.kind_code] && <span className="pm-tag !text-ink">{calendarPostseasonLabel(g.kind_code, js)}</span>}
                         {extra && <span className="pm-tag !text-ink">{extra}</span>}
                         {done && g.delay_kind && MADEUP_LABEL[g.delay_kind] && <span className="pm-tag">{MADEUP_LABEL[g.delay_kind]}</span>}
                         {makeupNote(g, done) && <span className="pm-tag">{makeupNote(g, done)}</span>}
