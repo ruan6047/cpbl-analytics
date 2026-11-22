@@ -1,0 +1,11 @@
+[Unit]
+Description=Publish one notified CPBL team-comparison snapshot
+After=docker.service
+ConditionPathExists=/var/lib/cpbl393-team-comparison-publish/enabled
+
+[Service]
+Type=oneshot
+WorkingDirectory=/var/lib/cpbl393-team-comparison-publish
+ExecStart=/usr/bin/docker compose --project-name cpbl393-team-comparison-once --env-file /var/lib/cpbl393-team-comparison-publish/compose.env -f /var/lib/cpbl393-team-comparison-publish/compose.yml run --rm --no-deps -T --name cpbl393-team-comparison-publish-once cpbl-team-comparison-publish
+TimeoutStartSec=300
+UMask=0077

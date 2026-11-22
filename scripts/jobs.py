@@ -29,7 +29,7 @@ import schedule_watch  # noqa: E402
 
 TAIPEI = ZoneInfo("Asia/Taipei")
 WORKERS = ("scrape-daily", "postseason-evening", "weekly-box-revisions", "weekly-game-pitches")
-WRITERS = (*WORKERS, "features-only")
+WRITERS = (*WORKERS, "features-only", "team-comparison-only")
 JOBS = (*WRITERS, "schedule-watchdog", "alert-watch")
 DATABASE_ENV = ("DATABASE_URL", "CPBL393_DATABASE_URL", "CPBL_FEATURE_PI_DATABASE_URL", "PGHOST",
                 "PGHOSTADDR", "PGPORT", "PGUSER", "PGDATABASE", "PGPASSWORD", "PGPASSFILE",
@@ -135,9 +135,18 @@ class Run:
             refresh_status._write_atomic(self.root / name, payload)
 
     @contextlib.contextmanager
-    def locked(self):
+    def locked(self, *, wait_seconds=0):
         self.lock.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
-        self.lock.mkdir(mode=0o700)  # busy 即 75；不刪未知或舊 namespace 的 owner。
+        deadline = time.monotonic() + wait_seconds
+        while True:
+            try:
+                self.lock.mkdir(mode=0o700)
+                break
+            except FileExistsError:
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    raise  # busy 即 75；不刪未知或舊 namespace 的 owner。
+                time.sleep(min(1, remaining))
         identity = self.lock.stat()
         pid = str(os.getpid())
         owned = False
@@ -217,6 +226,59 @@ def _features_only(run, *, verify_only, include_games=False):
                 run.retain_lock = False
         code = 0
         result.update(state=state, row_count=manifest["row_count"])
+    except Exception as exc:
+        code = 75 if isinstance(exc, FileExistsError) and not acquired else 1
+        result.update(state="busy" if code == 75 else "failed", error=type(exc).__name__,
+                      lock_retained=run.retain_lock)
+    print(json.dumps({**result, "exit_code": code}, sort_keys=True))
+    return code
+
+
+def _team_comparison_only(run, args):
+    from cpbl.db import conn
+    from cpbl.playoffs.team_comparison import handoff, sync
+
+    result = {"job": run.job}
+    acquired = False
+    try:
+        if args.wait_lock < 0:
+            raise ValueError("invalid_summary_lock_wait")
+        manifest, source = handoff.read_incoming(
+            Path(os.environ["CPBL_JOBS_INBOX_ROOT"]), os.environ["CPBL_FEATURE_SOURCE_ID"], run.now.date(),
+        )
+        result.update(run_id=manifest["run_id"], snapshot_sha256=manifest["snapshot_sha256"])
+        with run.locked(wait_seconds=args.wait_lock):
+            acquired = True
+            if datetime.now(TAIPEI).date() != run.now.date():
+                raise ValueError("summary_publish_crossed_midnight")
+            receipts = run.root / "team-comparison-published"
+            if receipts.is_symlink():
+                raise ValueError("summary_receipt_directory")
+            receipts.mkdir(mode=0o700, exist_ok=True)
+            receipt = receipts / f'{manifest["run_id"]}.json'
+            if receipt.is_symlink():
+                raise ValueError("summary_receipt_path")
+            if receipt.exists():
+                if not receipt.is_file() or json.loads(receipt.read_bytes()) != manifest:
+                    raise ValueError("summary_conflicting_receipt")
+                result.update(state="already_published")
+            else:
+                try:
+                    with conn() as connection:
+                        run.retain_lock = True
+                        plan = handoff.publish(connection, source)
+                except sync.SyncError as exc:
+                    if exc.code in (sync.EXIT_REJECT, sync.EXIT_NO_TABLE):
+                        run.retain_lock = False
+                    raise
+                finally:
+                    _close_pool(run)
+                if run.detail.get("close_failed"):
+                    raise RuntimeError("summary_connection_exit_unknown")
+                refresh_status._write_atomic(receipt, manifest)
+                run.retain_lock = False
+                result.update(state="published", plan=plan, reconciled=True)
+        code = 0
     except Exception as exc:
         code = 75 if isinstance(exc, FileExistsError) and not acquired else 1
         result.update(state="busy" if code == 75 else "failed", error=type(exc).__name__,
@@ -483,6 +545,8 @@ def _parser():
     features = sub.add_parser("features-only", allow_abbrev=False)
     features.add_argument("--verify-only", action="store_true")
     features.add_argument("--include-games", action="store_true")
+    summary = sub.add_parser("team-comparison-only", allow_abbrev=False)
+    summary.add_argument("--wait-lock", type=int, default=0)
     evening = sub.add_parser("postseason-evening", allow_abbrev=False)
     evening.add_argument("--stage", choices=("all", "boxpa"), default="all")
     for name in ("weekly-box-revisions", "weekly-game-pitches"):
@@ -517,6 +581,8 @@ def main(argv=None):
             run = Run("features-verify" if verify_only else args.job, root, trigger, datetime.now(TAIPEI))
             if args.job == "features-only":
                 return _features_only(run, verify_only=verify_only, include_games=args.include_games)
+            if args.job == "team-comparison-only":
+                return _team_comparison_only(run, args)
 
             from cpbl.ingest._job_source import job_source
 

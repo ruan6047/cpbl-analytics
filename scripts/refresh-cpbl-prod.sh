@@ -453,6 +453,11 @@ fi
 #   ⛔ build／列無 UPDATE／DELETE：同 build_id 內容不同一律 exit 70 拒絕、不重試；無變更時不備份、不寫入。
 #   放在 ROSTER_ONLY 之前：兩個早退模式同時設定時由本段拒絕，不讓任一個被靜默略過。
 # BACKUP_DIR 規則與 ROSTER_ONLY 相同（絕對路徑、realpath 不得等於每日鏈輪替目錄）。
+mac_team_comparison_handed_off() {
+  local marker="${MAC_CUTOVER_MARKER%/*}/mac-team-comparison-external"
+  [ "${REFRESH_TRIGGER:-manual}" = launchd ] && { [ -e "$marker" ] || [ -L "$marker" ]; }
+}
+
 team_comparison_sync() {  # $1=action（plan／apply）；本機唯讀、目標＝production
   uv run python -m cpbl.playoffs.team_comparison.sync "$1" \
     --local-psql "docker exec -i ${LOCAL_DB} psql -U cpbl -d cpbl" \
@@ -474,6 +479,10 @@ if [ -n "${TEAM_COMPARISON_ONLY:-}" ]; then
   if [ -z "$TC_BACKUP_DIR" ] || [ "$TC_BACKUP_DIR" = "$TC_DAILY_BACKUP_DIR" ]; then
     echo 'FATAL: TEAM_COMPARISON_ONLY 的 BACKUP_DIR 與每日鏈備份目錄是同一個目錄（不得共用輪替視窗）' >&2
     exit 64
+  fi
+  if mac_team_comparison_handed_off; then
+    echo '    ⏭ 自動隊伍比較摘要同步已交接給 Pi'
+    exit 0
   fi
   cd "$REPO_DIR"
   echo '==> 隊伍比較摘要：唯讀比對本機與 production（insert-only）'
@@ -1742,7 +1751,9 @@ if [ -n "${WITH_DETAIL:-}" ]; then
   # 同步之後。insert-only＋單交易＋事後對帳在 Python 模組；整庫備份已於 2/4 完成。
   # ⛔ 失敗只記錄、不擋其他同步（production 尚無三表時為 exit 69，待部署窗口；舊摘要保留標待更新）。
   echo "    + 隊伍比較摘要（insert-only；失敗只記錄、不擋其他同步）"
-  if team_comparison_sync apply; then
+  if mac_team_comparison_handed_off; then
+    echo '    ⏭ 自動隊伍比較摘要同步已交接給 Pi'
+  elif team_comparison_sync apply; then
     :
   else
     echo "    ⚠ 隊伍比較摘要同步未完成 exit=$?（只記錄，不擋其他同步；見上方訊息）" >&2

@@ -1,0 +1,10 @@
+[Unit]
+Description=Receive completed CPBL team-comparison notifications
+ConditionPathExists=/var/lib/cpbl393-team-comparison-publish/enabled
+
+[Path]
+PathChanged=/srv/cpbl393-receiver/incoming/team-comparison-notify
+Unit=cpbl393-team-comparison-publish.service
+
+[Install]
+WantedBy=multi-user.target
