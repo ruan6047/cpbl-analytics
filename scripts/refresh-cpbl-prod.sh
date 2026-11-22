@@ -1239,6 +1239,10 @@ sync_box_source_revisions() {
       "COPY (SELECT * FROM cpbl.${t} WHERE source IN ('livelog','scoreboard') AND ${SYNC_SCOPE_KEYS_SQL}) TO STDOUT;" \
       | docker exec -i "$LOCAL_DB" psql -U cpbl -d cpbl -X
     echo '\.'
+    if [ -n "$MAC_A_SCOPE_SQL" ]; then
+      # 與同表 A 賽程 writer 互斥，鎖須涵蓋序列校正和後續 INSERT。
+      echo "LOCK TABLE cpbl.${t} IN SHARE ROW EXCLUSIVE MODE;"
+    fi
     echo "SELECT setval(pg_get_serial_sequence('cpbl.${t}', 'id'), \
 GREATEST(COALESCE((SELECT max(id) FROM cpbl.${t}), 0), 1), \
 (SELECT count(*) FROM cpbl.${t}) > 0);"
