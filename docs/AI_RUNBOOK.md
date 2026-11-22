@@ -974,7 +974,7 @@ Dependabot → 該生態系「Check for updates」（備援；未實測，第一
 | **VPS 來源邊界** | `www.cpbl.com.tw` 機房 IP 被擋，仍維持本機爬＋同步；stats 只有經 T4 核可且 exact allowlist 的隔離 observer／worker 可在 VPS 執行（§3），不可泛化為任意官網爬蟲。 |
 | **爬蟲失敗連續重跑** | HiNet 節流會升級，症狀惡化。冷卻 15–20 分再單次重試；排查照 `CPBL_SITE_MAP.md` §5 |
 | **「找不到 token」偶發** | 多半是挑戰未過（機率性），非官網改版；`page_html(require=)` 會自癒。冷卻後仍 100% 失敗才是改版 |
-| **pitch_tracking 覆蓋不全** | 球場端設備，無設備球場(大巨蛋/亞太主/嘉義/花蓮/新莊)整場 0；官方有的指標一律用官方全季值，勿用逐球重算。記憶 `pitch-tracking-venue-coverage` |
+| **pitch_tracking 覆蓋隨時間變動** | TrackMan 是球場端設備，**設備狀態隨時間變動**：同一球場可某段期間整場 0、其他期間正常，不得以固定球場名單判「無設備」。源頭沒有時兩支官方端點（單場 API `LiveLog`、逐投手 logs）都回投球事件但 `Trackman=null`（`_record` 不收）。本機整場 0 的可能原因有兩類：「當時沒抓到」（可補），或「源頭沒有／尚未發布」；只看本機無法區分，須事後重抓：兩支官方端點對該場皆有投球事件但 Trackman 非空為 0，且每週全季重跑 log 仍為 `→ 0 球`，才判「源頭沒有」；任一端點有 Trackman 即屬可補。逐球場逐月覆蓋查詢口徑：`SELECT g.venue, date_trunc('month', g.game_date)::date AS month, count(*) AS completed_games, count(*) FILTER (WHERE EXISTS (SELECT 1 FROM cpbl.pitch_tracking p WHERE p.year = g.year AND p.kind_code = g.kind_code AND p.game_sno = g.game_sno)) AS games_with_pitches FROM cpbl.games g WHERE g.year = <年> AND g.kind_code = 'A' AND COALESCE(g.home_score,0) + COALESCE(g.away_score,0) > 0 AND g.game_date <= CURRENT_DATE GROUP BY 1, 2 ORDER BY 1, 2;`（已完成場＝比分和>0 且日期不晚於今日；`kind_code='A'` 必加，見下一列）。官方有的指標一律用官方全季值，勿用逐球重算。 |
 | **pitch_tracking 含二軍** | 有 `kind_code='D'`；逐球查詢**必須加 `kind_code='A'`** |
 | **pitch_tracking `pitcher_name` 亂碼** | 編碼問題；比對一律用 `*_acnt`，勿用 name |
 | **衍生欄恆 NULL** | `ops_plus/era_plus/fip` DB 永遠 NULL，由 API 即時算。記憶 `derived-stats-computed-live` |
