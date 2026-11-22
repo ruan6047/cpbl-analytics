@@ -26,6 +26,8 @@ VERSION = 1
 TAIPEI = ZoneInfo("Asia/Taipei")
 MAX_RESULTS = 64 * 1024 * 1024
 MAX_MANIFEST = 8192
+MAX_SCHEDULE = 8 * 1024 * 1024
+SCHEDULE_FIELDS = {"schedule_bytes", "schedule_sha256"}
 SOURCE_ID = re.compile(r"[a-z0-9][a-z0-9_-]{0,63}\Z")
 SHA = re.compile(r"[0-9a-f]{64}\Z")
 KEY = ("year", "kind_code", "game_season_code", "game_sno")
@@ -130,28 +132,31 @@ def _value_to_wire(value):
     return value
 
 
-def _publish_files(root, name, blob, manifest):
+def _publish_files(root, name, blob, manifest, schedule=None):
     root.mkdir(parents=True, exist_ok=True, mode=0o700)
     _need(root.is_dir() and not root.is_symlink(), "result_root")
     target = root / name
     raw_manifest = (json.dumps(manifest, sort_keys=True) + "\n").encode()
+    files = [("result.json.gz", blob), ("response.json", raw_manifest)]
+    if schedule is not None:
+        files.append(("schedule.json", schedule))
     if target.exists():
         _need(not target.is_symlink() and target.is_dir(), "result_path")
-        _need(_read(target / "result.json.gz", MAX_RESULTS) == blob and
-              _read(target / "response.json", MAX_MANIFEST) == raw_manifest, "conflicting_daily_result")
+        _need(all(_read(target / ident, len(data)) == data for ident, data in files),
+              "conflicting_daily_result")
         return
     # Atomic directory publication makes the manifest and bundle visible together.
     with tempfile.TemporaryDirectory(dir=root, prefix=".incoming-") as temporary:
         staged = Path(temporary) / name
         staged.mkdir(mode=0o700)
-        for ident, data in (("result.json.gz", blob), ("response.json", raw_manifest)):
+        for ident, data in files:
             with os.fdopen(os.open(staged / ident, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600), "wb") as handle:
                 handle.write(data)
         # The existing target is nonempty, so rename cannot replace a concurrent result.
         staged.rename(target)
 
 
-def compute(connection, freshness, result_root: Path, *, now=None) -> dict:
+def compute(connection, freshness, result_root: Path, *, now=None, schedule=None) -> dict:
     """Freeze the Pi-owned seven-table snapshot and run the unchanged feature algorithm."""
     now = now or datetime.now(UTC)
     _need(isinstance(freshness, dict) and set(freshness) == {"source_id", "as_of", "finished_at", "ok"}
@@ -162,10 +167,17 @@ def compute(connection, freshness, result_root: Path, *, now=None) -> dict:
     finished = _time(freshness["finished_at"])
     _need(now.astimezone(TAIPEI).date() == as_of == finished.astimezone(TAIPEI).date()
           and finished <= now, "ingest_receipt_date")
+    if schedule is not None:
+        _schedule_rows(schedule, as_of)
     existing = result_root / name
     if existing.exists():
         manifest, _ = read_response(existing, source_id, as_of, now=now)
         _need(_time(manifest["refresh_finished_at"]) == finished, "conflicting_daily_result")
+        if schedule is not None:
+            _need(_read(existing / "schedule.json", MAX_SCHEDULE) == schedule, "conflicting_schedule")
+        _need(("schedule_sha256" in manifest) == (schedule is not None), "schedule_mode")
+        if schedule is not None:
+            read_schedule(existing, manifest, as_of)
         return manifest
     with connection.transaction():
         connection.execute("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY")
@@ -196,7 +208,9 @@ def compute(connection, freshness, result_root: Path, *, now=None) -> dict:
         "result_sha256": hashlib.sha256(blob).hexdigest(), "result_bytes": len(blob),
         "row_count": len(records),
     }
-    _publish_files(result_root, name, blob, manifest)
+    if schedule is not None:
+        manifest.update(schedule_bytes=len(schedule), schedule_sha256=hashlib.sha256(schedule).hexdigest())
+    _publish_files(result_root, name, blob, manifest, schedule)
     return manifest
 
 
@@ -238,7 +252,7 @@ def read_response(directory: Path, source_id: str, as_of: date, *, now=None, res
     if response_sha256 is not None:
         _need(hashlib.sha256(response).hexdigest() == response_sha256, "notification_response_digest")
     manifest = _object(response)
-    _need(isinstance(manifest, dict) and set(manifest) == MANIFEST_FIELDS
+    _need(isinstance(manifest, dict) and set(manifest) in (MANIFEST_FIELDS, MANIFEST_FIELDS | SCHEDULE_FIELDS)
           and type(manifest["version"]) is int and manifest["version"] == VERSION
           and manifest["source_id"] == source_id and manifest["run_id"] == name
           and manifest["as_of"] == as_of.isoformat() and as_of == now.astimezone(TAIPEI).date()
@@ -263,18 +277,41 @@ def read_response(directory: Path, source_id: str, as_of: date, *, now=None, res
     return manifest, _decode_records(contents, count)
 
 
-def publish(connection, rows):
+def _schedule_rows(raw, as_of):
+    from cpbl.ingest.cpbl_site import validate_schedule
+
+    _need(0 < len(raw) <= MAX_SCHEDULE, "schedule_size")
+    rows = _object(raw)
+    validate_schedule(rows, as_of.year, "A")
+    _need(bool(rows), "empty_schedule")
+    return rows
+
+
+def read_schedule(directory, manifest, as_of):
+    size, digest = manifest["schedule_bytes"], manifest["schedule_sha256"]
+    _need(type(size) is int and 0 < size <= MAX_SCHEDULE and isinstance(digest, str)
+          and SHA.fullmatch(digest), "schedule_manifest")
+    raw = _read(directory / "schedule.json", size)
+    _need(len(raw) == size and hashlib.sha256(raw).hexdigest() == digest, "schedule_digest")
+    return _schedule_rows(raw, as_of)
+
+
+def publish(connection, rows, *, schedule=None):
     """Check the complete key set and publish with the original #443 MVCC semantics."""
+    if schedule is not None:
+        from cpbl.ingest.cpbl_site import upsert_games
+
+        upsert_games(schedule, connection=connection)
     keys = {tuple(row[k] for k in KEY) for row in rows}
     expected = set(connection.execute(
         "SELECT year, kind_code, game_season_code, game_sno FROM cpbl.games "
         "WHERE game_date IS NOT NULL AND kind_code = 'A'"
     ).fetchall())
     _need(expected and keys == expected and len(keys) == len(rows), "incomplete_feature_history")
-    return outcome.publish_feature_rows(connection, rows)
+    return outcome.publish_feature_rows(connection, rows, retain_other_kinds=schedule is not None)
 
 
-def read_incoming_response(root: Path, source_id: str, as_of: date):
+def read_incoming_response(root: Path, source_id: str, as_of: date, *, include_games=False):
     """Read the notified bundle for this source and Taipei date, without waiting."""
     _need(root.is_absolute(), "inbox_root")
     inbox = root / "incoming" / "features"
@@ -290,7 +327,9 @@ def read_incoming_response(root: Path, source_id: str, as_of: date):
           and SHA.fullmatch(notice["response_sha256"]), "notification_identity")
     response_sha256 = notice["response_sha256"]
     manifest, rows = read_response(directory, source_id, as_of, response_sha256=response_sha256)
-    return {**manifest, "response_sha256": response_sha256}, rows
+    _need(("schedule_sha256" in manifest) == include_games, "schedule_mode")
+    schedule = read_schedule(directory, manifest, as_of) if include_games else None
+    return {**manifest, "response_sha256": response_sha256}, rows, schedule
 
 
 def main(argv=None):
@@ -301,6 +340,7 @@ def main(argv=None):
     command = parser.add_subparsers(dest="command", required=True).add_parser("compute")
     command.add_argument("freshness", type=Path)
     command.add_argument("result_root", type=Path)
+    command.add_argument("--schedule", type=Path)
     args = parser.parse_args(argv)
     try:
         dsn = os.environ["CPBL_FEATURE_PI_DATABASE_URL"]
@@ -310,8 +350,9 @@ def main(argv=None):
               and set(params) <= {"host", "port", "dbname", "user", "password", "connect_timeout"}
               and not any(os.environ.get(key) for key in ("PGHOSTADDR", "PGSERVICE", "PGOPTIONS")),
               "private_pi_socket_dsn")
+        schedule = _read(args.schedule, MAX_SCHEDULE) if args.schedule else None
         with psycopg.connect(dsn, autocommit=True) as connection:
-            manifest = compute(connection, _object(_read(args.freshness, MAX_MANIFEST)), args.result_root)
+            manifest = compute(connection, _object(_read(args.freshness, MAX_MANIFEST)), args.result_root, schedule=schedule)
         print(json.dumps(manifest, sort_keys=True))
         return 0
     except Exception as exc:

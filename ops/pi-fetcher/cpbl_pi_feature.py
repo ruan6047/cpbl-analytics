@@ -32,7 +32,7 @@ sender = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(sender)
 
 
-def _publication_batch(run, *, notify=False):
+def _publication_batch(run, *, notify=False, include_games=False):
     """The response is committed only after the result's final name exists."""
     if not re.fullmatch(r"[0-9a-f]{32}", run):
         raise ValueError("invalid_run_id")
@@ -41,6 +41,13 @@ def _publication_batch(run, *, notify=False):
         f"mkdir {parent}\n"
         f'put "result.json.gz" {parent}/.result.json.gz.upload\n'
         f"rename {parent}/.result.json.gz.upload {parent}/result.json.gz\n"
+    )
+    if include_games:
+        commands += (
+            f'put "schedule.json" {parent}/.schedule.json.upload\n'
+            f"rename {parent}/.schedule.json.upload {parent}/schedule.json\n"
+        )
+    commands += (
         f'put "response.json" {parent}/.response.json.upload\n'
         f"rename {parent}/.response.json.upload {parent}/response.json\n"
     )
@@ -80,7 +87,7 @@ def _private_environment():
     }
 
 
-def _replay_schedule(as_of, manifest, bundle):
+def _replay_schedule(as_of, manifest, bundle, *, schedule_sink=None):
     from cpbl.ingest import run_replay_games
 
     sender._private(manifest)
@@ -98,7 +105,7 @@ def _replay_schedule(as_of, manifest, bundle):
     with redirect_stdout(output):
         rc = run_replay_games.main([
             "--year", str(as_of.year), "--kind", "A", "--manifest", str(manifest), "--bundle", str(bundle),
-        ])
+        ], **({"schedule_sink": schedule_sink} if schedule_sink is not None else {}))
     result = json.loads(output.getvalue())
     if (rc != 0 or result.get("ok") is not True or result.get("contract_passed") is not True
             or result.get("stage") != "complete" or not result.get("written_count")
@@ -143,7 +150,7 @@ def _one_source_attempt():
         _browser._Session.post = post
 
 
-def _local_refresh(as_of, manifest, bundle, *, source_once=False):
+def _local_refresh(as_of, manifest, bundle, *, source_once=False, schedule_output=None):
     # The child repeats the socket check before importing any writer.
     env = _private_environment()
     if (os.path.lexists(".env") or os.environ.get("DATABASE_URL") != env["DATABASE_URL"]
@@ -151,11 +158,15 @@ def _local_refresh(as_of, manifest, bundle, *, source_once=False):
         raise ValueError("private_refresh_environment")
     from cpbl.ingest import cpbl_gamelog, cpbl_site, run_refresh_recent
 
+    def capture(rows):
+        _save(schedule_output.parent, schedule_output.name, rows)
+
+    options = {"schedule_sink": capture} if schedule_output is not None else {}
     with _one_source_attempt() if source_once else nullcontext():
         if manifest is not None:
-            _replay_schedule(as_of, manifest, bundle)
+            _replay_schedule(as_of, manifest, bundle, **options)
         else:
-            written = cpbl_site.scrape_games(as_of.year, as_of.year, "A")
+            written = cpbl_site.scrape_games(as_of.year, as_of.year, "A", **options)
             if not written.get(as_of.year):
                 raise ValueError("empty_schedule_refresh")
 
@@ -206,12 +217,17 @@ def _save(out, filename, value):
     sender._state(out, filename, json.dumps(value, sort_keys=True, separators=(",", ":")))
 
 
-def _read_result(handoff, directory, source_id, as_of):
+def _read_result(handoff, directory, source_id, as_of, *, include_games=False):
     sender._private(directory.parent, directory=True)
     sender._private(directory, directory=True)
     for filename in ("response.json", "result.json.gz"):
         sender._private(directory / filename)
     receipt, _ = handoff.read_response(directory, source_id, as_of)
+    if ("schedule_sha256" in receipt) != include_games:
+        raise ValueError("schedule_mode_mismatch")
+    if include_games:
+        sender._private(directory / "schedule.json")
+        handoff.read_schedule(directory, receipt, as_of)
     with (directory / "response.json").open("rb") as stream:
         raw = stream.read(handoff.MAX_MANIFEST + 1)
     if not 0 < len(raw) <= handoff.MAX_MANIFEST:
@@ -249,7 +265,7 @@ def _stage(work, state, name, command, cwd, env, deadline, result, payload=None)
 
 
 def run(out, source_id, as_of, timeout, *, manifest=None, bundle=None, send=False,
-        notify=False, source_once=False,
+        notify=False, source_once=False, include_games=False,
         identity_file=sender.IDENTITY_FILE, known_hosts=sender.KNOWN_HOSTS):
     """One daily Pi-owned feature run, with at most one local pre-publish reentry."""
     result = {"ok": False, "stage": "precheck"}
@@ -258,7 +274,7 @@ def run(out, source_id, as_of, timeout, *, manifest=None, bundle=None, send=Fals
 
         if (as_of != datetime.now(TAIPEI).date() or not math.isfinite(timeout)
                 or timeout <= EXIT_RESERVE_SECONDS or (manifest is None) != (bundle is None)
-                or (notify and not send)):
+                or (notify and not send) or (include_games and send and not notify)):
             raise ValueError("invalid_daily_feature_scope")
         deadline = time.monotonic() + timeout
         name = handoff.run_id(source_id, as_of)
@@ -288,7 +304,7 @@ def run(out, source_id, as_of, timeout, *, manifest=None, bundle=None, send=Fals
             result["stage"] = phase
             directory = work / "result" / name
             if phase == "published":
-                receipt, response_sha = _read_result(handoff, directory, source_id, as_of)
+                receipt, response_sha = _read_result(handoff, directory, source_id, as_of, include_games=include_games)
                 if (receipt["result_sha256"], response_sha) != (
                         state.get("result_sha256"), state.get("response_sha256")):
                     raise ValueError("published_result_changed")
@@ -303,20 +319,25 @@ def run(out, source_id, as_of, timeout, *, manifest=None, bundle=None, send=Fals
             raw_identity = _schedule_identity(manifest, bundle)
             if state["attempts"] and (state.get("raw_inputs") != raw_identity
                                       or state.get("source_once", False) != source_once
+                                      or state.get("include_games", False) != include_games
                                       or (source_once and state.get("source_failed") is True)):
                 raise ValueError("refresh_inputs_changed")
             freshness = work / "freshness.json"
+            schedule = work / "schedule.json"
             result_root = work / "result"
             needs_refresh = _saved(freshness) is None
             needs_compute = not os.path.lexists(directory)
             env = _private_environment() if needs_refresh or needs_compute else None
-            state.update(attempts=state["attempts"] + 1, raw_inputs=raw_identity, source_once=source_once)
+            state.update(attempts=state["attempts"] + 1, raw_inputs=raw_identity, source_once=source_once,
+                         include_games=include_games)
             _save(work, "state.json", state)
             if needs_refresh:
                 command = [sys.executable, "-I", "-B", str(Path(__file__).resolve()),
                            "_refresh", as_of.isoformat()]
                 if manifest is not None:
                     command.extend(["--manifest", str(manifest), "--bundle", str(bundle)])
+                if include_games:
+                    command.extend(["--schedule-output", str(schedule)])
                 if source_once:
                     command.append("--source-once")
                 try:
@@ -338,8 +359,11 @@ def run(out, source_id, as_of, timeout, *, manifest=None, bundle=None, send=Fals
             if needs_compute:
                 command = [sys.executable, "-I", "-B", "-m", "cpbl.features.handoff", "compute",
                            str(freshness), str(result_root)]
+                if include_games:
+                    sender._private(schedule)
+                    command.extend(["--schedule", str(schedule)])
                 _stage(work, state, "compute", command, work, env, deadline, result)
-            receipt, response_sha = _read_result(handoff, directory, source_id, as_of)
+            receipt, response_sha = _read_result(handoff, directory, source_id, as_of, include_games=include_games)
             if receipt["refresh_finished_at"] != _saved(freshness)["finished_at"]:
                 raise ValueError("response_refresh_receipt_mismatch")
             sha = receipt["result_sha256"]
@@ -358,7 +382,7 @@ def run(out, source_id, as_of, timeout, *, manifest=None, bundle=None, send=Fals
                     _save(directory, "notification.json",
                           {"version": 1, "run_id": name, "response_sha256": response_sha})
                 _stage(work, state, "publish", command, directory, {"LANG": "C", "LC_ALL": "C"},
-                       deadline, result, _publication_batch(name, notify=notify))
+                       deadline, result, _publication_batch(name, notify=notify, include_games=include_games))
                 state.update(phase="published", notified=notify)
                 _save(work, "state.json", state)
                 result.update(stage="published", notified=notify)
@@ -385,9 +409,11 @@ def main(argv=None):
     daily.add_argument("--timeout", type=float, required=True, help="Total seconds including native exit")
     daily.add_argument("--send", action="store_true", help="Explicitly publish to the pinned private inbox")
     daily.add_argument("--notify", action="store_true", help="Commit the bound flat notification after both files")
+    daily.add_argument("--include-games", action="store_true")
     _raw_arguments(daily)
     refresh = modes.add_parser("_refresh")
     refresh.add_argument("as_of", type=date.fromisoformat)
+    refresh.add_argument("--schedule-output", type=Path)
     _raw_arguments(refresh)
     with redirect_stderr(io.StringIO()):
         try:
@@ -399,13 +425,15 @@ def main(argv=None):
     os.umask(0o077)
     if args.command == "_refresh":
         try:
-            _local_refresh(args.as_of, args.manifest, args.bundle, source_once=args.source_once)
+            _local_refresh(args.as_of, args.manifest, args.bundle, source_once=args.source_once,
+                           schedule_output=args.schedule_output)
             return 0
         except (Exception, _SourceStopped) as exc:
             print(json.dumps({"ok": False, "error_class": type(exc).__name__}))
             return 78
     result = run(args.out, args.source_id, args.as_of, args.timeout, manifest=args.manifest,
-                 bundle=args.bundle, send=args.send, notify=args.notify, source_once=args.source_once)
+                 bundle=args.bundle, send=args.send, notify=args.notify, source_once=args.source_once,
+                 include_games=args.include_games)
     print(json.dumps(result, sort_keys=True))
     return 0 if result["ok"] else 78
 

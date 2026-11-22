@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+from contextlib import nullcontext
 from datetime import date
 from typing import Any
 
@@ -86,7 +87,7 @@ def _to_date(value: Any) -> date | None:
         return None
 
 
-def record_schedule_revisions(entries: list[dict[str, Any]]) -> int:
+def record_schedule_revisions(entries: list[dict[str, Any]], *, connection=None) -> int:
     """保存每一筆 raw schedule entry；同 payload 重跑只更新 last_seen_at。"""
     schedule_rows: list[tuple[Any, ...]] = []
     source_rows: list[tuple[Any, ...]] = []
@@ -112,7 +113,7 @@ def record_schedule_revisions(entries: list[dict[str, Any]]) -> int:
         ))
     if not schedule_rows:
         return 0
-    with conn() as c:
+    with (conn() if connection is None else nullcontext(connection)) as c:
         c.cursor().executemany(
             """
             INSERT INTO cpbl.game_schedule_status_revisions

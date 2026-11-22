@@ -551,7 +551,7 @@ def materialize() -> int:
     return len(records)
 
 
-def publish_feature_rows(connection: Connection, rows: list[dict]) -> int:
+def publish_feature_rows(connection: Connection, rows: list[dict], *, retain_other_kinds=False) -> int:
     """Apply a verified full feature snapshot using #443's MVCC-safe write contract."""
     from psycopg import sql
 
@@ -575,10 +575,11 @@ def publish_feature_rows(connection: Connection, rows: list[dict]) -> int:
     ) as copy:
         for row in rows:
             copy.write_row(tuple(row[c] for c in FEATURE_COLUMNS))
+    scope = sql.SQL("tgt.kind_code = 'A' AND ") if retain_other_kinds else sql.SQL("")
     connection.execute(sql.SQL(
-        "DELETE FROM cpbl.game_features AS tgt WHERE NOT EXISTS "
+        "DELETE FROM cpbl.game_features AS tgt WHERE {}NOT EXISTS "
         "(SELECT 1 FROM feature_handoff_stage AS s WHERE {})"
-    ).format(join))
+    ).format(scope, join))
     connection.execute(sql.SQL(
         "INSERT INTO cpbl.game_features AS tgt ({cols}) SELECT {cols} FROM feature_handoff_stage "
         "ON CONFLICT ({keys}) DO UPDATE SET {updates} "

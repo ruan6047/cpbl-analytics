@@ -358,6 +358,24 @@ def test_feature_event_rejects_database_config(jobs, capsys):
     assert not (root / "locks").exists()
 
 
+def test_combined_feature_delivery_rejects_other_schedule_kind_before_db(jobs, monkeypatch):
+    module, root = jobs
+    inbox = root.parent.resolve() / "inbox"
+    now = datetime.now(module.TAIPEI)
+    receipt, manifest = _feature_result(root, inbox, now)
+    package = inbox / "incoming/features" / manifest["run_id"]
+    schedule = json.dumps([{"Year": now.year, "KindCode": "D", "GameSeasonCode": "1", "GameSno": 7}]).encode()
+    (package / "schedule.json").write_bytes(schedule)
+    manifest.update(schedule_bytes=len(schedule), schedule_sha256=hashlib.sha256(schedule).hexdigest())
+    (package / "response.json").write_text(json.dumps(manifest))
+    _feature_notice(inbox, manifest)
+    monkeypatch.setenv("CPBL_FEATURE_SOURCE_ID", "fixture-pi")
+    monkeypatch.setenv("CPBL_JOBS_INBOX_ROOT", str(inbox))
+    assert module.main(["features-only", "--include-games"]) == 1
+    assert not receipt.exists()
+    assert not (root / "locks/refresh.lock").exists()
+
+
 def test_closed_skip_does_not_enter_any_data_step(jobs, monkeypatch):
     module, _ = jobs; calls = []
     daily_fakes(monkeypatch, calls, day_type="skip")

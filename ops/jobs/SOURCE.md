@@ -109,3 +109,15 @@ systemd 原生事件的驗收使用 `features-only --verify-only`。同一 SFTP 
 對已存在的 `feature-notify` 目錄使用 `PathChanged=` 呼叫 `Type=oneshot`。
 收據不寫進監看目錄。事件只證明檔案就位，SFTP 原生退出另由 Pi 收據證明。
 若正式門檻要求先見客戶端確退，先沿手動叫用。
+
+### A 賽程與特徵同批交付
+
+兩端明確採用同一候選後，Pi 單次入口加 `--include-games`，或在原 Pi 每日服務的
+私有環境設定 `CPBL_FEATURE_GAMES_HANDOFF=1`。VPS 原入口加
+`features-only --include-games`，驗收可同加 `--verify-only`。預設仍是既有純特徵交付。
+
+`schedule.json` 內是 Pi 同輪已使用的當年 A 賽程來源列，不再額外取源。
+其長度與 SHA-256 隨 `response.json`，原完成通知仍最後提交。
+VPS 先驗兩份資料，再在原寫入鎖的一筆交易依序 upsert `games`、記錄原兩種
+schedule revisions、發布 `game_features`。特徵全鍵驗證失敗時整筆回滾。
+賽程只增修，組合模式保留其他賽別的資料列，同件重入沿原收據去重。

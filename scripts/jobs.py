@@ -167,7 +167,7 @@ class Run:
                 logging.warning("daily ping failed")  # #358 fail-open；不用 key/log tail 當訊息。
 
 
-def _features_only(run, *, verify_only):
+def _features_only(run, *, verify_only, include_games=False):
     from cpbl.features.handoff import read_incoming_response
 
     result = {"job": run.job}
@@ -175,10 +175,10 @@ def _features_only(run, *, verify_only):
     try:
         with run.locked():
             acquired = True
-            manifest, rows = read_incoming_response(
+            manifest, rows, schedule = read_incoming_response(
                 Path(os.environ["CPBL_JOBS_INBOX_ROOT"]),
                 os.environ["CPBL_FEATURE_SOURCE_ID"],
-                run.now.date(),
+                run.now.date(), include_games=include_games,
             )
             result.update(run_id=manifest["run_id"], result_sha256=manifest["result_sha256"],
                           response_sha256=manifest["response_sha256"])
@@ -205,7 +205,10 @@ def _features_only(run, *, verify_only):
                         with conn() as connection:
                             # Keep the writer fence until the transaction and its receipt are confirmed.
                             run.retain_lock = True
-                            publish(connection, rows)
+                            if include_games:
+                                publish(connection, rows, schedule=schedule)
+                            else:
+                                publish(connection, rows)
                     finally:
                         _close_pool(run)
                     if run.detail.get("close_failed"):
@@ -479,6 +482,7 @@ def _parser():
     daily = sub.add_parser("scrape-daily", allow_abbrev=False); daily.add_argument("--fast", action="store_true")
     features = sub.add_parser("features-only", allow_abbrev=False)
     features.add_argument("--verify-only", action="store_true")
+    features.add_argument("--include-games", action="store_true")
     evening = sub.add_parser("postseason-evening", allow_abbrev=False)
     evening.add_argument("--stage", choices=("all", "boxpa"), default="all")
     for name in ("weekly-box-revisions", "weekly-game-pitches"):
@@ -512,7 +516,7 @@ def main(argv=None):
         with _environment() as (root, trigger):
             run = Run("features-verify" if verify_only else args.job, root, trigger, datetime.now(TAIPEI))
             if args.job == "features-only":
-                return _features_only(run, verify_only=verify_only)
+                return _features_only(run, verify_only=verify_only, include_games=args.include_games)
 
             from cpbl.ingest._job_source import job_source
 

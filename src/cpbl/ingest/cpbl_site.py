@@ -18,6 +18,7 @@ import logging
 import os
 import re
 import time
+from contextlib import nullcontext
 from datetime import date, datetime
 
 import httpx
@@ -123,7 +124,19 @@ def _to_record(g: dict, delay_kind: str | None, orig_date: date | None) -> tuple
     )
 
 
-def upsert_games(games: list[dict]) -> int:
+def validate_schedule(rows, year, kind):
+    if not isinstance(rows, list) or any(
+        not isinstance(row, dict)
+        or _i(row.get("Year")) != year
+        or row.get("KindCode") != kind
+        or row.get("GameSeasonCode") is None
+        or _i(row.get("GameSno")) is None
+        for row in rows
+    ):
+        raise ValueError("payload_scope_mismatch")
+
+
+def upsert_games(games: list[dict], *, connection=None) -> int:
     # 依 PK 聚合同 sno 的多筆排程 entry（延期/保留會回多筆），主記錄取完成場、
     # delay_kind/orig_date 由整段歷程推導。
     groups: dict[tuple, list[dict]] = {}
@@ -136,7 +149,7 @@ def upsert_games(games: list[dict]) -> int:
     for entries in groups.values():
         kind, orig = _delay_meta(entries)
         records.append(_to_record(_primary_entry(entries), kind, orig))
-    with conn() as c:
+    with (conn() if connection is None else nullcontext(connection)) as c:
         c.cursor().executemany(
             """
             INSERT INTO cpbl.games
@@ -162,17 +175,22 @@ def upsert_games(games: list[dict]) -> int:
             """,
             records,
         )
-    record_schedule_revisions(games)
+    if connection is None:
+        record_schedule_revisions(games)
+    else:
+        record_schedule_revisions(games, connection=connection)
     return len(records)
 
 
-def scrape_games(start_year: int, end_year: int, kind_code: str = KIND_REGULAR) -> dict[int, int]:
+def scrape_games(start_year: int, end_year: int, kind_code: str = KIND_REGULAR, *, schedule_sink=None) -> dict[int, int]:
     """抓 [start_year, end_year] 各年比賽並 UPSERT。回傳 {year: 場次數}。"""
     totals: dict[int, int] = {}
     for year in range(start_year, end_year + 1):
         games = fetch_year(year, kind_code)
         n = upsert_games(games)
         totals[year] = n
+        if schedule_sink is not None:
+            schedule_sink(games)
         log.info("year %s kind=%s: %d games", year, kind_code, n)
         time.sleep(1.0)  # 禮貌性間隔
     return totals

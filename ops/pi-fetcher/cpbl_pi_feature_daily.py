@@ -89,6 +89,8 @@ def main():
         command = [sys.executable, "-I", "-B", str(Path(feature.__file__)), "run",
                    "--out", os.environ["CPBL_FEATURE_PI_OUT"], "--source-id", "pi",
                    "--as-of", day, "--timeout", "650", "--source-once", "--send", "--notify"]
+        if os.environ.get("CPBL_FEATURE_GAMES_HANDOFF") == "1":
+            command.append("--include-games")
         status = subprocess.run(command, stdin=subprocess.DEVNULL, timeout=675, check=False).returncode
     except Exception as exc:
         print(json.dumps({"stage": "feature_only_service", "error_class": type(exc).__name__}), flush=True)
