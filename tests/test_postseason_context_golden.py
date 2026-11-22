@@ -13,6 +13,8 @@ Python 以固定輸入＋固定 now 產生 ``series_context``，與 repo 內 com
 - ``2026-c8-pending-injected``（再審 F1）：C1–C7 一和、各三勝，官方新增未完賽 C8（注入事件，隊碼真實）。
 - ``2026-c2-live-c1-unsynced-injected``（再審 F2）：經**讀取層**（腳本化 cursor）組輸入；C1 尚未同步完賽、
   C2 唯一 live（注入事件，場次身分為 2026 真實 C1／C2）。
+- ``2026-c-makeup-real``（#459）：2026 真實 C1–C7——G5 延賽補在公告 G7 原定日 10/25、G6 移到 10/26、
+  G7 10/27 系列已分勝負後未舉行（本機 DB 唯讀，見 ``postseason_context_inputs.REAL_2026_C_MAKEUP``）。
 """
 
 from __future__ import annotations
@@ -25,10 +27,12 @@ from pathlib import Path
 
 import pytest
 from postseason_context_inputs import (
+    C_MAKEUP_NOW,
     READER_GAME_COLS,
     READER_GAMES,
     ScriptedCursor,
     games,
+    games_2026_c_makeup,
     inputs,
     reader_table,
     with_result,
@@ -80,6 +84,7 @@ CASES = {
     "2025-complete": (lambda: inputs(2025), "2026-10-15T01:00:00+08:00"),
     "2026-c8-pending-injected": (lambda: inputs(2026, games_override=_g8_pending()), "2026-10-26T12:00:00+08:00"),
     "2026-c2-live-c1-unsynced-injected": (_c2_live_via_reader, "2026-10-18T18:00:00+08:00"),
+    "2026-c-makeup-real": (lambda: inputs(2026, games_override=games_2026_c_makeup()), C_MAKEUP_NOW.isoformat()),
 }
 
 

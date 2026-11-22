@@ -126,3 +126,34 @@ def reader_table():
         pc.RECAP_BUILDS_SQL: (["year", "kind_code", "game_sno", "state", "built_at"],
                               [(2026, "E", n, "published", READER_NOW) for n in (1, 2, 3, 4)]),
     }
+
+
+# —— #459：2026 台灣大賽延賽補賽實況（真實列，⛔ 非注入） ——
+# 來源：本機 PG localhost:5433 ``cpbl.games``（year=2026、kind_code='C'），連線 ``SET default_transaction_read_only=on``
+# 後唯讀 SELECT，2026-11-22 取。官方 G5 原定 10/23（orig_date）延賽、10/25 補賽（＝公告 C7 的原定日）；
+# G6 自公告 10/24 移到 10/26（orig_date／delay_kind 皆 NULL）；G7 10/27 系列已分勝負後未舉行（0:0、無完賽證據）。
+# 欄位：(game_sno, game_date, venue, away, home, away_score, home_score, completed, mvp_id)
+REAL_2026_C_MAKEUP = [
+    (1, "2026-10-17", "大巨蛋", "ACN011", "AAA011", 0, 3, True, "0000007779"),
+    (2, "2026-10-18", "大巨蛋", "ACN011", "AAA011", 1, 3, True, "0000007304"),
+    (3, "2026-10-20", "大巨蛋", "AAA011", "ACN011", 6, 0, True, "0000006497"),
+    (4, "2026-10-21", "大巨蛋", "AAA011", "ACN011", 4, 5, True, "0000002297"),
+    (5, "2026-10-25", "大巨蛋", "ACN011", "AAA011", 4, 3, True, "0000004636"),
+    (6, "2026-10-26", "大巨蛋", "ACN011", "AAA011", 0, 6, True, "0000006555"),
+    (7, "2026-10-27", "樂天桃園", "ACN011", "AAA011", 0, 0, False, None),
+]
+
+
+def games_2026_c_makeup() -> list[pc.GameFact]:
+    """2026 真實 E1–E4（fixture）＋上方真實 C1–C7；官方狀態依 completed 給 final／scheduled（同 :func:`games`）。"""
+    out = [g for g in games(2026) if g.kind_code == "E"]
+    for sno, day, venue, away, home, a, h, done, mvp in REAL_2026_C_MAKEUP:
+        out.append(pc.GameFact(
+            year=2026, kind_code="C", game_sno=sno, game_date=date.fromisoformat(day),
+            away_team_code=away, home_team_code=home, away_score=a, home_score=h, completed=done,
+            official_status="final" if done else "scheduled", venue=venue, mvp_id=mvp,
+        ))
+    return out
+
+
+C_MAKEUP_NOW = datetime.fromisoformat("2026-10-28T12:00:00+08:00")

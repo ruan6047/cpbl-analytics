@@ -660,7 +660,9 @@ def slot_start(slot: ArrangedSlot, display_date: str) -> datetime:
 def arrange(rule: SeasonRule, games: list[GameFact], series: dict, *, now: datetime) -> dict:
     """公告安排逐格對到真實列並給顯示狀態；原安排欄位保留供追溯。
 
-    歸併（沿 #237）：E 以官方場號＋主客一致；C 只認「同一天唯一一場 C 列」。
+    歸併（沿 #237）：E 以官方場號＋主客一致；C 在賽程未異動時只認「同一天唯一一場 C 列」，
+    賽程已異動（有 C 列落在公告沒有的日期）時改以系列真實場序歸併——第 N 格對第 N 場、日期不早於公告、
+    一列只綁一次（#459：延賽補在後面公告日的場次，同日規則會綁錯格）。
     **公告沒有、但真實存在的 E／C 列**（動態官方加賽 G8、主客或日期對不上公告的列）另成一格
     （``announced=false``，``seq``＝該列在系列真實列中的場序），一樣進下一場與 remaining——
     ⛔ 不由公告序號發明 sno、⛔ 不把它塞進公告轉錄（#283 再審 F1）。
@@ -671,6 +673,7 @@ def arrange(rule: SeasonRule, games: list[GameFact], series: dict, *, now: datet
     c_rows = [g for g in games if g.kind_code == "C"]
     announced_c = {s.date for s in rule.arrangement if s.kind == "C"}
     c_moved = any(g.game_date and g.game_date.isoformat() not in announced_c for g in c_rows)
+    c_ordered = [g for g in _sorted_games(games, "C") if g.game_date]   # 與 ``series_game_no`` 同一排序
 
     def status_of(kind: str, row: GameFact | None, start: datetime) -> str:
         if row is not None and row.completed:
@@ -695,11 +698,24 @@ def arrange(rule: SeasonRule, games: list[GameFact], series: dict, *, now: datet
                     change = {"kind": "moved", "announced_date": slot.date}
             elif cand:
                 change = {"kind": "changed"}
+        elif slot.kind == "C" and c_moved:
+            # #459：賽程已異動（有 C 列落在公告沒有的日期）⇒ 第 N 公告格對系列第 N 場真實列（＝``series_game_no``）。
+            # 同日規則在此會把延賽補到後面公告日的場次綁錯格（2026 C-5 補在 C7 原定日 10/25 ⇒ 被標成 G7），
+            # 並讓已在別天打完的公告格落空、系列決勝後被誤判「依條件不需進行」。延賽只會往後：真實列早於
+            # 公告日 ⇒ 不綁（維持 changed，該列另成公告外格）。場序取真實列排序，⛔ 不從官方場號推。
+            cand = c_ordered[slot.seq - 1] if 0 < slot.seq <= len(c_ordered) else None
+            cand_day = cand.game_date.isoformat() if cand and cand.game_date else None   # c_ordered 已濾掉無日期列
+            if cand and cand_day and cand.key not in matched and cand_day >= slot.date:
+                row = cand
+                if cand_day != slot.date:
+                    change = {"kind": "moved", "announced_date": slot.date}
+            else:
+                change = {"kind": "changed"}
         elif slot.kind == "C":
             same_day = [g for g in c_rows if g.game_date and g.game_date.isoformat() == slot.date]
             if len(same_day) == 1:
                 row = same_day[0]
-            elif len(same_day) > 1 or c_moved:
+            elif len(same_day) > 1:
                 change = {"kind": "changed"}
         if row is not None:
             matched.add(row.key)
