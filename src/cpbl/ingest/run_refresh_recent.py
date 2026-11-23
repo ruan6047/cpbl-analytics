@@ -1215,7 +1215,7 @@ def _parser() -> argparse.ArgumentParser:
     return p
 
 
-def main(argv: list[str] | None = None, *, jobs: bool = False, on_handoff=None) -> None:
+def main(argv: list[str] | None = None, *, jobs: bool = False, on_handoff=None, reuse_a_schedule=None) -> None:
     argv = sys.argv[1:] if argv is None else argv
     if "--plan" in argv:
         # #364 (b)：只印日型與步驟清單，不 migrate、不爬、不寫 refresh_log（交給 daily_gate 的唯讀 plan）。
@@ -1272,6 +1272,7 @@ def main(argv: list[str] | None = None, *, jobs: bool = False, on_handoff=None) 
     derived_result: dict[str, Any] = {"skipped": True, "errors": []}
     postseason_result: dict[str, Any] = {"games": {}, "errors": []}
     farm_final_result: dict[str, Any] = {"games": {}, "errors": []}
+    schedule_reuse_failed = False
     derived_gate: dict[str, Any] = {"gated": False}
     livelog_check_result: dict[str, Any] = {"games": 0, "errors": []}
     try:
@@ -1284,7 +1285,17 @@ def main(argv: list[str] | None = None, *, jobs: bool = False, on_handoff=None) 
         else:
             closed_note = {"skipped": "已收官（#391）"}
             # 一軍例行賽賽程/結果
-            games = scrape_games(year, year) if major_open else closed_note
+            if not major_open:
+                games = closed_note
+            elif reuse_a_schedule is None:
+                games = scrape_games(year, year)
+            else:
+                try:
+                    games = reuse_a_schedule()
+                except ValueError as error:
+                    schedule_reuse_failed = True
+                    games = {"state": "pending_feature_source", "reason": str(error)}
+                    log.warning("一軍賽程重用待辦，照原流程執行其他步驟（%s）", error)
             # 二軍賽程/結果（供二軍成績卡/逐球/戰績）＋二軍總冠軍賽 F（#391 二軍收官的資料前提）
             games_farm = scrape_games(year, year, "D") if farm_open else closed_note
             if farm_open:
@@ -1411,6 +1422,10 @@ def main(argv: list[str] | None = None, *, jobs: bool = False, on_handoff=None) 
         note = f"昨日({yesterday}) {y_done}/{y_total} 完成，請確認是否延賽或資料缺漏"
         log.warning(note)
 
+    if schedule_reuse_failed:
+        source_note = "一軍賽程待重用"
+        note = source_note if note is None else f"{note}；{source_note}"
+
     # 被容忍的逐場 gamelog 落差在這裡結清：refresh_log 的 ok 必須誠實（有沒抓到的場
     # 就不是成功的一次刷新），note 列出失敗場號，退出碼另用 69 讓下游可分辨。
     gap_note = _gamelog_gap_note(_GAMELOG_GAPS)
@@ -1489,7 +1504,7 @@ def main(argv: list[str] | None = None, *, jobs: bool = False, on_handoff=None) 
         "livelog_check": livelog_check_result,
         "recent": [{"date": d.isoformat(), "total": t, "completed": comp} for d, t, comp in recent],
     }
-    failed = bool(_GAMELOG_GAPS or standings_failed or pitch_type_failed or derived_failed
+    failed = bool(schedule_reuse_failed or _GAMELOG_GAPS or standings_failed or pitch_type_failed or derived_failed
                   or postseason_failed or livelog_failed or pa_alerts or farm_final_failed)
     _log_refresh("recent-games", yesterday, today, total, completed, detail,
                  ok=not failed, note=note)

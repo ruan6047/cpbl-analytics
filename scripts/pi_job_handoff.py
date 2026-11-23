@@ -11,7 +11,7 @@ import time
 from datetime import datetime
 from pathlib import Path
 
-from psycopg import sql
+from psycopg import Error, sql
 
 from cpbl.db import conn
 from cpbl.features import handoff
@@ -104,6 +104,64 @@ class PiJobHandoff:
         self.box_scope = []
         self.daily = None
         self.night_results = False
+
+    def reuse_a_schedule(self):
+        """Verify this day's published feature input before skipping the second A fetch."""
+        as_of = self.run.now.date()
+        source_id = "pi"
+        name = handoff.run_id(source_id, as_of)
+        try:
+            out = Path(os.environ["CPBL_FEATURE_PI_OUT"])
+            if not out.is_absolute() or out.resolve(strict=True) != out:
+                raise ValueError("feature_out")
+            work = out / name
+            for path in (out, work):
+                self.feature.sender._private(path, directory=True)
+            state = self.feature._saved(work / "state.json")
+            freshness = self.feature._saved(work / "freshness.json")
+            if state is None or freshness is None:
+                raise FileNotFoundError("feature_receipt")
+            directory = work / "result" / name
+            receipt, response_sha = self.feature._read_result(handoff, directory, source_id, as_of, include_games=True)
+            notice = self.feature._saved(directory / "notification.json")
+            if (state.get("phase") != "published" or state.get("notified") is not True
+                    or state.get("source_once") is not True or state.get("include_games") is not True
+                    or state.get("raw_inputs", False) is not None or state.get("source_failed") is True
+                    or state.get("result_sha256") != receipt["result_sha256"]
+                    or state.get("response_sha256") != response_sha
+                    or notice != {"version": 1, "run_id": name, "response_sha256": response_sha}
+                    or freshness != {"source_id": source_id, "as_of": as_of.isoformat(), "ok": True,
+                                     "finished_at": receipt["refresh_finished_at"]}):
+                raise ValueError("feature_receipt_binding")
+            raw_schedule = work / "schedule.json"
+            self.feature.sender._private(raw_schedule)
+            raw = handoff._read(raw_schedule, receipt["schedule_bytes"])
+            if (len(raw) != receipt["schedule_bytes"]
+                    or hashlib.sha256(raw).hexdigest() != receipt["schedule_sha256"]):
+                raise ValueError("feature_source_digest")
+        except FileNotFoundError:
+            raise ValueError("feature_a_material_missing") from None
+        except (OSError, ValueError, TypeError, KeyError):
+            raise ValueError("feature_a_receipt_invalid") from None
+
+        try:
+            with conn() as connection, connection.transaction():
+                connection.execute("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY")
+                connection.execute("SET LOCAL TIME ZONE 'Asia/Taipei'")
+                connection.execute("SET LOCAL DateStyle = 'ISO, YMD'")
+                identity = connection.execute(
+                    "SELECT current_database(), inet_server_addr() IS NULL, CURRENT_DATE, transaction_timestamp()"
+                ).fetchone()
+                if (identity is None or identity[:3] != (handoff.PI_DATABASE, True, as_of)
+                        or identity[3] < datetime.fromisoformat(receipt["snapshot_at"])
+                        or handoff._snapshot_digest(connection) != receipt["input_sha256"]):
+                    raise ValueError("feature_a_private_snapshot_mismatch")
+        except Error:
+            raise ValueError("feature_a_private_snapshot_unavailable") from None
+
+        return {"state": "reused_feature_source", "run_id": name, "as_of": as_of.isoformat(),
+                "schedule_sha256": receipt["schedule_sha256"], "response_sha256": response_sha,
+                "input_sha256": receipt["input_sha256"]}
 
     def pitch_written(self, game, pitches, flags):
         self.pitch_scope.append(game)

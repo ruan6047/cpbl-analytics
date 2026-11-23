@@ -506,6 +506,8 @@ def _daily(run, args, *, pi_batch=None):
         return 0
     os.environ["DAILY_DAY_TYPE"], os.environ["DAILY_CLOSED_LEAGUES"] = day_type, closed
     delivery = {"on_handoff": pi_batch.daily_written} if pi_batch is not None else {}
+    if getattr(args, "reuse_pi_a_schedule", False):
+        delivery["reuse_a_schedule"] = pi_batch.reuse_a_schedule
     code, _ = _invoke(run_refresh_recent.main, ["fast"] if args.fast else [], jobs=True, **delivery)
     run.detail["refresh_exit_code"] = code
     if day_type != "sync_only":
@@ -791,6 +793,7 @@ def _parser():
     sub = parser.add_subparsers(dest="job", required=True)
     daily = sub.add_parser("scrape-daily", allow_abbrev=False); daily.add_argument("--fast", action="store_true")
     daily.add_argument("--pi-handoff", type=float, metavar="SEND_TIMEOUT")
+    daily.add_argument("--reuse-pi-a-schedule", action="store_true")
     features = sub.add_parser("features-only", allow_abbrev=False)
     features.add_argument("--verify-only", action="store_true")
     features.add_argument("--include-games", action="store_true")
@@ -827,6 +830,9 @@ def main(argv=None):
         if error.code:
             print(json.dumps({"error": "arguments", "exit_code": 64}))
         return 64 if error.code else 0
+    if args.job == "scrape-daily" and args.reuse_pi_a_schedule and args.pi_handoff is None:
+        print(json.dumps({"job": args.job, "error": "pi_schedule_reuse_requires_pi_handoff", "exit_code": 64}))
+        return 64
     verify_only = args.job == "features-only" and args.verify_only
     if verify_only and any(name in os.environ for name in DATABASE_ENV):
         print(json.dumps({"job": args.job, "error": "verify_requires_no_database_environment", "exit_code": 64}))
