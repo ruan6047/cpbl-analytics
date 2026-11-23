@@ -1280,6 +1280,33 @@ def shell_guard_control_flow(rel: str) -> str | None:
     return guard_control_flow(_read(rel))
 
 
+def _pi_night_source_import_only(source: str) -> bool:
+    """該私庫 writer 只由 jobs.py 呼叫，直接執行檔案不會進入任何寫入路徑。"""
+    allowed_initializers = {
+        "daily_current_handoff.TABLE_LAYOUTS['games'][1].split()",
+        "set(COLUMNS[4:])",
+    }
+    try:
+        tree = ast.parse(source)
+    except SyntaxError:
+        return False
+    for node in tree.body:
+        if isinstance(node, (ast.Import, ast.ImportFrom)):
+            continue
+        if isinstance(node, ast.FunctionDef) and not node.decorator_list and not node.type_params:
+            parts = (node.args,) if node.returns is None else (node.args, node.returns)
+            if not any(isinstance(part, ast.Call) for root in parts for part in ast.walk(root)):
+                continue
+        if isinstance(node, ast.Assign) and all(isinstance(target, ast.Name) for target in node.targets):
+            calls = [call for call in ast.walk(node.value) if isinstance(call, ast.Call)]
+            if all(ast.unparse(call) in allowed_initializers for call in calls):
+                continue
+        if isinstance(node, ast.Expr) and isinstance(node.value, ast.Constant) and isinstance(node.value.value, str):
+            continue
+        return False
+    return True
+
+
 def help_safety(rel: str) -> tuple[str, str]:
     """回傳 (狀態, 說明)。狀態 ∈ {safe, unsafe, n/a}。"""
     if rel.endswith(".plist"):
@@ -1301,6 +1328,8 @@ def help_safety(rel: str) -> tuple[str, str]:
             "argv 守衛控制流與 canonical 逐字相同；"
             "零副作用由 tests/test_shell_help_guard.py 以假樁證明")
     src = _read(rel)
+    if rel == "scripts/pi_night_source.py" and _pi_night_source_import_only(src):
+        return "n/a", "僅由 jobs.py 載入的私庫 writer；直接執行無主流程"
     if "argparse" not in src or "parse_args" not in src:
         return "unsafe", "無 argparse：任何旗標（含 --help）都會落進主流程"
     graph = _graph_of(rel)

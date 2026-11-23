@@ -654,6 +654,15 @@ def test_refresh_recent_is_safe_in_the_inventory_without_an_exception() -> None:
     assert "cpbl-refresh-recent" not in si.HELP_SAFETY_ALLOWLIST
 
 
+def test_pi_night_source_keeps_write_classification_without_a_direct_entry() -> None:
+    entry = next(e for e in si.build_entries() if e.ident == "scripts/pi_night_source.py")
+    assert entry.writes and entry.high_consequence and entry.help_state == "n/a"
+    source = si._read(entry.ident)
+    for suffix in ("\nacquire()\n", '\nif __name__ == "__main__":\n    acquire()\n',
+                   "\ndef unsafe(value=acquire()):\n    pass\n"):
+        assert not si._pi_night_source_import_only(source + suffix)
+
+
 def test_no_high_consequence_entry_is_help_unsafe() -> None:
     """#416 驗收 1：清零，不留具名例外。新增例外要回到本卡的需求方裁定層級。"""
     assert not si.high_consequence_unsafe(si.build_entries())
@@ -971,7 +980,8 @@ def test_counts_reconcile_across_three_surfaces() -> None:
         "入口同樣放在 cpbl.ingest 底下以受 --help 零副作用探針涵蓋）"
         "＋ 2（#357 WP2：cpbl-check-livelog 唯讀檢查、cpbl-replay-livelog-extra 預設 dry-run 的"
         "回補工具；同樣放在 cpbl.ingest 底下受 --help 探針涵蓋）")
-    assert len(scripts) + len(research) + len(cli) == 126, (
+    assert len(scripts) + len(research) + len(cli) == 126 + len(pi_handoff), (
+        "#393 P1A：新增四個具名 Pi 常設模組；原三面合計維持 126 的核對基準。"
         "119＋1（#132 的量測工具）＋1（#100 的重測工具）＋1（#201 的收集工具）"
         "＋1（#268 的 postseason-evening.sh）＋1（#284 的 cpbl-roster CLI）"
         "＋1（#287 的 cpbl-build-team-comparison CLI）＋1（#353 的 prod_availability.py）"
