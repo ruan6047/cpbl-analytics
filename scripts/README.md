@@ -166,12 +166,12 @@
 
 ## 引用完整性（不變式 3）
 
-全庫 `scripts/<name>.<ext>` 字面路徑共 **1047** 處。**只有 `enforced` 那一面強制**——其餘的過期是歷史事實不是缺陷：
+全庫 `scripts/<name>.<ext>` 字面路徑共 **1052** 處。**只有 `enforced` 那一面強制**——其餘的過期是歷史事實不是缺陷：
 
 | 面別 | 處數 | 強制？ | 為什麼 |
 |---|---:|---|---|
 | `scan` | 363 | 回報 | 掃描器產物 JSON 是當時的快照 |
-| `self` | 238 | 不適用 | 掃描器自身的說明範例 |
+| `self` | 243 | 不適用 | 掃描器自身的說明範例 |
 | `enforced` | 228 | ✅ 強制 | `scripts/`、`src/`、活契約與設計文件——壞了就是現在的缺陷 |
 | `historical` | 163 | 回報 | `docs/archive/**` 與卡片交付產物＝凍結證據，**本卡射程外** |
 | `fixture` | 55 | 不適用 | `tests/**` 的合成路徑；真實路徑壞掉 pytest 自己會紅（更強的機制） |
@@ -360,10 +360,10 @@ shell 沒有 argparse，判準原本是一條寬鬆正則（「有 `getopts`／`
 | `com.cpbl.weekly-game-pitches.plist` | 常設工具 | `scripts/` | ✅ | 唯讀 | — | — | — | ⚠️ 未查證 |
 | `jobs.py` | 常設工具 | `scripts/` | ✅ | **寫** | ✅ --help 安全 | — | #393 Linux jobs：沿原業務入口直寫同一 DB；排程生命週期由主站承接。 | ⚠️ 未查證 |
 | `pa_transition_taxonomy.py` | 常設工具 | `scripts/` | ✅ | 唯讀 | ✅ --help 安全 | GAME-RECAP-PA1-TAXONOMY1 | GAME-RECAP-PA1-TAXONOMY1：canonical PA 狀態機 transition taxonomy 唯讀稽核。 | canonical taxonomy 的產生器（唯讀）；產物勿手改，改了要重跑 |
-| `pi_evening_handoff.py` | 常設工具 | `scripts/` | ✅ | 唯讀 | ⚠️ --help 不安全 | — | Connect the existing evening Box/PA entry to the scoped sender and receipt reader. | ⚠️ 未查證 |
-| `pi_job_handoff.py` | 常設工具 | `scripts/` | ✅ | 唯讀 | ⚠️ --help 不安全 | — | Opt-in sender for the existing Pi-side Linux jobs entrypoint. | ⚠️ 未查證 |
-| `pi_night_results.py` | 常設工具 | `scripts/` | ✅ | 唯讀 | ⚠️ --help 不安全 | — | Track only changed nightly result and signal keys until all receipts arrive. | ⚠️ 未查證 |
-| `pi_night_source.py` | 常設工具 | `scripts/` | ✅ | **寫** | ⚠️ --help 不安全 | — | Scope Pi's nightly schedule acquisition to a verified VPS field assessment. | ⚠️ 未查證 |
+| `pi_evening_handoff.py` | 常設工具 | `scripts/` | ✅ | 唯讀 | ⚠️ --help 不安全 | — | 由 jobs.py 的 Pi 晚間路徑發送 Box／PA 和評估 metadata，並點讀自己的回執。 | ⚠️ 未查證 |
+| `pi_job_handoff.py` | 常設工具 | `scripts/` | ✅ | 唯讀 | ⚠️ --help 不安全 | — | 由 jobs.py 的 Pi 每日與週跑路徑唯讀封裝私庫資料，並送往既有收件端。 | ⚠️ 未查證 |
+| `pi_night_results.py` | 常設工具 | `scripts/` | ✅ | 唯讀 | ⚠️ --help 不安全 | — | 由 jobs.py 的 Pi 晚間路徑封裝差異，待群組所有回執再推進本機狀態。 | ⚠️ 未查證 |
+| `pi_night_source.py` | 常設工具 | `scripts/` | ✅ | **寫** | ⚠️ --help 不安全 | — | 由 jobs.py 的 Pi 晚間路徑按已驗欄位補取資料，只寫 Pi 私庫與本機狀態。 | ⚠️ 未查證 |
 | `postseason-evening.sh` | 常設工具 | `scripts/` | ✅ | **寫** | ✅ --help 安全 | — | 常設的事件觸發晚間鏈（#268 WP3；#365 起全年安裝，A／E／C 有排定比賽的夜晚才動作，其餘喚醒 plan 回 quiet 即退出）。 | ⚠️ 未查證 |
 | `prod_availability.py` | 常設工具 | `scripts/` | ✅ | 唯讀 | ✅ --help 安全 | — | 正式站可用性偵測器（#353 WP4）：每日鏈哨兵（sentinel）＋部署後首請求探針（probe）。 | ⚠️ 未查證 |
 | `reconcile_scoreless_streak.py` | 常設工具 | `scripts/` | ✅ | 唯讀 | ✅ --help 安全 | ML-PITCHER-SCORELESS1 | 窮舉對帳：連續無自責分局數（ML-PITCHER-SCORELESS1）＋連續無失分局數（ML-PITCHER-RUNLESS1）。 | 窮舉對帳；AI_RUNBOOK:380 寫「改動演算法後必跑」，義務靠人記得 |
