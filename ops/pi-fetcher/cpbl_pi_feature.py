@@ -392,6 +392,123 @@ def run(out, source_id, as_of, timeout, *, manifest=None, bundle=None, send=Fals
     return result
 
 
+
+def _team_publication_batch(run_id):
+    if not re.fullmatch(r"[0-9a-f]{32}", run_id):
+        raise ValueError("invalid_run_id")
+    parent = f"/incoming/team-comparison/{run_id}"
+    return (
+        f"mkdir {parent}\n"
+        f'put "snapshot.json" {parent}/.snapshot.json.upload\n'
+        f"rename {parent}/.snapshot.json.upload {parent}/snapshot.json\n"
+        f'put "response.json" {parent}/.response.json.upload\n'
+        f"rename {parent}/.response.json.upload {parent}/response.json\n"
+        f'put "notification.json" {parent}/.ready.upload\n'
+        f"rename {parent}/.ready.upload /incoming/team-comparison-notify/{run_id}.ready\n"
+    ).encode("ascii")
+
+
+def _export_team_snapshot(connection, directory):
+    from cpbl.features.handoff import MAX_RESULTS
+    from cpbl.playoffs.team_comparison import sync
+
+    with connection.transaction(), connection.cursor() as cursor:
+        cursor.execute("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY")
+        cursor.execute(sync.COLUMNS_SQL)
+        columns = json.loads(cursor.fetchone()[0])
+        if sync.column_drift(columns):
+            raise ValueError("summary_column_drift")
+        cursor.execute(sync.DUMP_SQL)
+        data = json.loads(cursor.fetchone()[0])
+
+    bundle = sync.normalize(data)
+    if not bundle.builds or not bundle.current or sync.self_check(bundle):
+        raise ValueError("summary_snapshot_invalid")
+    raw = json.dumps({"columns": columns, "data": data}, sort_keys=True, separators=(",", ":"))
+    payload = (raw + "\n").encode("ascii")
+    if len(payload) > MAX_RESULTS:
+        raise ValueError("summary_snapshot_size")
+    sender._state(directory, "snapshot.json", raw)
+    return sender.fetch.digest(payload), len(payload)
+
+
+def _publish_team_snapshot(directory, source_id, as_of, name, snapshot_sha, snapshot_size,
+                           deadline, identity_file, known_hosts):
+    response = {
+        "version": 1, "source_id": source_id, "run_id": name, "as_of": as_of.isoformat(),
+        "snapshot_sha256": snapshot_sha, "snapshot_bytes": snapshot_size,
+    }
+    _save(directory, "response.json", response)
+    response_sha = sender.fetch.digest((directory / "response.json").read_bytes())
+    _save(directory, "notification.json", {"version": 1, "run_id": name, "response_sha256": response_sha})
+    auth = sender._authentication(identity_file, known_hosts)
+    command = sender._sftp_command(*auth, sender.USER)
+    transport = _run_native(command, directory, {"LANG": "C", "LC_ALL": "C"},
+                            deadline, _team_publication_batch(name))
+    return {**response, "response_sha256": response_sha, "transport": transport}
+
+
+def run_team_comparison(out, source_id, as_of, timeout, *,
+                        identity_file=sender.IDENTITY_FILE, known_hosts=sender.KNOWN_HOSTS):
+    from cpbl.features import handoff
+
+    result = {"job": "team-comparison", "ok": False, "stage": "precheck"}
+    try:
+        if (source_id != "pi" or as_of != datetime.now(TAIPEI).date()
+                or not math.isfinite(timeout) or timeout <= EXIT_RESERVE_SECONDS):
+            raise ValueError("invalid_team_comparison_scope")
+        deadline = time.monotonic() + timeout
+        name = handoff.run_id(source_id, as_of)
+        result["run_id"] = name
+        out = out.absolute()
+        if out.resolve(strict=True) != out:
+            raise ValueError("canonical_private_root_required")
+        work = out / name
+        with sender._request_lock(out) as locked:
+            if not locked:
+                raise ValueError("feature_worker_busy")
+            sender._private(work, directory=True)
+            state = _saved(work / "state.json")
+            if not state or state.get("phase") != "published" or state.get("notified") is not True:
+                raise ValueError("feature_publication_not_proved")
+            directory = work / "team-comparison"
+            if os.path.lexists(directory):
+                sender._private(directory, directory=True)
+                previous = _saved(directory / "sent.json")
+                if not previous:
+                    raise ValueError("summary_attempt_already_started")
+                return {**result, **previous, "ok": True, "stage": "already_sent"}
+            directory.mkdir(mode=0o700)
+            env = _private_environment()
+            result["stage"] = "build"
+            command = [sys.executable, "-I", "-B", "-m", "cpbl.ingest.run_build_team_comparison",
+                       "--year", str(as_of.year)]
+            result["build"] = _run_native(command, directory, env, deadline)
+            if result["build"]["native_rc"] != 0 or result["build"]["timed_out"]:
+                return result
+            result["stage"] = "snapshot"
+            from psycopg import connect
+
+            with connect(env["DATABASE_URL"], connect_timeout=4,
+                         options="-c statement_timeout=10000") as connection:
+                snapshot_sha, snapshot_size = _export_team_snapshot(connection, directory)
+            if as_of != datetime.now(TAIPEI).date():
+                raise ValueError("summary_crossed_midnight")
+            result["stage"] = "send"
+            receipt = _publish_team_snapshot(
+                directory, source_id, as_of, name, snapshot_sha, snapshot_size,
+                deadline, identity_file, known_hosts,
+            )
+            result.update(receipt)
+            if receipt["transport"]["native_rc"] != 0 or receipt["transport"]["timed_out"]:
+                return result
+            _save(directory, "sent.json", receipt)
+            result.update(ok=True, stage="sent")
+    except Exception as exc:
+        result["error_class"] = type(exc).__name__
+    return result
+
+
 def _raw_arguments(parser):
     parser.add_argument("--manifest", type=Path, help="Original local WWW schedule request")
     parser.add_argument("--bundle", type=Path, help="Its complete authentic same-day local bundle")
@@ -411,6 +528,11 @@ def main(argv=None):
     daily.add_argument("--notify", action="store_true", help="Commit the bound flat notification after both files")
     daily.add_argument("--include-games", action="store_true")
     _raw_arguments(daily)
+    team = modes.add_parser("team-comparison")
+    team.add_argument("--out", type=Path, required=True)
+    team.add_argument("--source-id", required=True)
+    team.add_argument("--as-of", type=date.fromisoformat, required=True)
+    team.add_argument("--timeout", type=float, required=True)
     refresh = modes.add_parser("_refresh")
     refresh.add_argument("as_of", type=date.fromisoformat)
     refresh.add_argument("--schedule-output", type=Path)
@@ -420,6 +542,11 @@ def main(argv=None):
             args = parser.parse_args(argv)
         except SystemExit as exc:
             return int(exc.code or 0)
+    if args.command == "team-comparison":
+        os.umask(0o077)
+        result = run_team_comparison(args.out, args.source_id, args.as_of, args.timeout)
+        print(json.dumps(result, sort_keys=True), flush=True)
+        return 0 if result["ok"] else 78
     if (args.manifest is None) != (args.bundle is None):
         return 78
     os.umask(0o077)

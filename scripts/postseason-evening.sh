@@ -141,6 +141,13 @@ if [ "$STAGE" != "all" ] && [ "$STAGE" != "boxpa" ]; then
   exit 64
 fi
 
+BOXPA_EXTERNAL=0
+BOXPA_EXTERNAL_MARKER="${MAC_CUTOVER_MARKER%/*}/mac-boxpa-chain-external"
+if [ "$TRIGGER" = launchd ] &&
+   { [ -e "$BOXPA_EXTERNAL_MARKER" ] || [ -L "$BOXPA_EXTERNAL_MARKER" ]; }; then
+  BOXPA_EXTERNAL=1
+fi
+
 mkdir -p logs
 LOG="logs/postseason-evening-$(date +%Y%m%d).log"
 # #293 r3：手動只跑 box／PA 階段（WP5）時另寫一檔，標記與 launchd 的晚間 log 分開計數。
@@ -163,8 +170,13 @@ if [ "$STAGE" = "all" ]; then
 fi
 # 1b. #293 box／PA 預檢：不取鎖、不寫狀態檔、不連 www（只讀本機 DB 與狀態檔）。
 #     結果鏈沒事、box／PA 也沒事 → 直接結束（與原本「無事件不取鎖」相同）。
-BOXPA_PRE="$(py boxpa-plan --dry)" || BOXPA_PRE="error"
-note "boxpa-plan --dry → ${BOXPA_PRE}"
+BOXPA_PRE="external"
+if [ "$BOXPA_EXTERNAL" = 1 ]; then
+  note '自動晚間 Box／PA 已交接，賽果與先發流程照原入口'
+else
+  BOXPA_PRE="$(py boxpa-plan --dry)" || BOXPA_PRE="error"
+  note "boxpa-plan --dry → ${BOXPA_PRE}"
+fi
 if [ "$ACTION" = "idle" ] || [ "$ACTION" = "halted" ]; then
   # build 也要進來（#293 fix-4 B1）：已送達或額度用完後來源才更新時，只跑本機 PA builder、不同步。
   # tracking 也要進來（#293 fix-5）：box 已送達但逐球晚到，只向 stats 重抓逐球（不連 www）。
@@ -261,7 +273,7 @@ boxpa_split() {  # "$1"＝boxpa-plan 輸出（"sync 2026-C-2 box,pa"）→ BOXPA
   read -r BOXPA_ACT BOXPA_GAMES BOXPA_PARTS <<< "$1"
   return 0
 }
-if [ "$EXIT_CODE" -ne 69 ]; then
+if [ "$EXIT_CODE" -ne 69 ] && [ "$BOXPA_EXTERNAL" = 0 ]; then
   BOXPA_PLAN="$(py boxpa-plan)" || BOXPA_PLAN="error"
   note "boxpa-plan → ${BOXPA_PLAN}"
   boxpa_split "$BOXPA_PLAN"

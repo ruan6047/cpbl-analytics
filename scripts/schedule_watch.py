@@ -1177,16 +1177,202 @@ def evaluate(registry: dict, repo: Path, now: datetime, api_url: str, api_timeou
     return report
 
 
-def evaluate_jobs(registry: dict, repo: Path, now: datetime, api_url: str) -> dict:
+def evaluate_feature_publication(job: dict, repo: Path, now: datetime, anchor: date | None, source: str) -> dict:
+    from cpbl.features.handoff import MAX_MANIFEST, SHA, _object, _read, run_id
+
+    cadence = job["cadence"]
+    result = {"label": "com.cpbl.feature-publish", "cadence": cadence,
+              "evidence": "VPS features-published", "findings": [], "cycles": [], "streak": 0}
+    now = now.astimezone(TAIPEI)
+    fire, floor = previous_fire(cadence, now), _floor(job, anchor)
+    if fire is None or floor is None or fire.date() < floor:
+        return result
+    deadline = fire + timedelta(minutes=int(job["alert"]["grace_minutes"]))
+    key = run_id(source, fire.date())
+    folder = repo / "logs" / "features-published"
+    path = folder / f"{key}.json"
+    cycle = {"cycle": fire.isoformat(), "deadline": deadline.isoformat(), "run_id": key}
+    result["cycles"].append(cycle)
+    try:
+        if folder.resolve() != folder or not folder.is_dir():
+            raise ValueError("publication_receipt_directory")
+        receipt = _object(_read(path, MAX_MANIFEST))
+        published_at = datetime.fromtimestamp(path.lstat().st_mtime, TAIPEI)
+        if (not isinstance(receipt, dict) or receipt.get("run_id") != key or receipt.get("source_id") != source
+                or receipt.get("as_of") != fire.date().isoformat() or not fire <= published_at <= now
+                or type(receipt.get("row_count")) is not int or receipt["row_count"] <= 0
+                or not all(isinstance(receipt.get(k), str) and SHA.fullmatch(receipt[k])
+                           for k in ("response_sha256", "result_sha256"))):
+            raise ValueError("publication_receipt_identity")
+        cycle.update(verdict="OK", published_at=published_at.isoformat(), row_count=receipt["row_count"])
+        return result
+    except FileNotFoundError:
+        verdict = "PENDING" if now < deadline else "MISSING"
+    except (OSError, ValueError, TypeError):
+        verdict = "HISTORY_CORRUPT"
+    cycle["verdict"] = verdict
+    if verdict != "PENDING":
+        result["streak"] = 1
+        result["findings"].append({"verdict": verdict, "cycle": fire.isoformat(), "streak": 1,
+                                   "log": str(path), "detail": "VPS 正式發布收據缺失或無效"})
+    return result
+
+
+HANDOFF_RECEIPT_LABELS = {
+    "daily-sabr": "com.cpbl.scrape-daily",
+    "daily-pa": "com.cpbl.scrape-daily",
+    "daily-pitch-labels": "com.cpbl.scrape-daily",
+    "daily-current": "com.cpbl.scrape-daily",
+    "daily-advanced": "com.cpbl.scrape-daily",
+    "non-a-results": "com.cpbl.scrape-daily",
+    "team-comparison": "com.cpbl.scrape-daily",
+    "weekly-box": "com.cpbl.weekly-box-revisions",
+    "weekly-pitches": "com.cpbl.weekly-game-pitches",
+    "evening-boxpa": "com.cpbl.postseason-evening",
+}
+
+
+def _receipt_cycle(job, repo, now, anchor, source, inbox, namespace, *, previous=False):
+    from cpbl.features.handoff import MAX_MANIFEST, SHA, _object, _read, run_id
+
+    cadence = job["cadence"]
+    interval = cadence["kind"] == "interval"
+    fire = previous_fire(cadence, now) if not interval else now.replace(hour=0, minute=0, second=0, microsecond=0)
+    if previous and fire is not None:
+        fire = fire - timedelta(days=1) if interval else step_back(cadence, fire)
+    result = {"label": f"com.cpbl.{namespace}-publish", "cadence": cadence, "evidence": "VPS commit receipts",
+              "findings": [], "cycles": [], "streak": 0}
+    floor = _floor(job, anchor)
+    if fire is None or floor is None or fire.date() < floor:
+        return result
+    history, corrupt = load_history(repo / job["history_path"])
+    if corrupt:
+        result["findings"].append({"verdict": "HISTORY_CORRUPT", "detail": job["history_path"]})
+    if interval:
+        records = [row for row in history if row.get("trigger") == "jobs"
+                   and fire <= parse_timestamp(row["started_at"]) < fire + timedelta(days=1)
+                   and written_at(row) <= now]
+        row = max(records, key=written_at) if records else {}
+        skipped = row.get("skipped") is True and row.get("exit_code") == 0
+        from cpbl.ingest.evening_handoff import BATCH_ID, read_receipt
+        from cpbl.ingest.postseason_evening import BOXPA_MAX_SECONDS
+    else:
+        row = index_by_cycle(cadence, history, trigger="jobs", now=now).get(fire) or {}
+        skipped = row.get("skipped") is True and row.get("exit_code") == 0
+    notifications = inbox / "incoming" / f"{namespace}-notify"
+    root = repo / "logs" / f"{namespace}-published"
+    if interval:
+        directory = root / source
+        if directory.resolve() != directory or notifications.resolve() != notifications:
+            result["findings"].append({"verdict": "HISTORY_CORRUPT", "detail": "publication_evidence_directory"})
+            return result
+        names = {p.stem for folder, glob in ((directory, "*.json"), (notifications, "*.ready"))
+                 for p in folder.glob(glob) if BATCH_ID.fullmatch(p.stem)
+                 and fire <= datetime.fromtimestamp(p.lstat().st_mtime, TAIPEI) < fire + timedelta(days=1)
+                 and p.lstat().st_mtime <= now.timestamp()}
+    else:
+        names = {run_id(source, fire.date())}
+
+    for key in sorted(names):
+        cycle = {"cycle": fire.isoformat(), "run_id": key}
+        note = notifications / f"{key}.ready"
+        file = (root / source if interval else root) / f"{key}.json"
+        try:
+            if note.parent.resolve() != note.parent or file.parent.resolve() != file.parent:
+                raise ValueError("publication_evidence_directory")
+            notification = None
+            if os.path.lexists(note):
+                notification = _object(_read(note, MAX_MANIFEST))
+                field = "batch_id" if interval else "run_id"
+                if (not isinstance(notification, dict) or type(notification.get("version")) is not int
+                        or notification["version"] != 1 or notification.get(field) != key
+                        or not SHA.fullmatch(notification.get("response_sha256", ""))):
+                    raise ValueError("publication_notice_identity")
+            if os.path.lexists(file):
+                value = read_receipt(root, source, key) if interval else _object(_read(file, MAX_MANIFEST))
+                request = value if interval else value.get("request", value)
+                field = "batch_id" if interval else "run_id"
+                published_at = datetime.fromtimestamp(file.lstat().st_mtime, TAIPEI)
+                if (request.get("source_id"), request.get(field), request.get("as_of")) != (
+                    source, key, fire.date().isoformat(),
+                ) or not fire <= published_at <= now:
+                    raise ValueError("publication_receipt_identity")
+                if not SHA.fullmatch(request.get("response_sha256","")) or (
+                    notification and notification["response_sha256"] != request["response_sha256"]
+                ):
+                    raise ValueError("publication_receipt_binding")
+                if interval:
+                    outcome = value["manifest"]["delivery_mode"]
+                    if outcome not in ("committed", "reused_existing"):
+                        raise ValueError("publication_evening_mode")
+                    verdict = "REUSED" if outcome == "reused_existing" else "OK"
+                else:
+                    outcome = value.get("state")
+                    if outcome is None:  # on-disk receipt from before the optional outcome field was added
+                        verdict = "OK" if namespace == "team-comparison" else "COMMITTED_COUNT_UNKNOWN"
+                    elif outcome in ("published", "no_observations"):
+                        committed = parse_timestamp(value["committed_at"])
+                        if type(value.get("version")) is not int or value["version"] != 1 or not fire <= committed <= now:
+                            raise ValueError("publication_commit_time")
+                        if not SHA.fullmatch(request.get("snapshot_sha256", "")):
+                            raise ValueError("publication_snapshot_digest")
+                        rows = value.get("rows")
+                        if not isinstance(rows, dict) or not all(type(count) is int and count >= 0 for count in rows.values()):
+                            raise ValueError("publication_row_counts")
+                        if any(rows.values()) != (outcome == "published"):
+                            raise ValueError("publication_row_outcome")
+                        verdict = "OK" if outcome == "published" else "NO_OBSERVATIONS"
+                    else:
+                        raise ValueError("publication_outcome")
+                cycle.update(verdict=verdict, published_at=published_at.isoformat())
+            elif notification:
+                shown = datetime.fromtimestamp(note.lstat().st_mtime, TAIPEI)
+                deadline = (shown + timedelta(seconds=BOXPA_MAX_SECONDS)) if interval else (
+                    fire + timedelta(minutes=int((job.get("alert") or {}).get("grace_minutes", 0)))
+                    if job.get("alert") else fire + timedelta(days=7 if cadence["kind"] == "weekly" else 1)
+                )
+                cycle.update(verdict="PENDING" if now < deadline else "INCOMPLETE",
+                             accepted_at=shown.isoformat(), detail="notice_only")
+            else:
+                cycle.update(verdict="SKIPPED" if skipped else "PENDING", detail=(
+                    "native_skip" if skipped else "publication_expectation_unknown"
+                ))
+        except (OSError, TypeError, ValueError, KeyError, AttributeError):
+            cycle.update(verdict="HISTORY_CORRUPT", detail="publication_evidence_invalid")
+        if cycle["verdict"] in ("INCOMPLETE", "HISTORY_CORRUPT"):
+            result["streak"] = 1
+            result["findings"].append({"verdict": cycle["verdict"], "cycle": fire.isoformat(), "streak": 1,
+                                       "detail": cycle.get("detail")})
+        result["cycles"].append(cycle)
+    if interval and not names:
+        result["cycles"].append({"cycle": fire.isoformat(), "verdict": "SKIPPED" if skipped else "PENDING",
+                                  "detail": "native_skip" if skipped else "publication_expectation_unknown"})
+    return result
+
+
+def evaluate_jobs(registry: dict, repo: Path, now: datetime, api_url: str, *,
+                  feature_source: str | None = None, handoff_inbox: Path | None = None) -> dict:
     """Linux 適配：同一 cadence/週期演算法，讀真 jobs 觸發歷史；不呼叫 Mac 探測。"""
     names = ("scrape-daily", "postseason-evening", "weekly-box-revisions", "weekly-game-pitches",
              "schedule-watchdog", "alert-watch")
-    labels = {"com.cpbl." + name for name in names}
+    if handoff_inbox is not None:
+        labels = set(HANDOFF_RECEIPT_LABELS.values())
+    else:
+        labels = {"com.cpbl.scrape-daily"} if feature_source is not None else {"com.cpbl." + name for name in names}
     selected = [dict(job) for job in registry.get("jobs", []) if job.get("label") in labels]
     local_registry = {**registry, "jobs": selected}
     findings = check_registry(local_registry, repo, now.date(), jobs_mode=True)
     if {job["label"] for job in selected} != labels:
-        findings.append({"verdict": "REGISTRY_INVALID", "detail": "Linux 六工作登記不完整"})
+        findings.append({"verdict": "REGISTRY_INVALID", "detail": "Linux 監控的工作登記不完整"})
+    if feature_source is not None or handoff_inbox is not None:
+        from cpbl.features.handoff import SOURCE_ID
+
+        if not isinstance(feature_source, str) or not SOURCE_ID.fullmatch(feature_source):
+            findings.append({"verdict": "REGISTRY_INVALID", "detail": "缺少有效的正式特徵來源識別"})
+    if handoff_inbox is not None and (
+        not handoff_inbox.is_absolute() or handoff_inbox.resolve() != handoff_inbox or not handoff_inbox.is_dir()
+    ):
+        findings.append({"verdict": "REGISTRY_INVALID", "detail": "handoff inbox 未有效掛載"})
     findings += check_alert_segments(local_registry)
     import alert_ping
     missing = alert_ping.missing_settings(alert_ping.load_config(use_environment=True), need_api=True)
@@ -1196,7 +1382,25 @@ def evaluate_jobs(registry: dict, repo: Path, now: datetime, api_url: str) -> di
               "global_findings": [], "jobs": [], "production": {}, "registry_blocked": False}
     if not any(f["verdict"].startswith("REGISTRY_") for f in findings):
         anchor = deployment_anchor(repo, now)
+        if handoff_inbox is not None:
+            by_label = {job["label"]: job for job in selected}
+            for namespace, label in HANDOFF_RECEIPT_LABELS.items():
+                job = by_label[label]
+                current = _receipt_cycle(job, repo, now, anchor, feature_source, handoff_inbox, namespace)
+                if job["cadence"]["kind"] in ("weekly", "interval"):
+                    prior = _receipt_cycle(
+                        job, repo, now, anchor, feature_source, handoff_inbox, namespace, previous=True,
+                    )
+                    current["cycles"] = [cycle for cycle in prior["cycles"]
+                                         if cycle.get("detail") != "publication_expectation_unknown"] + current["cycles"]
+                    current["findings"] = prior["findings"] + current["findings"]
+                    current["streak"] = max(current["streak"], prior["streak"])
+                report["jobs"].append(current)
+            selected = [job for job in selected if job["label"] == "com.cpbl.scrape-daily"]
         for job in selected:
+            if feature_source is not None:
+                report["jobs"].append(evaluate_feature_publication(job, repo, now, anchor, feature_source))
+                continue
             name = job["label"].removeprefix("com.cpbl.")
             job["status_path"] = f"logs/jobs/{name}.json"
             result = evaluate_job(job, now, repo, DEFAULT_LOOKBACK_CYCLES, anchor, trigger="jobs")
@@ -1222,6 +1426,11 @@ def evaluate_jobs(registry: dict, repo: Path, now: datetime, api_url: str) -> di
     report["verdict"] = max(verdicts, key=lambda v: SEVERITY.get(v, 0)) if verdicts else "OK"
     report["exit_code"] = EXIT_BY_VERDICT.get(report["verdict"], EXIT_REGISTRY) if verdicts else EXIT_OK
     report["message"] = build_message(report)
+    if feature_source is not None and not verdicts:
+        cycles = [cycle for job in report["jobs"] for cycle in job["cycles"]]
+        if not cycles or any(cycle["verdict"] == "PENDING" for cycle in cycles):
+            report["verdict"] = "PENDING"
+            report["message"] = "等待可判定的 VPS 正式發布收據"
     return report
 
 

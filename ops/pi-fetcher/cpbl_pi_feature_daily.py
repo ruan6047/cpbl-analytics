@@ -59,11 +59,34 @@ def _interrupted(_signum, _frame):
     raise InterruptedError("feature_service_stopped")
 
 
+
+def _run_optional_summary(feature_command, day, started):
+    budget = min(45, 710 - (time.monotonic() - started))
+    result = {"job": "team-comparison", "stage": "daily_summary_exit", "native_rc": None}
+    if budget <= feature.EXIT_RESERVE_SECONDS:
+        result.update(status="insufficient_budget", exit_code=78)
+    else:
+        command = [*feature_command[:4], "team-comparison", "--out", os.environ["CPBL_FEATURE_PI_OUT"],
+                   "--source-id", "pi", "--as-of", day, "--timeout", str(budget)]
+        try:
+            proc = subprocess.run(command, stdin=subprocess.DEVNULL, timeout=budget + 5, check=False)
+        except subprocess.TimeoutExpired:
+            result.update(status="timeout", exit_code=124)
+        except OSError as exc:
+            result.update(status="interrupted" if isinstance(exc, InterruptedError) else "launch_failed",
+                          exit_code=78, error_class=type(exc).__name__)
+        else:
+            result.update(status="success" if proc.returncode == 0 else "failed",
+                          exit_code=proc.returncode, native_rc=proc.returncode)
+    print(json.dumps(result, sort_keys=True), flush=True)
+
+
 def main():
     os.umask(0o077)
     for sig in (signal.SIGTERM, signal.SIGINT):
         signal.signal(sig, _interrupted)
     pg = None
+    started = time.monotonic()
     status = 78
     try:
         data, socket = _owned_settings()
@@ -76,10 +99,12 @@ def main():
                 "-c", "shared_buffers=32MB", "-c", "work_mem=4MB", "-c", "maintenance_work_mem=32MB",
                 "-c", "max_connections=8", "-c", "max_parallel_workers_per_gather=0"]
         pg = subprocess.Popen(argv, stdin=subprocess.DEVNULL, start_new_session=True)
+        library_path = os.environ.get("LD_LIBRARY_PATH")
+        readiness_env = {"LD_LIBRARY_PATH": library_path} if library_path else {}
         until = time.monotonic() + 40
         while pg.poll() is None and time.monotonic() < until:
             check = subprocess.run([binaries / "pg_isready", "-q", "-h", socket, "-p", "5432"],
-                                   env={}, timeout=4, check=False)
+                                   env=readiness_env, timeout=4, check=False)
             if check.returncode == 0:
                 break
             time.sleep(1)
@@ -92,6 +117,8 @@ def main():
         if os.environ.get("CPBL_FEATURE_GAMES_HANDOFF") == "1":
             command.append("--include-games")
         status = subprocess.run(command, stdin=subprocess.DEVNULL, timeout=675, check=False).returncode
+        if status == 0 and os.environ.get("CPBL_FEATURE_TEAM_COMPARISON") == "1":
+            _run_optional_summary(command, day, started)
     except Exception as exc:
         print(json.dumps({"stage": "feature_only_service", "error_class": type(exc).__name__}), flush=True)
     finally:

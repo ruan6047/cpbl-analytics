@@ -179,6 +179,58 @@ schedule_sync_filter() {
   esac
 }
 
+# 當季 SABR 八表與基礎係數是兩組；只在該八表完成交接後開自動同步守門。
+sabr_sync_filter() {
+  local marker="${MAC_CUTOVER_MARKER%/*}/mac-sabr-external"
+  [ "${REFRESH_TRIGGER:-manual}" = launchd ] &&
+    { [ -e "$marker" ] || [ -L "$marker" ]; } || return 0
+  local year
+  year="$(TZ=Asia/Taipei date +%Y)"
+  case "$1" in
+    team_der|batter_wsb) printf ' WHERE year <> %s' "$year" ;;
+    fielding_innings|catcher_runs|batter_traits|pitcher_traits|batter_re24|pitcher_re24)
+      printf " WHERE NOT (year = %s AND kind_code = 'A')" "$year" ;;
+  esac
+}
+
+mac_boxpa_chain_handed_off() {
+  local marker="${MAC_CUTOVER_MARKER%/*}/mac-boxpa-chain-external"
+  [ "${REFRESH_TRIGGER:-manual}" = launchd ] && { [ -e "$marker" ] || [ -L "$marker" ]; }
+}
+
+boxpa_chain_sync_filter() {
+  mac_boxpa_chain_handed_off || return 0
+  local year
+  year="$(TZ=Asia/Taipei date +%Y)"
+  case "$1" in
+    game_detail|game_scoreboard|game_livelog|batting_gamelog|pitching_gamelog|pitch_tracking|pitching_game_flags)
+      printf " WHERE NOT (year = %s AND kind_code IN ('A','D','E','C'))" "$year" ;;
+    game_source_revisions)
+      printf " WHERE NOT (year = %s AND kind_code IN ('A','D','E','C') AND source IN ('livelog','scoreboard'))" "$year" ;;
+    model_versions)
+      printf " WHERE id NOT IN ('pitch_type_v2_%sA','pitch_type_v2_%sD')" "$year" "$year" ;;
+  esac
+}
+
+handoff_sync_filter() {
+  local existing boxpa
+  existing="$(schedule_sync_filter "$1")$(sabr_sync_filter "$1")"
+  boxpa="$(boxpa_chain_sync_filter "$1")"
+  if [ -n "$existing" ] && [ -n "$boxpa" ]; then
+    printf '%s AND %s' "$existing" "${boxpa# WHERE }"
+  else
+    printf '%s%s' "$existing" "$boxpa"
+  fi
+}
+
+boxpa_legacy_mirror_handed_off() {
+  mac_boxpa_chain_handed_off || return 1
+  case "$1" in
+    game_livelog_extra|box_pitching_revisions) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
 # API 回報全站聚合。已交接範圍取正式庫，其餘仍用本機同步前的獨立基準。
 merge_handoff_freshness() {
   [ -n "$MAC_A_SCOPE_SQL" ] || return 0
@@ -374,6 +426,10 @@ SQL_END
 # #293 S12 目標場 box／PA 模式的互斥檢查放在所有早退模式之前：任何其他模式旗標同時存在就拒跑，
 # 免得先被下面的 ROSTER／LINEUP／RESULTS 分支接走而沒人發現（實際流程見 POSTSEASON_BOXPA_ONLY 段）。
 if [ -n "${POSTSEASON_BOXPA_ONLY:-}" ]; then
+  if mac_boxpa_chain_handed_off; then
+    echo '自動晚間 Box／PA 已交接，不發出舊同步。' >&2
+    exit 78
+  fi
   if [ "$POSTSEASON_BOXPA_ONLY" != 1 ] || [ "${SKIP_SCRAPE:-}" != 1 ] || [ -n "${WITH_DETAIL:-}" ] \
      || [ -n "${LINEUP_ONLY:-}" ] || [ -n "${ROSTER_ONLY:-}" ] || [ -n "${POSTSEASON_RESULTS_ONLY:-}" ] \
      || [ -n "${TEAM_COMPARISON_ONLY:-}" ]; then
@@ -656,7 +712,7 @@ sync_table() {
     return
   fi
   local schedule_filter
-  schedule_filter="$(schedule_sync_filter "$t")"
+  schedule_filter="$(handoff_sync_filter "$t")"
   {
     echo "CREATE TEMP TABLE _stg (LIKE cpbl.${t} INCLUDING DEFAULTS) ON COMMIT DROP;"
     docker exec "$LOCAL_DB" pg_dump -U cpbl -d cpbl --data-only -t "cpbl.${t}" \
@@ -919,6 +975,10 @@ sync_advanced_snapshot() {
 # 參照（DELETE 目標場會讓別場列失去參照的情形）。已 grep 全部 migrations：除這 5 表彼此互相參照外，
 # 沒有其他表對它們建 FK（INGEST-PA-DAILY1-FIX1 驗證留痕）。
 sync_pa_build() {
+  if mac_boxpa_chain_handed_off; then
+    echo '    ⏭ 自動 PA 五表同步已交接，保留手動原入口'
+    return 0
+  fi
   local rc mode="增量" full_args=() local_psql target_psql apply_psql workdir ssh_ctl ssh_opts
   if [ "${PA_FULL_RESYNC:-0}" = 1 ]; then
     mode="全量（PA_FULL_RESYNC=1，人工指定）"
@@ -1101,7 +1161,7 @@ sync_revision_table() {  # $1=表 $2=內容唯一鍵 其餘=欄位（**不含** 
   local t="$1" pk="$2"; shift 2
   local cols; cols="$(printf '%s,' "$@")"; cols="${cols%,}"
   local seq payload schedule_filter
-  schedule_filter="$(schedule_sync_filter "$t")"
+  schedule_filter="$(handoff_sync_filter "$t")"
   if ! seq="$(_serial_sequence "$t")"; then
     echo "FATAL: 取不到 cpbl.${t} 的 id 序列名（表結構已變？）——拒絕以可能含 setval 的 payload 同步生產" >&2
     exit 66
@@ -1146,6 +1206,10 @@ ON CONFLICT (${pk}) DO UPDATE SET $(_excl "$@");"
 # payload 先落地、斷言只 TRUNCATE 目標表一張（無 CASCADE）＋恰 1 個 COPY＋1 個 INSERT 才送出。
 mirror_table() {  # $1=表 $2=identity（可省略）
   local t="$1" mode="${2:-}" n payload why overriding=""
+  if boxpa_legacy_mirror_handed_off "$t"; then
+    echo "    ⏭ 自動 ${t} 整表鏡像已交接，保留正式庫現存歷史"
+    return 0
+  fi
   [ "$mode" = identity ] && overriding="OVERRIDING SYSTEM VALUE "
   n="$(docker exec "$LOCAL_DB" psql -U cpbl -d cpbl -At -c "SELECT count(*) FROM cpbl.${t}" || true)"
   if ! [[ "$n" =~ ^[0-9]+$ ]] || [ "$n" -eq 0 ]; then
@@ -1186,6 +1250,10 @@ mirror_table() {  # $1=表 $2=identity（可省略）
 # ⚠️ 代價：本機刻意清空時 prod 不會跟著清空，需人工處理（回滾程序見 #357 PLAN）。
 # ⚠️ 只在完整鏈同步；目標場模式（POSTSEASON_BOXPA_ONLY）不含本表，該場附加列等下一次完整鏈。
 sync_livelog_extra() {
+  if boxpa_legacy_mirror_handed_off game_livelog_extra; then
+    echo '    ⏭ 自動 game_livelog_extra 整表鏡像已交接'
+    return 0
+  fi
   local n
   n="$(docker exec "$LOCAL_DB" psql -U cpbl -d cpbl -At -c "SELECT count(*) FROM cpbl.game_livelog_extra" || true)"
   if [ "$n" = 0 ]; then

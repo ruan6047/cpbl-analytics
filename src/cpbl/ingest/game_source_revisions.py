@@ -44,14 +44,14 @@ def sanitize_detail(value: Any) -> Any:
 def record_source_revision(
     *, year: int, kind_code: str, game_sno: int, source: str, outcome: str,
     row_count: int, payload: Any = None, source_version: str | None = None,
-    error_code: str | None = None, detail: dict[str, Any] | None = None,
+    error_code: str | None = None, detail: dict[str, Any] | None = None, connection=None,
 ) -> None:
     """冪等寫入來源 revision；相同內容只更新 last_seen_at／seen_count。"""
     version = source_version or canonical_source_version({
         "payload": payload, "outcome": outcome, "error_code": error_code,
     })
     safe_detail = sanitize_detail(detail or {})
-    with conn() as c:
+    with (conn() if connection is None else nullcontext(connection)) as c:
         c.execute(
             """
             INSERT INTO cpbl.game_source_revisions

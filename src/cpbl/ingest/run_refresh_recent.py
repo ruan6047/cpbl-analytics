@@ -773,7 +773,17 @@ def _pa_build_coverage(year: int, kinds: list[str]) -> dict[str, dict[str, int]]
     }
 
 
-def _build_pa_daily(year: int, days: list[date], *, include_farm: bool) -> dict[str, Any]:
+def _current_pa_build_ids(games):
+    with conn() as c:
+        rows = c.execute(
+            "SELECT year,kind_code,game_sno,build_id::text FROM cpbl.game_recap_builds "
+            "WHERE state='published' AND year=%s", (games[0][0],),
+        ).fetchall()
+    wanted = set(games)
+    return {f"{y}-{k}-{g}": build for y, k, g, build in rows if (y, k, g) in wanted}
+
+
+def _build_pa_daily(year: int, days: list[date], *, include_farm: bool, on_targets=None) -> dict[str, Any]:
     """對完成場執行 canonical PA build 接線（GAME-RECAP-PA1-BUILD1 的每日鏈；INGEST-PA-DAILY1）。
 
     只做接線：委派 ``pa_build.build_scope`` 逐場 build，taxonomy/pa_id/reconciliation
@@ -791,7 +801,10 @@ def _build_pa_daily(year: int, days: list[date], *, include_farm: bool) -> dict[
     if games:
         # build_scope 的 only_games=[]（空清單，非 None）會被 `if only_games:` 判 falsy，
         # 退化成「全範圍」查詢（陷阱）——games 非空才呼叫，用短路取代空清單保護。
+        predecessors = _current_pa_build_ids(games) if on_targets is not None else {}
         result = build_scope(year, year, kinds, only_games=games)
+        if on_targets is not None and not result["errors"]:
+            on_targets(games, predecessors)
     else:
         result = {"games": 0, "actions": {}, "build_states": {}, "errors": []}
     result["kinds"] = kinds
@@ -839,14 +852,15 @@ def _pa_alert_note(alerts: list[dict[str, Any]]) -> str:
     return "PA 對帳待收尾：" + "；".join(parts) + more
 
 
-def _pa_build_step(year: int, days: list[date], *, include_farm: bool) -> dict[str, Any]:
+def _pa_build_step(year: int, days: list[date], *, include_farm: bool, on_targets=None) -> dict[str, Any]:
     """``_build_pa_daily`` 的 fail-closed 外層：任何例外只記錄、絕不外拋。
 
     獨立成一個函式（而非直接寫在 ``main()`` 內）方便單獨單元測試 fail-closed 邊界，
     不必連帶 mock 整個 ``main()`` 流程。呼叫端（``main()``）仍照常繼續其餘 refresh 步驟。
     """
     try:
-        result = _build_pa_daily(year, days, include_farm=include_farm)
+        observe = {"on_targets": on_targets} if on_targets is not None else {}
+        result = _build_pa_daily(year, days, include_farm=include_farm, **observe)
         cov = result["coverage"].values()
         gap_total = sum(v["gap"] for v in cov)
         # ⚠️ 待收尾的 reconciliation 也算「還沒好」。舊版只看 gap，於是 08-20 那行 log
@@ -1201,7 +1215,7 @@ def _parser() -> argparse.ArgumentParser:
     return p
 
 
-def main(argv: list[str] | None = None, *, jobs: bool = False) -> None:
+def main(argv: list[str] | None = None, *, jobs: bool = False, on_handoff=None) -> None:
     argv = sys.argv[1:] if argv is None else argv
     if "--plan" in argv:
         # #364 (b)：只印日型與步驟清單，不 migrate、不爬、不寫 refresh_log（交給 daily_gate 的唯讀 plan）。
@@ -1252,6 +1266,8 @@ def main(argv: list[str] | None = None, *, jobs: bool = False) -> None:
     # PA build 失敗必須 fail-closed（不得擋住爬取/同步），故結果初始化在 try 外、
     # 呼叫本身包一層獨立 try/except，例外不外拋。
     pa_build_result: dict[str, Any] = {"games": 0, "actions": {}, "build_states": {}, "errors": []}
+    fielding_observed = {}
+    pa_observed = {}
     pitch_type_result: dict[str, Any] = {"skipped": True, "errors": []}
     derived_result: dict[str, Any] = {"skipped": True, "errors": []}
     postseason_result: dict[str, Any] = {"games": {}, "errors": []}
@@ -1282,7 +1298,8 @@ def main(argv: list[str] | None = None, *, jobs: bool = False) -> None:
                 postseason_result = {**postseason_result, **closed_note}
             stat_kinds = tuple(k for k, ok in (("A", major_open), ("D", farm_open)) if ok)
             # 投打/團隊 + 守備一軍(A)+二軍(D)；已收官的軍不爬
-            stats = scrape_all(year, year, year, kinds=stat_kinds) if stat_kinds else closed_note
+            observe_fielding = {"on_fielding_written": fielding_observed.__setitem__} if on_handoff else {}
+            stats = scrape_all(year, year, year, kinds=stat_kinds, **observe_fielding) if stat_kinds else closed_note
             # 官方球隊戰績（含和局/勝差/上下半季），輕量每次更新。
             # ⚠️ 對帳失敗（拿到別的球季／空表）刻意**不外拋**：外拋會讓底下 transactions／
             # championships／PA build／splits 重算／改名同步全部不跑，只是把靜默失敗換成
@@ -1347,7 +1364,11 @@ def main(argv: list[str] | None = None, *, jobs: bool = False) -> None:
         # build，使「完成場皆有 published build」恆成立。fail-closed：build 失敗（含
         # reconciliation_required）只記錄，不擋其餘 refresh 步驟（見 _pa_build_step）。
         if "pa_build" in run_steps:
-            pa_build_result = _pa_build_step(year, [yesterday, today], include_farm=True)
+            def keep_pa_targets(games, predecessors):
+                pa_observed.update(games=games, predecessors=predecessors)
+
+            observe_pa = {"on_targets": keep_pa_targets} if on_handoff is not None else {}
+            pa_build_result = _pa_build_step(year, [yesterday, today], include_farm=True, **observe_pa)
         else:
             pa_build_result = {**pa_build_result, **skipped_note}
         # 球種推算（fail-closed，見 _pitch_type_step）。放在逐球增量之後，才涵蓋今天補進的球。
@@ -1472,6 +1493,8 @@ def main(argv: list[str] | None = None, *, jobs: bool = False) -> None:
                   or postseason_failed or livelog_failed or pa_alerts or farm_final_failed)
     _log_refresh("recent-games", yesterday, today, total, completed, detail,
                  ok=not failed, note=note)
+    if on_handoff is not None and not failed:
+        on_handoff({**detail, "fielding_observed": fielding_observed, "pa_observed": pa_observed})
 
     log.info("刷新完成 | 近兩日場次 %s | games=%s stats=%s | 增量對戰/分項=%s | PA build=%s",
              {d.isoformat(): f"{comp}/{t}" for d, t, comp in recent}, games, stats, detail_inc,

@@ -19,6 +19,7 @@ docstring），讓這件事從不可證偽變成可量測。
 from __future__ import annotations
 
 import json
+from contextlib import nullcontext
 from typing import Any
 
 from cpbl.db import conn
@@ -67,7 +68,7 @@ _UPSERT_LATEST_ONLY_SQL = """
 
 
 def record_box_pitching_revisions(
-    year: int, kind_code: str, game_sno: int, pitching_rows: list[dict[str, Any]],
+    year: int, kind_code: str, game_sno: int, pitching_rows: list[dict[str, Any]], *, connection=None,
 ) -> int:
     """把一場抓到的逐投手 PitchingJson 存成快照；同投手同內容重複抓取不新增列。
 
@@ -129,7 +130,7 @@ def record_box_pitching_revisions(
         })
     if not params:
         return 0
-    with conn() as c:
+    with (conn() if connection is None else nullcontext(connection)) as c:
         cur = c.cursor()
         for p in params:
             # 先鎖再讀再寫：見上面 docstring「原子性」段落。同一交易內鎖到交易

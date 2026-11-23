@@ -118,6 +118,13 @@ else
   TRIGGER="manual"
 fi
 
+WEEKLY_EXTERNAL_MARKER="${MAC_CUTOVER_MARKER%/*}/mac-boxpa-chain-external"
+if [ "$TRIGGER" = launchd ] && [ "$YEAR" = "$(TZ=Asia/Taipei date +%Y)" ] &&
+   { [ -e "$WEEKLY_EXTERNAL_MARKER" ] || [ -L "$WEEKLY_EXTERNAL_MARKER" ]; }; then
+  printf '%s\n' '當年自動週跑已交接，保留手動補跑。'
+  exit 0
+fi
+
 # result（人讀的既有詞彙）→ state（schedule_watch.py 的判定詞彙）。
 # 為什麼要寫歷史：沒有它，schedule_watch.py 判不了本 job 的缺席（登記表 history_from
 # 只能是 null）——這是 schedule-registry.json 對本 job 列的第 2 個 cutover blocker。
