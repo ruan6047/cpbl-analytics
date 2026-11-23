@@ -204,22 +204,11 @@ def payload(local: Bundle, p: Plan) -> dict:
     return {"builds": builds, "rows": rows, "current": current}
 
 
-def apply_script(doc: dict) -> str:
-    """單一交易的 psql 腳本：build／列 insert-only，指標明確欄位 UPSERT（列先、指標後）。"""
-    line = _copy_escape(json.dumps(doc, ensure_ascii=False, separators=(",", ":"), sort_keys=True))
+def apply_statements() -> str:
     bcols = ", ".join(BUILD_COLUMNS)
     rcols = ", ".join(ROW_COLUMNS)
     ccols = ", ".join(CURRENT_COLUMNS)
-    return f"""\\set QUIET on
-\\set ON_ERROR_STOP on
-\\pset tuples_only on
-\\pset format unaligned
-BEGIN;
-CREATE TEMP TABLE _tc_sync_payload (doc jsonb NOT NULL) ON COMMIT DROP;
-COPY _tc_sync_payload (doc) FROM STDIN;
-{line}
-\\.
-CREATE TEMP TABLE _tc_build ON COMMIT DROP AS
+    return f"""CREATE TEMP TABLE _tc_build ON COMMIT DROP AS
   SELECT * FROM jsonb_populate_recordset(NULL::cpbl.team_comparison_build,
                                          (SELECT doc->'builds' FROM _tc_sync_payload));
 CREATE TEMP TABLE _tc_row ON COMMIT DROP AS
@@ -255,9 +244,23 @@ INSERT INTO cpbl.team_comparison_current ({ccols})
     pending_since = EXCLUDED.pending_since;
 SELECT 'TEAM_COMPARISON_SYNC_STAGED ' || (SELECT count(*) FROM _tc_build) || ' '
        || (SELECT count(*) FROM _tc_row) || ' ' || (SELECT count(*) FROM _tc_current);
-COMMIT;
 """
 
+
+def apply_script(doc: dict) -> str:
+    """單一交易的 psql 腳本：build／列 insert-only，指標明確欄位 UPSERT（列先、指標後）。"""
+    line = _copy_escape(json.dumps(doc, ensure_ascii=False, separators=(",", ":"), sort_keys=True))
+    return f"""\\set QUIET on
+\\set ON_ERROR_STOP on
+\\pset tuples_only on
+\\pset format unaligned
+BEGIN;
+CREATE TEMP TABLE _tc_sync_payload (doc jsonb NOT NULL) ON COMMIT DROP;
+COPY _tc_sync_payload (doc) FROM STDIN;
+{line}
+\\.
+{apply_statements()}COMMIT;
+"""
 
 # ---------------------------------------------------------------- 讀取
 

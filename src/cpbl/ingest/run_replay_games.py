@@ -29,7 +29,7 @@ def _kind(value: str) -> str:
     return value
 
 
-def main(argv: list[str] | None = None) -> int:
+def main(argv: list[str] | None = None, *, schedule_sink=None) -> int:
     parser = cli_parser("python -m cpbl.ingest.run_replay_games", __doc__)
     parser.add_argument("--year", type=int, required=True)
     parser.add_argument("--kind", type=_kind, required=True)
@@ -96,21 +96,15 @@ def main(argv: list[str] | None = None) -> int:
 
         result["stage"] = "parse"
         rows = cpbl_site.fetch_year(args.year, args.kind)
-        if not isinstance(rows, list) or any(
-            not isinstance(row, dict)
-            or cpbl_site._i(row.get("Year")) != args.year
-            or row.get("KindCode") != args.kind
-            or row.get("GameSeasonCode") is None
-            or cpbl_site._i(row.get("GameSno")) is None
-            for row in rows
-        ):
-            raise ValueError("payload_scope_mismatch")
+        cpbl_site.validate_schedule(rows, args.year, args.kind)
         result.update(contract_passed=True, input_count=len(rows), parsed_sha256=canonical_source_version(rows))
         result["stage"] = "write"
         pool_log.disabled = True  # 連線錯誤只由下面的安全摘要回報，不回顯 DSN／參數。
         written = cpbl_site.upsert_games(rows)
         if type(written) is not int:
             raise ValueError("invalid_writer_result")
+        if schedule_sink is not None:
+            schedule_sink(rows)
         result.update(ok=True, stage="complete", written_count=written)
     except Exception:
         # 第一失敗階段保留；原兩交易可能部分提交，不能以此摘要聲稱已整體 rollback。

@@ -1,0 +1,71 @@
+# Offline candidate. Explicit one-shot only after a new operational grant.
+name: cpbl393-team-comparison-once
+services:
+  cpbl-team-comparison-publish:
+    image: sha256:05e3c952f819502bfa0566b353e338b7a397dc19510b61a8a2ba7023859c5663
+    pull_policy: never
+    platform: linux/amd64
+    user: "999:999"
+    working_dir: /app
+    entrypoint: [/app/.venv/bin/python, -I, -B]
+    command:
+      - /app/jobs/jobs.py
+      - team-comparison-only
+      - --wait-lock
+      - "${CPBL_TEAMCMP_WAIT_LOCK_SECONDS:?approved lock wait required}"
+    restart: "no"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    healthcheck:
+      disable: true
+    cpus: 1
+    mem_limit: ${CPBL393_MEMORY_LIMIT:?lease-approved memory limit required}
+    env_file:
+      - ${CPBL393_FEATURE_DB_ENV_FILE:?lease-approved protected DB environment file required}
+    environment:
+      TZ: Asia/Taipei
+      CPBL_JOBS_STATE_DIR: /app/logs
+      CPBL_JOBS_INBOX_ROOT: /inbox
+      CPBL_FEATURE_SOURCE_ID: ${CPBL393_FEATURE_SOURCE_ID:?formal Pi source id required}
+    networks: [cpbl-db]
+    volumes:
+      - type: bind
+        source: /var/lib/cpbl393-runtime
+        target: /app/logs
+        bind:
+          create_host_path: false
+      - type: bind
+        source: /srv/cpbl393-receiver/incoming
+        target: /inbox/incoming
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: /var/lib/cpbl393-team-comparison-publish/vps-code/jobs.py
+        target: /app/jobs/jobs.py
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: /var/lib/cpbl393-team-comparison-publish/vps-code/features_handoff.py
+        target: /app/.venv/lib/python3.12/site-packages/cpbl/features/handoff.py
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: /var/lib/cpbl393-team-comparison-publish/vps-code/sync.py
+        target: /app/.venv/lib/python3.12/site-packages/cpbl/playoffs/team_comparison/sync.py
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: /var/lib/cpbl393-team-comparison-publish/vps-code/teamcmp_handoff.py
+        target: /app/.venv/lib/python3.12/site-packages/cpbl/playoffs/team_comparison/handoff.py
+        read_only: true
+        bind:
+          create_host_path: false
+networks:
+  cpbl-db:
+    name: ${CPBL393_DB_NETWORK:?existing CPBL private DB network required}
+    external: true

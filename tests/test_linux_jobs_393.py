@@ -1,6 +1,8 @@
 """六工作 Linux 適配的直接邊界；不使用真 DB、Redis、browser 或 ping。"""
 
 import contextlib
+import gzip
+import hashlib
 import importlib.util
 import json
 import os
@@ -193,6 +195,187 @@ def test_daily_preserves_partial_error_and_delegates_features_without_train(jobs
     assert ("publication", False) in calls and ("gate", "mark-synced") not in calls
 
 
+def _feature_result(root, inbox, now, feature=0.5):
+    from cpbl.features import handoff
+
+    source = "fixture-pi"
+    day = now.date()
+    key = handoff.run_id(source, day)
+    destination = inbox / "incoming" / "features" / key
+    destination.mkdir(parents=True, exist_ok=True)
+    row = [day.year, "A", "1", 7, day.isoformat(), day.year,
+           "ACN", "ADD", "Home", "Away", 1, True, *([feature] * 20)]
+    raw = gzip.compress(json.dumps([row]).encode(), mtime=0)
+    manifest = {
+        "version": 1, "source_id": source, "run_id": key, "as_of": day.isoformat(),
+        "refresh_finished_at": now.isoformat(), "snapshot_at": now.isoformat(),
+        "algorithm_sha256": handoff.algorithm_sha256(), "input_sha256": "a" * 64,
+        "result_bytes": len(raw), "result_sha256": hashlib.sha256(raw).hexdigest(), "row_count": 1,
+    }
+    (destination / "result.json.gz").write_bytes(raw)
+    (destination / "response.json").write_text(json.dumps(manifest))
+    return root / "features-published" / f"{key}.json", manifest
+
+
+def _feature_notice(inbox, manifest, *, response_sha256=None):
+    key = manifest["run_id"]
+    response = inbox / "incoming" / "features" / key / "response.json"
+    digest = response_sha256 or hashlib.sha256(response.read_bytes()).hexdigest()
+    notifications = inbox / "incoming" / "feature-notify"
+    notifications.mkdir(exist_ok=True)
+    (notifications / f"{key}.ready").write_text(json.dumps({
+        "version": 1, "run_id": key, "response_sha256": digest,
+    }))
+    return digest
+
+
+def test_features_only_uses_daily_lock_and_deduplicates_verified_delivery(jobs, monkeypatch, capsys):
+    from cpbl import db
+    from cpbl.features import handoff
+
+    module, root = jobs
+    inbox = root.parent.resolve() / "inbox"
+    now = datetime.now(module.TAIPEI)
+    receipt, manifest = _feature_result(root, inbox, now)
+    response_sha256 = _feature_notice(inbox, manifest)
+    calls, connection = [], object()
+
+    @contextlib.contextmanager
+    def writer_conn():
+        yield connection
+        calls.append("committed")
+        assert not receipt.exists()
+
+    def publish(handle, rows):
+        assert handle is connection
+        assert (root / "locks/refresh.lock" / "pid").read_text() == str(os.getpid())
+        assert (root / "locks/refresh.lock" / "kind").read_text() == "com.cpbl.features-only"
+        assert len(rows) == 1 and len(rows[0]) == 32 and rows[0]["game_sno"] == 7
+        calls.append("publish")
+        return len(rows)
+
+    monkeypatch.setattr(db, "conn", writer_conn)
+    monkeypatch.setattr(handoff, "publish", publish)
+    monkeypatch.setattr(module, "_daily", lambda *_: pytest.fail("entered daily ingest"))
+    monkeypatch.setenv("CPBL_FEATURE_SOURCE_ID", "fixture-pi")
+    monkeypatch.setenv("CPBL_JOBS_INBOX_ROOT", str(inbox))
+    assert module.main(["features-only"]) == 0
+    assert json.loads(capsys.readouterr().out)["state"] == "published"
+    assert json.loads(receipt.read_bytes()) == {**manifest, "response_sha256": response_sha256}
+    assert module.main(["features-only"]) == 0
+    assert json.loads(capsys.readouterr().out)["state"] == "already_published"
+    _, changed = _feature_result(root, inbox, now, feature=0.25)
+    _feature_notice(inbox, changed)
+    assert module.main(["features-only"]) == 1
+    assert calls == ["publish", "committed"]
+    assert not (root / "locks/refresh.lock").exists()
+    assert module.test_pings == []
+
+
+def test_features_only_retains_writer_lock_when_commit_is_unknown(jobs, monkeypatch, capsys):
+    from cpbl import db
+    from cpbl.features import handoff
+
+    module, root = jobs
+    inbox = root.parent.resolve() / "inbox"
+    receipt, manifest = _feature_result(root, inbox, datetime.now(module.TAIPEI))
+    _feature_notice(inbox, manifest)
+    attempted = []
+
+    @contextlib.contextmanager
+    def writer_conn():
+        yield object()
+        raise ConnectionError("lost the commit response")
+
+    monkeypatch.setattr(db, "conn", writer_conn)
+    monkeypatch.setattr(handoff, "publish", lambda *a: attempted.append(True))
+    monkeypatch.setenv("CPBL_FEATURE_SOURCE_ID", "fixture-pi")
+    monkeypatch.setenv("CPBL_JOBS_INBOX_ROOT", str(inbox))
+    assert module.main(["features-only"]) == 1
+    assert json.loads(capsys.readouterr().out)["lock_retained"] is True
+    assert (root / "locks/refresh.lock" / "kind").read_text() == "com.cpbl.features-only"
+    assert not receipt.exists()
+    assert module.main(["features-only"]) == 75
+    assert attempted == [True]
+
+
+@pytest.mark.parametrize("notice", ["missing", "mismatched_response"])
+def test_features_only_rejects_unconfirmed_response_before_database_access(jobs, monkeypatch, capsys, notice):
+    module, root = jobs
+    inbox = root.parent.resolve() / "inbox"
+    receipt, manifest = _feature_result(root, inbox, datetime.now(module.TAIPEI))
+    if notice == "mismatched_response":
+        _feature_notice(inbox, manifest, response_sha256="0" * 64)
+    monkeypatch.setenv("CPBL_FEATURE_SOURCE_ID", "fixture-pi")
+    monkeypatch.setenv("CPBL_JOBS_INBOX_ROOT", str(inbox))
+    assert module.main(["features-only"]) == 1
+    result = json.loads(capsys.readouterr().out)
+    assert result["error"] == ("FileNotFoundError" if notice == "missing" else "ValueError")
+    assert not receipt.exists()
+    assert not (root / "locks/refresh.lock").exists()
+
+
+def test_feature_event_verifies_only_after_atomic_notification(jobs, monkeypatch, capsys):
+    module, root = jobs
+    inbox = root.parent.resolve() / "inbox"
+    _, manifest = _feature_result(root, inbox, datetime.now(module.TAIPEI))
+    key = manifest["run_id"]
+    package = inbox / "incoming" / "features" / key
+    notification = inbox / "incoming" / "feature-notify"
+    notification.mkdir()
+    ready = notification / f"{key}.ready"
+    pending = package / ".ready.upload"
+    digest = hashlib.sha256((package / "response.json").read_bytes()).hexdigest()
+    pending.write_text(json.dumps({"version": 1, "run_id": key, "response_sha256": digest}))
+    receipt = root / "features-verified" / f"{key}.json"
+    monkeypatch.delenv("DATABASE_URL")
+    monkeypatch.setenv("CPBL_FEATURE_SOURCE_ID", "fixture-pi")
+    monkeypatch.setenv("CPBL_JOBS_INBOX_ROOT", str(inbox))
+
+    args = ["features-only", "--verify-only"]
+    assert module.main(args) == 1
+    assert not receipt.exists()
+    assert json.loads(capsys.readouterr().out)["state"] == "failed"
+    pending.rename(ready)
+    assert module.main(args) == 0
+    assert json.loads(capsys.readouterr().out)["state"] == "verified"
+    original = receipt.stat()
+    assert json.loads(receipt.read_bytes())["response_sha256"] == digest
+    assert module.main(args) == 0
+    assert json.loads(capsys.readouterr().out)["state"] == "already_verified"
+    assert (receipt.stat().st_ino, receipt.stat().st_mtime_ns) == (original.st_ino, original.st_mtime_ns)
+    (package / "response.json").write_bytes((package / "response.json").read_bytes() + b"\n")
+    assert module.main(args) == 1
+    assert not (root / "features-published").exists()
+    assert not (root / "locks" / "refresh.lock").exists()
+    assert module.test_pings == []
+
+
+def test_feature_event_rejects_database_config(jobs, capsys):
+    module, root = jobs
+    assert module.main(["features-only", "--verify-only"]) == 64
+    assert json.loads(capsys.readouterr().out)["error"] == "verify_requires_no_database_environment"
+    assert not (root / "locks").exists()
+
+
+def test_combined_feature_delivery_rejects_other_schedule_kind_before_db(jobs, monkeypatch):
+    module, root = jobs
+    inbox = root.parent.resolve() / "inbox"
+    now = datetime.now(module.TAIPEI)
+    receipt, manifest = _feature_result(root, inbox, now)
+    package = inbox / "incoming/features" / manifest["run_id"]
+    schedule = json.dumps([{"Year": now.year, "KindCode": "D", "GameSeasonCode": "1", "GameSno": 7}]).encode()
+    (package / "schedule.json").write_bytes(schedule)
+    manifest.update(schedule_bytes=len(schedule), schedule_sha256=hashlib.sha256(schedule).hexdigest())
+    (package / "response.json").write_text(json.dumps(manifest))
+    _feature_notice(inbox, manifest)
+    monkeypatch.setenv("CPBL_FEATURE_SOURCE_ID", "fixture-pi")
+    monkeypatch.setenv("CPBL_JOBS_INBOX_ROOT", str(inbox))
+    assert module.main(["features-only", "--include-games"]) == 1
+    assert not receipt.exists()
+    assert not (root / "locks/refresh.lock").exists()
+
+
 def test_closed_skip_does_not_enter_any_data_step(jobs, monkeypatch):
     module, _ = jobs; calls = []
     daily_fakes(monkeypatch, calls, day_type="skip")
@@ -380,6 +563,62 @@ def test_linux_alert_keeps_two_observation_confirmation_and_original_checks(jobs
     assert module.alert_ping.load_config(use_environment=True).source == "<protected-jobs-environment>"
     assert {module.alert_ping.CHECK_DAILY, module.alert_ping.CHECK_EVENING,
             module.alert_ping.CHECK_SERVICES, module.alert_ping.CHECK_TEST} == {"daily", "evening", "services", "test"}
+
+
+def test_feature_watchdog_uses_formal_receipt_and_registry_deadline(jobs, monkeypatch):
+    from cpbl.features.handoff import run_id
+
+    module, root = jobs
+    before = datetime(2026, 11, 4, 10, 45, tzinfo=module.TAIPEI)
+    after = before.replace(hour=11, minute=0)
+    registry = json.loads((ROOT / "scripts/schedule-registry.json").read_text())
+    monkeypatch.setattr(module.schedule_watch, "probe_production", lambda *a: {"state": "healthy"})
+    monkeypatch.setenv("CPBL_FEATURE_SOURCE_ID", "pi")
+    (root / "features-published").mkdir()
+    today = before.date()
+    key = run_id("pi", today)
+    # Successful Pi output alone is not a formal VPS publication.
+    (root / "pi-local-result.json").write_text('{"ok":true,"stage":"published"}')
+    pending = module.schedule_watch.evaluate_jobs(registry, root.parent, before, "fixture", feature_source="pi")
+    assert pending["verdict"] == "PENDING" and pending["exit_code"] == 0
+    assert pending["jobs"][0]["cycles"][0]["deadline"].startswith("2026-11-04T11:00")
+
+    args = module._parser().parse_args(["schedule-watchdog", "--feature-receipts"])
+    run = module.Run(args.job, root, "jobs", after)
+    assert module._watchdog(run, args) == module.schedule_watch.EXIT_MISSING
+    alert_path = root / "schedule-alert.json"
+    assert json.loads(alert_path.read_bytes())["jobs"][0]["label"] == "com.cpbl.feature-publish"
+
+    path = root / "features-published" / (key + ".json")
+    receipt = {"run_id": key, "source_id": "pi", "as_of": today.isoformat(), "row_count": 9808,
+               "response_sha256": "c" * 64, "result_sha256": "d" * 64}
+    path.write_text(json.dumps({**receipt, "source_id": "different"}))
+    os.utime(path, (before.timestamp(), before.timestamp()))
+    assert module._watchdog(run, args) != 0
+    assert json.loads(alert_path.read_bytes())["verdict"] == "HISTORY_CORRUPT"
+
+    path.write_text(json.dumps(receipt))
+    os.utime(path, (before.timestamp(), before.timestamp()))
+    assert module._watchdog(run, args) == 0
+    report = json.loads((root / "schedule-watchdog/last-run.json").read_bytes())
+    assert report["verdict"] == "OK" and not alert_path.exists()
+    assert report["jobs"][0]["cycles"][0]["row_count"] == 9808
+    assert not module.test_pings
+
+
+def test_services_only_alert_keeps_watchdog_failure_without_consuming_evening(jobs, monkeypatch):
+    module, root = jobs
+    def forbidden(*args, **kwargs):
+        pytest.fail("entered the Mac observer or the unrelated evening chain")
+
+    monkeypatch.setattr(module.alert_watch, "observe", forbidden)
+    monkeypatch.setattr(module.alert_watch, "evening_step", forbidden)
+    (root / "schedule-alert.json").write_text('{"exit_code":2}')
+    assert module.main(["alert-watch", "--services-only"]) == 0
+    report = json.loads((root / "alert-watch/state.json").read_bytes())
+    assert report["services"]["last_obs"]["containers"]["scheduler"] == "failed"
+    assert "evening" not in report
+    assert not module.test_pings  # One observation is insufficient to notify.
 
 
 @pytest.mark.parametrize("jobs_mode", [False, True])

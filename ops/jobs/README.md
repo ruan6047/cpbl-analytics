@@ -19,6 +19,23 @@ API 的預設 CMD／healthcheck 保留；WP5 的 S1 supercronic 服務自行配�
 舊 shell 入口的 `--jobs` 已轉交前五個對應 job，僅來源環境需要，映像不封裝這五支 shell。
 `alert_watch.py` 的舊 CLI 保留；Linux 使用上表入口。所有未選 Linux 模式的 Mac 路徑維持原預設。
 
+## 獨立監控 Pi 送件至 VPS 正式發布
+
+待核發入口是 `python /app/jobs/jobs.py schedule-watchdog --feature-receipts`。
+沿原 registry 的每日 10:10 與 50 分鐘寬限，從既有 VPS state 的
+`logs/features-published/<run_id>.json` 驗當日、`CPBL_FEATURE_SOURCE_ID`、批次及摘要。
+Pi 執行完成或送件本身不構成發布成功。未到時限回 `PENDING`，過期缺收據回 `MISSING`，
+無效收據回 `HISTORY_CORRUPT`。既有 production API 觀測另行呈現。
+
+同一 state 下可用 `python /app/jobs/jobs.py alert-watch --services-only`。
+它沿用 Linux PG／Redis／API 觀測與兩次確認，讀取既有 `schedule-alert.json`，
+適用於尚未接手季後晚間鏈時。Pi 私有 PG 在未執行資料工作時會關閉，不能用它替代
+既有服務健康探測目標。現成部署位置是已持有正式發布收據的 VPS，無須另開跨機通道。
+Pi 若負責跑 watchdog，需先有既存受信的唯讀正式收據掛載；Pi 自己的送件收據不足。
+
+啟用前仍須核定監控執行者、VPS state 與只讀健康連線及既有 Healthchecks 告警歸屬，
+避免和 Mac 重複發送同一檢查。本候選只有可執行入口，沒有安裝或啟用 timer。
+
 ## 注入與狀態
 
 - `CPBL_JOBS_STATE_DIR` 必須對應 `/app/logs`；以私有持久 volume 提供，同 `app` UID、目錄0700，檔案0600。

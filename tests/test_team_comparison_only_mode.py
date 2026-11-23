@@ -180,7 +180,7 @@ def test_team_comparison_mode_is_checked_before_roster_mode():
 # ------------------------------------------------------------------ scrape-daily.sh builder 步驟
 
 
-def _daily(tmp_path, *, scrape_exit=0, build_exit=0):
+def _daily(tmp_path, *, scrape_exit=0, build_exit=0, **extra):
     repo = tmp_path / "repo"
     scripts = repo / "scripts"
     bins = tmp_path / "bin"
@@ -197,7 +197,7 @@ def _daily(tmp_path, *, scrape_exit=0, build_exit=0):
     for f in (bins / "docker", bins / "uv", scripts / "refresh-cpbl-prod.sh"):
         f.chmod(0o755)
     env = {**os.environ, "PATH": f"{bins}:/usr/bin:/bin", "REFRESH_TRIGGER": "manual",
-           "REFRESH_LOCK_DIR": str(tmp_path / "lock"), "SYNC_PROD": "1"}
+           "REFRESH_LOCK_DIR": str(tmp_path / "lock"), "SYNC_PROD": "1", **extra}
     r = subprocess.run(["/bin/bash", str(scripts / "scrape-daily.sh")], cwd=repo, env=env, text=True,
                        capture_output=True, check=False)
     lines = calls.read_text().splitlines() if calls.exists() else []
@@ -227,3 +227,18 @@ def test_daily_scrape_failure_skips_builder(tmp_path):
     r, lines = _daily(tmp_path, scrape_exit=2)
     assert r.returncode == 2
     assert not any("cpbl-build-team-comparison" in ln for ln in lines)
+
+@pytest.mark.parametrize("trigger", ["launchd", "manual"])
+def test_team_comparison_handoff_only_retires_mac_automatic_build_and_writer(tmp_path, trigger):
+    home = tmp_path / "fake-home"
+    marker = home / "Library/Application Support/cpbl-analytics/mac-team-comparison-external"
+    marker.parent.mkdir(parents=True)
+    marker.touch()
+    r, actions = harness(tmp_path / "publisher", mode="nochange", REFRESH_TRIGGER=trigger, HOME=str(home))
+    assert r.returncode == 0, r.stderr
+    assert [row[5] for row in _sync_calls(actions)] == (["plan"] if trigger == "manual" else [])
+    r, calls = _daily(tmp_path / "builder", REFRESH_TRIGGER=trigger, HOME=str(home),
+                      CPBL_HC_PING_KEY="", CPBL_HC_API_KEY="")
+    assert r.returncode == 0, r.stderr
+    assert any("cpbl-build-team-comparison" in call for call in calls) == (trigger == "manual")
+    assert any(call.startswith("sync 1 1") for call in calls)

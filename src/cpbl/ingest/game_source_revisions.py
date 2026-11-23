@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+from contextlib import nullcontext
 from datetime import date
 from typing import Any
 
@@ -43,14 +44,14 @@ def sanitize_detail(value: Any) -> Any:
 def record_source_revision(
     *, year: int, kind_code: str, game_sno: int, source: str, outcome: str,
     row_count: int, payload: Any = None, source_version: str | None = None,
-    error_code: str | None = None, detail: dict[str, Any] | None = None,
+    error_code: str | None = None, detail: dict[str, Any] | None = None, connection=None,
 ) -> None:
     """冪等寫入來源 revision；相同內容只更新 last_seen_at／seen_count。"""
     version = source_version or canonical_source_version({
         "payload": payload, "outcome": outcome, "error_code": error_code,
     })
     safe_detail = sanitize_detail(detail or {})
-    with conn() as c:
+    with (conn() if connection is None else nullcontext(connection)) as c:
         c.execute(
             """
             INSERT INTO cpbl.game_source_revisions
@@ -86,7 +87,7 @@ def _to_date(value: Any) -> date | None:
         return None
 
 
-def record_schedule_revisions(entries: list[dict[str, Any]]) -> int:
+def record_schedule_revisions(entries: list[dict[str, Any]], *, connection=None) -> int:
     """保存每一筆 raw schedule entry；同 payload 重跑只更新 last_seen_at。"""
     schedule_rows: list[tuple[Any, ...]] = []
     source_rows: list[tuple[Any, ...]] = []
@@ -112,7 +113,7 @@ def record_schedule_revisions(entries: list[dict[str, Any]]) -> int:
         ))
     if not schedule_rows:
         return 0
-    with conn() as c:
+    with (conn() if connection is None else nullcontext(connection)) as c:
         c.cursor().executemany(
             """
             INSERT INTO cpbl.game_schedule_status_revisions

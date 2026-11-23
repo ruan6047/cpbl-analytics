@@ -32,6 +32,7 @@ from __future__ import annotations
 import datetime as _dt
 import logging
 import time
+from contextlib import nullcontext
 from typing import Any
 
 import httpx
@@ -190,14 +191,14 @@ def parse_pitcher_flags(game: dict, year: int, kind_code: str, game_sno: int) ->
     return rows
 
 
-def _upsert_pitcher_flags(rows: list[tuple]) -> int:
+def _upsert_pitcher_flags(rows: list[tuple], *, connection=None) -> int:
     """逐投手旗標冪等 UPSERT。空列不開 DB 連線（與逐球 `_upsert` 同語意）。"""
     if not rows:
         return 0
     cols = _FLAG_COLS.split(",")
     ph = "(" + ",".join(["%s"] * len(cols)) + ")"
     updates = ", ".join(f"{c}=EXCLUDED.{c}" for c in cols[4:]) + ", source_fetched_at=now()"
-    with conn() as c:
+    with (conn() if connection is None else nullcontext(connection)) as c:
         c.cursor().executemany(
             f"INSERT INTO cpbl.pitching_game_flags ({_FLAG_COLS}) VALUES {ph} "
             f"ON CONFLICT (year, kind_code, game_sno, pitcher_acnt) DO UPDATE SET {updates}",
@@ -248,7 +249,7 @@ _COLS = ("year,kind_code,game_sno,pitcher_acnt,pitch_cnt,pitcher_name,hitter_acn
          "traj_x0,traj_x1,traj_x2,traj_y0,traj_y1,traj_y2,traj_z0,traj_z1,traj_z2")
 
 
-def _upsert(records: list[tuple]) -> int:
+def _unique_pitches(records: list[tuple]) -> list[tuple]:
     # 凍結例外（紅線 1，fail-closed）：在**唯一寫入口**過濾，故 logs 路徑、單場路徑、
     # 每週全季重跑、手動 CLI ——**任何**路徑都不可能寫進凍結場，不必逐個呼叫點記得擋。
     # 放在去重之前：凍結列連去重都不參與，避免任何後續步驟看見它們。
@@ -261,12 +262,17 @@ def _upsert(records: list[tuple]) -> int:
             continue
         seen.add(key)
         uniq.append(r)
+    return uniq
+
+
+def _upsert(records: list[tuple], *, connection=None) -> int:
+    uniq = _unique_pitches(records)
     if not uniq:
         return 0
     cols = [c.strip() for c in _COLS.split(",")]
     ph = "(" + ",".join(["%s"] * len(cols)) + ")"
     updates = ", ".join(f"{c}=EXCLUDED.{c}" for c in cols[5:])
-    with conn() as c:
+    with (conn() if connection is None else nullcontext(connection)) as c:
         c.cursor().executemany(
             f"INSERT INTO cpbl.pitch_tracking ({_COLS}) VALUES {ph} "
             f"ON CONFLICT (year, kind_code, game_sno, pitcher_acnt, pitch_cnt) DO UPDATE SET {updates}",
@@ -309,7 +315,8 @@ def scrape_pitches(pitcher_acnts: list[str], year: int | None = None,
     return out
 
 
-def scrape_game_pitches(games: list[tuple[int, str, int]], delay: float = 1.0) -> dict:
+def scrape_game_pitches(games: list[tuple[int, str, int]], delay: float = 1.0, *,
+                        on_game_written=None) -> dict:
     """以比賽為單位抓單場 API 的逐球 TrackMan（INGEST-GAME-TM-REFACTOR1）。回傳 {games, pitches}。
 
     games：`[(year, kind_code, game_sno), ...]`。一場一請求，與 `scrape_pitches` 共用同一
@@ -335,10 +342,17 @@ def scrape_game_pitches(games: list[tuple[int, str, int]], delay: float = 1.0) -
             except (httpx.HTTPError, ValueError) as e:
                 log.warning("[%d/%d] %d-%s-%s API 失敗：%s", idx, len(games), year, kind_code, sno, e)
                 continue
-            n = _upsert(parse_pitches(game.get("LiveLog") or [], kind_code))
+            pitches = parse_pitches(game.get("LiveLog") or [], kind_code)
+            if on_game_written is not None:
+                pitches = _unique_pitches(pitches)
+                if any(row[:3] != (year, kind_code, sno) for row in pitches):
+                    raise ValueError("pitch_rows_outside_game_scope")
+            n = _upsert(pitches)
             # 同一個請求順手收逐投手官方旗標（救援成功／失敗等），不多打 API。
-            out["pitcher_flags"] += _upsert_pitcher_flags(
-                parse_pitcher_flags(game, year, kind_code, sno))
+            flags = parse_pitcher_flags(game, year, kind_code, sno)
+            out["pitcher_flags"] += _upsert_pitcher_flags(flags)
+            if on_game_written is not None:
+                on_game_written((year, kind_code, sno), pitches, flags)
             out["games"] += 1
             out["pitches"] += n
             log.info("[%d/%d] %d-%s-%s → %d 球（累計 %d）",

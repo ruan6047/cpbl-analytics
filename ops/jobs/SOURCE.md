@@ -81,3 +81,43 @@ SHA256 `f711488057028133b2d168e7e596b1fb7ca20ad30d2fbd90866714964667d4f9`，VERS
 供給候選不自行重寫這個WP3檔，不把依賴採入當它已獨立審核或部署。
 本機只用fixture sender/收條及mock Linux setgid metadata，實際Linux mount/群組權限／SFTP／官網／DB／時窗／量額未驗。
 手動模式可明確指定原CPBL_REPLAY_MANIFEST/BUNDLE供固定回放；scheduled trigger=jobs只要走WWW就拒用這組固定包環境，必須走新供給。
+
+## Pi 特徵結果的一次性 VPS 發布
+
+待核發的一次性入口是 `python /app/jobs/jobs.py features-only`。它使用既有
+受保護 DB 環境、`CPBL_JOBS_STATE_DIR`、`CPBL_JOBS_INBOX_ROOT` 與固定
+`CPBL_FEATURE_SOURCE_ID`。在原 `locks/refresh.lock` 下，以當日
+`incoming/feature-notify/<run_id>.ready` 及其中的摘要驗原收件兩檔，再核
+正式庫的一軍全部有效賽事鍵並單交易發布。通知缺失、摘要不符、缺件或不同日
+均在開啟 DB 連線前退出。
+
+交易及連線確退才在私有 state 寫 `features-published/<run_id>.json`。
+同件重新觸發回 `already_published`，同 ID 改件回非零。進入寫入階段後，
+若交易、連線退出或收據未知，保留 `refresh.lock` 交原管控者處置。
+Mac 手動備援須等 VPS 確退、交易結果已確認且寫入權交回。
+
+目前可在 Pi 原生 SFTP 確退後由原管控者手動叫用一次。既有
+`response.json` 在每日不同子目錄，監看 `features` 的目錄變更不會遞迴捕捉
+該改名。用 `PathExistsGlob` 直接監看永久 marker 會讓條件持續成立。
+systemd 原生事件的驗收使用 `features-only --verify-only`。同一 SFTP 批次先
+發布原兩檔，再將 `features/<run_id>/.ready.upload` 原子改名到平層私有
+`feature-notify/<run_id>.ready`。通知只含 `version: 1`、`run_id` 和
+`response_sha256`，摘要綁定原 `response.json` 的精確 bytes。驗收依既有
+`read_response` 契約檢查完整包，以獨立驗證鎖和 `features-verified`
+收據去重，拒帶 DB 連線環境。正式發布入口仍須由管控者另行放行。
+
+對已存在的 `feature-notify` 目錄使用 `PathChanged=` 呼叫 `Type=oneshot`。
+收據不寫進監看目錄。事件只證明檔案就位，SFTP 原生退出另由 Pi 收據證明。
+若正式門檻要求先見客戶端確退，先沿手動叫用。
+
+### A 賽程與特徵同批交付
+
+兩端明確採用同一候選後，Pi 單次入口加 `--include-games`，或在原 Pi 每日服務的
+私有環境設定 `CPBL_FEATURE_GAMES_HANDOFF=1`。VPS 原入口加
+`features-only --include-games`，驗收可同加 `--verify-only`。預設仍是既有純特徵交付。
+
+`schedule.json` 內是 Pi 同輪已使用的當年 A 賽程來源列，不再額外取源。
+其長度與 SHA-256 隨 `response.json`，原完成通知仍最後提交。
+VPS 先驗兩份資料，再在原寫入鎖的一筆交易依序 upsert `games`、記錄原兩種
+schedule revisions、發布 `game_features`。特徵全鍵驗證失敗時整筆回滾。
+賽程只增修，組合模式保留其他賽別的資料列，同件重入沿原收據去重。

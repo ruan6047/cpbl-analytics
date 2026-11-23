@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 import logging
+import os
 import random
 import signal
 import time
@@ -23,6 +24,19 @@ from cpbl.ingest.live_game_worker import (
 )
 
 log = logging.getLogger("cpbl.liveworker")
+
+
+def bind_evening_inputs(now: datetime):
+    """Opt-in, once per already successful live worker cycle, with no new DB or HTTP."""
+    if os.environ.get("CPBL_EVENING_ASSESSMENT_AUTO_BIND") != "1":
+        return []
+    from cpbl.ingest.evening_assessment_binder import run_from_environment
+
+    return run_from_environment(
+        now, limit=int(os.environ["CPBL_EVENING_BIND_LIMIT"]),
+        max_age=int(os.environ["CPBL_EVENING_BIND_MAX_OBSERVATION_AGE"]),
+        ttl=int(os.environ["CPBL_EVENING_BIND_TTL"]),
+    )
 
 
 def main(argv: list[str] | None = None) -> None:
@@ -84,6 +98,12 @@ def main(argv: list[str] | None = None) -> None:
         )
         readiness.start()
         source.payload_observer = readiness.partition_payload
+    facts_root = os.environ.get("CPBL_EVENING_TRUSTED_FACTS_ROOT")
+    if facts_root:
+        from cpbl.ingest.evening_official_facts import final_score_writer, writer
+
+        source.trusted_schedule_observer = writer(Path(facts_root))
+        source.trusted_game_observer = final_score_writer(Path(facts_root))
     worker = LiveGameWorker(
         cache=cache,
         fetch_schedule=source.fetch_schedule,
@@ -115,6 +135,13 @@ def main(argv: list[str] | None = None) -> None:
             else:
                 failures = 0 if result.get("state") == "ok" else failures
                 log.info("live cycle %s", result)
+                if result.get("state") == "ok":
+                    try:
+                        bindings = bind_evening_inputs(datetime.now(UTC))
+                        if bindings:
+                            log.info("evening independent assessment binding %s", bindings)
+                    except (KeyError, OSError, ValueError) as exc:
+                        log.warning("evening assessment binding unavailable (%s)", type(exc).__name__)
             if owner:
                 result["announcement_sync"] = owner.after_cycle()
                 log.info("announcement owner %s", result["announcement_sync"])

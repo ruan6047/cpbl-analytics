@@ -1,0 +1,11 @@
+[Unit]
+Description=Run the Pi feature-only handoff daily
+
+[Timer]
+OnCalendar=*-*-* 10:10:00 Asia/Taipei
+AccuracySec=1s
+Persistent=false
+Unit=cpbl393-feature-only.service
+
+[Install]
+WantedBy=timers.target

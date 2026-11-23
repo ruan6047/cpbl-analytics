@@ -19,8 +19,12 @@ from __future__ import annotations
 import logging
 import math
 from collections import defaultdict, deque
+from collections.abc import Callable
+from contextlib import AbstractContextManager
 from dataclasses import dataclass, replace
 from datetime import datetime, timedelta, timezone
+
+from psycopg import Connection
 
 from cpbl.completion import (
     completed_games_sql_with_evidence,
@@ -99,11 +103,14 @@ def _ip_decimal(ip) -> float:
     return whole + (v - whole) * 10.0 / 3.0
 
 
-def _starter_game_counts() -> dict[tuple[int, int], dict[str, _PitchCounts]]:
+FeatureConnection = Callable[[], AbstractContextManager[Connection]]
+
+
+def _starter_game_counts(connect: FeatureConnection | None = None) -> dict[tuple[int, int], dict[str, _PitchCounts]]:
     """{(year, game_sno): {pitcher_id: 該場計數}}（一軍例行賽；僅 2018+ 有逐場 box）。
     供逐場 running state 累積。"""
     out: dict[tuple[int, int], dict[str, _PitchCounts]] = {}
-    with conn() as c:
+    with (connect or conn)() as c:
         cur = c.cursor()
         cur.execute(
             "SELECT year, game_sno, pitcher_acnt, earned_runs, hits, bb, so, "
@@ -118,6 +125,7 @@ def _starter_game_counts() -> dict[tuple[int, int], dict[str, _PitchCounts]]:
 
 def _pitcher_season_totals(
     game_counts: dict[tuple[int, int], dict[str, _PitchCounts]],
+    connect: FeatureConnection | None = None,
 ) -> dict[tuple[int, str], _PitchCounts]:
     """{(year, pid): 該季總量}，供「下一季」當 prior。
 
@@ -125,7 +133,7 @@ def _pitcher_season_totals(
     `pitching_seasons`（1990+，逐年彙總）。**只會被以 `year - 1` 查詢**，故對
     目標場次而言恆為已完結的過去資訊。"""
     totals: dict[tuple[int, str], _PitchCounts] = defaultdict(_PitchCounts)
-    with conn() as c:
+    with (connect or conn)() as c:
         cur = c.cursor()
         cur.execute("SELECT player_id, year, er, h, bb, so, ip FROM cpbl.pitching_seasons WHERE ip > 0")
         for pid, year, er, h, bb, so, ip in cur.fetchall():
@@ -185,11 +193,11 @@ def _starter_rates(own: _PitchCounts, prior: _PitchCounts | None,
     )
 
 
-def _prior_winpct() -> dict[tuple[int, str], float]:
+def _prior_winpct(connect: FeatureConnection | None = None) -> dict[tuple[int, str], float]:
     """{(season, team_code): 上季最終勝率}。由 games（一軍例行賽）逐季彙總，
     供季初冷啟動的戰力先驗。無上季資料的 key 由呼叫端 fallback 0.5。"""
     wl: dict[tuple[int, str], list[int]] = defaultdict(lambda: [0, 0])
-    with conn() as c:
+    with (connect or conn)() as c:
         cur = c.cursor()
         cur.execute(
             f"""
@@ -211,11 +219,11 @@ def _prior_winpct() -> dict[tuple[int, str], float]:
     return prior
 
 
-def _prior_team_stats() -> dict[tuple[int, str], dict]:
+def _prior_team_stats(connect: FeatureConnection | None = None) -> dict[tuple[int, str], dict]:
     """{(season, team_code): 上季團隊 OPS/SLG/ERA/WHIP}。由 *_seasons 逐季彙總、存於 (year+1, team)，
     供冷啟動的打線/投手戰力先驗。team_id 與 games 同碼（同 franchise-era）；缺則呼叫端 fallback。"""
     out: dict[tuple[int, str], dict] = {}
-    with conn() as c:
+    with (connect or conn)() as c:
         cur = c.cursor()
         cur.execute(
             "SELECT year, team_id, sum(ab), sum(h), sum(tb), sum(bb), sum(hbp), sum(sf) "
@@ -241,11 +249,11 @@ def _prior_team_stats() -> dict[tuple[int, str], dict]:
     return out
 
 
-def _team_batting_box() -> dict[tuple[int, str, int], dict]:
+def _team_batting_box(connect: FeatureConnection | None = None) -> dict[tuple[int, str, int], dict]:
     """{(year, kind_code, game_sno): {'2': {ab,h,bb,hbp,tb,sf}, '1': {...}}}（逐場主/客隊打擊
     box，僅 2018+ 有逐打席）。供「當季到此」團隊打擊 running state。"""
     box: dict[tuple[int, str, int], dict] = {}
-    with conn() as c:
+    with (connect or conn)() as c:
         cur = c.cursor()
         cur.execute(
             "SELECT year, kind_code, game_sno, visiting_home_type, sum(at_bats), sum(hits), "
@@ -264,32 +272,32 @@ def _team_batting_box() -> dict[tuple[int, str, int], dict]:
     return box
 
 
-def _completion_evidence() -> set[tuple[int, str, int]]:
+def _completion_evidence(connect: FeatureConnection | None = None) -> set[tuple[int, str, int]]:
     """已取得外部完賽證據的場次集合（0:0 真和局靠它才判得出完成）。"""
-    with conn() as c:
+    with (connect or conn)() as c:
         cur = c.cursor()
         cur.execute(
             "SELECT year, kind_code, game_sno FROM cpbl.game_completion_evidence")
         return {(y, k, s) for y, k, s in cur.fetchall()}
 
 
-def build_game_features() -> list[dict]:
+def build_game_features(*, connect: FeatureConnection | None = None) -> list[dict]:
     # 完賽判定所需：外部證據集合 + 日期界線（台北日界）。逐場在迴圈內以
     # `is_completed_game` 判定，與 SQL 端的 `completed_games_sql_with_evidence` 同語意。
-    _evidence = _completion_evidence()
+    _evidence = _completion_evidence(connect)
     _AS_OF = datetime.now(_TAIPEI).date()
-    pitch_game = _starter_game_counts()
-    pitch_season = _pitcher_season_totals(pitch_game)
+    pitch_game = _starter_game_counts(connect)
+    pitch_season = _pitcher_season_totals(pitch_game, connect)
     lg_pitch = _league_pitch_rates(pitch_season)
-    prior_wp = _prior_winpct()
-    prior_team = _prior_team_stats()
-    box = _team_batting_box()
+    prior_wp = _prior_winpct(connect)
+    prior_team = _prior_team_stats(connect)
+    box = _team_batting_box(connect)
     # 當季到此團隊累計（打擊 + 壘間/守備/投手細項）
     team_bat: dict[str, dict] = defaultdict(
         lambda: {"ab": 0, "h": 0, "bb": 0, "hbp": 0, "tb": 0, "sf": 0,
                  "sb": 0, "cs": 0, "err": 0, "wp": 0, "g": 0})
 
-    with conn() as c:
+    with (connect or conn)() as c:
         cur = c.cursor()
         # 只取一軍例行賽（kind A）：季內 running state 才一致；排除二軍(D)/季後(C,E)，
         # 否則混入不同層級會汙染勝率/交手/休息天數等狀態。
@@ -461,22 +469,45 @@ def build_game_features() -> list[dict]:
     return rows
 
 
+FEATURE_COLUMNS = (
+    'year',
+    'kind_code',
+    'game_season_code',
+    'game_sno',
+    'game_date',
+    'season',
+    'home_team_code',
+    'away_team_code',
+    'home_team_name',
+    'away_team_name',
+    'home_win',
+    'completed',
+    'winrate_diff',
+    'runs_scored_diff',
+    'runs_allowed_diff',
+    'recent_form_diff',
+    'h2h_home',
+    'home_field',
+    'starter_era_diff',
+    'starter_whip_diff',
+    'starter_k9_diff',
+    'prior_winpct_diff',
+    'rest_days_diff',
+    'prior_team_ops_diff',
+    'prior_team_slg_diff',
+    'prior_team_era_diff',
+    'prior_team_whip_diff',
+    'team_ops_now_diff',
+    'team_avg_now_diff',
+    'team_sb_now_diff',
+    'team_wp_now_diff',
+    'team_err_now_diff',
+)
+
+
 def materialize() -> int:
     rows = build_game_features()
-    records = [
-        (r["year"], r["kind_code"], r["game_season_code"], r["game_sno"], r["game_date"], r["season"],
-         r["home_team_code"], r["away_team_code"], r["home_team_name"], r["away_team_name"],
-         r["home_win"], r["completed"],
-         r["winrate_diff"], r["runs_scored_diff"], r["runs_allowed_diff"],
-         r["recent_form_diff"], r["h2h_home"], r["home_field"], r["starter_era_diff"],
-         r["starter_whip_diff"], r["starter_k9_diff"],
-         r["prior_winpct_diff"], r["rest_days_diff"],
-         r["prior_team_ops_diff"], r["prior_team_slg_diff"],
-         r["prior_team_era_diff"], r["prior_team_whip_diff"],
-         r["team_ops_now_diff"], r["team_avg_now_diff"],
-         r["team_sb_now_diff"], r["team_wp_now_diff"], r["team_err_now_diff"])
-        for r in rows
-    ]
+    records = [tuple(row[col] for col in FEATURE_COLUMNS) for row in rows]
     with conn() as c:
         # 全史重建：清掉舊資料（含早期未過濾 kind 而混入的二軍/季後場次），避免汙染訓練查詢。
         c.cursor().execute("TRUNCATE cpbl.game_features")
@@ -518,3 +549,40 @@ def materialize() -> int:
             records,
         )
     return len(records)
+
+
+def publish_feature_rows(connection: Connection, rows: list[dict], *, retain_other_kinds=False) -> int:
+    """Apply a verified full feature snapshot using #443's MVCC-safe write contract."""
+    from psycopg import sql
+
+    if not rows:
+        raise ValueError("empty_feature_snapshot")
+    key = FEATURE_COLUMNS[:4]
+    fields = FEATURE_COLUMNS[4:]
+    columns = sql.SQL(", ").join(map(sql.Identifier, FEATURE_COLUMNS))
+    keys = sql.SQL(", ").join(map(sql.Identifier, key))
+    join = sql.SQL(" AND ").join(sql.SQL("s.{0} = tgt.{0}").format(sql.Identifier(c)) for c in key)
+    update = sql.SQL(", ").join(sql.SQL("{0} = EXCLUDED.{0}").format(sql.Identifier(c)) for c in fields)
+    old = sql.SQL(", ").join(sql.SQL("tgt.{}").format(sql.Identifier(c)) for c in fields)
+    new = sql.SQL(", ").join(sql.SQL("EXCLUDED.{}").format(sql.Identifier(c)) for c in fields)
+    # Serializes publishers without blocking ACCESS SHARE readers.
+    connection.execute("LOCK TABLE cpbl.game_features IN SHARE ROW EXCLUSIVE MODE")
+    connection.execute(
+        "CREATE TEMP TABLE feature_handoff_stage (LIKE cpbl.game_features INCLUDING DEFAULTS) ON COMMIT DROP"
+    )
+    with connection.cursor() as cursor, cursor.copy(
+        sql.SQL("COPY feature_handoff_stage ({}) FROM STDIN").format(columns)
+    ) as copy:
+        for row in rows:
+            copy.write_row(tuple(row[c] for c in FEATURE_COLUMNS))
+    scope = sql.SQL("tgt.kind_code = 'A' AND ") if retain_other_kinds else sql.SQL("")
+    connection.execute(sql.SQL(
+        "DELETE FROM cpbl.game_features AS tgt WHERE {}NOT EXISTS "
+        "(SELECT 1 FROM feature_handoff_stage AS s WHERE {})"
+    ).format(scope, join))
+    connection.execute(sql.SQL(
+        "INSERT INTO cpbl.game_features AS tgt ({cols}) SELECT {cols} FROM feature_handoff_stage "
+        "ON CONFLICT ({keys}) DO UPDATE SET {updates} "
+        "WHERE ROW({old}) IS DISTINCT FROM ROW({new})"
+    ).format(cols=columns, keys=keys, updates=update, old=old, new=new))
+    return len(rows)

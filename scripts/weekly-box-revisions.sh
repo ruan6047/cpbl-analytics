@@ -121,6 +121,13 @@ else
   TRIGGER="manual"
 fi
 
+WEEKLY_EXTERNAL_MARKER="${MAC_CUTOVER_MARKER%/*}/mac-boxpa-chain-external"
+if [ "$TRIGGER" = launchd ] && [ "$YEAR" = "$(TZ=Asia/Taipei date +%Y)" ] &&
+   { [ -e "$WEEKLY_EXTERNAL_MARKER" ] || [ -L "$WEEKLY_EXTERNAL_MARKER" ]; }; then
+  printf '%s\n' '當年自動週跑已交接，保留手動補跑。'
+  exit 0
+fi
+
 mkdir -p logs
 TS="$(date +%Y%m%d-%H%M%S)"
 LOG="logs/weekly-box-revisions-${TS}.log"

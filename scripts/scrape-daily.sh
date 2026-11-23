@@ -397,7 +397,10 @@ echo "[$(date '+%F %T')] scrape exit=${CODE}" | tee -a "$LOG"
 #    記一列 scope=team-comparison-build，舊摘要保留並標待更新。摘要表尚未 migrate 時為 exit 6（只記 log）。
 # 寫入對象只有本機 team_comparison_* 三表；同步到 production 在 refresh-cpbl-prod.sh 的 gamelog 之後。
 TC_BUILD_CODE=skip
-if { [ "$CODE" -eq 0 ] || [ "$CODE" -eq 69 ]; } && [ "$DAY_TYPE" != skip ]; then
+TC_HANDOFF_MARKER="${MAC_CUTOVER_MARKER%/*}/mac-team-comparison-external"
+if [ "$TRIGGER" = launchd ] && { [ -e "$TC_HANDOFF_MARKER" ] || [ -L "$TC_HANDOFF_MARKER" ]; }; then
+  echo '    ⏭ 自動隊伍比較摘要已交接給 Pi' | tee -a "$LOG"
+elif { [ "$CODE" -eq 0 ] || [ "$CODE" -eq 69 ]; } && [ "$DAY_TYPE" != skip ]; then
   "$UV" run cpbl-build-team-comparison --year "$(date +%Y)" --record-failure >>"$LOG" 2>&1
   TC_BUILD_CODE=$?
 fi

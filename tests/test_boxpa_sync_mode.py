@@ -483,6 +483,26 @@ def test_e1_box_sync_carries_target_source_revisions_before_reconcile(tmp_path, 
     assert len(rec_ids) == 1 and order.index(rev_id) < order.index(rec_ids[0])
 
 
+def test_a_schedule_handoff_locks_box_source_sequence_until_insert(tmp_path):
+    marker = tmp_path / "home" / "Library/Application Support/cpbl-analytics/mac-a-schedule-external"
+    marker.parent.mkdir(parents=True)
+    marker.touch()
+    key, key_sql = _key_case("A")
+    result, calls, _ = _run(tmp_path, REFRESH_TRIGGER="launchd",
+                            POSTSEASON_BOXPA_GAMES=key, POSTSEASON_BOXPA_PARTS="box",
+                            STUB_KEYS_SQL=key_sql, STUB_PA_GAMES=key)
+    assert result.returncode == 0, result.stdout + result.stderr
+    payload, = [c for c in calls("ssh") if f"INSERT INTO cpbl.{REV} " in c["stdin"]]
+    assert "--single-transaction" in payload["argv"][-1]
+    sql = payload["stdin"]
+    lock = f"LOCK TABLE cpbl.{REV} IN SHARE ROW EXCLUSIVE MODE;"
+    assert sql.count(lock) == 1
+    assert sql.index(lock) < sql.index(f"SELECT max(id) FROM cpbl.{REV}") < sql.index(f"INSERT INTO cpbl.{REV} ")
+    assert not re.search(r"^(COMMIT|ROLLBACK)\b", sql, re.M)
+    reads = [c["stdin"] for c in calls("docker") if f"FROM cpbl.{REV} " in c["stdin"]]
+    assert len(reads) == 1 and f"WHERE {REV_SOURCES_SQL} AND {key_sql}" in reads[0]
+
+
 @pytest.mark.parametrize("kind", _ORDER_KEYS)
 def test_e1_pa_only_sync_does_not_send_source_revisions(tmp_path, kind):
     """E1：只送 PA 的那次不送來源觀測紀錄（box 未在本次送達，不得先宣稱來源已到）。"""
