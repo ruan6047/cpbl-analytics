@@ -1,4 +1,5 @@
-"""Scope Pi's nightly schedule acquisition to a verified VPS field assessment."""
+# LIFECYCLE: standing · 常設工具——這就是給你跑的；不要刪
+"""由 jobs.py 的 Pi 晚間路徑按已驗欄位補取資料，只寫 Pi 私庫與本機狀態。"""
 
 import hashlib
 import json

@@ -2224,9 +2224,10 @@ def main(argv: list[str] | None = None, *, jobs: bool = False) -> int:
     state = load_state(path)
 
     def publish():
-        if jobs and os.environ.get("CPBL_JOBS_PI_HANDOFF") == "1":
-            return
-        publish_signals(state, year, now, direct=jobs)
+        if not jobs:
+            publish_signals(state, year, now)
+        elif os.environ.get("CPBL_JOBS_PI_HANDOFF") != "1":
+            publish_signals(state, year, now, direct=True)
 
     if args.command == "plan" and args.dry:
         at = now

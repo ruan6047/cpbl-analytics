@@ -1,4 +1,5 @@
-"""Track only changed nightly result and signal keys until all receipts arrive."""
+# LIFECYCLE: standing · 常設工具——這就是給你跑的；不要刪
+"""由 jobs.py 的 Pi 晚間路徑封裝差異，待群組所有回執再推進本機狀態。"""
 
 from pi_evening_handoff import _out, prepare, transmit
 from pi_job_handoff import snapshot_rows

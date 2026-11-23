@@ -1,4 +1,5 @@
-"""Connect the existing evening Box/PA entry to the scoped sender and receipt reader."""
+# LIFECYCLE: standing · 常設工具——這就是給你跑的；不要刪
+"""由 jobs.py 的 Pi 晚間路徑發送 Box／PA 和評估 metadata，並點讀自己的回執。"""
 
 from __future__ import annotations
 

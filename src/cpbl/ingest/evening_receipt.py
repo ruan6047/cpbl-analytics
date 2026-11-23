@@ -48,12 +48,18 @@ def _scope(games, parts):
     _need(type(parts) is list and parts and parts == [p for p in PARTS if p in parts]
           and (set(parts) <= {"box", "pa"} or set(parts) <= {"results", "signals"}), "evening_parts")
     kinds = ("A", "C", "E", "F") if "results" in parts else ("C", "E") if "signals" in parts else ("A", "C", "E")
-    _need(type(games) is list and 0 < len(games) <= boxpa_sync.MAX_GAMES
-          and all(type(key) is list and len(key) == 3 and type(key[0]) is int
-                  and key[1] in kinds and type(key[2]) is int and key[2] > 0
-                  for key in games), "evening_game_scope")
-    _need(games == sorted(games) and len({tuple(key) for key in games}) == len(games), "evening_game_order")
-    return [f"{y}-{kind}-{game}" for y, kind, game in games]
+    if type(games) is not list or not 0 < len(games) <= boxpa_sync.MAX_GAMES:
+        raise ValueError("evening_game_scope")
+    keys: list[tuple[int, str, int]] = []
+    for key in games:
+        if type(key) is not list or len(key) != 3:
+            raise ValueError("evening_game_scope")
+        year, kind, game = key
+        if type(year) is not int or not isinstance(kind, str) or kind not in kinds or type(game) is not int or game <= 0:
+            raise ValueError("evening_game_scope")
+        keys.append((year, kind, game))
+    _need(keys == sorted(keys) and len(set(keys)) == len(keys), "evening_game_order")
+    return [f"{year}-{kind}-{game}" for year, kind, game in keys]
 
 
 def result_parts(parts):
@@ -68,12 +74,15 @@ def batch_id(offer):
 def validate_offer(offer):
     _need(type(offer) is dict and set(offer) == OFFER_KEYS and type(offer["version"]) is int
           and offer["version"] == 1 and offer["source_id"] == "pi", "evening_offer_fields")
-    day = date.fromisoformat(offer["as_of"])
-    _need(day.isoformat() == offer["as_of"], "evening_offer_date")
+    as_of = offer["as_of"]
+    if not isinstance(as_of, str) or date.fromisoformat(as_of).isoformat() != as_of:
+        raise ValueError("evening_offer_date")
     _scope(offer["games"], offer["parts"])
-    _need(isinstance(offer["snapshot_sha256"], str) and SHA.fullmatch(offer["snapshot_sha256"])
-          and type(offer["snapshot_bytes"]) is int and 0 < offer["snapshot_bytes"] <= SNAPSHOT_LIMIT,
-          "evening_snapshot_binding")
+    snapshot_sha, size = offer["snapshot_sha256"], offer["snapshot_bytes"]
+    if not isinstance(snapshot_sha, str) or not SHA.fullmatch(snapshot_sha):
+        raise ValueError("evening_snapshot_binding")
+    if type(size) is not int or not 0 < size <= SNAPSHOT_LIMIT:
+        raise ValueError("evening_snapshot_binding")
     _need(offer["batch_id"] == batch_id(offer), "evening_batch_identity")
 
 
@@ -95,21 +104,27 @@ def validate_receipt(receipt, offer, response_sha):
           and type(receipt["version"]) is int and receipt["version"] == offer["version"]
           and receipt["response_sha256"] == response_sha and SHA.fullmatch(response_sha)
           and type(receipt["rc"]) is int and receipt["rc"] == 0, "evening_receipt_binding")
-    published = datetime.fromisoformat(receipt["published_at"])
+    published_at = receipt["published_at"]
+    if not isinstance(published_at, str):
+        raise ValueError("evening_receipt_time")
+    published = datetime.fromisoformat(published_at)
     _need(published.utcoffset() is not None, "evening_receipt_time")
     manifest = receipt["manifest"]
     required = {"at", "ok", "games", "delivery_mode"}
     if result_parts(offer["parts"]):
         required.add("rows")
-    _need(type(manifest) is dict and set(manifest) == required
-          and ("rows" not in manifest or (type(manifest["rows"]) is dict
-                                         and all(type(n) is int and n >= 0 for n in manifest["rows"].values())))
-          and manifest["delivery_mode"] in ("committed", "reused_existing")
-          and manifest["at"] == receipt["published_at"] and manifest["ok"] is True
-          and type(manifest["games"]) is dict
-          and set(manifest["games"]) == set(_scope(offer["games"], offer["parts"])),
-          "evening_receipt_reconcile")
-    for value in manifest["games"].values():
+    if type(manifest) is not dict or set(manifest) != required:
+        raise ValueError("evening_receipt_reconcile")
+    games = manifest["games"]
+    if type(games) is not dict or set(games) != set(_scope(offer["games"], offer["parts"])):
+        raise ValueError("evening_receipt_reconcile")
+    if "rows" in manifest:
+        rows = manifest["rows"]
+        if type(rows) is not dict or any(type(n) is not int or n < 0 for n in rows.values()):
+            raise ValueError("evening_receipt_reconcile")
+    _need(manifest["delivery_mode"] in ("committed", "reused_existing")
+          and manifest["at"] == published_at and manifest["ok"] is True, "evening_receipt_reconcile")
+    for value in games.values():
         _need(type(value) is dict
               and ("box" not in offer["parts"] or value.get("box_ok") is True)
               and ("results" not in offer["parts"] or value.get("results_ok") is True)

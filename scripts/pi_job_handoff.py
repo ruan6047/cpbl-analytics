@@ -1,4 +1,5 @@
-"""Opt-in sender for the existing Pi-side Linux jobs entrypoint."""
+# LIFECYCLE: standing · 常設工具——這就是給你跑的；不要刪
+"""由 jobs.py 的 Pi 每日與週跑路徑唯讀封裝私庫資料，並送往既有收件端。"""
 
 from __future__ import annotations
 
