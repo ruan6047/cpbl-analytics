@@ -565,6 +565,62 @@ def test_linux_alert_keeps_two_observation_confirmation_and_original_checks(jobs
             module.alert_ping.CHECK_SERVICES, module.alert_ping.CHECK_TEST} == {"daily", "evening", "services", "test"}
 
 
+def test_feature_watchdog_uses_formal_receipt_and_registry_deadline(jobs, monkeypatch):
+    from cpbl.features.handoff import run_id
+
+    module, root = jobs
+    before = datetime(2026, 11, 4, 10, 45, tzinfo=module.TAIPEI)
+    after = before.replace(hour=11, minute=0)
+    registry = json.loads((ROOT / "scripts/schedule-registry.json").read_text())
+    monkeypatch.setattr(module.schedule_watch, "probe_production", lambda *a: {"state": "healthy"})
+    monkeypatch.setenv("CPBL_FEATURE_SOURCE_ID", "pi")
+    (root / "features-published").mkdir()
+    today = before.date()
+    key = run_id("pi", today)
+    # Successful Pi output alone is not a formal VPS publication.
+    (root / "pi-local-result.json").write_text('{"ok":true,"stage":"published"}')
+    pending = module.schedule_watch.evaluate_jobs(registry, root.parent, before, "fixture", feature_source="pi")
+    assert pending["verdict"] == "PENDING" and pending["exit_code"] == 0
+    assert pending["jobs"][0]["cycles"][0]["deadline"].startswith("2026-11-04T11:00")
+
+    args = module._parser().parse_args(["schedule-watchdog", "--feature-receipts"])
+    run = module.Run(args.job, root, "jobs", after)
+    assert module._watchdog(run, args) == module.schedule_watch.EXIT_MISSING
+    alert_path = root / "schedule-alert.json"
+    assert json.loads(alert_path.read_bytes())["jobs"][0]["label"] == "com.cpbl.feature-publish"
+
+    path = root / "features-published" / (key + ".json")
+    receipt = {"run_id": key, "source_id": "pi", "as_of": today.isoformat(), "row_count": 9808,
+               "response_sha256": "c" * 64, "result_sha256": "d" * 64}
+    path.write_text(json.dumps({**receipt, "source_id": "different"}))
+    os.utime(path, (before.timestamp(), before.timestamp()))
+    assert module._watchdog(run, args) != 0
+    assert json.loads(alert_path.read_bytes())["verdict"] == "HISTORY_CORRUPT"
+
+    path.write_text(json.dumps(receipt))
+    os.utime(path, (before.timestamp(), before.timestamp()))
+    assert module._watchdog(run, args) == 0
+    report = json.loads((root / "schedule-watchdog/last-run.json").read_bytes())
+    assert report["verdict"] == "OK" and not alert_path.exists()
+    assert report["jobs"][0]["cycles"][0]["row_count"] == 9808
+    assert not module.test_pings
+
+
+def test_services_only_alert_keeps_watchdog_failure_without_consuming_evening(jobs, monkeypatch):
+    module, root = jobs
+    def forbidden(*args, **kwargs):
+        pytest.fail("entered the Mac observer or the unrelated evening chain")
+
+    monkeypatch.setattr(module.alert_watch, "observe", forbidden)
+    monkeypatch.setattr(module.alert_watch, "evening_step", forbidden)
+    (root / "schedule-alert.json").write_text('{"exit_code":2}')
+    assert module.main(["alert-watch", "--services-only"]) == 0
+    report = json.loads((root / "alert-watch/state.json").read_bytes())
+    assert report["services"]["last_obs"]["containers"]["scheduler"] == "failed"
+    assert "evening" not in report
+    assert not module.test_pings  # One observation is insufficient to notify.
+
+
 @pytest.mark.parametrize("jobs_mode", [False, True])
 def test_existing_daily_migration_boundary_keeps_mac_default(jobs, monkeypatch, jobs_mode):
     from cpbl.ingest import run_refresh_recent as recent
