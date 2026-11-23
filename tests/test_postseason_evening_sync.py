@@ -154,7 +154,7 @@ def test_results_only_freshness_gate_is_identical_to_the_full_chain():
     text = REFRESH.read_text(encoding="utf-8")
     blocks = re.findall(
         r'COMPLETED_GAMES_SQL="\$\(uv run python -m cpbl\.completion --with-evidence\)"\n'
-        r'\s*LOCAL_FRESHNESS="\$\(docker exec[^\n]*\n[^\n]*\n[^\n]*\n[^\n]*FROM cpbl\.games g"\)"', text)
+        r'\s*LOCAL_FRESHNESS="\$\(docker exec[^\n]*\n[^\n]*\n[^\n]*\n[^\n]*FROM cpbl\.games g\$\{LOCAL_GAMES_WHERE\}"\)"', text)
     assert len(blocks) == 2
     norm = [re.sub(r"\s+", " ", b) for b in blocks]
     assert norm[0] == norm[1]

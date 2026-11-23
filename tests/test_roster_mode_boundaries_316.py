@@ -99,9 +99,10 @@ def _outside_roster(data):
 # TEAM_COMPARISON_ONLY 之前新增 SEASON_REOPEN_ONLY 段（24717 → 29543 bytes）；對 origin/main 5c8d725c 的 diff
 # 純新增（72 行、刪除 0 行）。區塊之後 84894 bytes 未變、ROSTER_ONLY 區塊未動。
 # 舊值：區塊之前 4cf7b059d22bdf4efdab4b09c5a2fea8dd613890dd2e837c6adb240511c3a876（24717 bytes，origin/main 5c8d725c）。
+# #393 P1A 原席審核通過兩段 Mac 交接差異；#316 本體仍獨立逐位元組比對。
 OUTSIDE_ROSTER_SHA256 = (
-    "3558bd6d60e239e155353dffc93f4e652681a0f86a4bb3efba7c0ab10781ccec",   # 區塊之前（29543 bytes）
-    "a5093d38db64198f9cec1ea1fed63859e95b2258ee59673b61f854a04b1ad46a",   # 區塊之後（84894 bytes）
+    "c618a084b27ea51d3aa82b3dc225dda1cf38d98958de039a3436d5c0473471f4",   # 區塊之前（33893 bytes）
+    "0b983ca684dd10ce6c5fe53e74a8bb2b71cc4c20d4fcfb09dd8f852c460237ef",   # 區塊之後（86580 bytes）
 )
 # #316 的成果（ROSTER_ONLY 區塊本身）以 main 上合併後的版本為準：#293 不得改動它。
 ROSTER_RESULT = "a473695dfca536e365b08c44aa2e85374e8f3e69"

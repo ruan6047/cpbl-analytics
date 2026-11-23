@@ -1746,7 +1746,8 @@ def _boxpa_prepare_state(state: dict, now: datetime, year: int) -> dict[str, dic
     return boxpa_refresh(state, now, local, boxpa_load_facts(keys))
 
 
-def boxpa_detail(year: int, keys: list[str], state: Mapping | None = None, *, delay: float = 1.2) -> dict:
+def boxpa_detail(year: int, keys: list[str], state: Mapping | None = None, *, delay: float = 1.2,
+                 www_only: bool = False) -> dict:
     """只對傳入的目標場抓明細（#293 審核席 1 F1）：gamelog＋觀眾裁判時長（www）＋逐球（stats）。
 
     ⛔ 不呼叫 ``_postseason_detail_step``：那支是每日補洞用，候選＝賽事日完賽場 ∪ 全賽別缺明細的完賽場，
@@ -1781,7 +1782,9 @@ def boxpa_detail(year: int, keys: list[str], state: Mapping | None = None, *, de
                 if detail_rows < 1:
                     issues.append(f"{key}:game_details={detail_rows}")
             summary = {"gamelog": gamelog, "detail_rows": detail_rows}
-            if is_frozen(y, kind, sno):
+            if www_only:
+                summary["pitches"] = {"skipped": "authoritative_www_only"}
+            elif is_frozen(y, kind, sno):
                 summary["pitches"] = {"skipped_frozen": 1}
             else:
                 pitches = scrape_game_pitches([(y, kind, sno)], delay=delay)
@@ -1792,7 +1795,10 @@ def boxpa_detail(year: int, keys: list[str], state: Mapping | None = None, *, de
                     issues.append(f"{key}:pitcher_flags=0")
             # E／C 沿用每日鏈同一支（含季後賽別守衛）；A（#365）走同一段對帳 SQL、不帶季後守衛。
             gaps_of = rr._detail_gaps if kind == "A" else rr._postseason_detail_gaps
-            gaps = gaps_of(y, kind, [sno], rr._POSTSEASON_CORE_DETAIL_TABLES)
+            required = rr._POSTSEASON_CORE_DETAIL_TABLES
+            if www_only:
+                required = tuple(t for t in required if t not in ("pitch_tracking", "pitching_game_flags"))
+            gaps = gaps_of(y, kind, [sno], required)
             summary["missing"] = gaps.get(sno, [])
             if gaps:
                 out["errors"].append({"kind": kind, "stage": "detail_missing",
@@ -2106,8 +2112,10 @@ def publish_signals(state: dict, year: int, now: datetime, *, direct: bool = Fal
     from cpbl.db import conn
 
     try:
+        pi = os.environ.get("CPBL_JOBS_PI_HANDOFF") == "1"
+        options = {"write_kinds": ("C", "E")} if pi else {}
         with conn() as c:
-            changed = write_signals(c.cursor(), year, signal_rows(state), now)
+            changed = write_signals(c.cursor(), year, signal_rows(state), now, **options)
     except Exception as exc:  # noqa: BLE001 — 見 docstring
         log.exception("official_change_signals 寫入失敗")
         state["signals_error"] = {"at": _iso(now), "error": type(exc).__name__}
@@ -2180,11 +2188,13 @@ def _parser():
                                        "唯讀狀態檔")
     rs = sub.add_parser("record-sync", help="記錄 refresh-cpbl-prod.sh 的結果")
     rs.add_argument("--code", type=int, required=True)
+    rs.add_argument("--pi-result-group", action="store_true", help="verify locally recorded Pi receipts before the original transition")
     sub.add_parser("finish", help="寫最終狀態檔（與必要時的本機 refresh_log）")
     bp = sub.add_parser("boxpa-plan", help="#293：印 idle／detail <場>／sync <場>（不連 www）")
     bp.add_argument("--dry", action="store_true", help="只判斷不寫狀態檔（取鎖前的預檢）")
     bd = sub.add_parser("boxpa-detail", help="#293：目標場明細 www（既有 _postseason_detail_step）")
     bd.add_argument("--games", required=True)
+    bd.add_argument("--www-only", action="store_true")
     bt = sub.add_parser("boxpa-tracking", help="#293 fix-5：逐球晚到，只向 stats 重抓目標場逐球（不連 www）")
     bt.add_argument("--games", required=True)
     bb = sub.add_parser("boxpa-prepare", help="#293：目標場 PA build（既有 builder；不連網）")
@@ -2214,10 +2224,10 @@ def main(argv: list[str] | None = None, *, jobs: bool = False) -> int:
     state = load_state(path)
 
     def publish():
-        if jobs:
-            publish_signals(state, year, now, direct=True)
-        else:
+        if not jobs:
             publish_signals(state, year, now)
+        elif os.environ.get("CPBL_JOBS_PI_HANDOFF") != "1":
+            publish_signals(state, year, now, direct=True)
 
     if args.command == "plan" and args.dry:
         at = now
@@ -2402,7 +2412,8 @@ def main(argv: list[str] | None = None, *, jobs: bool = False) -> int:
     if args.command == "boxpa-detail":
         keys = [k for k in args.games.split(",") if k]
         try:
-            result = boxpa_detail(year, keys, state)
+            options = {"www_only": True} if args.www_only else {}
+            result = boxpa_detail(year, keys, state, **options)
             errors = result.get("errors") or []
         except Exception as exc:  # noqa: BLE001 — www 失敗照實記錄、不吞成成功
             log.exception("box／PA 明細失敗")
@@ -2466,6 +2477,12 @@ def main(argv: list[str] | None = None, *, jobs: bool = False) -> int:
         return 0
 
     if args.command == "record-sync":
+        if args.pi_result_group:
+            group = state.get("pi_result_group")
+            if (not jobs or os.environ.get("CPBL_JOBS_PI_HANDOFF") != "1" or args.code != 0
+                    or not group or not group.get("batch_ids")
+                    or not set(group["batch_ids"]) <= (state.get("boxpa_receipts") or {}).keys()):
+                return 78
         if not jobs:
             apply_backup_record(state, now, _backup_record_path())  # #365 Mac 同步備份入帳
         outcome = record_sync(state, now, args.code)
@@ -2480,6 +2497,10 @@ def main(argv: list[str] | None = None, *, jobs: bool = False) -> int:
         if sw.flag_path().exists():
             sw.notify_problems(state, now)
         state["last_run"] = {"at": _iso(now), "action": "sync", "outcome": outcome, "code": args.code}
+        if args.pi_result_group and outcome == "synced":
+            state["pi_result_baseline"] = group["next_baseline"]
+            state.pop("pi_result_group")
+            state.pop("pi_result_field_scope", None)
         publish()
         save_json(path, state)
         print(outcome)

@@ -33,14 +33,15 @@ cat > "$STUB_SSH_OUT"
 """
 
 
-def _function_body() -> str:
+def _function_body(name: str = "sync_table") -> str:
     text = SCRIPT.read_text(encoding="utf-8")
-    m = re.search(r"^sync_table\(\) \{\n.*?^\}\n", text, re.S | re.M)
-    assert m, "找不到 sync_table 函式本體——函式被改名或搬走了，本測試要跟著改"
+    m = re.search(rf"^{re.escape(name)}\(\) \{{\n.*?^\}}\n", text, re.S | re.M)
+    assert m, f"找不到 {name} 函式本體"
     return m.group(0)
 
 
-def _run(tmp_path: Path, columns: list[str], table: str, pk: str, cols: list[str]):
+def _run(tmp_path: Path, columns: list[str], table: str, pk: str, cols: list[str], *,
+         trigger: str = "manual", boxpa_marker: bool = False):
     bin_dir = tmp_path / "bin"
     bin_dir.mkdir(exist_ok=True)
     for name, body in (("docker", _DOCKER), ("ssh", _SSH)):
@@ -55,7 +56,12 @@ def _run(tmp_path: Path, columns: list[str], table: str, pk: str, cols: list[str
         "LOCAL_DB": "stub-nonexistent-container", "VPS": "stub@harness.invalid",
         "DEPLOY_PATH": "/nonexistent/stub-deploy",
     }
-    script = "set -euo pipefail\n" + _function_body() + 'sync_table "$@"\n'
+    env.update(REFRESH_TRIGGER=trigger, MAC_A_SCOPE_SQL="", MAC_CUTOVER_MARKER=str(tmp_path / "cutover"))
+    if boxpa_marker:
+        (tmp_path / "mac-boxpa-chain-external").touch()
+    functions = ("schedule_sync_filter", "sabr_sync_filter", "mac_boxpa_chain_handed_off",
+                 "boxpa_chain_sync_filter", "handoff_sync_filter", "sync_table")
+    script = "set -euo pipefail\n" + "".join(map(_function_body, functions)) + 'sync_table "$@"\n'
     result = subprocess.run(["/bin/bash", "-c", script, "harness", table, pk, *cols],
                             env=env, text=True, capture_output=True, check=False)
     payload = out.read_text(encoding="utf-8") if out.exists() else None
@@ -88,6 +94,23 @@ def test_composite_primary_key_columns_are_not_reported_missing(tmp_path: Path) 
 
     assert result.returncode == 0, result.stderr
     assert payload is not None
+
+
+@pytest.mark.parametrize(("trigger", "marker", "scoped"), [
+    ("launchd", False, False),
+    ("launchd", True, True),
+    ("manual", True, False),
+])
+def test_boxpa_marker_filters_only_automatic_sync(tmp_path, trigger, marker, scoped):
+    columns = ["year", "kind_code", "game_sno", "pitcher_acnt", "pitch_cnt", "rel_speed"]
+    result, payload = _run(tmp_path, columns, "pitch_tracking",
+                           "year,kind_code,game_sno,pitcher_acnt,pitch_cnt", ["rel_speed"],
+                           trigger=trigger, boxpa_marker=marker)
+    assert result.returncode == 0, result.stderr
+    assert payload is not None
+    assert ("SELECT * FROM _stg WHERE NOT (year = " in payload) is scoped
+    if scoped:
+        assert "AND kind_code IN ('A','D','E','C')) ON CONFLICT" in payload
 
 
 def test_every_sync_table_call_in_the_script_parses() -> None:

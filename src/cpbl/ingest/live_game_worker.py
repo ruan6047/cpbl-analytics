@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 from collections import Counter
 from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
@@ -18,6 +19,8 @@ from zoneinfo import ZoneInfo
 import httpx
 
 from cpbl.completion import POSTSEASON_OFFICIAL_KINDS, requires_official_completion
+
+log = logging.getLogger("cpbl.liveworker.source")
 
 _STATUS_PHASE = {
     "START": "live",
@@ -217,6 +220,13 @@ class RedisLiveGameCache:
         )
 
 
+def _trusted_stats_response(response, path, query):
+    target = response.url
+    return (not response.history and target.scheme == "https"
+            and target.host == "stats.cpbl.com.tw" and target.port in (None, 443)
+            and target.path == path and sorted(target.params.multi_items()) == sorted(query.items()))
+
+
 class StatsLiveSource:
     """已驗證的 stats schedule + single-game JSON endpoints。"""
 
@@ -224,6 +234,8 @@ class StatsLiveSource:
         # #332：壓縮 ``Games or []`` 前的原始 JSON 觀測點；None＝原行為。回呼例外一律吞掉，
         # ⛔ 不得影響本方法的回傳值或例外。
         self.payload_observer: Callable[[str, int, int, Any], None] | None = None
+        self.trusted_schedule_observer: Callable[[str, int, int, Any], None] | None = None
+        self.trusted_game_observer: Callable[[str, dict], None] | None = None
         self.client = client or httpx.Client(
             base_url=_BASE,
             timeout=20.0,
@@ -248,6 +260,13 @@ class StatsLiveSource:
                 self.payload_observer(kind_code, year, month, payload)
             except Exception:  # noqa: BLE001 — 觀測失敗由 observer 自行記為 unknown
                 pass
+        auth = self.trusted_schedule_observer
+        expected = {"kindCode": kind_code, "year": str(year), "month": str(month)}
+        if auth is not None and _trusted_stats_response(response, "/api/proxy/v1/games/schedule", expected):
+            try:
+                auth(kind_code, year, month, payload)
+            except (OSError, ValueError) as error:
+                log.warning("trusted schedule facts unavailable (%s)", type(error).__name__)
         games = (payload.get("Data") or {}).get("Games") or []
         if not isinstance(games, list):
             raise ValueError("stats schedule schema drift: Games 不是 list")
@@ -259,6 +278,12 @@ class StatsLiveSource:
         game = (response.json().get("Data") or {}).get("Game") or {}
         if not isinstance(game, dict) or not game.get("GameId"):
             raise ValueError("stats single-game schema drift: Game 無識別欄位")
+        auth = self.trusted_game_observer
+        if auth is not None and _trusted_stats_response(response, f"/api/proxy/v1/games/{game_id}", {}):
+            try:
+                auth(game_id, game)
+            except (OSError, ValueError) as error:
+                log.warning("trusted official final score unavailable (%s)", type(error).__name__)
         return game
 
 

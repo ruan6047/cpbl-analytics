@@ -339,7 +339,7 @@ def upsert_team(records: list[tuple]) -> int:
 
 
 def scrape_all(start_year: int, end_year: int, current_year: int,
-               kinds: tuple[str, ...] = ("A", "D")) -> dict:
+               kinds: tuple[str, ...] = ("A", "D"), *, on_fielding_written=None) -> dict:
     """投手 + 打者 + 守備 + 團隊（皆當季全名單）。
 
     ``kinds``（#391）：一軍 ``A``＝投打／團隊／一軍守備；二軍 ``D``＝二軍守備。已收官的軍由每日鏈剔除（不爬）。
@@ -351,7 +351,13 @@ def scrape_all(start_year: int, end_year: int, current_year: int,
             log.info("pitching %s done", year)
         out["batting"] = upsert_batting(fetch_batting(current_year))
     # 守備當季一軍(A) + 二軍(D)：同端點帶 KindCode，分別入庫（PK 含 kind_code）
-    out["fielding"] = sum(upsert_fielding(fetch_fielding(current_year, k)) for k in ("A", "D") if k in kinds)
+    for kind in ("A", "D"):
+        if kind not in kinds:
+            continue
+        count = upsert_fielding(fetch_fielding(current_year, kind))
+        out["fielding"] += count
+        if on_fielding_written is not None:
+            on_fielding_written(kind, count)
     if "A" in kinds:
         out["team"] = upsert_team(fetch_team(current_year))
     log.info("batting=%d fielding=%d team=%d (year %s)",

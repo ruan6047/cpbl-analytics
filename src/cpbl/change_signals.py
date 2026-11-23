@@ -60,22 +60,26 @@ RESOLVE_SQL = """
 _DAY = re.compile(r"^\d{4}-\d{2}-\d{2}")
 
 
-def write_signals(cursor, year: int, rows: Iterable[Mapping], now: datetime) -> int:
+def write_signals(cursor, year: int, rows: Iterable[Mapping], now: datetime, *,
+                  write_kinds: tuple[str, ...] | None = None) -> int:
     """把「應維持開啟」的訊號集合寫成表的現況：逐列 upsert，其餘未解決者寫 ``resolved_at``。冪等。
 
     回傳**實際變動的列數**（upsert 的 WHERE 擋掉「值沒變」的列，故重複寫同一集合回 0）。晚間鏈據此
     判斷本機訊號表是否與正式站不同、需要一次「僅訊號變動」的同步（#268 B1，需求方裁定 6142744045）。"""
-    rows = list(rows)
+    rows = [row for row in rows if write_kinds is None or row["kind_code"] in write_kinds]
     changed = 0
     for row in rows:
         cursor.execute(UPSERT_SQL, {"year": year, "kind_code": row["kind_code"],
                                     "game_sno": int(row["game_sno"]), "field": row["field"],
                                     "official_value": row.get("official_value"), "now": now})
         changed += max(cursor.rowcount, 0)
-    cursor.execute(RESOLVE_SQL, {"year": year, "now": now,
-                                 "kinds": [r["kind_code"] for r in rows],
-                                 "snos": [int(r["game_sno"]) for r in rows],
-                                 "fields": [r["field"] for r in rows]})
+    params = {"year": year, "now": now, "kinds": [r["kind_code"] for r in rows],
+              "snos": [int(r["game_sno"]) for r in rows], "fields": [r["field"] for r in rows]}
+    if write_kinds is None:
+        cursor.execute(RESOLVE_SQL, params)
+    else:
+        cursor.execute(RESOLVE_SQL + " AND kind_code = ANY(%(write_kinds)s)",
+                       {**params, "write_kinds": list(write_kinds)})
     return changed + max(cursor.rowcount, 0)
 
 

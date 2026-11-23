@@ -105,6 +105,20 @@ def test_payload_is_one_transaction_with_exact_shape(full_run) -> None:
         assert not re.match(r"(?i)\s*(DROP|ALTER)\b", s), s
 
 
+@pytest.mark.parametrize(("trigger", "marker", "publishes"), [
+    ("launchd", True, False),
+    ("manual", True, True),
+    ("launchd", False, True),
+])
+def test_mac_feature_handoff_only_skips_automatic_feature_writes(tmp_path, trigger, marker, publishes):
+    result, calls = _run_refresh(tmp_path, external_game_features=marker, REFRESH_TRIGGER=trigger)
+    assert result.returncode == 0, result.stderr[-2000:]
+    assert len(_gf_payloads(calls)) == int(publishes)
+    assert ("stub uv run cpbl-build-features" in result.stdout) is publishes
+    assert any("INSERT INTO cpbl.games " in call["stdin"] for call in calls)
+    assert any("cpbl-train-outcome" in " ".join(call["argv"]) for call in calls)
+
+
 @pytest.mark.parametrize("count", ["0", ""])
 def test_local_zero_or_unknown_rows_refuses_with_67_and_sends_nothing(tmp_path: Path, count: str) -> None:
     result, calls = _run_refresh(tmp_path, **{f"STUB_COUNT_{TABLE}": count})
