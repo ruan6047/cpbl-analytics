@@ -26,7 +26,9 @@ def _path(root: Path, kind: str, year: int, month: int):
 def project(kind, year, month, payload, observed_at):
     rows = payload.get("Data") if isinstance(payload, dict) else None
     rows = rows.get("Games") if isinstance(rows, dict) else None
-    _need(isinstance(rows, list) and inspect_partition(payload, year=year, month=month, kind=kind)["state"] == "complete",
+    if not isinstance(rows, list):
+        raise ValueError("evening_facts_list")
+    _need(inspect_partition(payload, year=year, month=month, kind=kind)["state"] == "complete",
           "evening_facts_list")
     facts, ambiguous = {}, set()
     observed = parse_stats_games(rows, year, (kind,))

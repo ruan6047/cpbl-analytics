@@ -919,7 +919,14 @@ def test_counts_reconcile_across_three_surfaces() -> None:
     research = [e for e in entries if e.surface == "research"]
     cli = [e for e in entries if e.surface == "cli"]
 
-    assert len(scripts) == 51, (
+    pi_handoff = {
+        "scripts/pi_evening_handoff.py", "scripts/pi_job_handoff.py",
+        "scripts/pi_night_results.py", "scripts/pi_night_source.py",
+    }
+    assert {entry.ident for entry in scripts if entry.ident in pi_handoff} == pi_handoff
+    assert len(scripts) == 51 + len(pi_handoff), (
+        "#393 P1A：四個具名的日／夜／週跑 Pi 常設模組；舊腳本預算仍為 51。"
+
         "49（基準 33c7c3f）＋ 1（DEV-SCRIPT-INVENTORY1 的 script_inventory.py）"
         "＋ 3（OPS-SCHEDULE-FAILURE-BLIND1／#132：schedule_watch.py、"
         "schedule-watchdog.sh、com.cpbl.schedule-watchdog.plist）"

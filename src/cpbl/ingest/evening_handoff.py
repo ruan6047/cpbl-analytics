@@ -201,9 +201,9 @@ class _Reader:
     def __init__(self, connection):
         self.connection = connection
 
-    def read(self, query):
+    def read(self, sql: str) -> list[list[str]]:
         return [[str(value) if value is not None else "" for value in row]
-                for row in self.connection.execute(query)]
+                for row in self.connection.execute(sql)]
 
 
 def require_final(connection, keys):
@@ -473,12 +473,12 @@ def result_assessment(source: str, name: str):
 def result_binding(source: str, name: str, now: datetime):
     from cpbl.ingest import evening_result_fields
 
-    roots = [os.environ.get(key) for key in ("CPBL_EVENING_ASSESSMENT_BINDINGS_ROOT",
-                                            "CPBL_EVENING_RESULT_ASSESSMENT_INBOX_ROOT")]
-    if not all(roots):
+    bindings_root = os.environ.get("CPBL_EVENING_ASSESSMENT_BINDINGS_ROOT")
+    inbox_root = os.environ.get("CPBL_EVENING_RESULT_ASSESSMENT_INBOX_ROOT")
+    if not bindings_root or not inbox_root:
         raise FileNotFoundError("evening_result_assessment_not_bound")
     binding, keys, expected = _initial_assessment_binding(
-        Path(roots[0]), Path(roots[1]), source, name, now,
+        Path(bindings_root), Path(inbox_root), source, name, now,
     )
     _need(binding["parts"] in evening_results_handoff.PARTS, "evening_result_assessment_parts")
     plans = evening_result_fields.expectations(keys, expected)

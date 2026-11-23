@@ -333,7 +333,21 @@ def test_g10_no_current_snapshot_tables_and_d3_no_report_background():
                   | set(re.findall(r"\b((?:team|batting|pitching|fielding)_current)\b", literals)))
         tables -= {"team_comparison_current"}
         assert not tables, (f.name, tables)
-        assert "team_comparison_current" in literals or f.name in ("core.py", "__init__.py"), f.name
+        if f.name == "handoff.py":
+            from cpbl.playoffs.team_comparison import sync
+
+            assert any(isinstance(node, ast.ImportFrom)
+                       and node.module == "cpbl.playoffs.team_comparison"
+                       and any(alias.name == "sync" and alias.asname is None for alias in node.names)
+                       for node in tree.body)
+            assert any(isinstance(node, ast.Attribute) and node.attr == "TABLE_COLUMNS"
+                       and isinstance(node.value, ast.Name) and node.value.id == "sync"
+                       for node in ast.walk(tree))
+            assert set(sync.TABLE_COLUMNS) == {
+                "team_comparison_build", "team_comparison_row", "team_comparison_current",
+            }
+        else:
+            assert "team_comparison_current" in literals or f.name in ("core.py", "__init__.py"), f.name
         imported = set()
         for node in ast.walk(tree):
             if isinstance(node, ast.ImportFrom):

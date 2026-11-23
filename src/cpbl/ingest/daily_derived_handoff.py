@@ -1,6 +1,7 @@
 """Publish scoped daily SABR rows and observed pitch labels from a Pi snapshot."""
 
 from pathlib import Path
+from typing import LiteralString, cast
 
 from psycopg import sql
 from psycopg.types.json import Jsonb
@@ -38,9 +39,11 @@ def publish(connection, data):
     from cpbl.completion import daily_chain_completed_games_sql
 
     manifest, rows = data
+    # The repository predicate is called with a fixed alias and its built-in date expression.
+    completed = cast(LiteralString, daily_chain_completed_games_sql("g"))
     query = sql.SQL("SELECT count(DISTINCT g.game_sno) FROM cpbl.games g "
                     "WHERE g.year=%s AND g.kind_code='A' AND {}").format(
-        sql.SQL(daily_chain_completed_games_sql("g")),
+        sql.SQL(completed),
     )
     count = connection.execute(query, (manifest["year"],)).fetchone()[0]
     _need(count == manifest["completed_games"], "daily_sabr_target_coverage")

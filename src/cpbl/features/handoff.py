@@ -73,7 +73,10 @@ def algorithm_sha256():
 
     h = hashlib.sha256()
     for module in (outcome, completion):
-        h.update(Path(module.__file__).read_bytes())
+        source = module.__file__
+        if source is None:
+            raise ValueError("algorithm_source_missing")
+        h.update(Path(source).read_bytes())
         h.update(b"\0")
     return h.hexdigest()
 
@@ -186,7 +189,9 @@ def compute(connection, freshness, result_root: Path, *, now=None, schedule=None
         identity = connection.execute(
             "SELECT current_database(), inet_server_addr() IS NULL, CURRENT_DATE, transaction_timestamp()"
         ).fetchone()
-        _need(identity is not None and identity[:3] == (PI_DATABASE, True, as_of)
+        if identity is None:
+            raise ValueError("private_pi_snapshot_identity")
+        _need(identity[:3] == (PI_DATABASE, True, as_of)
               and finished <= identity[3], "private_pi_snapshot_identity")
         snapshot_at = identity[3]
         input_sha = _snapshot_digest(connection)
@@ -346,7 +351,7 @@ def main(argv=None):
         dsn = os.environ["CPBL_FEATURE_PI_DATABASE_URL"]
         params = conninfo_to_dict(dsn)
         host = params.get("host", "")
-        _need(host.startswith("/") and "," not in host and params.get("dbname") == PI_DATABASE
+        _need(isinstance(host, str) and host.startswith("/") and "," not in host and params.get("dbname") == PI_DATABASE
               and set(params) <= {"host", "port", "dbname", "user", "password", "connect_timeout"}
               and not any(os.environ.get(key) for key in ("PGHOSTADDR", "PGSERVICE", "PGOPTIONS")),
               "private_pi_socket_dsn")

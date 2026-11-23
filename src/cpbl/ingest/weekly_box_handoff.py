@@ -122,8 +122,8 @@ def publish(connection, data):
         ).fetchone() == (row["outcome"], row["row_count"], row["error_code"]), "weekly_box_source_reconciliation")
     counts["game_source_revisions"] = len(observed)
     counts["box_pitching_revisions"] = sum(
-        record_box_pitching_revisions(*game, rows, connection=connection)
-        for game, rows in sorted(pitcher_obs.items())
+        record_box_pitching_revisions(year, kind, sno, rows, connection=connection)
+        for (year, kind, sno), rows in sorted(pitcher_obs.items())
     )
     for row in prepared["box_pitching_revisions"][2]:
         _need(connection.execute(

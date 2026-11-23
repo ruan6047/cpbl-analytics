@@ -43,7 +43,7 @@ from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import TextIO
+from typing import Protocol, TextIO
 
 from cpbl.api.helpers import SOURCE_REVISION_ORDER_BY
 from cpbl.ingest._cli import cli_parser
@@ -160,6 +160,10 @@ def closure_violations_sql(keys: Sequence[GameKey]) -> str:
 
 # =========================================================================== 傳輸
 
+class RowReader(Protocol):
+    def read(self, sql: str) -> list[list[str]]: ...
+
+
 class Psql:
     """以 psql 讀 stdin 腳本（``docker exec -i …`` 或 ``ssh … psql``）；argv 不經 shell 解讀。"""
 
@@ -231,7 +235,7 @@ def counts(db: Psql, keys: Sequence[GameKey], tables: Iterable[str]) -> dict[str
     return out
 
 
-def current_source_revisions(db: Psql, keys: Sequence[GameKey]) -> dict[str, dict[str, list[str] | None]]:
+def current_source_revisions(db: RowReader, keys: Sequence[GameKey]) -> dict[str, dict[str, list[str] | None]]:
     """目標場 livelog／scoreboard 的**當前列**（版本、outcome、last_seen_at）。沒有列的來源記 ``None``。
 
     選列規則與 ``/api/v1/games/{sno}/status`` 同一份（``SOURCE_REVISION_ORDER_BY``）——對帳核的就是
@@ -249,7 +253,7 @@ def current_source_revisions(db: Psql, keys: Sequence[GameKey]) -> dict[str, dic
     return out
 
 
-def prod_completed(db: Psql, keys: Sequence[GameKey]) -> set[str]:
+def prod_completed(db: RowReader, keys: Sequence[GameKey]) -> set[str]:
     """production 的 games 是否已依 ``cpbl.completion``（新判準＝API 用的那支）判為完賽。"""
     from cpbl.completion import completed_games_sql_with_evidence
 

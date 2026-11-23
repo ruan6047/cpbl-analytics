@@ -754,6 +754,12 @@ def writes_sql(rel: str) -> bool:
 # ⚠️ 兩套判準不一致者的人工裁定。**不取聯集也不取交集。**
 # key = 入口識別（腳本相對路徑，或 CLI 名稱）；value = (判定, 理由)
 WRITE_ADJUDICATION: dict[str, tuple[bool, str]] = {
+    "scripts/pi_job_handoff.py": (
+        False, "#393：Pi 私庫只做 SELECT、COPY TO 與 READ ONLY 快照核對；送件及狀態檔不寫資料庫"),
+    "scripts/pi_night_source.py": (
+        True, "#393：確認缺件或更正後，只寫 Pi 私庫 games、賽程異動及官方異動訊號"),
+    "scripts/schedule_watch.py": (
+        False, "#393：監控讀日誌、收據與健康狀態；通知只寫監控狀態檔，無資料庫寫入"),
     # --- W1 否、W2 是：import 閉包裡有寫入 SQL，但入口的呼叫路徑到不了 ---
     "scripts/check_splits_pa_split1_results.py": (
         False, "純讀 artifact JSON 與 RESULTS.md 對數字，完全不開 DB"),
@@ -886,6 +892,14 @@ HELP_SAFETY_ALLOWLIST: dict[str, str] = {
 # ⚠️ 偵測器會擋掉**過期的改判**（推導結果已等於改判值＝這條可以刪），避免重演
 # `roadmap_lines.py` 的 GATE_OVERRIDES「硬編說明文字沒有到期與真實性來源」那個病。
 CLASS_OVERRIDES: dict[str, tuple[str, str]] = {
+    "scripts/pi_job_handoff.py": (
+        "standing", "#393：Linux jobs.py 日跑及週跑使用的 Pi 快照封包與送件入口"),
+    "scripts/pi_evening_handoff.py": (
+        "standing", "#393：jobs.py 晚間鏈的 Box/PA 送件、評估與回執點讀"),
+    "scripts/pi_night_results.py": (
+        "standing", "#393：jobs.py 晚間鏈的賽果與訊號分批送件與狀態處理"),
+    "scripts/pi_night_source.py": (
+        "standing", "#393：jobs.py 晚間鏈依可信評估補齊 Pi 私庫缺件或官方更正"),
     "scripts/script_inventory.py": (
         "standing",
         "本清冊的產生器：人需要重生清冊時跑它。推導會判 ci_guard（tests/test_script_inventory.py "

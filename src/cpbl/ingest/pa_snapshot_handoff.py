@@ -78,7 +78,9 @@ def _validate_predecessor(cur, key, expected, build, live_sha, pas, events):
     if expected is None:
         _need(current is None, "pa_snapshot_target_has_active_build")
         return
-    _need(current is not None and str(current["build_id"]) == expected and expected != build["build_id"],
+    if current is None:
+        raise ValueError("pa_snapshot_predecessor_mismatch")
+    _need(str(current["build_id"]) == expected and expected != build["build_id"],
           "pa_snapshot_predecessor_mismatch")
     actual = cur.execute(
         "SELECT r.source_sha256, b.built_at < %s::timestamptz AS older "
