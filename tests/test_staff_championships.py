@@ -140,3 +140,53 @@ def test_fetch_wrappers_use_verified_years_and_unique_name():
     # 同名兩人 → 不歸戶
     assert fetch_for_player(_Cur({"A": "張泰山", "B": "張泰山"}), "A") is None
     assert fetch_for_coach(_Cur({}), "王昊")["items"][0]["single_source"] is True
+
+
+def _seed(path: str, pattern: str) -> dict[int, str]:
+    import re
+    from pathlib import Path
+
+    text = (Path(__file__).resolve().parent.parent / path).read_text(encoding="utf-8")
+    return {int(m.group(1)): m.group(2) for m in re.finditer(pattern, text)}
+
+
+def test_resource_covers_every_champion_year_with_matching_team():
+    """驗收 3／年份錯置風險：每個冠軍年都在、隊碼等於 052 種子、有來源或明確標缺漏。"""
+    from cpbl.api.staff_championships import load
+
+    data = load()
+    champs = _seed("migrations/052_championships.sql", r"\((\d{4}), '(\w+)',")
+    by_year = {ty["year"]: ty for ty in data["team_years"]}
+    assert set(range(1990, data["through_year"] + 1)) <= set(by_year)
+    for y, code in champs.items():
+        if y > data["through_year"]:
+            continue
+        ty = by_year[y]
+        assert ty["champion_team_code"] == code, y
+        if ty["status"] == "listed":
+            assert any(s["site"] == "twbsball" for s in ty["sources"]), y
+            assert ty["league_year_check"], y  # 以內文聯盟年核對，不用頁名換算
+
+
+def test_resource_excludes_champion_manager_and_executives():
+    """驗收 4：奪冠總教練（054）、領隊、副領隊不出現在教練團奪冠紀錄。"""
+    from cpbl.api.staff_championships import load, norm_name
+
+    managers = _seed("migrations/054_championship_managers.sql", r"\((\d{4}), '([^']+)',")
+    for ty in load()["team_years"]:
+        names = {norm_name(p["name"]) for p in ty["staff"]}
+        assert norm_name(managers[ty["year"]]) not in names, ty["year"]
+        for p in ty["staff"]:
+            assert "領隊" not in (p["title"] or ""), (ty["year"], p["name"])
+
+
+def test_resource_zhang_taishan_and_single_source_flags():
+    from cpbl.api.staff_championships import load
+
+    data = load()
+    ty = next(t for t in data["team_years"] if t["year"] == 2023)
+    zts = next(p for p in ty["staff"] if p["name"] == "張泰山")
+    assert (zts["level"], zts["title"], zts["single_source"]) == ("一軍", "打擊教練", False)
+    for t in data["team_years"]:
+        for p in t["staff"]:
+            assert p["single_source"] == (len(p["sources"]) == 1)
