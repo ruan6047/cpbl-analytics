@@ -15,7 +15,9 @@
 一軍總教練（``cpbl.coaches``），該隊該年恰 1 位才寫、否則標缺（裁定 R2）。寫入一律
 ``ON CONFLICT (year) DO NOTHING``：⛔ 不覆蓋、不刪任何既有列。看 ``status`` 不看 ``closed``：#392 切回與
 ``CPBL_SEASON_CLOSE=open`` 只恢復爬蟲，冠軍事實不變。殺開關 ``CPBL_CHAMPION_AUTOFILL=off``＝不讀不寫。
-寫入者：VPS 每日入口（``scripts/jobs.py`` 的 skip 日）、``build_championships``（每日鏈與 CLI）。
+寫入者：``run_champion_autofill``（``cpbl-champion-autofill``，正式站 VPS timer 在 ``prod_cpbl_api`` 內每日執行，
+⛔ 不 migrate）、``build_championships``（``cpbl-refresh-recent`` 與 ``cpbl-build-championships``；後者會 migrate，
+⛔ 不得用在正式庫）。
 """
 
 from __future__ import annotations
