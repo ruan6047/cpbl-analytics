@@ -20,7 +20,7 @@ def _data() -> dict:
         "schema_version": 1,
         "through_year": 2025,
         "generated_at": "2026-11-29T00:00:00+08:00",
-        "generator": {"script": "scripts/build_championship_staff.py", "commit": "x"},
+        "generator": {"script": "fixture", "commit": "x"},
         "note": "名單不保證完整",
         "team_years": [
             {"year": 2023, "champion_team_code": "AAA011", "team_name": "味全龍",

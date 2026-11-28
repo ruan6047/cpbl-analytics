@@ -1,3 +1,4 @@
+# LIFECYCLE: standing · 常設工具——這就是給你跑的；不要刪
 """#470 產生器：冠軍隊年教練團 → ``src/cpbl/resources/championship_staff.v1.json``。
 
 一次性人工執行（不進每日鏈、不註冊 ``cpbl-*`` 入口、不連 DB、不寫 DB）。用法::
