@@ -147,17 +147,24 @@ def _major_closure():
     return read_major_closure()
 
 
-def _championship_coverage(seasons: list[dict]) -> dict:
+def _safe_major_closure() -> tuple[object | None, bool]:
+    """先於端點自己的連線讀收官判定（``league_closure`` 另借一條池連線；⛔ 不在持有連線時巢狀借用，
+    併發下會把池借乾互卡）。讀不到 ⇒ ``(None, False)``，交給 coverage fail-closed。"""
+    try:
+        return _major_closure(), True
+    except Exception:  # noqa: BLE001 — 判不出上界即 fail-closed，不讓端點 500
+        log.exception("records/championships：讀取收官判定失敗")
+        return None, False
+
+
+def _championship_coverage(seasons: list[dict], closure: object | None, closure_ok: bool) -> dict:
     """#469：上界由 #391 收官判定推得（最新 decided 一軍球季）；已確定冠軍卻缺列 ⇒ ``complete=false``。
 
     收官判定讀不到 ⇒ fail-closed（``complete=false``、``reason="closure_unavailable"``）：寧可暫不出累計排行，
     ⛔ 不在無法確認上界時宣稱完整。"""
     years = [s["year"] for s in seasons]
     manager_years = [s["year"] for s in seasons if s.get("manager_name")]
-    try:
-        closure = _major_closure()
-    except Exception:  # noqa: BLE001 — 判不出上界即 fail-closed，不讓端點 500
-        log.exception("records/championships：讀取收官判定失敗")
+    if not closure_ok:
         cov = championship_coverage(years, as_of=None, manager_years=manager_years)
         cov.update(complete=False, reason="closure_unavailable")
         return cov
@@ -178,6 +185,7 @@ def championships(limit: int = Query(10, ge=1, le=50)) -> dict:
     冠軍教練來自 canonical `championship_managers`（非 `managers.championships`，該欄為維基
     來源、漏記 7 筆；見記憶 championship-managers-canonical）。
     """
+    closure, closure_ok = _safe_major_closure()
     with conn() as c:
         cur = c.cursor()
 
@@ -215,7 +223,7 @@ def championships(limit: int = Query(10, ge=1, le=50)) -> dict:
         cols = [d[0] for d in cur.description]
         seasons = [dict(zip(cols, r, strict=False)) for r in cur.fetchall()]
 
-        cov = _championship_coverage(seasons)
+        cov = _championship_coverage(seasons, closure, closure_ok)
         out: dict = {"coverage": cov, "seasons": seasons}
 
         # 缺年 → fail-closed：不產出任何「歷史最多」的累計結論

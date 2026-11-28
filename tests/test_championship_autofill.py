@@ -326,10 +326,29 @@ def test_records_coverage_uses_dynamic_upper_bound(monkeypatch):
     monkeypatch.setattr(leaders, "_major_closure", lambda: REAL_MAJOR_2026)
     seasons = [{"year": y, "manager_name": "x"} for y in range(1990, 2026)]
 
-    cov = leaders._championship_coverage(seasons)
+    cov = leaders._championship_coverage(seasons, *leaders._safe_major_closure())
 
     assert cov["through_year"] == 2026
     assert cov["complete"] is False and cov["missing_years"] == [2026]
+
+
+def test_records_endpoint_reads_closure_before_borrowing_its_connection(monkeypatch):
+    """⛔ 不在持有端點連線時巢狀借第二條（池上限 8，併發會互卡）。"""
+    from cpbl.api.routers import leaders
+
+    order = []
+
+    @contextmanager
+    def fake_conn():
+        order.append("conn")
+        raise RuntimeError("stop after ordering check")
+        yield  # pragma: no cover
+
+    monkeypatch.setattr(leaders, "_major_closure", lambda: order.append("closure") or REAL_MAJOR_2026)
+    monkeypatch.setattr(leaders, "conn", fake_conn)
+    with pytest.raises(RuntimeError):
+        leaders.championships.__wrapped__(limit=10)
+    assert order == ["closure", "conn"]
 
 
 def test_records_coverage_fails_closed_when_closure_unreadable(monkeypatch):
@@ -341,7 +360,7 @@ def test_records_coverage_fails_closed_when_closure_unreadable(monkeypatch):
     monkeypatch.setattr(leaders, "_major_closure", boom)
     seasons = [{"year": y, "manager_name": "x"} for y in range(1990, 2027)]
 
-    cov = leaders._championship_coverage(seasons)
+    cov = leaders._championship_coverage(seasons, *leaders._safe_major_closure())
 
     assert cov["complete"] is False
     assert cov["reason"] == "closure_unavailable"
