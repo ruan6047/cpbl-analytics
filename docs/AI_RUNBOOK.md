@@ -331,12 +331,30 @@ docker compose exec -T db psql -U cpbl -d cpbl -c \
   冠軍＝收官判定、亞軍＝決勝場另一隊、franchise＝`franchise_of(冠軍)`、來源＝官方封王戰 box（`/box?year=Y&KindCode=C&gameSno=N`），直接 `verified`（需求方裁定 R1）。
   奪冠總教練＝官網球隊頁現任一軍總教練（`cpbl.coaches`，`pos='一軍總教練'`），該隊該年恰 1 位才寫、來源記球隊頁；0 位或多位 ⇒ 不寫（裁定 R2）。
   寫入一律 `ON CONFLICT (year) DO NOTHING`：⛔ 不覆蓋、不刪既有列；既有列冠軍與判定不符只記 warning（`present_conflict`）。實作：`src/cpbl/ingest/championships.py`。
-- **寫入者（新增）**：VPS jobs 每日入口 `scripts/jobs.py` 的 **skip 日**（兩軍收官後每天都是 skip，`_skip_day_champion`；補了列才重建 `championship_members`；失敗＝jobs 狀態 failed、退出碼 1）；
-  `build_championships()`（非 skip 日每日鏈與 `cpbl-build-championships`；補列失敗不連坐成員重建，CLI 以退出碼 1 結束）。jobs 狀態檔記 `champion_autofill`（`inserted`／`present`／`not_decided`／`disabled`／`error`…）與 `champion_manager`。
+- **寫入者（新增）**：正式站 VPS 主機 timer `cpbl469-champion-autofill.timer`（每日 12:10 Asia/Taipei，`Persistent=true`）→
+  `cpbl469-champion-autofill.service` → `docker exec prod_cpbl_api cpbl-champion-autofill`（unit 檔版本化在 `ops/vps/`）。
+  入口 ⛔ **不呼叫 `migrate()`**；補了列（`action=inserted`）才重建 `championship_members`；結果印一行 JSON 進 journal；任何錯誤退出碼 1。
+  程式隨主站一般部署重建 `prod_cpbl_api` 送到，timer 裝一次即可、不分年份；**不屬 #393 lane**（不動 `/var/lib/cpbl393-*`、`cpbl393-*` timer），
+  也不登記在 `scripts/schedule-registry.json`（該表只描述 Mac launchd，由 `scripts/schedule_watch.py` 以 plist 對帳，表達不了 VPS systemd）。
+  另：`cpbl-refresh-recent` 內呼叫的 `build_championships()` 同樣先補列，補列失敗不連坐成員重建（回傳 `autofill.action="error"`）。
+- **⛔ `cpbl-build-championships` 不得用在正式庫**：它會先呼叫 `migrate()`；正式庫沒有 `cpbl.schema_migrations`，`migrate()` 會把全部 migration 重跑
+  （含 052／054 的 `ON CONFLICT (year) DO UPDATE` 把 1990–2025 的 `source_url`／`verified_at` 改回種子值，以及 037／038 大表主鍵重建）。正式庫一律用 `cpbl-champion-autofill`。
 - **站上可見**：`/api/v1/records/championships` 的 `coverage.through_year`＝最新 decided 一軍球季（未 decided ⇒ 前一年，下限 2025）；已確定冠軍卻缺列 ⇒ `complete=false`、`missing_years` 列出、累計排行不回傳。
   收官判定讀不到 ⇒ `complete=false`＋`reason="closure_unavailable"`。`coverage.managers_missing_years`＝有冠軍列卻缺已驗證總教練的年份（只揭露）。
-- **時效**：決勝場入庫後下一次 VPS 每日（含 skip 日）即補；API／前端快取最多約 30 分鐘後全站可見。
-- **殺開關**：`CPBL_CHAMPION_AUTOFILL=off`（不讀判定、不寫）。**回復**：設殺開關後，單交易刪本次寫入的 `championship_managers`、`championships` 該年兩列，再 `cpbl-build-championships` 重建成員（或由備份 COPY 回）。
+- **時效**：決勝場入正式庫、收官判定 decided 後，下一次 timer（≤24 小時）即補；失敗隔天重試（例如撞上部署重建容器）；API／前端快取最多約 30 分鐘後全站可見。
+  沒有告警通道：失敗只留在 `journalctl -u cpbl469-champion-autofill.service`，站上只有 `/records` 會 fail-closed。
+- **安裝（需求方授權；VPS 上 root，在含本 repo 檔案的目錄執行，例如主站 checkout 的 `apps/subprojects/cpbl-analytics/`）**：
+  ```bash
+  install -m 0644 ops/vps/cpbl469-champion-autofill.service ops/vps/cpbl469-champion-autofill.timer /etc/systemd/system/
+  systemctl daemon-reload
+  docker exec prod_cpbl_api sh -c 'command -v cpbl-champion-autofill'   # 入口存在（新映像已部署）才往下
+  systemctl start cpbl469-champion-autofill.service && journalctl -u cpbl469-champion-autofill.service -n 20 --no-pager
+  systemctl enable --now cpbl469-champion-autofill.timer && systemctl list-timers cpbl469-champion-autofill.timer
+  ```
+- **殺開關**：`systemctl disable --now cpbl469-champion-autofill.timer`（主要）；備用 `CPBL_CHAMPION_AUTOFILL=off`（入口不讀判定、不寫；要改正式 `.env` 並重建 API 容器）。
+- **回復**：① 停用 timer、刪 `/etc/systemd/system/cpbl469-champion-autofill.{service,timer}`、`systemctl daemon-reload`；
+  ② 單交易刪本次寫入的 `championship_managers`、`championships` 該年兩列；③ 單交易 `TRUNCATE cpbl.championship_members` 後由寫入前備份 COPY 回
+  （⛔ 不用 `cpbl-build-championships` 重建，理由見上）；④ 讀回三表列數＝備份、`list-timers` 已無此 timer。程式回復＝主站 submodule 指標部署回上一版。
 - **已知限制**：總教練是現役快照，季中／季後換帥年會錯（需人改）；Mac 救援整鏈同步以 `mirror_table` 覆蓋 `championship_members`，本機庫缺該年冠軍時會蓋掉正式站成員。
 
 ### 開季切回（#392）：需求方手動一條指令切回賽季中
@@ -548,7 +566,8 @@ production 映像尚未部署，先停止同步並完成正常 main deploy，不
 | `cpbl-anchor-career <season> <csv_dir>` | 錨定生涯基底（官方生涯−官方本季同刻相減，一次性/重錨） | 跨年 roll 或重錨（見其 docstring） |
 | `cpbl-ingest-editorial` | 私有 Google Sheet → 嚴格驗證 → append-only 編輯內容 revisions（公開 API 仍唯讀） | **暫停（2026-07-19）**：不得執行 ingest 或 production migration；待其他項目完成後重新規劃。歷史契約見 [`EDITORIAL_DATA_PIPELINE.md`](EDITORIAL_DATA_PIPELINE.md)。 |
 | `cpbl-verify-splits [year] [kind]` | 分項重算 vs 官方爬值逐格對照 harness | 只對「新爬的官方值」有意義（寫回後即自比） |
-| `cpbl-build-championships` | 先依收官判定補缺的新球季冠軍列（#469，只新增），再由 `championships` canonical dataset 決定冠軍→標該年一軍球員+總教練（物化 `championship_members`，純 DB 不爬） | 改冠軍資料／成員邏輯後（已含於 refresh-recent） |
+| `cpbl-build-championships` | 先依收官判定補缺的新球季冠軍列（#469，只新增），再由 `championships` canonical dataset 決定冠軍→標該年一軍球員+總教練（物化 `championship_members`，純 DB 不爬）。**會先 `migrate()`：⛔ 不得用在正式庫** | 本機改冠軍資料／成員邏輯後（已含於 refresh-recent） |
+| `cpbl-champion-autofill` | 收官判定 decided 且冠軍表缺該年才補列，補了才重建成員；**不 migrate**；印 JSON、錯誤退出碼 1（#469，見 §3） | 正式站由 VPS timer 每日在 `prod_cpbl_api` 內執行 |
 | `cpbl-build-features` | 賽果預測特徵表(leakage-safe) | 改賽果特徵後 |
 | `cpbl-roster {preview,submit,annotate,show,import-official-population}` | 季後 32 人資格名單：解析→預覽→帶 `--confirm-hash` 的單交易提交；**insert-only、提交後不可變**（不是 UPSERT） | 需求方貼官方名單後（見 §3「季後 32 人資格名單」） |
 | `cpbl-train` | 成績預測訓練+回測（**需 LightGBM → 容器內跑**） | 改成績模型/特徵後 |
