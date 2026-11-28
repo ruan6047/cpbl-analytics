@@ -325,6 +325,20 @@ docker compose exec -T db psql -U cpbl -d cpbl -c \
   二軍 F 夜抓見 §10。補缺 gamelog、季後 E／C 明細補齊、總冠軍成員重建、衍生、同步、備份**照跑**（R3）。
 - **休賽期人工指示更新**：`DAILY_FORCE_FULL=1 scripts/scrape-daily.sh`（不判日型、不帶收官）；週跑／其他唯讀判定可用 `CPBL_SEASON_CLOSE=open` 暫時視為未收官。
 
+### 新球季冠軍自動補列（#469）
+
+- **做什麼**：一軍收官判定 `status=decided`（看 status 不看 closed；#392 切回與 `CPBL_SEASON_CLOSE=open` 不影響）且 `cpbl.championships` 缺該年 ⇒ 補一列：
+  冠軍＝收官判定、亞軍＝決勝場另一隊、franchise＝`franchise_of(冠軍)`、來源＝官方封王戰 box（`/box?year=Y&KindCode=C&gameSno=N`），直接 `verified`（需求方裁定 R1）。
+  奪冠總教練＝官網球隊頁現任一軍總教練（`cpbl.coaches`，`pos='一軍總教練'`），該隊該年恰 1 位才寫、來源記球隊頁；0 位或多位 ⇒ 不寫（裁定 R2）。
+  寫入一律 `ON CONFLICT (year) DO NOTHING`：⛔ 不覆蓋、不刪既有列；既有列冠軍與判定不符只記 warning（`present_conflict`）。實作：`src/cpbl/ingest/championships.py`。
+- **寫入者（新增）**：VPS jobs 每日入口 `scripts/jobs.py` 的 **skip 日**（兩軍收官後每天都是 skip，`_skip_day_champion`；補了列才重建 `championship_members`；失敗＝jobs 狀態 failed、退出碼 1）；
+  `build_championships()`（非 skip 日每日鏈與 `cpbl-build-championships`；補列失敗不連坐成員重建，CLI 以退出碼 1 結束）。jobs 狀態檔記 `champion_autofill`（`inserted`／`present`／`not_decided`／`disabled`／`error`…）與 `champion_manager`。
+- **站上可見**：`/api/v1/records/championships` 的 `coverage.through_year`＝最新 decided 一軍球季（未 decided ⇒ 前一年，下限 2025）；已確定冠軍卻缺列 ⇒ `complete=false`、`missing_years` 列出、累計排行不回傳。
+  收官判定讀不到 ⇒ `complete=false`＋`reason="closure_unavailable"`。`coverage.managers_missing_years`＝有冠軍列卻缺已驗證總教練的年份（只揭露）。
+- **時效**：決勝場入庫後下一次 VPS 每日（含 skip 日）即補；API／前端快取最多約 30 分鐘後全站可見。
+- **殺開關**：`CPBL_CHAMPION_AUTOFILL=off`（不讀判定、不寫）。**回復**：設殺開關後，單交易刪本次寫入的 `championship_managers`、`championships` 該年兩列，再 `cpbl-build-championships` 重建成員（或由備份 COPY 回）。
+- **已知限制**：總教練是現役快照，季中／季後換帥年會錯（需人改）；Mac 救援整鏈同步以 `mirror_table` 覆蓋 `championship_members`，本機庫缺該年冠軍時會蓋掉正式站成員。
+
 ### 開季切回（#392）：需求方手動一條指令切回賽季中
 
 ⛔ 不自動切回（需求方裁定 #9／#12）。開季（建議熱身賽開始前）由需求方在**主 checkout 的 repo 根目錄**執行：
@@ -534,7 +548,7 @@ production 映像尚未部署，先停止同步並完成正常 main deploy，不
 | `cpbl-anchor-career <season> <csv_dir>` | 錨定生涯基底（官方生涯−官方本季同刻相減，一次性/重錨） | 跨年 roll 或重錨（見其 docstring） |
 | `cpbl-ingest-editorial` | 私有 Google Sheet → 嚴格驗證 → append-only 編輯內容 revisions（公開 API 仍唯讀） | **暫停（2026-07-19）**：不得執行 ingest 或 production migration；待其他項目完成後重新規劃。歷史契約見 [`EDITORIAL_DATA_PIPELINE.md`](EDITORIAL_DATA_PIPELINE.md)。 |
 | `cpbl-verify-splits [year] [kind]` | 分項重算 vs 官方爬值逐格對照 harness | 只對「新爬的官方值」有意義（寫回後即自比） |
-| `cpbl-build-championships` | 由逐年可追溯的 `championships` canonical dataset 決定冠軍→標該年一軍球員+總教練（物化 `championship_members`，純 DB 不爬） | 改冠軍資料／成員邏輯後（已含於 refresh-recent） |
+| `cpbl-build-championships` | 先依收官判定補缺的新球季冠軍列（#469，只新增），再由 `championships` canonical dataset 決定冠軍→標該年一軍球員+總教練（物化 `championship_members`，純 DB 不爬） | 改冠軍資料／成員邏輯後（已含於 refresh-recent） |
 | `cpbl-build-features` | 賽果預測特徵表(leakage-safe) | 改賽果特徵後 |
 | `cpbl-roster {preview,submit,annotate,show,import-official-population}` | 季後 32 人資格名單：解析→預覽→帶 `--confirm-hash` 的單交易提交；**insert-only、提交後不可變**（不是 UPSERT） | 需求方貼官方名單後（見 §3「季後 32 人資格名單」） |
 | `cpbl-train` | 成績預測訓練+回測（**需 LightGBM → 容器內跑**） | 改成績模型/特徵後 |
@@ -990,7 +1004,7 @@ Dependabot → 該生態系「Check for updates」（備援；未實測，第一
 ## 9. DB schema 重點（`cpbl`，migrations 001–022）
 
 - season/ML：`*_seasons`、`projections`、`model_versions`。
-- 歷史冠軍：`championships`（1990–2025 逐年官方來源＋franchise）→ `championship_members`（離線重建成員）。
+- 歷史冠軍：`championships`（1990–2025 逐年官方來源＋franchise；2026 起由收官判定自動補列，見 §3〈新球季冠軍自動補列（#469）〉）→ `championship_members`（離線重建成員）。
 - 逐場：`games`、`game_scoreboard`、`game_livelog`、`batting_gamelog`、`pitching_gamelog`、`game_features`、
   `pitching_game_flags`（migration 073：stats.cpbl 單場 API 逐投手官方旗標，救援成功／失敗等）。
 - 當季累計：`batting_current`、`pitching_current`、`team_current`、`fielding_current`。**口徑不一致**：`team_current`＝當前半季，batting/pitching＝全年（fielding 已排除半季）——見 §8 陷阱與 [`reference/GLOSSARY.md`](reference/GLOSSARY.md)。

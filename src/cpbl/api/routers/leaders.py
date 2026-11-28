@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import logging
+
 from fastapi import APIRouter, Query
 
 from cpbl.api.helpers import DEFAULT_SEASON, _ip_disp
@@ -10,8 +12,9 @@ from cpbl.api.rows import _batting_rows, _pitching_rows, _primary_positions
 from cpbl.completion import completed_games_sql_with_evidence
 from cpbl.db import conn
 from cpbl.franchises import franchise_of
-from cpbl.ingest.championships import championship_coverage
+from cpbl.ingest.championships import championship_coverage, coverage_through_year
 
+log = logging.getLogger("cpbl.api.records")
 router = APIRouter()
 
 # 完成場判準（證據感知）：歷史紀錄室的場次母體含 0:0 真和局（DATA-TIE-REMEDY1）。
@@ -138,6 +141,30 @@ def records(kind_code: str = Query("A"), limit: int = Query(5, ge=1, le=50)) -> 
             "career_batting": career_bat, "career_pitching": career_pit}
 
 
+def _major_closure():
+    from cpbl.ingest.championships import read_major_closure
+
+    return read_major_closure()
+
+
+def _championship_coverage(seasons: list[dict]) -> dict:
+    """#469：上界由 #391 收官判定推得（最新 decided 一軍球季）；已確定冠軍卻缺列 ⇒ ``complete=false``。
+
+    收官判定讀不到 ⇒ fail-closed（``complete=false``、``reason="closure_unavailable"``）：寧可暫不出累計排行，
+    ⛔ 不在無法確認上界時宣稱完整。"""
+    years = [s["year"] for s in seasons]
+    manager_years = [s["year"] for s in seasons if s.get("manager_name")]
+    try:
+        closure = _major_closure()
+    except Exception:  # noqa: BLE001 — 判不出上界即 fail-closed，不讓端點 500
+        log.exception("records/championships：讀取收官判定失敗")
+        cov = championship_coverage(years, as_of=None, manager_years=manager_years)
+        cov.update(complete=False, reason="closure_unavailable")
+        return cov
+    return championship_coverage(years, as_of=None, through_year=coverage_through_year(closure),
+                                 manager_years=manager_years)
+
+
 @router.get("/api/v1/records/championships")
 @cached
 def championships(limit: int = Query(10, ge=1, le=50)) -> dict:
@@ -188,13 +215,14 @@ def championships(limit: int = Query(10, ge=1, le=50)) -> dict:
         cols = [d[0] for d in cur.description]
         seasons = [dict(zip(cols, r, strict=False)) for r in cur.fetchall()]
 
-        cov = championship_coverage([s["year"] for s in seasons], as_of=None)
-        cov["as_of"] = None
+        cov = _championship_coverage(seasons)
         out: dict = {"coverage": cov, "seasons": seasons}
 
         # 缺年 → fail-closed：不產出任何「歷史最多」的累計結論
         if not cov["complete"]:
-            out["note"] = ("冠軍資料缺年（%s），依資料正確性紅線不產出累計排行"
+            out["note"] = ("收官判定讀取失敗，無法確認冠軍資料是否補齊，依資料正確性紅線不產出累計排行"
+                           if cov.get("reason") == "closure_unavailable" else
+                           "冠軍資料缺年（%s），依資料正確性紅線不產出累計排行"
                            % ", ".join(map(str, cov["missing_years"])))
             return out
 

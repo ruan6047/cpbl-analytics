@@ -376,11 +376,43 @@ def test_combined_feature_delivery_rejects_other_schedule_kind_before_db(jobs, m
     assert not (root / "locks/refresh.lock").exists()
 
 
-def test_closed_skip_does_not_enter_any_data_step(jobs, monkeypatch):
+def champion_fakes(monkeypatch, calls, *, action="present", error=None):
+    def autofill():
+        calls.append(("champion", "autofill"))
+        if error:
+            raise error
+        return {"action": action, "year": 2026, "manager": None}
+
+    fake_module(monkeypatch, "cpbl.ingest.championships", autofill_champion=autofill,
+                build_championships=lambda: calls.append(("champion", "build")) or {})
+
+
+def test_closed_skip_only_runs_champion_autofill(jobs, monkeypatch):
+    """#469：休季 skip 日除了冠軍補列不進任何資料步驟；冠軍已在表內就不重建成員。"""
+    module, root = jobs; calls = []
+    daily_fakes(monkeypatch, calls, day_type="skip")
+    champion_fakes(monkeypatch, calls, action="present")
+    assert module.main(["scrape-daily"]) == 0
+    assert calls == [("gate", "decide"), ("champion", "autofill")]
+    status = json.loads((root / "jobs/scrape-daily.json").read_text())
+    assert status.get("skipped") is True and status["champion_autofill"] == "present"
+
+
+def test_closed_skip_rebuilds_members_only_after_inserting_champion(jobs, monkeypatch):
     module, _ = jobs; calls = []
     daily_fakes(monkeypatch, calls, day_type="skip")
+    champion_fakes(monkeypatch, calls, action="inserted")
     assert module.main(["scrape-daily"]) == 0
-    assert calls == [("gate", "decide")]
+    assert calls == [("gate", "decide"), ("champion", "autofill"), ("champion", "build")]
+
+
+def test_closed_skip_champion_failure_is_not_swallowed(jobs, monkeypatch):
+    module, root = jobs; calls = []
+    daily_fakes(monkeypatch, calls, day_type="skip")
+    champion_fakes(monkeypatch, calls, error=RuntimeError("db down"))
+    assert module.main(["scrape-daily"]) == 1
+    status = json.loads((root / "jobs/scrape-daily.json").read_text())
+    assert status["state"] == "failed" and status["champion_autofill"] == "error"
 
 
 def test_weekly_closed_kind_and_partial_pitch_result_are_not_silent(jobs, monkeypatch):
