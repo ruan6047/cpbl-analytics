@@ -87,8 +87,8 @@
 
 - `scripts/**`：**55**
 - `docs/research/**/*.py`：**24**
-- `pyproject [project.scripts]`：**51**
-- **三面總和：130**
+- `pyproject [project.scripts]`：**52**
+- **三面總和：131**
 
 檔案面分類分佈：CI 繫結守衛 10、一次性產物 41、待產品裁定 1、常設工具 27
 
@@ -99,9 +99,9 @@
 
 **不取聯集也不取交集**：聯集會把「只是 import 了一個含寫入函式的模組」誤判成寫入者；交集會漏掉「呼叫 `build_splits()` 但自己一行 SQL 都沒有」的真寫入者。不一致者逐支人工裁定，出現**未裁定的新不一致**即 CI 紅，**裁定條目過期**（兩判準已一致）也會 CI 紅——後者是刻意的，`roadmap_lines.py` 的 `GATE_OVERRIDES` 被 `#137` 判為缺陷的理由正是「沒有到期來源」。
 
-- 兩判準皆適用：**119** 支，其中不一致 **35** 支（全部已裁定）
+- 兩判準皆適用：**120** 支，其中不一致 **35** 支（全部已裁定）
 - **只有一套判準：11** 支（`.sh`／`.plist` 沒有 Python AST，W1 結構性不適用）——**這一格沒有交叉複算**，不假裝有
-- 判定為寫入型：**59** 支（`scripts/**` 12、`docs/research/` 1、CLI 46）
+- 判定為寫入型：**60** 支（`scripts/**` 12、`docs/research/` 1、CLI 47）
 
 > [!important] **W1 有一個結構性盲點。**
 > `docs/research/ISSUE-383/replace_derived_tables.py` 以 `subprocess.run(['docker'|'ssh', …'psql'], input=sql)` 把 `DELETE` ＋ `COPY` 串進 psql——
@@ -166,13 +166,13 @@
 
 ## 引用完整性（不變式 3）
 
-全庫 `scripts/<name>.<ext>` 字面路徑共 **1054** 處。**只有 `enforced` 那一面強制**——其餘的過期是歷史事實不是缺陷：
+全庫 `scripts/<name>.<ext>` 字面路徑共 **1056** 處。**只有 `enforced` 那一面強制**——其餘的過期是歷史事實不是缺陷：
 
 | 面別 | 處數 | 強制？ | 為什麼 |
 |---|---:|---|---|
 | `scan` | 363 | 回報 | 掃描器產物 JSON 是當時的快照 |
 | `self` | 245 | 不適用 | 掃描器自身的說明範例 |
-| `enforced` | 228 | ✅ 強制 | `scripts/`、`src/`、活契約與設計文件——壞了就是現在的缺陷 |
+| `enforced` | 230 | ✅ 強制 | `scripts/`、`src/`、活契約與設計文件——壞了就是現在的缺陷 |
 | `historical` | 163 | 回報 | `docs/archive/**` 與卡片交付產物＝凍結證據，**本卡射程外** |
 | `fixture` | 55 | 不適用 | `tests/**` 的合成路徑；真實路徑壞掉 pytest 自己會紅（更強的機制） |
 
@@ -238,7 +238,7 @@
 
 判定為**高後果**的入口，argv 必須在主流程前被解析。**既有不合格者具名列入 allowlist**。
 
-高後果 **71** 支（其中非寫入型 **12** 支）。
+高後果 **72** 支（其中非寫入型 **12** 支）。
 
 ### 判準的形狀：出口目錄 ＋ 一台可達性引擎
 
@@ -260,7 +260,7 @@
 > **兩次都不是「少寫了一條正則」，是「判準的名字承諾了一致性、實作沒有給」。**所以第二次的修法不是再加一條，是把「出口是什麼」與「碰不碰得到」拆開。
 
 > [!important] **為什麼不掃 import 閉包**（W2 的射程，也是本判準改版前對 `.py` 用的射程）。
-> `httpx` 在 `cpbl.*` 相依圖裡到處都是，掃閉包會把只 import 了一個常數的唯讀腳本判成打網路的。**現算的差額**（每次重生清冊時重新量，不寫死；母體限 `.py` 入口 119 支，`.sh` 沒有 import 圖故不在本對照內）：閉包法命中 **58** 支、呼叫圖法 **44** 支，閉包法多出來的 **14** 支即誤判面。
+> `httpx` 在 `cpbl.*` 相依圖裡到處都是，掃閉包會把只 import 了一個常數的唯讀腳本判成打網路的。**現算的差額**（每次重生清冊時重新量，不寫死；母體限 `.py` 入口 120 支，`.sh` 沒有 import 圖故不在本對照內）：閉包法命中 **58** 支、呼叫圖法 **44** 支，閉包法多出來的 **14** 支即誤判面。
 > 最刺眼的一支是 `check_splits_pa_split1_results.py`——它從 `cpbl.ingest.cpbl_player_detail` **只 import 了 `APART_COMBOS` 這個 list 常數**，閉包法照樣判它打網路。**誤判要靠 allowlist 消化，而每多一條 allowlist 就離 `roadmap_lines.py` 的 `GATE_OVERRIDES` 近一步**——這裡要的是精確，不是寬。
 
 閉包法多判、呼叫圖法不判的 14 支：`cpbl-check-livelog`、`cpbl-classify-pitches-v2`、`cpbl-replay-livelog-extra`、`docs/research/DEV-CLI-HELP-GUARD1/audit_cli_help.py`、`docs/research/ISSUE-201/collect_matchup_pre2018.py`、`scripts/alert_ping.py`、`scripts/check_splits_pa_split1_results.py`、`scripts/data_tie_remedy1.py`、`scripts/g4_gate_report.py`、`scripts/g4_phase_a_metrics.py`、`scripts/ibb_ghost1_probe.py`、`scripts/pi_job_handoff.py`、`scripts/pi_night_source.py`、`scripts/verify_splits_pa_split1.py`
@@ -406,7 +406,7 @@ shell 沒有 argparse，判準原本是一條寬鬆正則（「有 `getopts`／`
 | `keyplay_garbage_time.py` | 一次性產物 | `docs/research/WP-DISCLOSURE-SYNC1/` | ✅ | 唯讀 | ✅ --help 安全 | WP-DISCLOSURE-SYNC1 | WP-DISCLOSURE-SYNC1：關鍵打席選法 × 垃圾時間打席 的完整母體重測（唯讀）。 | ⚠️ 未查證 |
 | `scan_time_semantics.py` | 常設工具 | `docs/research/TIME-SEMANTICS-CONTRACT1/` | ✅ | 唯讀 | ✅ --help 安全 | TIME-SEMANTICS-CONTRACT1 | TIME-SEMANTICS-CONTRACT1：時間語意用點盤點（**唯讀**，artifact 由本腳本產生）。 | ⚠️ 未查證 |
 
-## 清冊：`pyproject [project.scripts]`（51）
+## 清冊：`pyproject [project.scripts]`（52）
 
 | CLI | 寫入 | runnable | purpose_declared | purpose_verified |
 |---|---|---|---|---|
@@ -419,6 +419,7 @@ shell 沒有 argparse，判準原本是一條寬鬆正則（「有 `getopts`／`
 | `cpbl-build-sabr` | **寫** | ✅ --help 安全 | CLI：重建 sabermetrics 打底表 + Phase A 進階指標（livelog 2018+ 推算 / 官方計數）。 | ⚠️ 未查證 |
 | `cpbl-build-splits` | **寫** | ✅ --help 安全 | CLI：重算本季分項（splits + vs各隊）寫回四張官方表，取代本季 apart/vs-team 爬蟲。 | ⚠️ 未查證 |
 | `cpbl-build-team-comparison` | **寫** | ✅ --help 安全 | cpbl-build-team-comparison：全年 A／兩隊 A 對戰背景摘要的本機離線 builder（#287 S06 WP2）。 | ⚠️ 未查證 |
+| `cpbl-champion-autofill` | **寫** | ✅ --help 安全 | CLI：新球季冠軍自動補列（#469；不 migrate、不爬蟲）。 | ⚠️ 未查證 |
 | `cpbl-check-coverage` | 唯讀 | ✅ --help 安全 | CLI：資料涵蓋率排查（唯讀、不爬網）——抓「應有卻缺漏」的場次。 | ⚠️ 未查證 |
 | `cpbl-check-livelog` | 唯讀 | ✅ --help 安全 | CLI：livelog 同號多筆的兩支可重跑機械檢查（#357 WP2-c）。 | ⚠️ 未查證 |
 | `cpbl-classify-pitches` | **寫** | ✅ --help 安全 | CLI：離線推算球種，寫回 pitch_tracking.pitch_type_pred。 | ⚠️ 未查證 |
@@ -507,5 +508,5 @@ shell 沒有 argparse，判準原本是一條寬鬆正則（「有 `getopts`／`
 - **「未找到消費者」不等於「沒有消費者」**：本清冊的觀測面只有 **git 追蹤檔案**。本機執行歷史、需求方手動操作、封存前的口頭流程都不在裡面。用詞一律「未找到」。
 - **本輪零刪除**。已用盡的只標記，刪除是需求方的獨立裁定。
 - 位置不變式證明的是「位置與分類一致」，**不是「分類是對的」**。分類含具名人工改判，機器只驗一致性不驗真假。
-- **分段路徑**（`"scripts/" + name` 這類靜態解析不了的組裝）共 130 處，引用完整性檢查涵蓋不到，逐處列出：`docs/research/TIME-SEMANTICS-CONTRACT1/scan_time_semantics.py:149`、`scripts/data_rules_audit1.py:761`、`scripts/data_tie_remedy1.py:322`、`scripts/script_inventory.py:72`、`scripts/script_inventory.py:404`、`scripts/script_inventory.py:408`、`scripts/script_inventory.py:1094`、`scripts/script_inventory.py:1348`、`scripts/script_inventory.py:2044`、`src/cpbl/ingest/starter_watch.py:246`、`tests/test_alert_ping.py:23`、`tests/test_alert_watch.py:33`、`tests/test_alert_watch.py:34`、`tests/test_alert_watch.py:36`、`tests/test_alert_watch.py:493`、`tests/test_alert_watch.py:494`、`tests/test_alert_watch.py:500`、`tests/test_backup_prod_db.py:16`、`tests/test_backup_prod_db.py:186`、`tests/test_backup_prod_db.py:202`、`tests/test_backup_prod_db.py:251`、`tests/test_bio_gap2_backfill.py:19`、`tests/test_bio_gap_backfill.py:27`、`tests/test_boxpa_sync_mode.py:30`、`tests/test_boxpa_sync_mode.py:127`、`tests/test_boxpa_sync_mode.py:130`、`tests/test_boxpa_sync_mode.py:152`、`tests/test_daily_gate.py:365`、`tests/test_daily_gate.py:379`、`tests/test_daily_gate.py:386`、`tests/test_daily_gate.py:394`、`tests/test_daily_gate.py:442`、`tests/test_daily_gate.py:451`、`tests/test_daily_gate.py:975`、`tests/test_evening_night_backup.py:31`、`tests/test_evening_night_backup.py:32`、`tests/test_evening_night_backup.py:135`、`tests/test_evening_night_backup.py:136`、`tests/test_evening_night_backup.py:137`、`tests/test_evening_night_backup.py:149`、`tests/test_evening_night_backup.py:150`、`tests/test_evening_night_backup.py:155`、`tests/test_evening_night_backup.py:305`、`tests/test_evening_night_backup.py:308`、`tests/test_evening_night_backup.py:312`、`tests/test_evening_tm_recheck.py:154`、`tests/test_evening_tm_recheck.py:156`、`tests/test_evening_tm_recheck.py:162`、`tests/test_game_features_sync_443.py:45`、`tests/test_gamelog_reconcile.py:519`、`tests/test_gamelog_reconcile.py:520`、`tests/test_gamelog_reconcile.py:578`、`tests/test_linux_jobs_393.py:25`、`tests/test_linux_jobs_393.py:27`、`tests/test_mac_cutover_guard_393.py:23`、`tests/test_pa_sync_shell_353.py:95`、`tests/test_postseason_boxpa_stage.py:30`、`tests/test_postseason_boxpa_stage.py:380`、`tests/test_postseason_boxpa_stage.py:385`、`tests/test_postseason_boxpa_stage.py:396`、`tests/test_postseason_evening_sync.py:32`、`tests/test_postseason_evening_sync.py:33`、`tests/test_postseason_evening_sync.py:48`、`tests/test_postseason_evening_sync.py:75`、`tests/test_postseason_evening_sync.py:119`、`tests/test_postseason_evening_sync.py:214`、`tests/test_postseason_evening_sync.py:219`、`tests/test_postseason_evening_sync.py:231`、`tests/test_prod_availability_353.py:19`、`tests/test_prod_availability_353.py:241`、`tests/test_prod_availability_353.py:301`、`tests/test_prod_availability_353.py:568`、`tests/test_prod_sync_revision_seq.py:33`、`tests/test_prod_sync_revision_seq.py:200`、`tests/test_prod_sync_revision_seq.py:201`、`tests/test_prod_sync_revision_seq.py:202`、`tests/test_prod_sync_revision_seq.py:242`、`tests/test_refresh_info_cache_wait_353.py:15`、`tests/test_refresh_pitch_ingest.py:26`、`tests/test_refresh_remote_train.py:20`、`tests/test_refresh_status.py:29`、`tests/test_refresh_status.py:30`、`tests/test_refresh_status.py:31`、`tests/test_refresh_status.py:32`、`tests/test_refresh_status_alert.py:26`、`tests/test_refresh_status_alert.py:27`、`tests/test_refresh_status_alert.py:98`、`tests/test_refresh_status_alert.py:100`、`tests/test_refresh_status_alert.py:121`、`tests/test_refresh_status_alert.py:264`、`tests/test_schedule_watch.py:22`、`tests/test_schedule_watch.py:23`、`tests/test_schedule_watch.py:291`、`tests/test_schedule_watch.py:364`、`tests/test_scrape_daily.py:77`、`tests/test_scrape_daily.py:78`、`tests/test_scrape_daily.py:104`、`tests/test_scrape_daily.py:197`、`tests/test_scrape_daily.py:214`、`tests/test_scrape_daily.py:238`、`tests/test_scrape_daily.py:392`、`tests/test_scrape_daily.py:492`、`tests/test_scrape_daily.py:637`、`tests/test_scrape_daily.py:751`、`tests/test_scrape_daily.py:752`、`tests/test_scrape_daily.py:767`、`tests/test_script_inventory.py:249`、`tests/test_script_inventory.py:713`、`tests/test_script_inventory.py:727`、`tests/test_script_inventory.py:735`、`tests/test_script_inventory.py:743`、`tests/test_script_inventory.py:755`、`tests/test_script_inventory.py:808`、`tests/test_script_inventory.py:866`、`tests/test_script_inventory.py:871`、`tests/test_script_inventory.py:872`、`tests/test_script_inventory.py:873`、`tests/test_script_inventory.py:1007`、`tests/test_season_close_schedule.py:187`、`tests/test_season_close_schedule.py:293`、`tests/test_season_reopen.py:341`、`tests/test_season_reopen_shell.py:42`、`tests/test_shell_help_guard.py:312`、`tests/test_shell_help_guard.py:384`、`tests/test_sync_table_column_guard.py:22`、`tests/test_team_comparison_only_mode.py:189`、`tests/test_team_comparison_only_mode.py:190`、`tests/test_verify_refresh_info.py:27`、`tests/wp6_393_support.py:219`、`tests/wp6_393_support.py:504`
+- **分段路徑**（`"scripts/" + name` 這類靜態解析不了的組裝）共 130 處，引用完整性檢查涵蓋不到，逐處列出：`docs/research/TIME-SEMANTICS-CONTRACT1/scan_time_semantics.py:149`、`scripts/data_rules_audit1.py:761`、`scripts/data_tie_remedy1.py:322`、`scripts/script_inventory.py:72`、`scripts/script_inventory.py:404`、`scripts/script_inventory.py:408`、`scripts/script_inventory.py:1094`、`scripts/script_inventory.py:1348`、`scripts/script_inventory.py:2044`、`src/cpbl/ingest/starter_watch.py:246`、`tests/test_alert_ping.py:23`、`tests/test_alert_watch.py:33`、`tests/test_alert_watch.py:34`、`tests/test_alert_watch.py:36`、`tests/test_alert_watch.py:493`、`tests/test_alert_watch.py:494`、`tests/test_alert_watch.py:500`、`tests/test_backup_prod_db.py:16`、`tests/test_backup_prod_db.py:186`、`tests/test_backup_prod_db.py:202`、`tests/test_backup_prod_db.py:251`、`tests/test_bio_gap2_backfill.py:19`、`tests/test_bio_gap_backfill.py:27`、`tests/test_boxpa_sync_mode.py:30`、`tests/test_boxpa_sync_mode.py:127`、`tests/test_boxpa_sync_mode.py:130`、`tests/test_boxpa_sync_mode.py:152`、`tests/test_daily_gate.py:365`、`tests/test_daily_gate.py:379`、`tests/test_daily_gate.py:386`、`tests/test_daily_gate.py:394`、`tests/test_daily_gate.py:442`、`tests/test_daily_gate.py:451`、`tests/test_daily_gate.py:975`、`tests/test_evening_night_backup.py:31`、`tests/test_evening_night_backup.py:32`、`tests/test_evening_night_backup.py:135`、`tests/test_evening_night_backup.py:136`、`tests/test_evening_night_backup.py:137`、`tests/test_evening_night_backup.py:149`、`tests/test_evening_night_backup.py:150`、`tests/test_evening_night_backup.py:155`、`tests/test_evening_night_backup.py:305`、`tests/test_evening_night_backup.py:308`、`tests/test_evening_night_backup.py:312`、`tests/test_evening_tm_recheck.py:154`、`tests/test_evening_tm_recheck.py:156`、`tests/test_evening_tm_recheck.py:162`、`tests/test_game_features_sync_443.py:45`、`tests/test_gamelog_reconcile.py:519`、`tests/test_gamelog_reconcile.py:520`、`tests/test_gamelog_reconcile.py:578`、`tests/test_linux_jobs_393.py:25`、`tests/test_linux_jobs_393.py:27`、`tests/test_mac_cutover_guard_393.py:23`、`tests/test_pa_sync_shell_353.py:95`、`tests/test_postseason_boxpa_stage.py:30`、`tests/test_postseason_boxpa_stage.py:380`、`tests/test_postseason_boxpa_stage.py:385`、`tests/test_postseason_boxpa_stage.py:396`、`tests/test_postseason_evening_sync.py:32`、`tests/test_postseason_evening_sync.py:33`、`tests/test_postseason_evening_sync.py:48`、`tests/test_postseason_evening_sync.py:75`、`tests/test_postseason_evening_sync.py:119`、`tests/test_postseason_evening_sync.py:214`、`tests/test_postseason_evening_sync.py:219`、`tests/test_postseason_evening_sync.py:231`、`tests/test_prod_availability_353.py:19`、`tests/test_prod_availability_353.py:241`、`tests/test_prod_availability_353.py:301`、`tests/test_prod_availability_353.py:568`、`tests/test_prod_sync_revision_seq.py:33`、`tests/test_prod_sync_revision_seq.py:200`、`tests/test_prod_sync_revision_seq.py:201`、`tests/test_prod_sync_revision_seq.py:202`、`tests/test_prod_sync_revision_seq.py:242`、`tests/test_refresh_info_cache_wait_353.py:15`、`tests/test_refresh_pitch_ingest.py:26`、`tests/test_refresh_remote_train.py:20`、`tests/test_refresh_status.py:29`、`tests/test_refresh_status.py:30`、`tests/test_refresh_status.py:31`、`tests/test_refresh_status.py:32`、`tests/test_refresh_status_alert.py:26`、`tests/test_refresh_status_alert.py:27`、`tests/test_refresh_status_alert.py:98`、`tests/test_refresh_status_alert.py:100`、`tests/test_refresh_status_alert.py:121`、`tests/test_refresh_status_alert.py:264`、`tests/test_schedule_watch.py:22`、`tests/test_schedule_watch.py:23`、`tests/test_schedule_watch.py:291`、`tests/test_schedule_watch.py:364`、`tests/test_scrape_daily.py:77`、`tests/test_scrape_daily.py:78`、`tests/test_scrape_daily.py:104`、`tests/test_scrape_daily.py:197`、`tests/test_scrape_daily.py:214`、`tests/test_scrape_daily.py:238`、`tests/test_scrape_daily.py:392`、`tests/test_scrape_daily.py:492`、`tests/test_scrape_daily.py:637`、`tests/test_scrape_daily.py:751`、`tests/test_scrape_daily.py:752`、`tests/test_scrape_daily.py:767`、`tests/test_script_inventory.py:249`、`tests/test_script_inventory.py:713`、`tests/test_script_inventory.py:727`、`tests/test_script_inventory.py:735`、`tests/test_script_inventory.py:743`、`tests/test_script_inventory.py:755`、`tests/test_script_inventory.py:808`、`tests/test_script_inventory.py:866`、`tests/test_script_inventory.py:871`、`tests/test_script_inventory.py:872`、`tests/test_script_inventory.py:873`、`tests/test_script_inventory.py:1009`、`tests/test_season_close_schedule.py:187`、`tests/test_season_close_schedule.py:293`、`tests/test_season_reopen.py:341`、`tests/test_season_reopen_shell.py:42`、`tests/test_shell_help_guard.py:312`、`tests/test_shell_help_guard.py:384`、`tests/test_sync_table_column_guard.py:22`、`tests/test_team_comparison_only_mode.py:189`、`tests/test_team_comparison_only_mode.py:190`、`tests/test_verify_refresh_info.py:27`、`tests/wp6_393_support.py:219`、`tests/wp6_393_support.py:504`
 

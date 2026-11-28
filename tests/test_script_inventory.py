@@ -57,9 +57,9 @@ def test_three_surfaces_are_enumerated_from_git_not_hand_listed() -> None:
         p for p in si._git_ls(si.SCRIPTS_GLOB) if Path(p).name not in si.NON_ENTRY_BASENAMES
     }
     assert by_surface["research"] == set(si._git_ls(si.RESEARCH_GLOB))
-    assert len(by_surface["cli"]) == 51, (
-        "pyproject [project.scripts] 應為 51 支（47＋#284 cpbl-roster＋#287 cpbl-build-team-comparison"
-        "＋#357 cpbl-check-livelog／cpbl-replay-livelog-extra）")
+    assert len(by_surface["cli"]) == 52, (
+        "pyproject [project.scripts] 應為 52 支（47＋#284 cpbl-roster＋#287 cpbl-build-team-comparison"
+        "＋#357 cpbl-check-livelog／cpbl-replay-livelog-extra＋#469 cpbl-champion-autofill）")
     assert len(entries) == sum(len(v) for v in by_surface.values())
 
 
@@ -973,15 +973,17 @@ def test_counts_reconcile_across_three_surfaces() -> None:
         "守衛只擋得住 --help、無參數仍直接寫生產）"
         "＋ 1（#457 WP1：docs/research/ISSUE-457/rebas_id_map.py，REBAS playerId ↔ 官方 acnt "
         "對照的一次性唯讀快照與純計算。住在自己卡的目錄裡，符合 oneshot 的位置規則）")
-    assert len(cli) == 51, (
+    assert len(cli) == 52, (
         "47 ＋ 1（#284 S03：cpbl-roster，季後 32 人資格名單的本機唯一會員 writer；"
         "放在 cpbl.ingest 底下以受 test_cli_help_guard 的 --help 零副作用探針涵蓋）"
         "＋ 1（#287 S06：cpbl-build-team-comparison，隊伍比較背景摘要的本機離線 builder；"
         "入口同樣放在 cpbl.ingest 底下以受 --help 零副作用探針涵蓋）"
         "＋ 2（#357 WP2：cpbl-check-livelog 唯讀檢查、cpbl-replay-livelog-extra 預設 dry-run 的"
-        "回補工具；同樣放在 cpbl.ingest 底下受 --help 探針涵蓋）")
-    assert len(scripts) + len(research) + len(cli) == 126 + len(pi_handoff), (
-        "#393 P1A：新增四個具名 Pi 常設模組；原三面合計維持 126 的核對基準。"
+        "回補工具；同樣放在 cpbl.ingest 底下受 --help 探針涵蓋）"
+        "＋ 1（#469 規劃修訂 r2：cpbl-champion-autofill，VPS timer 在 prod_cpbl_api 內執行的新球季冠軍補列；"
+        "刻意不 migrate，入口放在 cpbl.ingest 底下受 --help 零副作用探針涵蓋）")
+    assert len(scripts) + len(research) + len(cli) == 127 + len(pi_handoff), (
+        "#393 P1A：新增四個具名 Pi 常設模組；原三面合計 126 的核對基準＋1（#469 的 cpbl-champion-autofill CLI）。"
         "119＋1（#132 的量測工具）＋1（#100 的重測工具）＋1（#201 的收集工具）"
         "＋1（#268 的 postseason-evening.sh）＋1（#284 的 cpbl-roster CLI）"
         "＋1（#287 的 cpbl-build-team-comparison CLI）＋1（#353 的 prod_availability.py）"

@@ -1,0 +1,9 @@
+[Unit]
+Description=CPBL new-season champion autofill (#469; no migrate)
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/docker exec prod_cpbl_api cpbl-champion-autofill
+TimeoutStartSec=300
