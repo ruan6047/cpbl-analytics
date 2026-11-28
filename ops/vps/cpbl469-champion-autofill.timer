@@ -1,0 +1,11 @@
+[Unit]
+Description=Run the CPBL new-season champion autofill daily (#469)
+
+[Timer]
+OnCalendar=*-*-* 12:10:00 Asia/Taipei
+AccuracySec=1s
+Persistent=true
+Unit=cpbl469-champion-autofill.service
+
+[Install]
+WantedBy=timers.target
