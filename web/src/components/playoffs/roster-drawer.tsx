@@ -11,6 +11,7 @@ import {
   drawerState,
   drawerStatLine,
   drawerSubtitle,
+  openerHadVisibleFocus,
   playerHref,
   rosterPlayerPath,
   type RosterMember,
@@ -109,13 +110,20 @@ export function RosterDrawer({ member, scope = "background", year, series, secti
   useLayoutEffect(() => {
     const dialog = dialogRef.current!;
     unmounting.current = false;
+    // 開啟前先看開啟鈕是不是以鍵盤聚焦（showModal 之後焦點就移走了）。
+    const byKeyboard = openerHadVisibleFocus(document.activeElement);
     if (!dialog.open) dialog.showModal();
-    // showModal() 已把焦點給第一個可聚焦元素（＝關閉鈕），但 iOS Safari 會因此畫出 :focus-visible 環（改前點擊開啟時沒有）。
-    // 先 blur 再以 focusVisible:false 聚焦同一顆，照改前視覺不畫；鍵盤操作 Tab 移動後仍照常顯示。
+    // showModal() 已把焦點給第一個可聚焦元素（＝關閉鈕）。鍵盤開啟：保留，焦點環照常顯示。
+    // 滑鼠／觸控開啟：iOS Safari 會因 showModal 的聚焦畫出 :focus-visible 環（改前點擊開啟時沒有），
+    // 所以先 blur 再以 focusVisible:false 聚焦同一顆；之後鍵盤 Tab 移動仍照常顯示。
     // TS 的 lib.dom 尚未收這個 FocusOptions 欄位，故轉型。
     const close = closeRef.current;
-    close?.blur();
-    close?.focus({ focusVisible: false } as FocusOptions);
+    if (!byKeyboard) {
+      close?.blur();
+      close?.focus({ focusVisible: false } as FocusOptions);
+    } else if (document.activeElement !== close) {
+      close?.focus();
+    }
     return () => {
       unmounting.current = true;
       if (dialog.open) dialog.close();

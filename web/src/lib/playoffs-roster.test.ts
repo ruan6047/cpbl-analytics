@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { DRAWER_COPY, drawerState, pickAbility, playerHref, rosterPlayerPath,
+import { DRAWER_COPY, drawerState, openerHadVisibleFocus, pickAbility, playerHref, rosterPlayerPath,
   type RosterMember, type RosterPlayerDetail } from "./playoffs-roster.ts";
 
 // #286 S05 WP4：抽屜純邏輯（版本固定、能力卡取用、深讀連結）。DOM 行為另以實際瀏覽器驗；
@@ -38,4 +38,13 @@ test("深讀連結帶相同角色與層級；詳情路徑", () => {
   assert.equal(playerHref(m("D", "batting")), "/players/0000000001?scope=season&view=overview&role=batting&level=D");
   assert.equal(rosterPlayerPath(2026, "C", "0000000001"),
     "/api/v1/playoffs/roster/player?season=2026&series=C&player_id=0000000001");
+});
+
+test("開啟抽屜的焦點來源（#467 R1）：開啟鈕當下符合 :focus-visible（鍵盤）⇒ true；滑鼠／觸控／無焦點／不支援選擇器 ⇒ false", () => {
+  const el = (visible: boolean) => ({ matches: (sel: string) => sel === ":focus-visible" && visible }) as unknown as Element;
+  assert.equal(openerHadVisibleFocus(el(true)), true);
+  assert.equal(openerHadVisibleFocus(el(false)), false);
+  assert.equal(openerHadVisibleFocus(null), false);
+  const throws = { matches: () => { throw new SyntaxError("unsupported"); } } as unknown as Element;
+  assert.equal(openerHadVisibleFocus(throws), false);
 });
