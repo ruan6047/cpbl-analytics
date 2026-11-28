@@ -11,6 +11,7 @@ import { STATUS_COLORS } from "@/lib/chart-theme";
 import { type Ability, type CareerStats, type Role, IMPORT_BADGE, f3, numOf } from "./lib";
 import type { PlayerScope } from "./layers";
 import { TenureChips } from "./parts";
+import { StaffChampionshipTag } from "@/components/staff-championships";
 
 // 能力值卡跟隨全域 scope；該 scope 缺卡時退回可用尺度，role 缺卡再退回另一 role。
 export function selectAbility(ability: Ability | null, role: Role, dataTab: PlayerScope) {
@@ -205,7 +206,7 @@ export function PlayerHero({ profile, careerStats, ability, role, s, scope }: {
             </div>
           </div>
           {/* 得獎/國際賽：置於左欄底部（mt-auto 推到最下） */}
-          {((careerStats?.awards?.length ?? 0) > 0 || (careerStats?.medals?.length ?? 0) > 0 || (careerStats?.wiki_awards?.length ?? 0) > 0 || !!careerStats?.championships) && (
+          {((careerStats?.awards?.length ?? 0) > 0 || (careerStats?.medals?.length ?? 0) > 0 || (careerStats?.wiki_awards?.length ?? 0) > 0 || !!careerStats?.championships || (careerStats?.staff_championships?.items.length ?? 0) > 0) && (
             // 榮譽（#218 emoji 處置：🏆🏅 改文字身分標籤「總冠軍 ×2」，獎牌寫「銅牌」）
             <div className="mt-auto flex flex-wrap items-center gap-1.5 pt-3">
               {careerStats?.championships && (
@@ -214,6 +215,7 @@ export function PlayerHero({ profile, careerStats, ability, role, s, scope }: {
                   總冠軍 ×{careerStats.championships.count}
                 </span>
               )}
+              <StaffChampionshipTag data={careerStats?.staff_championships} />
               {(() => {
                 const grp = new Map<string, { label: string; years: number[] }>();
                 for (const a of careerStats?.awards ?? []) {

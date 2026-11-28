@@ -1,3 +1,4 @@
+import type { StaffChampionships } from "@/components/staff-championships";
 import type { PregameResponse } from "./pregame-card";
 import type { GameFacts } from "./game-facts";
 import type { GameStatusResponse, LiveApiResponse } from "./live-game";
@@ -190,6 +191,8 @@ export const detail = {
       best_p?: Record<string, { year: number; value: number } | null>;
       rank_p?: { w: number; sv: number; so: number } | null;
       championships?: { count: number; years: number[] } | null;
+      /** #470 教練團奪冠（獨立於 championships，不計入總冠軍次數）。 */
+      staff_championships?: StaffChampionships | null;
       teams?: { code: string; name: string; from: number; to: number }[];
       overseas?: { league: string; team: string | null; year: number }[];
       awards?: { year: number; category: string; award: string }[];

@@ -10,6 +10,7 @@ import { useEffect, useState } from "react";
 import { clientGet } from "@/lib/client";
 import { Card, EmptyState, Eyebrow, StatTile, TeamLogo } from "@/components/ui";
 import { DataTable, type Column } from "@/components/table";
+import { StaffChampionshipsSection, type StaffChampionships } from "@/components/staff-championships";
 
 type CoachData = {
   name: string;
@@ -20,6 +21,7 @@ type CoachData = {
     from_year: number | null; to_year: number | null; needs_review: boolean }[];
   player_id: string | null;
   player_ambiguous: boolean;
+  staff_championships?: StaffChampionships | null;
 };
 type UmpData = {
   name: string; season: number;
@@ -118,6 +120,8 @@ function CoachView({ d }: { d: CoachData }) {
           <DataTable columns={mcols} rows={d.manager_eras} rowKey={(r, i) => `${r.team_code}-${i}`} dense />
         </section>
       )}
+      <StaffChampionshipsSection data={d.staff_championships}
+        heading={<Eyebrow className="mb-3">教練團奪冠</Eyebrow>} />
       <section className="mb-8">
         <Eyebrow className="mb-3">生涯歷程</Eyebrow>
         <DataTable columns={cols} rows={d.history} rowKey={(r, i) => `${r.from_year}-${r.to_year}-${r.team_raw}-${i}`} dense
@@ -225,7 +229,10 @@ export default function PersonPage() {
 
   if (err) return <EmptyState>查無此人（kind 僅支援 coach / umpire）。</EmptyState>;
   if (kind === "coach" && coach) {
-    if (!coach.roles.length && !coach.manager_eras.length) return <EmptyState>查無此教練。</EmptyState>;
+    // #470：有教練團奪冠紀錄者（含退役純教練）也顯示個人頁；入口維持不變（D1）。
+    if (!coach.roles.length && !coach.manager_eras.length && !coach.staff_championships?.items.length) {
+      return <EmptyState>查無此教練。</EmptyState>;
+    }
     return <CoachView d={coach} />;
   }
   if (kind === "umpire" && ump) {

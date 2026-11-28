@@ -1,0 +1,5952 @@
+{
+ "schema_version": 1,
+ "through_year": 2025,
+ "generated_at": "2026-11-29T02:46:25+08:00",
+ "generator": {
+  "script": "scripts/build_championship_staff.py",
+  "commit": "e7960e0bd6fe77b6128d89dfa964be15573fe8ea"
+ },
+ "note": "名單取自台灣棒球維基館球隊年表與中文維基百科冠軍模板，不保證完整。",
+ "team_years": [
+  {
+   "year": 1990,
+   "champion_team_code": "AAA011",
+   "team_name": "味全龍",
+   "status": "listed",
+   "league_year_check": "職棒元年",
+   "sources": [
+    {
+     "site": "twbsball",
+     "title": "味全龍隊/味全龍隊的職棒元年",
+     "url": "https://twbsball.dils.tku.edu.tw/wiki/index.php/味全龍隊/味全龍隊的職棒元年",
+     "revid": 1359772,
+     "timestamp": "2022-06-27T23:23:29Z"
+    },
+    {
+     "site": "zhwiki",
+     "title": "Template:味全龍1990年中華職棒總冠軍",
+     "url": "https://zh.wikipedia.org/wiki/Template:味全龍1990年中華職棒總冠軍",
+     "revid": 89710835,
+     "timestamp": "2025-10-28T05:03:29Z"
+    }
+   ],
+   "suspected_copy_of": null,
+   "staff": [
+    {
+     "name": "張適閔",
+     "wiki_title": "張適閔",
+     "aliases": [],
+     "level": "未分層",
+     "title": "投捕教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "徐生明",
+     "wiki_title": "徐生明",
+     "aliases": [],
+     "level": "未分層",
+     "title": "投手教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    }
+   ]
+  },
+  {
+   "year": 1991,
+   "champion_team_code": "ADD011",
+   "team_name": "統一獅",
+   "status": "listed",
+   "league_year_check": "職棒二年",
+   "sources": [
+    {
+     "site": "twbsball",
+     "title": "統一獅隊/統一獅隊的職棒二年",
+     "url": "https://twbsball.dils.tku.edu.tw/wiki/index.php/統一獅隊/統一獅隊的職棒二年",
+     "revid": 1590448,
+     "timestamp": "2025-06-28T15:34:16Z"
+    },
+    {
+     "site": "zhwiki",
+     "title": "Template:統一獅1991年中華職棒總冠軍",
+     "url": "https://zh.wikipedia.org/wiki/Template:統一獅1991年中華職棒總冠軍",
+     "revid": 89710826,
+     "timestamp": "2025-10-28T05:03:03Z"
+    }
+   ],
+   "suspected_copy_of": null,
+   "staff": [
+    {
+     "name": "引地信之",
+     "wiki_title": "引地信之",
+     "aliases": [],
+     "level": "未分層",
+     "title": "打擊教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "李聰智",
+     "wiki_title": "李聰智",
+     "aliases": [],
+     "level": "未分層",
+     "title": "守備教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "蕭長滾",
+     "wiki_title": "蕭長滾",
+     "aliases": [],
+     "level": "未分層",
+     "title": null,
+     "sources": [
+      "twbsball"
+     ],
+     "single_source": true,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    }
+   ]
+  },
+  {
+   "year": 1992,
+   "champion_team_code": "ACC011",
+   "team_name": "兄弟象",
+   "status": "listed",
+   "league_year_check": "職棒三年",
+   "sources": [
+    {
+     "site": "twbsball",
+     "title": "兄弟象隊/兄弟象隊的職棒三年",
+     "url": "https://twbsball.dils.tku.edu.tw/wiki/index.php/兄弟象隊/兄弟象隊的職棒三年",
+     "revid": 1671632,
+     "timestamp": "2026-11-22T02:44:26Z"
+    },
+    {
+     "site": "zhwiki",
+     "title": "Template:兄弟象1992年中華職棒總冠軍",
+     "url": "https://zh.wikipedia.org/wiki/Template:兄弟象1992年中華職棒總冠軍",
+     "revid": 89710822,
+     "timestamp": "2025-10-28T05:02:36Z"
+    }
+   ],
+   "suspected_copy_of": null,
+   "staff": [
+    {
+     "name": "山根俊英",
+     "wiki_title": "山根俊英",
+     "aliases": [],
+     "level": "未分層",
+     "title": "投手教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "江仲豪",
+     "wiki_title": "江仲豪",
+     "aliases": [],
+     "level": "未分層",
+     "title": "打擊教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    }
+   ]
+  },
+  {
+   "year": 1993,
+   "champion_team_code": "ACC011",
+   "team_name": "兄弟象",
+   "status": "listed",
+   "league_year_check": "職棒4年",
+   "sources": [
+    {
+     "site": "twbsball",
+     "title": "兄弟象隊/兄弟象隊的職棒四年",
+     "url": "https://twbsball.dils.tku.edu.tw/wiki/index.php/兄弟象隊/兄弟象隊的職棒四年",
+     "revid": 1671634,
+     "timestamp": "2026-11-22T02:47:27Z"
+    },
+    {
+     "site": "zhwiki",
+     "title": "Template:兄弟象1993年中華職棒總冠軍",
+     "url": "https://zh.wikipedia.org/wiki/Template:兄弟象1993年中華職棒總冠軍",
+     "revid": 89710819,
+     "timestamp": "2025-10-28T05:02:09Z"
+    }
+   ],
+   "suspected_copy_of": null,
+   "staff": [
+    {
+     "name": "土居章助",
+     "wiki_title": "土居章助",
+     "aliases": [],
+     "level": "未分層",
+     "title": "打擊教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "森下正夫",
+     "wiki_title": null,
+     "aliases": [],
+     "level": "未分層",
+     "title": "首席教練",
+     "sources": [
+      "zhwiki"
+     ],
+     "single_source": true,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "江仲豪",
+     "wiki_title": "江仲豪",
+     "aliases": [],
+     "level": "未分層",
+     "title": "教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    }
+   ]
+  },
+  {
+   "year": 1994,
+   "champion_team_code": "ACC011",
+   "team_name": "兄弟象",
+   "status": "listed",
+   "league_year_check": "職棒五年",
+   "sources": [
+    {
+     "site": "twbsball",
+     "title": "兄弟象隊/兄弟象隊的職棒五年",
+     "url": "https://twbsball.dils.tku.edu.tw/wiki/index.php/兄弟象隊/兄弟象隊的職棒五年",
+     "revid": 1671635,
+     "timestamp": "2026-11-22T02:51:07Z"
+    },
+    {
+     "site": "zhwiki",
+     "title": "Template:兄弟象1994年中華職棒總冠軍",
+     "url": "https://zh.wikipedia.org/wiki/Template:兄弟象1994年中華職棒總冠軍",
+     "revid": 89710815,
+     "timestamp": "2025-10-28T05:01:18Z"
+    }
+   ],
+   "suspected_copy_of": 1993,
+   "staff": [
+    {
+     "name": "土居章助",
+     "wiki_title": "土居章助",
+     "aliases": [],
+     "level": "未分層",
+     "title": "打擊教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "江仲豪",
+     "wiki_title": "江仲豪",
+     "aliases": [],
+     "level": "未分層",
+     "title": "教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    }
+   ]
+  },
+  {
+   "year": 1995,
+   "champion_team_code": "ADD011",
+   "team_name": "統一獅",
+   "status": "listed",
+   "league_year_check": "職棒六年",
+   "sources": [
+    {
+     "site": "twbsball",
+     "title": "統一獅隊/統一獅隊的職棒六年",
+     "url": "https://twbsball.dils.tku.edu.tw/wiki/index.php/統一獅隊/統一獅隊的職棒六年",
+     "revid": 1657862,
+     "timestamp": "2026-09-02T08:59:29Z"
+    },
+    {
+     "site": "zhwiki",
+     "title": "Template:統一獅1995年中華職棒總冠軍",
+     "url": "https://zh.wikipedia.org/wiki/Template:統一獅1995年中華職棒總冠軍",
+     "revid": 89710810,
+     "timestamp": "2025-10-28T05:00:39Z"
+    }
+   ],
+   "suspected_copy_of": null,
+   "staff": [
+    {
+     "name": "井上修",
+     "wiki_title": "井上修",
+     "aliases": [],
+     "level": "未分層",
+     "title": "教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "呂文生",
+     "wiki_title": "呂文生",
+     "aliases": [],
+     "level": "未分層",
+     "title": null,
+     "sources": [
+      "twbsball"
+     ],
+     "single_source": true,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "杜福明",
+     "wiki_title": "杜福明",
+     "aliases": [],
+     "level": "未分層",
+     "title": null,
+     "sources": [
+      "twbsball"
+     ],
+     "single_source": true,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "町田行彥",
+     "wiki_title": "町田行彥",
+     "aliases": [],
+     "level": "未分層",
+     "title": "打擊教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "葉福榮",
+     "wiki_title": "葉福榮",
+     "aliases": [],
+     "level": "未分層",
+     "title": "體能教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    }
+   ]
+  },
+  {
+   "year": 1996,
+   "champion_team_code": "ADD011",
+   "team_name": "統一獅",
+   "status": "listed",
+   "league_year_check": "職棒七年",
+   "sources": [
+    {
+     "site": "twbsball",
+     "title": "統一獅隊/統一獅隊的職棒七年",
+     "url": "https://twbsball.dils.tku.edu.tw/wiki/index.php/統一獅隊/統一獅隊的職棒七年",
+     "revid": 1657863,
+     "timestamp": "2026-09-02T08:59:42Z"
+    },
+    {
+     "site": "zhwiki",
+     "title": "Template:統一獅1996年中華職棒總冠軍",
+     "url": "https://zh.wikipedia.org/wiki/Template:統一獅1996年中華職棒總冠軍",
+     "revid": 89710801,
+     "timestamp": "2025-10-28T04:59:24Z"
+    }
+   ],
+   "suspected_copy_of": null,
+   "staff": [
+    {
+     "name": "井上修",
+     "wiki_title": "井上修",
+     "aliases": [],
+     "level": "未分層",
+     "title": "教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "堀本律雄",
+     "wiki_title": "堀本律雄",
+     "aliases": [],
+     "level": "未分層",
+     "title": null,
+     "sources": [
+      "twbsball"
+     ],
+     "single_source": true,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "林家祥",
+     "wiki_title": "林家祥",
+     "aliases": [],
+     "level": "未分層",
+     "title": "教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "町田行彥",
+     "wiki_title": "町田行彥",
+     "aliases": [],
+     "level": "未分層",
+     "title": "打擊教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "葉福榮",
+     "wiki_title": "葉福榮",
+     "aliases": [],
+     "level": "未分層",
+     "title": "體能教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    }
+   ]
+  },
+  {
+   "year": 1997,
+   "champion_team_code": "AAA011",
+   "team_name": "味全龍",
+   "status": "listed",
+   "league_year_check": "職棒八年",
+   "sources": [
+    {
+     "site": "twbsball",
+     "title": "味全龍隊/味全龍隊的職棒八年",
+     "url": "https://twbsball.dils.tku.edu.tw/wiki/index.php/味全龍隊/味全龍隊的職棒八年",
+     "revid": 1248802,
+     "timestamp": "2021-04-11T14:13:46Z"
+    },
+    {
+     "site": "zhwiki",
+     "title": "Template:味全龍1997年中華職棒總冠軍",
+     "url": "https://zh.wikipedia.org/wiki/Template:味全龍1997年中華職棒總冠軍",
+     "revid": 89710797,
+     "timestamp": "2025-10-28T04:58:52Z"
+    }
+   ],
+   "suspected_copy_of": null,
+   "staff": [
+    {
+     "name": "大衛",
+     "wiki_title": "Daniel David",
+     "aliases": [],
+     "level": "未分層",
+     "title": "打擊教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "張聲鎮",
+     "wiki_title": "張聲鎮",
+     "aliases": [],
+     "level": "未分層",
+     "title": "體能教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "林琨瑋",
+     "wiki_title": "林琨瑋",
+     "aliases": [],
+     "level": "未分層",
+     "title": "助理投手教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "蕭良吉",
+     "wiki_title": "蕭良吉",
+     "aliases": [],
+     "level": "未分層",
+     "title": "教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "鄭幸生",
+     "wiki_title": "鄭幸生",
+     "aliases": [],
+     "level": "未分層",
+     "title": "教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "陽介仁",
+     "wiki_title": "陽介仁",
+     "aliases": [],
+     "level": "未分層",
+     "title": null,
+     "sources": [
+      "twbsball"
+     ],
+     "single_source": true,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    }
+   ]
+  },
+  {
+   "year": 1998,
+   "champion_team_code": "AAA011",
+   "team_name": "味全龍",
+   "status": "listed",
+   "league_year_check": "職棒九年",
+   "sources": [
+    {
+     "site": "twbsball",
+     "title": "味全龍隊/味全龍隊的職棒九年",
+     "url": "https://twbsball.dils.tku.edu.tw/wiki/index.php/味全龍隊/味全龍隊的職棒九年",
+     "revid": 1516524,
+     "timestamp": "2024-08-04T09:42:45Z"
+    },
+    {
+     "site": "zhwiki",
+     "title": "Template:味全龍1998年中華職棒總冠軍",
+     "url": "https://zh.wikipedia.org/wiki/Template:味全龍1998年中華職棒總冠軍",
+     "revid": 89710794,
+     "timestamp": "2025-10-28T04:58:10Z"
+    }
+   ],
+   "suspected_copy_of": null,
+   "staff": [
+    {
+     "name": "大衛",
+     "wiki_title": "Daniel David",
+     "aliases": [],
+     "level": "未分層",
+     "title": "打擊教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "張聲鎮",
+     "wiki_title": "張聲鎮",
+     "aliases": [],
+     "level": "未分層",
+     "title": "體能教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "蕭良吉",
+     "wiki_title": "蕭良吉",
+     "aliases": [],
+     "level": "未分層",
+     "title": "教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "鄭幸生",
+     "wiki_title": "鄭幸生",
+     "aliases": [],
+     "level": "未分層",
+     "title": "教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "陽介仁",
+     "wiki_title": "陽介仁",
+     "aliases": [],
+     "level": "未分層",
+     "title": null,
+     "sources": [
+      "twbsball"
+     ],
+     "single_source": true,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    }
+   ]
+  },
+  {
+   "year": 1999,
+   "champion_team_code": "AAA011",
+   "team_name": "味全龍",
+   "status": "listed",
+   "league_year_check": "職棒十年",
+   "sources": [
+    {
+     "site": "twbsball",
+     "title": "味全龍隊/味全龍隊的職棒十年",
+     "url": "https://twbsball.dils.tku.edu.tw/wiki/index.php/味全龍隊/味全龍隊的職棒十年",
+     "revid": 1519782,
+     "timestamp": "2024-08-23T10:39:42Z"
+    },
+    {
+     "site": "zhwiki",
+     "title": "Template:味全龍1999年中華職棒總冠軍",
+     "url": "https://zh.wikipedia.org/wiki/Template:味全龍1999年中華職棒總冠軍",
+     "revid": 89710788,
+     "timestamp": "2025-10-28T04:57:25Z"
+    }
+   ],
+   "suspected_copy_of": null,
+   "staff": [
+    {
+     "name": "劉志昇",
+     "wiki_title": "劉志昇",
+     "aliases": [],
+     "level": "未分層",
+     "title": "投手教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "寺岡孝",
+     "wiki_title": "寺岡孝",
+     "aliases": [],
+     "level": "未分層",
+     "title": "打擊教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "林光宏",
+     "wiki_title": null,
+     "aliases": [],
+     "level": "未分層",
+     "title": "投手教練",
+     "sources": [
+      "zhwiki"
+     ],
+     "single_source": true,
+     "supplement_urls": [
+      "https://twbsball.dils.tku.edu.tw/wiki/index.php/林光宏"
+     ],
+     "note": "台灣棒球維基館同頁原文：1999.01.04 領隊會議決議，前太陽隊投手教練林光宏回龍隊一案遭到封殺。；個人條目：中華職棒味全龍隊投手教練（1999年）",
+     "player_id": null
+    },
+    {
+     "name": "蕭良吉",
+     "wiki_title": "蕭良吉",
+     "aliases": [],
+     "level": "未分層",
+     "title": "教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "鄭幸生",
+     "wiki_title": "鄭幸生",
+     "aliases": [],
+     "level": "未分層",
+     "title": "教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    }
+   ]
+  },
+  {
+   "year": 2000,
+   "champion_team_code": "ADD011",
+   "team_name": "統一獅",
+   "status": "listed",
+   "league_year_check": "職棒11年",
+   "sources": [
+    {
+     "site": "twbsball",
+     "title": "統一獅隊/統一獅隊的職棒十一年",
+     "url": "https://twbsball.dils.tku.edu.tw/wiki/index.php/統一獅隊/統一獅隊的職棒十一年",
+     "revid": 1595214,
+     "timestamp": "2025-07-08T13:42:09Z"
+    },
+    {
+     "site": "zhwiki",
+     "title": "Template:統一獅2000年中華職棒總冠軍",
+     "url": "https://zh.wikipedia.org/wiki/Template:統一獅2000年中華職棒總冠軍",
+     "revid": 89710785,
+     "timestamp": "2025-10-28T04:56:47Z"
+    }
+   ],
+   "suspected_copy_of": null,
+   "staff": [
+    {
+     "name": "中本茂樹",
+     "wiki_title": "中本茂樹",
+     "aliases": [],
+     "level": "未分層",
+     "title": "投手教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "呂文生",
+     "wiki_title": "呂文生(1962)",
+     "aliases": [],
+     "level": "未分層",
+     "title": "守備教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "宋榮泰",
+     "wiki_title": "宋榮泰",
+     "aliases": [],
+     "level": "未分層",
+     "title": "守備教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "張聲鎮",
+     "wiki_title": "張聲鎮",
+     "aliases": [],
+     "level": "未分層",
+     "title": "體能教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "竹之內雅史",
+     "wiki_title": "竹之內雅史",
+     "aliases": [
+      "竹之内雅史"
+     ],
+     "level": "未分層",
+     "title": "打擊教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    }
+   ]
+  },
+  {
+   "year": 2001,
+   "champion_team_code": "ACC011",
+   "team_name": "兄弟象",
+   "status": "listed",
+   "league_year_check": "職棒12年",
+   "sources": [
+    {
+     "site": "twbsball",
+     "title": "兄弟象隊/兄弟象隊的職棒十二年",
+     "url": "https://twbsball.dils.tku.edu.tw/wiki/index.php/兄弟象隊/兄弟象隊的職棒十二年",
+     "revid": 1619316,
+     "timestamp": "2025-10-28T04:31:27Z"
+    },
+    {
+     "site": "zhwiki",
+     "title": "Template:兄弟象2001年中華職棒總冠軍",
+     "url": "https://zh.wikipedia.org/wiki/Template:兄弟象2001年中華職棒總冠軍",
+     "revid": 89710782,
+     "timestamp": "2025-10-28T04:56:16Z"
+    }
+   ],
+   "suspected_copy_of": null,
+   "staff": [
+    {
+     "name": "劉義傳",
+     "wiki_title": "劉義傳",
+     "aliases": [],
+     "level": "未分層",
+     "title": "投手教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [],
+     "note": "原文註「王光輝與劉義傳仍兼任球員」",
+     "player_id": null
+    },
+    {
+     "name": "吳思賢",
+     "wiki_title": "吳思賢(1963)",
+     "aliases": [],
+     "level": "未分層",
+     "title": "三壘手教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "吳聲武",
+     "wiki_title": "吳聲武",
+     "aliases": [],
+     "level": "未分層",
+     "title": "一壘手教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "林百亨",
+     "wiki_title": "林百亨",
+     "aliases": [],
+     "level": "未分層",
+     "title": "投捕教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "榊原良行",
+     "wiki_title": "榊原良行",
+     "aliases": [],
+     "level": "未分層",
+     "title": "內野守備教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "王光輝",
+     "wiki_title": "王光輝(1964)",
+     "aliases": [],
+     "level": "未分層",
+     "title": "打擊教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [],
+     "note": "原文註「王光輝與劉義傳仍兼任球員」",
+     "player_id": null
+    }
+   ]
+  },
+  {
+   "year": 2002,
+   "champion_team_code": "ACC011",
+   "team_name": "兄弟象",
+   "status": "listed",
+   "league_year_check": "職棒十三年",
+   "sources": [
+    {
+     "site": "twbsball",
+     "title": "兄弟象隊/兄弟象隊的職棒十三年",
+     "url": "https://twbsball.dils.tku.edu.tw/wiki/index.php/兄弟象隊/兄弟象隊的職棒十三年",
+     "revid": 1619310,
+     "timestamp": "2025-10-28T04:30:52Z"
+    },
+    {
+     "site": "zhwiki",
+     "title": "Template:兄弟象2002年中華職棒總冠軍",
+     "url": "https://zh.wikipedia.org/wiki/Template:兄弟象2002年中華職棒總冠軍",
+     "revid": 89710778,
+     "timestamp": "2025-10-28T04:55:49Z"
+    }
+   ],
+   "suspected_copy_of": 2001,
+   "staff": [
+    {
+     "name": "劉義傳",
+     "wiki_title": "劉義傳",
+     "aliases": [],
+     "level": "未分層",
+     "title": "投手教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [],
+     "note": "原文註「王光輝與劉義傳仍兼任球員」",
+     "player_id": null
+    },
+    {
+     "name": "吳思賢",
+     "wiki_title": "吳思賢(1963)",
+     "aliases": [],
+     "level": "未分層",
+     "title": "三壘手教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "吳聲武",
+     "wiki_title": "吳聲武",
+     "aliases": [],
+     "level": "未分層",
+     "title": "一壘手教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "林百亨",
+     "wiki_title": "林百亨",
+     "aliases": [],
+     "level": "未分層",
+     "title": "投捕教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "榊原良行",
+     "wiki_title": "榊原良行",
+     "aliases": [],
+     "level": "未分層",
+     "title": null,
+     "sources": [
+      "twbsball"
+     ],
+     "single_source": true,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "王光輝",
+     "wiki_title": "王光輝(1964)",
+     "aliases": [],
+     "level": "未分層",
+     "title": "打擊教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [],
+     "note": "原文註「王光輝與劉義傳仍兼任球員」",
+     "player_id": null
+    }
+   ]
+  },
+  {
+   "year": 2003,
+   "champion_team_code": "ACC011",
+   "team_name": "兄弟象",
+   "status": "listed",
+   "league_year_check": "職棒十四年",
+   "sources": [
+    {
+     "site": "twbsball",
+     "title": "兄弟象隊/兄弟象隊的職棒十四年",
+     "url": "https://twbsball.dils.tku.edu.tw/wiki/index.php/兄弟象隊/兄弟象隊的職棒十四年",
+     "revid": 1619309,
+     "timestamp": "2025-10-28T04:30:45Z"
+    },
+    {
+     "site": "zhwiki",
+     "title": "Template:兄弟象2003年中華職棒總冠軍",
+     "url": "https://zh.wikipedia.org/wiki/Template:兄弟象2003年中華職棒總冠軍",
+     "revid": 89710771,
+     "timestamp": "2025-10-28T04:55:09Z"
+    }
+   ],
+   "suspected_copy_of": 2002,
+   "staff": [
+    {
+     "name": "劉義傳",
+     "wiki_title": "劉義傳",
+     "aliases": [],
+     "level": "未分層",
+     "title": "投手教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [],
+     "note": "原文註「王光輝與劉義傳仍兼任球員」",
+     "player_id": null
+    },
+    {
+     "name": "吳思賢",
+     "wiki_title": "吳思賢(1963)",
+     "aliases": [],
+     "level": "未分層",
+     "title": "三壘手教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "吳聲武",
+     "wiki_title": "吳聲武",
+     "aliases": [],
+     "level": "未分層",
+     "title": null,
+     "sources": [
+      "twbsball"
+     ],
+     "single_source": true,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "林百亨",
+     "wiki_title": "林百亨",
+     "aliases": [],
+     "level": "未分層",
+     "title": "投捕教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "榊原良行",
+     "wiki_title": "榊原良行",
+     "aliases": [],
+     "level": "未分層",
+     "title": "首席教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "王光輝",
+     "wiki_title": "王光輝(1964)",
+     "aliases": [],
+     "level": "未分層",
+     "title": "打擊教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [],
+     "note": "原文註「王光輝與劉義傳仍兼任球員」",
+     "player_id": null
+    },
+    {
+     "name": "陳琦豐",
+     "wiki_title": null,
+     "aliases": [],
+     "level": "未分層",
+     "title": "一壘手教練",
+     "sources": [
+      "zhwiki"
+     ],
+     "single_source": true,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    }
+   ]
+  },
+  {
+   "year": 2004,
+   "champion_team_code": "AEG011",
+   "team_name": "興農牛",
+   "status": "listed",
+   "league_year_check": "職棒15年",
+   "sources": [
+    {
+     "site": "twbsball",
+     "title": "興農牛隊/興農牛隊的職棒九年",
+     "url": "https://twbsball.dils.tku.edu.tw/wiki/index.php/興農牛隊/興農牛隊的職棒九年",
+     "revid": 1657698,
+     "timestamp": "2026-09-01T09:24:29Z"
+    },
+    {
+     "site": "zhwiki",
+     "title": "Template:興農牛2004年中華職棒總冠軍",
+     "url": "https://zh.wikipedia.org/wiki/Template:興農牛2004年中華職棒總冠軍",
+     "revid": 89710770,
+     "timestamp": "2025-10-28T04:54:53Z"
+    }
+   ],
+   "suspected_copy_of": null,
+   "staff": [
+    {
+     "name": "泰迪",
+     "wiki_title": "泰迪",
+     "aliases": [],
+     "level": "未分層",
+     "title": "打擊教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "胡長豪",
+     "wiki_title": "胡長豪",
+     "aliases": [],
+     "level": "未分層",
+     "title": "外野教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "蔡重光",
+     "wiki_title": "蔡重光",
+     "aliases": [],
+     "level": "未分層",
+     "title": "投手教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "闕樹木",
+     "wiki_title": "闕樹木",
+     "aliases": [],
+     "level": "未分層",
+     "title": null,
+     "sources": [
+      "twbsball"
+     ],
+     "single_source": true,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "陳威成",
+     "wiki_title": "陳威成(1966)",
+     "aliases": [],
+     "level": "未分層",
+     "title": null,
+     "sources": [
+      "twbsball"
+     ],
+     "single_source": true,
+     "supplement_urls": [],
+     "note": "原文「總教練：陳威成-->劉榮華」",
+     "player_id": null
+    }
+   ]
+  },
+  {
+   "year": 2005,
+   "champion_team_code": "AEG011",
+   "team_name": "興農牛",
+   "status": "listed",
+   "league_year_check": "職棒16年",
+   "sources": [
+    {
+     "site": "twbsball",
+     "title": "興農牛隊/興農牛隊的職棒十年",
+     "url": "https://twbsball.dils.tku.edu.tw/wiki/index.php/興農牛隊/興農牛隊的職棒十年",
+     "revid": 1590163,
+     "timestamp": "2025-06-28T13:37:17Z"
+    },
+    {
+     "site": "zhwiki",
+     "title": "Template:興農牛2005年中華職棒總冠軍",
+     "url": "https://zh.wikipedia.org/wiki/Template:興農牛2005年中華職棒總冠軍",
+     "revid": 92249564,
+     "timestamp": "2026-04-11T21:34:03Z"
+    }
+   ],
+   "suspected_copy_of": null,
+   "staff": [
+    {
+     "name": "張文宗",
+     "wiki_title": "張文宗",
+     "aliases": [],
+     "level": "未分層",
+     "title": "打擊教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "胡長豪",
+     "wiki_title": "胡長豪",
+     "aliases": [],
+     "level": "未分層",
+     "title": "外野教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "蔡景峰",
+     "wiki_title": "蔡景峰",
+     "aliases": [],
+     "level": "未分層",
+     "title": null,
+     "sources": [
+      "twbsball"
+     ],
+     "single_source": true,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "闕樹木",
+     "wiki_title": null,
+     "aliases": [],
+     "level": "未分層",
+     "title": "內野守備教練",
+     "sources": [
+      "zhwiki"
+     ],
+     "single_source": true,
+     "supplement_urls": [
+      "https://twbsball.dils.tku.edu.tw/wiki/index.php/闕樹木"
+     ],
+     "note": "台灣棒球維基館同頁原文：球員轉教練：闕樹木(4月)、飛 勇(7月)、黃忠義(7月，仍兼球員)／04月20日 闕樹木轉任牛隊教練，生涯成績為打擊率2成31、197分打點、15支全壘打。；個人條目：中華職棒興農牛隊內野守備教練（2005年）",
+     "player_id": null
+    },
+    {
+     "name": "飛勇",
+     "wiki_title": null,
+     "aliases": [],
+     "level": "未分層",
+     "title": "投手教練",
+     "sources": [
+      "zhwiki"
+     ],
+     "single_source": true,
+     "supplement_urls": [
+      "https://twbsball.dils.tku.edu.tw/wiki/index.php/飛勇J.A"
+     ],
+     "note": "台灣棒球維基館同頁原文：球員轉教練：闕樹木(4月)、飛 勇(7月)、黃忠義(7月，仍兼球員)；個人條目：中華職棒興農牛隊投手教練（2005年）",
+     "player_id": null
+    }
+   ]
+  },
+  {
+   "year": 2006,
+   "champion_team_code": "AJK011",
+   "team_name": "La New熊",
+   "status": "listed",
+   "league_year_check": "職棒十七年",
+   "sources": [
+    {
+     "site": "twbsball",
+     "title": "La New熊隊/La New熊隊的職棒三年",
+     "url": "https://twbsball.dils.tku.edu.tw/wiki/index.php/La_New熊隊/La_New熊隊的職棒三年",
+     "revid": 1649789,
+     "timestamp": "2026-07-09T07:13:59Z"
+    },
+    {
+     "site": "zhwiki",
+     "title": "Template:La New熊2006年中華職棒總冠軍",
+     "url": "https://zh.wikipedia.org/wiki/Template:La_New熊2006年中華職棒總冠軍",
+     "revid": 89710751,
+     "timestamp": "2025-10-28T04:53:01Z"
+    }
+   ],
+   "suspected_copy_of": null,
+   "staff": [
+    {
+     "name": "呂明賜",
+     "wiki_title": "呂明賜",
+     "aliases": [],
+     "level": "一軍",
+     "title": "打擊教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "廖剛池",
+     "wiki_title": "廖剛池",
+     "aliases": [],
+     "level": "二軍",
+     "title": "投手教練",
+     "sources": [
+      "twbsball"
+     ],
+     "single_source": true,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "林光宏",
+     "wiki_title": "林光宏",
+     "aliases": [],
+     "level": "一軍",
+     "title": "投手教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "林振賢",
+     "wiki_title": "林振賢",
+     "aliases": [],
+     "level": "一軍",
+     "title": "外野兼跑壘教練",
+     "sources": [
+      "twbsball"
+     ],
+     "single_source": true,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "羅絜",
+     "wiki_title": "羅絜",
+     "aliases": [],
+     "level": "一軍",
+     "title": "體能教練",
+     "sources": [
+      "twbsball"
+     ],
+     "single_source": true,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "蔡昱詳",
+     "wiki_title": "蔡昱詳",
+     "aliases": [],
+     "level": "一軍",
+     "title": "守備教練",
+     "sources": [
+      "twbsball"
+     ],
+     "single_source": true,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "蔡榮宗",
+     "wiki_title": "蔡榮宗",
+     "aliases": [],
+     "level": "一軍",
+     "title": "首席教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "郭建霖",
+     "wiki_title": "郭建霖",
+     "aliases": [],
+     "level": "二軍",
+     "title": "總教練",
+     "sources": [
+      "twbsball"
+     ],
+     "single_source": true,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "陳該發",
+     "wiki_title": "陳該發",
+     "aliases": [],
+     "level": "二軍",
+     "title": "打擊教練",
+     "sources": [
+      "twbsball"
+     ],
+     "single_source": true,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    }
+   ]
+  },
+  {
+   "year": 2007,
+   "champion_team_code": "ADD011",
+   "team_name": "統一獅",
+   "status": "listed",
+   "league_year_check": "職棒18年",
+   "sources": [
+    {
+     "site": "twbsball",
+     "title": "統一獅隊/統一獅隊的職棒十八年",
+     "url": "https://twbsball.dils.tku.edu.tw/wiki/index.php/統一獅隊/統一獅隊的職棒十八年",
+     "revid": 1657699,
+     "timestamp": "2026-09-01T09:24:34Z"
+    },
+    {
+     "site": "zhwiki",
+     "title": "Template:統一獅2007年中華職棒總冠軍",
+     "url": "https://zh.wikipedia.org/wiki/Template:統一獅2007年中華職棒總冠軍",
+     "revid": 89710744,
+     "timestamp": "2025-10-28T04:52:32Z"
+    }
+   ],
+   "suspected_copy_of": null,
+   "staff": [
+    {
+     "name": "一色優",
+     "wiki_title": "一色優",
+     "aliases": [],
+     "level": "未分層",
+     "title": "體能教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "吳俊良",
+     "wiki_title": "吳俊良",
+     "aliases": [],
+     "level": "未分層",
+     "title": "投手教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "大橋穰",
+     "wiki_title": "大橋穰",
+     "aliases": [],
+     "level": "未分層",
+     "title": null,
+     "sources": [
+      "twbsball"
+     ],
+     "single_source": true,
+     "supplement_urls": [],
+     "note": "原文註「至4月」；原文「總教練：大橋穰(至4月)-->羅國璋(代理，4到6月)-->呂文生(6月起)」",
+     "player_id": null
+    },
+    {
+     "name": "張聲鎮",
+     "wiki_title": "張聲鎮",
+     "aliases": [],
+     "level": "未分層",
+     "title": "體能教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "羅國璋",
+     "wiki_title": "羅國璋",
+     "aliases": [],
+     "level": "未分層",
+     "title": "首席教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [],
+     "note": "原文註「代理，4到6月」；原文「總教練：大橋穰(至4月)-->羅國璋(代理，4到6月)-->呂文生(6月起)」",
+     "player_id": null
+    },
+    {
+     "name": "羅敏卿",
+     "wiki_title": "羅敏卿",
+     "aliases": [],
+     "level": "二軍",
+     "title": null,
+     "sources": [
+      "twbsball"
+     ],
+     "single_source": true,
+     "supplement_urls": [],
+     "note": "原文註「二軍教練」",
+     "player_id": null
+    }
+   ]
+  },
+  {
+   "year": 2008,
+   "champion_team_code": "ADD011",
+   "team_name": "統一7-ELEVEn獅",
+   "status": "listed",
+   "league_year_check": "職棒19年",
+   "sources": [
+    {
+     "site": "twbsball",
+     "title": "統一7-ELEVEn獅隊/統一7-ELEVEn獅隊的職棒十九年",
+     "url": "https://twbsball.dils.tku.edu.tw/wiki/index.php/統一7-ELEVEn獅隊/統一7-ELEVEn獅隊的職棒十九年",
+     "revid": 1649881,
+     "timestamp": "2026-07-09T07:42:08Z"
+    },
+    {
+     "site": "zhwiki",
+     "title": "Template:統一7-ELEVEn獅2008年中華職棒總冠軍",
+     "url": "https://zh.wikipedia.org/wiki/Template:統一7-ELEVEn獅2008年中華職棒總冠軍",
+     "revid": 89710743,
+     "timestamp": "2025-10-28T04:52:08Z"
+    }
+   ],
+   "suspected_copy_of": null,
+   "staff": [
+    {
+     "name": "一色優",
+     "wiki_title": "一色優",
+     "aliases": [],
+     "level": "未分層",
+     "title": "體能教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "吳佳榮",
+     "wiki_title": "吳佳榮",
+     "aliases": [],
+     "level": "未分層",
+     "title": "跑壘教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "吳俊良",
+     "wiki_title": "吳俊良",
+     "aliases": [],
+     "level": "未分層",
+     "title": null,
+     "sources": [
+      "twbsball"
+     ],
+     "single_source": true,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "安東尼",
+     "wiki_title": "安東尼",
+     "aliases": [],
+     "level": "未分層",
+     "title": null,
+     "sources": [
+      "twbsball"
+     ],
+     "single_source": true,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "張聲鎮",
+     "wiki_title": "張聲鎮",
+     "aliases": [],
+     "level": "未分層",
+     "title": "體能教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "法蘭克",
+     "wiki_title": "法蘭克",
+     "aliases": [],
+     "level": "未分層",
+     "title": "投手教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "羅國璋",
+     "wiki_title": "羅國璋",
+     "aliases": [],
+     "level": "未分層",
+     "title": "首席教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "羅敏卿",
+     "wiki_title": "羅敏卿",
+     "aliases": [],
+     "level": "二軍",
+     "title": null,
+     "sources": [
+      "twbsball"
+     ],
+     "single_source": true,
+     "supplement_urls": [],
+     "note": "原文註「二軍教練」",
+     "player_id": null
+    }
+   ]
+  },
+  {
+   "year": 2009,
+   "champion_team_code": "ADD011",
+   "team_name": "統一7-ELEVEn獅",
+   "status": "listed",
+   "league_year_check": "職棒20年",
+   "sources": [
+    {
+     "site": "twbsball",
+     "title": "統一7-ELEVEn獅隊/統一7-ELEVEn獅隊的職棒二十年",
+     "url": "https://twbsball.dils.tku.edu.tw/wiki/index.php/統一7-ELEVEn獅隊/統一7-ELEVEn獅隊的職棒二十年",
+     "revid": 1595362,
+     "timestamp": "2025-07-08T14:12:29Z"
+    },
+    {
+     "site": "zhwiki",
+     "title": "Template:統一7-ELEVEn獅2009年中華職棒總冠軍",
+     "url": "https://zh.wikipedia.org/wiki/Template:統一7-ELEVEn獅2009年中華職棒總冠軍",
+     "revid": 89710736,
+     "timestamp": "2025-10-28T04:51:26Z"
+    }
+   ],
+   "suspected_copy_of": null,
+   "staff": [
+    {
+     "name": "一色優",
+     "wiki_title": "一色優",
+     "aliases": [],
+     "level": "未分層",
+     "title": "體能教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "利弘揚",
+     "wiki_title": "利弘揚",
+     "aliases": [],
+     "level": "未分層",
+     "title": null,
+     "sources": [
+      "twbsball"
+     ],
+     "single_source": true,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "吳佳榮",
+     "wiki_title": "吳佳榮",
+     "aliases": [],
+     "level": "未分層",
+     "title": "跑壘教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "吳俊良",
+     "wiki_title": "吳俊良",
+     "aliases": [],
+     "level": "未分層",
+     "title": null,
+     "sources": [
+      "twbsball"
+     ],
+     "single_source": true,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "安東尼",
+     "wiki_title": null,
+     "aliases": [],
+     "level": "未分層",
+     "title": "打擊教練",
+     "sources": [
+      "zhwiki"
+     ],
+     "single_source": true,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "張聲鎮",
+     "wiki_title": "張聲鎮",
+     "aliases": [],
+     "level": "未分層",
+     "title": "體能教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "法蘭克",
+     "wiki_title": "法蘭克",
+     "aliases": [],
+     "level": "未分層",
+     "title": "投手教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "羅國璋",
+     "wiki_title": "羅國璋",
+     "aliases": [],
+     "level": "未分層",
+     "title": "首席教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "羅敏卿",
+     "wiki_title": "羅敏卿",
+     "aliases": [],
+     "level": "未分層",
+     "title": null,
+     "sources": [
+      "twbsball"
+     ],
+     "single_source": true,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    }
+   ]
+  },
+  {
+   "year": 2010,
+   "champion_team_code": "ACC011",
+   "team_name": "兄弟象",
+   "status": "listed",
+   "league_year_check": "職棒21年",
+   "sources": [
+    {
+     "site": "twbsball",
+     "title": "兄弟象隊/兄弟象隊的職棒二十一年",
+     "url": "https://twbsball.dils.tku.edu.tw/wiki/index.php/兄弟象隊/兄弟象隊的職棒二十一年",
+     "revid": 1625094,
+     "timestamp": "2025-11-23T13:59:33Z"
+    },
+    {
+     "site": "zhwiki",
+     "title": "Template:兄弟象2010年中華職棒總冠軍",
+     "url": "https://zh.wikipedia.org/wiki/Template:兄弟象2010年中華職棒總冠軍",
+     "revid": 92953371,
+     "timestamp": "2026-06-05T03:26:44Z"
+    }
+   ],
+   "suspected_copy_of": null,
+   "staff": [
+    {
+     "name": "曹竣崵",
+     "wiki_title": "曹竣崵",
+     "aliases": [
+      "曹竣揚"
+     ],
+     "level": "一軍",
+     "title": "投手教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "林明憲",
+     "wiki_title": "林明憲",
+     "aliases": [],
+     "level": "一軍",
+     "title": "一壘手教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "林百亨",
+     "wiki_title": "林百亨",
+     "aliases": [],
+     "level": "二軍",
+     "title": "總教練",
+     "sources": [
+      "twbsball"
+     ],
+     "single_source": true,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "王光輝",
+     "wiki_title": "王光輝(1964)",
+     "aliases": [],
+     "level": "二軍",
+     "title": null,
+     "sources": [
+      "twbsball"
+     ],
+     "single_source": true,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "王崇耀",
+     "wiki_title": "王崇耀",
+     "aliases": [],
+     "level": "一軍",
+     "title": "三壘手教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "許閔嵐",
+     "wiki_title": "許閔嵐",
+     "aliases": [],
+     "level": "一軍",
+     "title": "打擊教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "陳憲章",
+     "wiki_title": "陳憲章",
+     "aliases": [],
+     "level": "二軍",
+     "title": null,
+     "sources": [
+      "twbsball"
+     ],
+     "single_source": true,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "陳琦豐",
+     "wiki_title": "陳琦豐",
+     "aliases": [],
+     "level": "一軍",
+     "title": "板凳教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "陳瑞昌",
+     "wiki_title": "陳瑞昌",
+     "aliases": [],
+     "level": "一軍",
+     "title": "投捕教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "馮勝賢",
+     "wiki_title": "馮勝賢",
+     "aliases": [],
+     "level": "一軍",
+     "title": null,
+     "sources": [
+      "twbsball"
+     ],
+     "single_source": true,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    }
+   ]
+  },
+  {
+   "year": 2011,
+   "champion_team_code": "ADD011",
+   "team_name": "統一7-ELEVEn獅",
+   "status": "listed",
+   "league_year_check": "職棒22年",
+   "sources": [
+    {
+     "site": "twbsball",
+     "title": "統一7-ELEVEn獅隊/統一7-ELEVEn獅隊的職棒二十二年",
+     "url": "https://twbsball.dils.tku.edu.tw/wiki/index.php/統一7-ELEVEn獅隊/統一7-ELEVEn獅隊的職棒二十二年",
+     "revid": 1649893,
+     "timestamp": "2026-07-09T08:01:37Z"
+    },
+    {
+     "site": "zhwiki",
+     "title": "Template:統一7-ELEVEn獅2011年中華職棒總冠軍",
+     "url": "https://zh.wikipedia.org/wiki/Template:統一7-ELEVEn獅2011年中華職棒總冠軍",
+     "revid": 93510086,
+     "timestamp": "2026-07-17T02:59:22Z"
+    }
+   ],
+   "suspected_copy_of": null,
+   "staff": [
+    {
+     "name": "一色優",
+     "wiki_title": "一色優",
+     "aliases": [],
+     "level": "一軍",
+     "title": "體能教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "中島輝士",
+     "wiki_title": "中島輝士",
+     "aliases": [],
+     "level": "一軍",
+     "title": "打擊教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "吳佳榮",
+     "wiki_title": "吳佳榮",
+     "aliases": [],
+     "level": "一軍",
+     "title": "跑壘教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "吳志峯",
+     "wiki_title": "吳志峯",
+     "aliases": [],
+     "level": "二軍",
+     "title": null,
+     "sources": [
+      "twbsball"
+     ],
+     "single_source": true,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": "0000003165"
+    },
+    {
+     "name": "張聲鎮",
+     "wiki_title": "張聲鎮",
+     "aliases": [],
+     "level": "二軍",
+     "title": "體能教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [
+      "https://twbsball.dils.tku.edu.tw/wiki/index.php/張聲鎮"
+     ],
+     "note": "層級：台灣棒球維基館列二軍；中文維基百科列入冠軍模板（未分層）；個人條目：中華職棒統一獅隊→統一7-ELEVEn獅隊體能教練（1999年～2012年01月）",
+     "player_id": null
+    },
+    {
+     "name": "王子菘",
+     "wiki_title": "王子菘",
+     "aliases": [],
+     "level": "一軍",
+     "title": null,
+     "sources": [
+      "twbsball"
+     ],
+     "single_source": true,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "紀藤真琴",
+     "wiki_title": "紀藤真琴",
+     "aliases": [],
+     "level": "一軍",
+     "title": "投手教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "羅國璋",
+     "wiki_title": "羅國璋",
+     "aliases": [],
+     "level": "一軍",
+     "title": "首席教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "鄭博壬",
+     "wiki_title": "鄭博壬",
+     "aliases": [],
+     "level": "二軍",
+     "title": null,
+     "sources": [
+      "twbsball"
+     ],
+     "single_source": true,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "高政華",
+     "wiki_title": "高政華",
+     "aliases": [],
+     "level": "一軍",
+     "title": null,
+     "sources": [
+      "twbsball"
+     ],
+     "single_source": true,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "黃甘霖",
+     "wiki_title": "黃甘霖",
+     "aliases": [],
+     "level": "二軍",
+     "title": "總教練",
+     "sources": [
+      "twbsball"
+     ],
+     "single_source": true,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    }
+   ]
+  },
+  {
+   "year": 2012,
+   "champion_team_code": "AJK011",
+   "team_name": "Lamigo桃猿",
+   "status": "listed",
+   "league_year_check": "職棒23年",
+   "sources": [
+    {
+     "site": "twbsball",
+     "title": "Lamigo桃猿隊/Lamigo桃猿隊的職棒九年",
+     "url": "https://twbsball.dils.tku.edu.tw/wiki/index.php/Lamigo桃猿隊/Lamigo桃猿隊的職棒九年",
+     "revid": 1625072,
+     "timestamp": "2025-11-23T13:56:30Z"
+    },
+    {
+     "site": "zhwiki",
+     "title": "Template:Lamigo桃猿2012年中華職棒總冠軍",
+     "url": "https://zh.wikipedia.org/wiki/Template:Lamigo桃猿2012年中華職棒總冠軍",
+     "revid": 81753827,
+     "timestamp": "2024-03-03T03:13:15Z"
+    }
+   ],
+   "suspected_copy_of": null,
+   "staff": [
+    {
+     "name": "保羅",
+     "wiki_title": "柏克C.P",
+     "aliases": [],
+     "level": "二軍",
+     "title": "打擊教練",
+     "sources": [
+      "twbsball"
+     ],
+     "single_source": true,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "吳俊良",
+     "wiki_title": "吳俊良(1974)",
+     "aliases": [],
+     "level": "一軍",
+     "title": "投手教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "廖剛池",
+     "wiki_title": "廖剛池",
+     "aliases": [],
+     "level": "二軍",
+     "title": "投手教練",
+     "sources": [
+      "twbsball"
+     ],
+     "single_source": true,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "杜正文",
+     "wiki_title": "杜正文",
+     "aliases": [],
+     "level": "一軍",
+     "title": "體能教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "林振賢",
+     "wiki_title": "林振賢",
+     "aliases": [],
+     "level": "一軍",
+     "title": "三壘手教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "莊勝雄",
+     "wiki_title": "莊勝雄(1959)",
+     "aliases": [],
+     "level": "一軍",
+     "title": "投手教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "蔡昱詳",
+     "wiki_title": "蔡昱詳",
+     "aliases": [],
+     "level": "一軍",
+     "title": "一壘手教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "郭建霖",
+     "wiki_title": "郭建霖",
+     "aliases": [],
+     "level": "二軍",
+     "title": "總教練",
+     "sources": [
+      "twbsball"
+     ],
+     "single_source": true,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "陳該發",
+     "wiki_title": "陳該發",
+     "aliases": [],
+     "level": "一軍",
+     "title": "打擊教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    }
+   ]
+  },
+  {
+   "year": 2013,
+   "champion_team_code": "ADD011",
+   "team_name": "統一7-ELEVEn獅",
+   "status": "listed",
+   "league_year_check": "職棒24年",
+   "sources": [
+    {
+     "site": "twbsball",
+     "title": "統一7-ELEVEn獅隊/統一7-ELEVEn獅隊的職棒二十四年",
+     "url": "https://twbsball.dils.tku.edu.tw/wiki/index.php/統一7-ELEVEn獅隊/統一7-ELEVEn獅隊的職棒二十四年",
+     "revid": 1651130,
+     "timestamp": "2026-07-17T02:17:24Z"
+    },
+    {
+     "site": "zhwiki",
+     "title": "Template:統一7-ELEVEn獅2013年中華職棒總冠軍",
+     "url": "https://zh.wikipedia.org/wiki/Template:統一7-ELEVEn獅2013年中華職棒總冠軍",
+     "revid": 89710725,
+     "timestamp": "2025-10-28T04:50:09Z"
+    }
+   ],
+   "suspected_copy_of": null,
+   "staff": [
+    {
+     "name": "一色優",
+     "wiki_title": "一色優",
+     "aliases": [],
+     "level": "一軍",
+     "title": "體能教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "吳佳榮",
+     "wiki_title": "吳佳榮",
+     "aliases": [],
+     "level": "一軍",
+     "title": "跑壘教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "王子菘",
+     "wiki_title": "王子菘",
+     "aliases": [],
+     "level": "一軍",
+     "title": "守備教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "羅國璋",
+     "wiki_title": "羅國璋",
+     "aliases": [],
+     "level": "一軍",
+     "title": "首席教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "莊景賀",
+     "wiki_title": "莊景賀",
+     "aliases": [],
+     "level": "二軍",
+     "title": null,
+     "sources": [
+      "twbsball"
+     ],
+     "single_source": true,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "許聖杰",
+     "wiki_title": "許聖杰",
+     "aliases": [],
+     "level": "一軍",
+     "title": "守備教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "費古洛",
+     "wiki_title": "費古洛N.F",
+     "aliases": [],
+     "level": "一軍",
+     "title": null,
+     "sources": [
+      "twbsball"
+     ],
+     "single_source": true,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "鄭博壬",
+     "wiki_title": "鄭博壬",
+     "aliases": [],
+     "level": "一軍",
+     "title": "投手教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "高建三",
+     "wiki_title": "高建三",
+     "aliases": [],
+     "level": "一軍",
+     "title": null,
+     "sources": [
+      "twbsball"
+     ],
+     "single_source": true,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "高政華",
+     "wiki_title": "高政華",
+     "aliases": [],
+     "level": "一軍",
+     "title": "投捕教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "黃甘霖",
+     "wiki_title": "黃甘霖",
+     "aliases": [],
+     "level": "二軍",
+     "title": "總教練",
+     "sources": [
+      "twbsball"
+     ],
+     "single_source": true,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    }
+   ]
+  },
+  {
+   "year": 2014,
+   "champion_team_code": "AJK011",
+   "team_name": "Lamigo桃猿",
+   "status": "listed",
+   "league_year_check": "職棒25年",
+   "sources": [
+    {
+     "site": "twbsball",
+     "title": "Lamigo桃猿隊/Lamigo桃猿隊的職棒十一年",
+     "url": "https://twbsball.dils.tku.edu.tw/wiki/index.php/Lamigo桃猿隊/Lamigo桃猿隊的職棒十一年",
+     "revid": 1625062,
+     "timestamp": "2025-11-23T13:54:21Z"
+    },
+    {
+     "site": "zhwiki",
+     "title": "Template:Lamigo桃猿2014年中華職棒總冠軍",
+     "url": "https://zh.wikipedia.org/wiki/Template:Lamigo桃猿2014年中華職棒總冠軍",
+     "revid": 92727508,
+     "timestamp": "2026-05-20T10:22:06Z"
+    }
+   ],
+   "suspected_copy_of": null,
+   "staff": [
+    {
+     "name": "劉品辰",
+     "wiki_title": "劉品辰(1981)",
+     "aliases": [],
+     "level": "一軍",
+     "title": "體能教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "劉家豪",
+     "wiki_title": "劉家豪(1984)",
+     "aliases": [],
+     "level": "一軍",
+     "title": "助理教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "吳俊良",
+     "wiki_title": "吳俊良(1974)",
+     "aliases": [],
+     "level": "一軍",
+     "title": "投手教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "曾翊誠",
+     "wiki_title": "曾翊誠",
+     "aliases": [],
+     "level": "二軍",
+     "title": null,
+     "sources": [
+      "twbsball"
+     ],
+     "single_source": true,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "曾豪駒",
+     "wiki_title": "曾豪駒",
+     "aliases": [],
+     "level": "二軍",
+     "title": null,
+     "sources": [
+      "twbsball"
+     ],
+     "single_source": true,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "杜正文",
+     "wiki_title": "杜正文",
+     "aliases": [],
+     "level": "二軍",
+     "title": "體能教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [
+      "https://twbsball.dils.tku.edu.tw/wiki/index.php/杜正文"
+     ],
+     "note": "層級：台灣棒球維基館列二軍；中文維基百科列入冠軍模板（未分層）；個人條目：中華職棒La New熊隊→Lamigo桃猿隊體能教練（2010年～2017年）",
+     "player_id": null
+    },
+    {
+     "name": "林振賢",
+     "wiki_title": "林振賢",
+     "aliases": [],
+     "level": "一軍",
+     "title": "三壘手教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "葉君璋",
+     "wiki_title": null,
+     "aliases": [],
+     "level": "未分層",
+     "title": "綜合教練",
+     "sources": [
+      "zhwiki"
+     ],
+     "single_source": true,
+     "supplement_urls": [
+      "https://twbsball.dils.tku.edu.tw/wiki/index.php/葉君璋"
+     ],
+     "note": "台灣棒球維基館同頁原文：2014.01.10 邀請前味全龍隊、興農牛隊、兄弟象隊鐵捕，現美國職棒印地安人隊小聯盟的投捕教練葉君璋擔任春訓客座教練。；個人條目：中華職棒Lamigo桃猿隊客座教練（2014年01月）／中華職棒Lamigo桃猿隊客座教練（2014年10月～2014年11月）",
+     "player_id": null
+    },
+    {
+     "name": "蔡昱詳",
+     "wiki_title": "蔡昱詳",
+     "aliases": [],
+     "level": "一軍",
+     "title": "一壘教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "郭建霖",
+     "wiki_title": "郭建霖",
+     "aliases": [],
+     "level": "二軍",
+     "title": "總教練",
+     "sources": [
+      "twbsball"
+     ],
+     "single_source": true,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "陳該發",
+     "wiki_title": "陳該發",
+     "aliases": [],
+     "level": "一軍",
+     "title": "打擊教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    }
+   ]
+  },
+  {
+   "year": 2015,
+   "champion_team_code": "AJK011",
+   "team_name": "Lamigo桃猿",
+   "status": "listed",
+   "league_year_check": "職棒26年",
+   "sources": [
+    {
+     "site": "twbsball",
+     "title": "Lamigo桃猿隊/Lamigo桃猿隊的職棒十二年",
+     "url": "https://twbsball.dils.tku.edu.tw/wiki/index.php/Lamigo桃猿隊/Lamigo桃猿隊的職棒十二年",
+     "revid": 1625092,
+     "timestamp": "2025-11-23T13:59:22Z"
+    },
+    {
+     "site": "zhwiki",
+     "title": "Template:Lamigo桃猿2015年中華職棒總冠軍",
+     "url": "https://zh.wikipedia.org/wiki/Template:Lamigo桃猿2015年中華職棒總冠軍",
+     "revid": 92727522,
+     "timestamp": "2026-05-20T10:22:43Z"
+    }
+   ],
+   "suspected_copy_of": 2014,
+   "staff": [
+    {
+     "name": "劉品辰",
+     "wiki_title": "劉品辰(1981)",
+     "aliases": [],
+     "level": "一軍",
+     "title": "體能教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "劉家豪",
+     "wiki_title": "劉家豪(1984)",
+     "aliases": [],
+     "level": "一軍",
+     "title": "助理教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "吳俊良",
+     "wiki_title": "吳俊良(1974)",
+     "aliases": [],
+     "level": "一軍",
+     "title": "投手教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "曾翊誠",
+     "wiki_title": "曾翊誠",
+     "aliases": [],
+     "level": "二軍",
+     "title": null,
+     "sources": [
+      "twbsball"
+     ],
+     "single_source": true,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "曾豪駒",
+     "wiki_title": "曾豪駒",
+     "aliases": [],
+     "level": "一軍",
+     "title": "打擊教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "杜正文",
+     "wiki_title": "杜正文",
+     "aliases": [],
+     "level": "二軍",
+     "title": "體能教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [
+      "https://twbsball.dils.tku.edu.tw/wiki/index.php/杜正文"
+     ],
+     "note": "層級：台灣棒球維基館列二軍；中文維基百科列入冠軍模板（未分層）；個人條目：中華職棒La New熊隊→Lamigo桃猿隊體能教練（2010年～2017年）",
+     "player_id": null
+    },
+    {
+     "name": "林振賢",
+     "wiki_title": "林振賢",
+     "aliases": [],
+     "level": "一軍",
+     "title": "三壘教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "蔡昱詳",
+     "wiki_title": "蔡昱詳",
+     "aliases": [],
+     "level": "一軍",
+     "title": "一壘教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "郭建霖",
+     "wiki_title": "郭建霖",
+     "aliases": [],
+     "level": "二軍",
+     "title": "總教練",
+     "sources": [
+      "twbsball"
+     ],
+     "single_source": true,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "陳該發",
+     "wiki_title": "陳該發",
+     "aliases": [],
+     "level": "二軍",
+     "title": null,
+     "sources": [
+      "twbsball"
+     ],
+     "single_source": true,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    }
+   ]
+  },
+  {
+   "year": 2016,
+   "champion_team_code": "AEM011",
+   "team_name": "義大犀牛",
+   "status": "listed",
+   "league_year_check": "職棒27年",
+   "sources": [
+    {
+     "site": "twbsball",
+     "title": "義大犀牛隊/義大犀牛隊的職棒四年",
+     "url": "https://twbsball.dils.tku.edu.tw/wiki/index.php/義大犀牛隊/義大犀牛隊的職棒四年",
+     "revid": 1593341,
+     "timestamp": "2025-07-05T09:48:41Z"
+    },
+    {
+     "site": "zhwiki",
+     "title": "Template:義大犀牛2016年中華職棒總冠軍",
+     "url": "https://zh.wikipedia.org/wiki/Template:義大犀牛2016年中華職棒總冠軍",
+     "revid": 86996135,
+     "timestamp": "2025-04-26T05:36:54Z"
+    }
+   ],
+   "suspected_copy_of": null,
+   "staff": [
+    {
+     "name": "余文彬",
+     "wiki_title": "余文彬(1978)",
+     "aliases": [],
+     "level": "一軍",
+     "title": "投手教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "劉榮華",
+     "wiki_title": "劉榮華",
+     "aliases": [],
+     "level": "一軍",
+     "title": "首席教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "張家浩",
+     "wiki_title": "張家浩",
+     "aliases": [],
+     "level": "一軍",
+     "title": "守備兼跑壘教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "施金典",
+     "wiki_title": "施金典",
+     "aliases": [],
+     "level": "二軍",
+     "title": null,
+     "sources": [
+      "twbsball"
+     ],
+     "single_source": true,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "曹竣崵",
+     "wiki_title": "曹竣崵",
+     "aliases": [
+      "曹竣揚"
+     ],
+     "level": "二軍",
+     "title": null,
+     "sources": [
+      "twbsball"
+     ],
+     "single_source": true,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "林宗男",
+     "wiki_title": "林宗男",
+     "aliases": [],
+     "level": "二軍",
+     "title": null,
+     "sources": [
+      "twbsball"
+     ],
+     "single_source": true,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "江奕昌",
+     "wiki_title": "江奕昌",
+     "aliases": [],
+     "level": "一軍",
+     "title": "體能教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "沈鈺傑",
+     "wiki_title": null,
+     "aliases": [],
+     "level": "未分層",
+     "title": "牛棚教練",
+     "sources": [
+      "zhwiki"
+     ],
+     "single_source": true,
+     "supplement_urls": [
+      "https://twbsball.dils.tku.edu.tw/wiki/index.php/沈鈺傑"
+     ],
+     "note": "台灣棒球維基館同頁原文：…正豐、羅華韋、黃亦志、蕭一傑、 陳煥揚、張耀文、彭世杰、范玉禹、賴鴻誠、黃勝雄、沈鈺傑、陳冠儒、黃柏揚、林政賢、 郭勝安、黃思漢、許文錚、簡嘉佑、林羿豪。；個人條目：中華職棒義大犀牛隊兼任牛棚教練（2016年07月～2016年10月）",
+     "player_id": null
+    },
+    {
+     "name": "羅博特",
+     "wiki_title": "羅博特R.E",
+     "aliases": [],
+     "level": "一軍",
+     "title": null,
+     "sources": [
+      "twbsball"
+     ],
+     "single_source": true,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "許國隆",
+     "wiki_title": "許國隆",
+     "aliases": [],
+     "level": "二軍",
+     "title": "總教練",
+     "sources": [
+      "twbsball"
+     ],
+     "single_source": true,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "郭勝安",
+     "wiki_title": "郭勝安",
+     "aliases": [],
+     "level": "二軍",
+     "title": null,
+     "sources": [
+      "twbsball"
+     ],
+     "single_source": true,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "鄭兆行",
+     "wiki_title": "鄭兆行",
+     "aliases": [],
+     "level": "一軍",
+     "title": "內野教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "陳威志",
+     "wiki_title": null,
+     "aliases": [],
+     "level": "未分層",
+     "title": "外野教練",
+     "sources": [
+      "zhwiki"
+     ],
+     "single_source": true,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "陳該發",
+     "wiki_title": "陳該發",
+     "aliases": [],
+     "level": "一軍",
+     "title": "打擊教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    }
+   ]
+  },
+  {
+   "year": 2017,
+   "champion_team_code": "AJK011",
+   "team_name": "Lamigo桃猿",
+   "status": "listed",
+   "league_year_check": "職棒28年",
+   "sources": [
+    {
+     "site": "twbsball",
+     "title": "Lamigo桃猿隊/Lamigo桃猿隊的職棒十四年",
+     "url": "https://twbsball.dils.tku.edu.tw/wiki/index.php/Lamigo桃猿隊/Lamigo桃猿隊的職棒十四年",
+     "revid": 1593364,
+     "timestamp": "2025-07-05T09:55:39Z"
+    },
+    {
+     "site": "zhwiki",
+     "title": "Template:Lamigo桃猿2017年中華職棒總冠軍",
+     "url": "https://zh.wikipedia.org/wiki/Template:Lamigo桃猿2017年中華職棒總冠軍",
+     "revid": 85939989,
+     "timestamp": "2025-02-03T06:40:50Z"
+    }
+   ],
+   "suspected_copy_of": null,
+   "staff": [
+    {
+     "name": "劉品辰",
+     "wiki_title": "劉品辰(1981)",
+     "aliases": [],
+     "level": "一軍",
+     "title": "體能教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "劉家豪",
+     "wiki_title": "劉家豪(1984)",
+     "aliases": [],
+     "level": "一軍",
+     "title": "投捕教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "吳俊良",
+     "wiki_title": "吳俊良(1974)",
+     "aliases": [],
+     "level": "一軍",
+     "title": "投手教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "曾翊誠",
+     "wiki_title": "曾翊誠",
+     "aliases": [],
+     "level": "二軍",
+     "title": null,
+     "sources": [
+      "twbsball"
+     ],
+     "single_source": true,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "曾豪駒",
+     "wiki_title": "曾豪駒",
+     "aliases": [],
+     "level": "一軍",
+     "title": "打擊教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "杉山賢人",
+     "wiki_title": "杉山賢人",
+     "aliases": [],
+     "level": "二軍",
+     "title": null,
+     "sources": [
+      "twbsball"
+     ],
+     "single_source": true,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "杜正文",
+     "wiki_title": "杜正文",
+     "aliases": [],
+     "level": "二軍",
+     "title": null,
+     "sources": [
+      "twbsball"
+     ],
+     "single_source": true,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "林振賢",
+     "wiki_title": "林振賢",
+     "aliases": [],
+     "level": "一軍",
+     "title": "首席兼外野教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "林敬民",
+     "wiki_title": "林敬民",
+     "aliases": [],
+     "level": "二軍",
+     "title": null,
+     "sources": [
+      "twbsball"
+     ],
+     "single_source": true,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "洪全億",
+     "wiki_title": "洪全億",
+     "aliases": [],
+     "level": "一軍",
+     "title": "體能教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "蔡建偉",
+     "wiki_title": "蔡建偉",
+     "aliases": [],
+     "level": "二軍",
+     "title": null,
+     "sources": [
+      "twbsball"
+     ],
+     "single_source": true,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "蔡昱詳",
+     "wiki_title": "蔡昱詳",
+     "aliases": [],
+     "level": "一軍",
+     "title": "守備教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "許躍騰",
+     "wiki_title": "許躍騰",
+     "aliases": [],
+     "level": "二軍",
+     "title": null,
+     "sources": [
+      "twbsball"
+     ],
+     "single_source": true,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "郭建霖",
+     "wiki_title": "郭建霖",
+     "aliases": [],
+     "level": "二軍",
+     "title": "總教練",
+     "sources": [
+      "twbsball"
+     ],
+     "single_source": true,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    }
+   ]
+  },
+  {
+   "year": 2018,
+   "champion_team_code": "AJK011",
+   "team_name": "Lamigo桃猿",
+   "status": "listed",
+   "league_year_check": "職棒29年",
+   "sources": [
+    {
+     "site": "twbsball",
+     "title": "Lamigo桃猿隊/Lamigo桃猿隊的職棒十五年",
+     "url": "https://twbsball.dils.tku.edu.tw/wiki/index.php/Lamigo桃猿隊/Lamigo桃猿隊的職棒十五年",
+     "revid": 1620413,
+     "timestamp": "2025-11-01T15:37:27Z"
+    },
+    {
+     "site": "zhwiki",
+     "title": "Template:Lamigo桃猿2018年中華職棒總冠軍",
+     "url": "https://zh.wikipedia.org/wiki/Template:Lamigo桃猿2018年中華職棒總冠軍",
+     "revid": 80579268,
+     "timestamp": "2024-01-21T03:09:04Z"
+    }
+   ],
+   "suspected_copy_of": null,
+   "staff": [
+    {
+     "name": "劉品辰",
+     "wiki_title": "劉品辰(1981)",
+     "aliases": [],
+     "level": "一軍",
+     "title": "體能教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "劉家豪",
+     "wiki_title": "劉家豪(1984)",
+     "aliases": [],
+     "level": "一軍",
+     "title": "投捕教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "吳俊良",
+     "wiki_title": "吳俊良(1974)",
+     "aliases": [],
+     "level": "一軍",
+     "title": "投手教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "曾翊誠",
+     "wiki_title": "曾翊誠",
+     "aliases": [],
+     "level": "一軍",
+     "title": null,
+     "sources": [
+      "twbsball"
+     ],
+     "single_source": true,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "曾豪駒",
+     "wiki_title": "曾豪駒",
+     "aliases": [],
+     "level": "一軍",
+     "title": "打擊教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "杜正文",
+     "wiki_title": "杜正文",
+     "aliases": [],
+     "level": "二軍",
+     "title": null,
+     "sources": [
+      "twbsball"
+     ],
+     "single_source": true,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "林振賢",
+     "wiki_title": "林振賢",
+     "aliases": [],
+     "level": "二軍",
+     "title": "總教練",
+     "sources": [
+      "twbsball"
+     ],
+     "single_source": true,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "林敬民",
+     "wiki_title": "林敬民",
+     "aliases": [],
+     "level": "二軍",
+     "title": null,
+     "sources": [
+      "twbsball"
+     ],
+     "single_source": true,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "洪全億",
+     "wiki_title": "洪全億",
+     "aliases": [],
+     "level": "一軍",
+     "title": "體能教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "蔡建偉",
+     "wiki_title": "蔡建偉",
+     "aliases": [],
+     "level": "二軍",
+     "title": null,
+     "sources": [
+      "twbsball"
+     ],
+     "single_source": true,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "蔡昱詳",
+     "wiki_title": "蔡昱詳",
+     "aliases": [],
+     "level": "一軍",
+     "title": "守備教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "許躍騰",
+     "wiki_title": "許躍騰",
+     "aliases": [],
+     "level": "二軍",
+     "title": null,
+     "sources": [
+      "twbsball"
+     ],
+     "single_source": true,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "郭建霖",
+     "wiki_title": "郭建霖",
+     "aliases": [],
+     "level": "一軍",
+     "title": "首席教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "陳雁風",
+     "wiki_title": "陳雁風",
+     "aliases": [],
+     "level": "二軍",
+     "title": null,
+     "sources": [
+      "twbsball"
+     ],
+     "single_source": true,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    }
+   ]
+  },
+  {
+   "year": 2019,
+   "champion_team_code": "AJK011",
+   "team_name": "Lamigo桃猿",
+   "status": "listed",
+   "league_year_check": "職棒30年",
+   "sources": [
+    {
+     "site": "twbsball",
+     "title": "Lamigo桃猿隊/Lamigo桃猿隊的職棒十六年",
+     "url": "https://twbsball.dils.tku.edu.tw/wiki/index.php/Lamigo桃猿隊/Lamigo桃猿隊的職棒十六年",
+     "revid": 1620519,
+     "timestamp": "2025-11-01T16:14:20Z"
+    },
+    {
+     "site": "zhwiki",
+     "title": "Template:Lamigo桃猿2019年中華職棒總冠軍",
+     "url": "https://zh.wikipedia.org/wiki/Template:Lamigo桃猿2019年中華職棒總冠軍",
+     "revid": 80579269,
+     "timestamp": "2024-01-21T03:09:09Z"
+    }
+   ],
+   "suspected_copy_of": 2018,
+   "staff": [
+    {
+     "name": "劉品辰",
+     "wiki_title": "劉品辰(1981)",
+     "aliases": [],
+     "level": "一軍",
+     "title": "體能教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "劉家豪",
+     "wiki_title": "劉家豪(1984)",
+     "aliases": [],
+     "level": "一軍",
+     "title": "投捕教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "吳俊良",
+     "wiki_title": "吳俊良(1974)",
+     "aliases": [],
+     "level": "一軍",
+     "title": "投手教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "曾翊誠",
+     "wiki_title": "曾翊誠",
+     "aliases": [],
+     "level": "一軍",
+     "title": "牛棚教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "曾豪駒",
+     "wiki_title": "曾豪駒",
+     "aliases": [],
+     "level": "一軍",
+     "title": "打擊教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "杜正文",
+     "wiki_title": "杜正文",
+     "aliases": [],
+     "level": "二軍",
+     "title": null,
+     "sources": [
+      "twbsball"
+     ],
+     "single_source": true,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "林振賢",
+     "wiki_title": "林振賢",
+     "aliases": [],
+     "level": "二軍",
+     "title": "總教練",
+     "sources": [
+      "twbsball"
+     ],
+     "single_source": true,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "林敬民",
+     "wiki_title": "林敬民",
+     "aliases": [],
+     "level": "二軍",
+     "title": null,
+     "sources": [
+      "twbsball"
+     ],
+     "single_source": true,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "洪全億",
+     "wiki_title": "洪全億",
+     "aliases": [],
+     "level": "一軍",
+     "title": "體能教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "蔡建偉",
+     "wiki_title": "蔡建偉",
+     "aliases": [],
+     "level": "二軍",
+     "title": null,
+     "sources": [
+      "twbsball"
+     ],
+     "single_source": true,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "蔡昱詳",
+     "wiki_title": "蔡昱詳",
+     "aliases": [],
+     "level": "一軍",
+     "title": "守備教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "許躍騰",
+     "wiki_title": "許躍騰",
+     "aliases": [],
+     "level": "二軍",
+     "title": null,
+     "sources": [
+      "twbsball"
+     ],
+     "single_source": true,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "郭建霖",
+     "wiki_title": "郭建霖",
+     "aliases": [],
+     "level": "一軍",
+     "title": "首席教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "陳雁風",
+     "wiki_title": "陳雁風",
+     "aliases": [],
+     "level": "二軍",
+     "title": null,
+     "sources": [
+      "twbsball"
+     ],
+     "single_source": true,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    }
+   ]
+  },
+  {
+   "year": 2020,
+   "champion_team_code": "ADD011",
+   "team_name": "統一7-ELEVEn獅",
+   "status": "listed",
+   "league_year_check": "職棒31年",
+   "sources": [
+    {
+     "site": "twbsball",
+     "title": "統一7-ELEVEn獅隊/統一7-ELEVEn獅隊的職棒三十一年",
+     "url": "https://twbsball.dils.tku.edu.tw/wiki/index.php/統一7-ELEVEn獅隊/統一7-ELEVEn獅隊的職棒三十一年",
+     "revid": 1651155,
+     "timestamp": "2026-07-17T02:20:49Z"
+    },
+    {
+     "site": "zhwiki",
+     "title": "Template:統一7-ELEVEn獅2020年中華職棒總冠軍",
+     "url": "https://zh.wikipedia.org/wiki/Template:統一7-ELEVEn獅2020年中華職棒總冠軍",
+     "revid": 89710705,
+     "timestamp": "2025-10-28T04:46:58Z"
+    }
+   ],
+   "suspected_copy_of": null,
+   "staff": [
+    {
+     "name": "凃壯勳",
+     "wiki_title": "凃壯勳",
+     "aliases": [
+      "涂壯勳"
+     ],
+     "level": "一軍",
+     "title": "體能教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "劉育辰",
+     "wiki_title": "劉育辰",
+     "aliases": [],
+     "level": "一軍",
+     "title": "打擊教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "周廣勝",
+     "wiki_title": "周廣勝",
+     "aliases": [],
+     "level": "一軍",
+     "title": "內野教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "林偉",
+     "wiki_title": "林偉(1986)",
+     "aliases": [],
+     "level": "二軍",
+     "title": null,
+     "sources": [
+      "twbsball"
+     ],
+     "single_source": true,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "納瓦洛",
+     "wiki_title": "納瓦洛J.N",
+     "aliases": [],
+     "level": "一軍",
+     "title": null,
+     "sources": [
+      "twbsball"
+     ],
+     "single_source": true,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "羅錦龍",
+     "wiki_title": null,
+     "aliases": [],
+     "level": "未分層",
+     "title": "牛棚教練",
+     "sources": [
+      "zhwiki"
+     ],
+     "single_source": true,
+     "supplement_urls": [
+      "https://twbsball.dils.tku.edu.tw/wiki/index.php/羅錦龍"
+     ],
+     "note": "台灣棒球維基館同頁原文：傅于剛、林威志、施子謙、賴泊凱、林 航、林其緯、鄭鈞仁、方建德、羅錦龍、江承峰、／教練：納瓦洛、陳連宏、傑 克、羅錦龍、朱元勤；個人條目：中華職棒統一7-ELEVEn獅隊牛棚教練（2019年12月～2022年11月）",
+     "player_id": null
+    },
+    {
+     "name": "莊景賀",
+     "wiki_title": "莊景賀",
+     "aliases": [],
+     "level": "二軍",
+     "title": null,
+     "sources": [
+      "twbsball"
+     ],
+     "single_source": true,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "郭俊佑",
+     "wiki_title": "郭俊佑(1984)",
+     "aliases": [],
+     "level": "一軍",
+     "title": "外野教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "鄭博壬",
+     "wiki_title": "鄭博壬",
+     "aliases": [],
+     "level": "二軍",
+     "title": null,
+     "sources": [
+      "twbsball"
+     ],
+     "single_source": true,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "陳俊輝",
+     "wiki_title": "陳俊輝",
+     "aliases": [],
+     "level": "一軍",
+     "title": "投捕教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "陳連宏",
+     "wiki_title": "陳連宏",
+     "aliases": [],
+     "level": "二軍",
+     "title": null,
+     "sources": [
+      "twbsball"
+     ],
+     "single_source": true,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "高建三",
+     "wiki_title": "高建三",
+     "aliases": [],
+     "level": "二軍",
+     "title": "總教練",
+     "sources": [
+      "twbsball"
+     ],
+     "single_source": true,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "高志綱",
+     "wiki_title": "高志綱",
+     "aliases": [],
+     "level": "一軍",
+     "title": "首席教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "高政華",
+     "wiki_title": "高政華",
+     "aliases": [],
+     "level": "二軍",
+     "title": null,
+     "sources": [
+      "twbsball"
+     ],
+     "single_source": true,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    }
+   ]
+  },
+  {
+   "year": 2021,
+   "champion_team_code": "ACN011",
+   "team_name": "中信兄弟",
+   "status": "listed",
+   "league_year_check": "職棒32年",
+   "sources": [
+    {
+     "site": "twbsball",
+     "title": "中信兄弟隊/中信兄弟隊的職棒八年",
+     "url": "https://twbsball.dils.tku.edu.tw/wiki/index.php/中信兄弟隊/中信兄弟隊的職棒八年",
+     "revid": 1651556,
+     "timestamp": "2026-07-18T14:48:12Z"
+    },
+    {
+     "site": "zhwiki",
+     "title": "Template:中信兄弟2021年中華職棒總冠軍",
+     "url": "https://zh.wikipedia.org/wiki/Template:中信兄弟2021年中華職棒總冠軍",
+     "revid": 88455801,
+     "timestamp": "2025-07-27T03:33:56Z"
+    }
+   ],
+   "suspected_copy_of": null,
+   "staff": [
+    {
+     "name": "丘昌榮",
+     "wiki_title": "丘昌榮",
+     "aliases": [],
+     "level": "一軍",
+     "title": "首席教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "佛斯特",
+     "wiki_title": "佛斯特J.F",
+     "aliases": [],
+     "level": "一軍",
+     "title": "投手教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "威爾森",
+     "wiki_title": "威爾森M.W",
+     "aliases": [],
+     "level": "二軍",
+     "title": "打擊教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [
+      "https://twbsball.dils.tku.edu.tw/wiki/index.php/威爾森M.W"
+     ],
+     "note": "層級：台灣棒球維基館列二軍；中文維基百科列入冠軍模板（未分層）；個人條目：中華職棒中信兄弟隊二軍打擊教練（2019年～2022年）",
+     "player_id": null
+    },
+    {
+     "name": "李尚儒",
+     "wiki_title": "李尚儒",
+     "aliases": [],
+     "level": "一軍",
+     "title": "體能教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "林恩宇",
+     "wiki_title": "林恩宇(1981)",
+     "aliases": [],
+     "level": "一軍",
+     "title": "牛棚教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "林明憲",
+     "wiki_title": "林明憲",
+     "aliases": [],
+     "level": "二軍",
+     "title": "總教練",
+     "sources": [
+      "twbsball"
+     ],
+     "single_source": true,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "王峻杰",
+     "wiki_title": "王峻杰",
+     "aliases": [],
+     "level": "二軍",
+     "title": null,
+     "sources": [
+      "twbsball"
+     ],
+     "single_source": true,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "王建民",
+     "wiki_title": "王建民(1980)",
+     "aliases": [],
+     "level": "二軍",
+     "title": null,
+     "sources": [
+      "twbsball"
+     ],
+     "single_source": true,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "石志偉",
+     "wiki_title": "石志偉",
+     "aliases": [],
+     "level": "一軍",
+     "title": "打擊教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "艾迪頓",
+     "wiki_title": "艾迪頓N.A",
+     "aliases": [],
+     "level": "二軍",
+     "title": null,
+     "sources": [
+      "twbsball"
+     ],
+     "single_source": true,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "許峰賓",
+     "wiki_title": "許峰賓",
+     "aliases": [],
+     "level": "二軍",
+     "title": null,
+     "sources": [
+      "twbsball"
+     ],
+     "single_source": true,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "許皓銘",
+     "wiki_title": "許皓銘",
+     "aliases": [],
+     "level": "二軍",
+     "title": null,
+     "sources": [
+      "twbsball"
+     ],
+     "single_source": true,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "鄭錡鴻",
+     "wiki_title": "鄭錡鴻",
+     "aliases": [],
+     "level": "二軍",
+     "title": null,
+     "sources": [
+      "twbsball"
+     ],
+     "single_source": true,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "陳品翰",
+     "wiki_title": "陳品翰",
+     "aliases": [],
+     "level": "二軍",
+     "title": null,
+     "sources": [
+      "twbsball"
+     ],
+     "single_source": true,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "陳弘桂",
+     "wiki_title": "陳弘桂",
+     "aliases": [],
+     "level": "一軍",
+     "title": null,
+     "sources": [
+      "twbsball"
+     ],
+     "single_source": true,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "陳智弘",
+     "wiki_title": "陳智弘",
+     "aliases": [],
+     "level": "一軍",
+     "title": "投捕教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "陳江和",
+     "wiki_title": "陳江和",
+     "aliases": [],
+     "level": "一軍",
+     "title": "作戰教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "陳皓然",
+     "wiki_title": "陳皓然(1986)",
+     "aliases": [],
+     "level": "一軍",
+     "title": "外野教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "黃泰龍",
+     "wiki_title": "黃泰龍",
+     "aliases": [],
+     "level": "一軍",
+     "title": "內野教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "黃稚峰",
+     "wiki_title": "黃稚峰",
+     "aliases": [],
+     "level": "二軍",
+     "title": null,
+     "sources": [
+      "twbsball"
+     ],
+     "single_source": true,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    }
+   ]
+  },
+  {
+   "year": 2022,
+   "champion_team_code": "ACN011",
+   "team_name": "中信兄弟",
+   "status": "listed",
+   "league_year_check": "職棒33年",
+   "sources": [
+    {
+     "site": "twbsball",
+     "title": "中信兄弟隊/中信兄弟隊的職棒九年",
+     "url": "https://twbsball.dils.tku.edu.tw/wiki/index.php/中信兄弟隊/中信兄弟隊的職棒九年",
+     "revid": 1595260,
+     "timestamp": "2025-07-08T13:52:00Z"
+    },
+    {
+     "site": "zhwiki",
+     "title": "Template:中信兄弟2022年中華職棒總冠軍",
+     "url": "https://zh.wikipedia.org/wiki/Template:中信兄弟2022年中華職棒總冠軍",
+     "revid": 88455804,
+     "timestamp": "2025-07-27T03:34:10Z"
+    }
+   ],
+   "suspected_copy_of": null,
+   "staff": [
+    {
+     "name": "佛斯特",
+     "wiki_title": "佛斯特J.F",
+     "aliases": [],
+     "level": "一軍",
+     "title": "投手教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "威爾森",
+     "wiki_title": "威爾森M.W",
+     "aliases": [],
+     "level": "二軍",
+     "title": null,
+     "sources": [
+      "twbsball"
+     ],
+     "single_source": true,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "平野恵一",
+     "wiki_title": "平野恵一",
+     "aliases": [
+      "平野惠一"
+     ],
+     "level": "一軍",
+     "title": "打擊兼野手教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "李尚儒",
+     "wiki_title": "李尚儒",
+     "aliases": [],
+     "level": "一軍",
+     "title": "體能教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "林恩宇",
+     "wiki_title": "林恩宇",
+     "aliases": [],
+     "level": "一軍",
+     "title": "牛棚教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "林明憲",
+     "wiki_title": "林明憲",
+     "aliases": [],
+     "level": "二軍",
+     "title": "總教練",
+     "sources": [
+      "twbsball"
+     ],
+     "single_source": true,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "王峻杰",
+     "wiki_title": "王峻杰",
+     "aliases": [],
+     "level": "二軍",
+     "title": null,
+     "sources": [
+      "twbsball"
+     ],
+     "single_source": true,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "王建民",
+     "wiki_title": "王建民(1980)",
+     "aliases": [],
+     "level": "二軍",
+     "title": null,
+     "sources": [
+      "twbsball"
+     ],
+     "single_source": true,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "石志偉",
+     "wiki_title": "石志偉",
+     "aliases": [],
+     "level": "一軍",
+     "title": "內野教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "艾迪頓",
+     "wiki_title": "艾迪頓N.A",
+     "aliases": [],
+     "level": "二軍",
+     "title": null,
+     "sources": [
+      "twbsball"
+     ],
+     "single_source": true,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "許峰賓",
+     "wiki_title": "許峰賓",
+     "aliases": [],
+     "level": "二軍",
+     "title": null,
+     "sources": [
+      "twbsball"
+     ],
+     "single_source": true,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "許皓銘",
+     "wiki_title": "許皓銘",
+     "aliases": [],
+     "level": "二軍",
+     "title": null,
+     "sources": [
+      "twbsball"
+     ],
+     "single_source": true,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "郭峰駿",
+     "wiki_title": "郭峰駿",
+     "aliases": [],
+     "level": "一軍",
+     "title": "助理打擊教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "鄭錡鴻",
+     "wiki_title": "鄭錡鴻",
+     "aliases": [],
+     "level": "二軍",
+     "title": null,
+     "sources": [
+      "twbsball"
+     ],
+     "single_source": true,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "陳品翰",
+     "wiki_title": "陳品翰",
+     "aliases": [],
+     "level": "二軍",
+     "title": null,
+     "sources": [
+      "twbsball"
+     ],
+     "single_source": true,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "陳弘桂",
+     "wiki_title": "陳弘桂",
+     "aliases": [],
+     "level": "一軍",
+     "title": "體能教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "陳智弘",
+     "wiki_title": "陳智弘",
+     "aliases": [],
+     "level": "一軍",
+     "title": "投捕教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "陳江和",
+     "wiki_title": "陳江和",
+     "aliases": [],
+     "level": "一軍",
+     "title": "首席教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "陳皓然",
+     "wiki_title": "陳皓然",
+     "aliases": [],
+     "level": "一軍",
+     "title": "外野教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "黃稚峰",
+     "wiki_title": "黃稚峰",
+     "aliases": [],
+     "level": "二軍",
+     "title": null,
+     "sources": [
+      "twbsball"
+     ],
+     "single_source": true,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    }
+   ]
+  },
+  {
+   "year": 2023,
+   "champion_team_code": "AAA011",
+   "team_name": "味全龍",
+   "status": "listed",
+   "league_year_check": "職棒34年",
+   "sources": [
+    {
+     "site": "twbsball",
+     "title": "味全龍隊/味全龍隊的職棒十五年",
+     "url": "https://twbsball.dils.tku.edu.tw/wiki/index.php/味全龍隊/味全龍隊的職棒十五年",
+     "revid": 1637753,
+     "timestamp": "2026-03-23T03:18:23Z"
+    },
+    {
+     "site": "zhwiki",
+     "title": "Template:味全龍2023年中華職棒總冠軍",
+     "url": "https://zh.wikipedia.org/wiki/Template:味全龍2023年中華職棒總冠軍",
+     "revid": 89710690,
+     "timestamp": "2025-10-28T04:45:13Z"
+    }
+   ],
+   "suspected_copy_of": null,
+   "staff": [
+    {
+     "name": "劉榮華",
+     "wiki_title": null,
+     "aliases": [],
+     "level": "未分層",
+     "title": "內野教練",
+     "sources": [
+      "zhwiki"
+     ],
+     "single_source": true,
+     "supplement_urls": [
+      "https://twbsball.dils.tku.edu.tw/wiki/index.php/劉榮華"
+     ],
+     "note": "台灣棒球維基館同頁原文：2023年 -- 01月24日，領隊丁仲緯表示，邀請前樂天桃猿二軍總教練劉榮華擔任春訓客座教練，未來是不是正式加入教練團，球團還會再評估。；個人條目：中華職棒味全龍隊客座教練（2023年01月～2023年03月）／中華職棒味全龍隊內野教練（2023年04月～2024年12月）",
+     "player_id": null
+    },
+    {
+     "name": "吳宗峻",
+     "wiki_title": "吳宗峻",
+     "aliases": [],
+     "level": "二軍",
+     "title": null,
+     "sources": [
+      "twbsball"
+     ],
+     "single_source": true,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "塞曼",
+     "wiki_title": "塞曼G.T",
+     "aliases": [],
+     "level": "一軍",
+     "title": null,
+     "sources": [
+      "twbsball"
+     ],
+     "single_source": true,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "張家浩",
+     "wiki_title": "張家浩",
+     "aliases": [],
+     "level": "二軍",
+     "title": "總教練",
+     "sources": [
+      "twbsball"
+     ],
+     "single_source": true,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "張建銘",
+     "wiki_title": "張建銘(1980)",
+     "aliases": [],
+     "level": "一軍",
+     "title": "首席教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "張泰山",
+     "wiki_title": "張泰山",
+     "aliases": [],
+     "level": "一軍",
+     "title": "打擊教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "彭立堯",
+     "wiki_title": "彭立堯",
+     "aliases": [],
+     "level": "二軍",
+     "title": null,
+     "sources": [
+      "twbsball"
+     ],
+     "single_source": true,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "林宗男",
+     "wiki_title": "林宗男",
+     "aliases": [],
+     "level": "二軍",
+     "title": null,
+     "sources": [
+      "twbsball"
+     ],
+     "single_source": true,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "林瑋恩",
+     "wiki_title": "林瑋恩",
+     "aliases": [],
+     "level": "一軍",
+     "title": "首席教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "王昊",
+     "wiki_title": "王昊",
+     "aliases": [],
+     "level": "一軍",
+     "title": null,
+     "sources": [
+      "twbsball"
+     ],
+     "single_source": true,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "王膺鵬",
+     "wiki_title": "王膺鵬",
+     "aliases": [],
+     "level": "一軍",
+     "title": "捕手助理教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "羅嘉仁",
+     "wiki_title": "羅嘉仁",
+     "aliases": [],
+     "level": "二軍",
+     "title": null,
+     "sources": [
+      "twbsball"
+     ],
+     "single_source": true,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "蕭一傑",
+     "wiki_title": "蕭一傑",
+     "aliases": [],
+     "level": "二軍",
+     "title": null,
+     "sources": [
+      "twbsball"
+     ],
+     "single_source": true,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "蘇柏豪",
+     "wiki_title": "蘇柏豪(199903)",
+     "aliases": [],
+     "level": "一軍",
+     "title": null,
+     "sources": [
+      "twbsball"
+     ],
+     "single_source": true,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "賈西",
+     "wiki_title": "賈西M.G",
+     "aliases": [],
+     "level": "二軍",
+     "title": "投手教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [
+      "https://twbsball.dils.tku.edu.tw/wiki/index.php/賈西M.G"
+     ],
+     "note": "層級：台灣棒球維基館列二軍；中文維基百科列入冠軍模板（未分層）；個人條目：中華職棒味全龍隊投手教練（2023年）",
+     "player_id": null
+    },
+    {
+     "name": "郭勝安",
+     "wiki_title": "郭勝安",
+     "aliases": [],
+     "level": "一軍",
+     "title": "投手教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "陳志偉",
+     "wiki_title": "陳志偉",
+     "aliases": [],
+     "level": "一軍",
+     "title": "內野教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "高須洋介",
+     "wiki_title": "高須洋介",
+     "aliases": [],
+     "level": "二軍",
+     "title": "打擊教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [
+      "https://twbsball.dils.tku.edu.tw/wiki/index.php/高須洋介"
+     ],
+     "note": "層級：台灣棒球維基館列二軍；中文維基百科列入冠軍模板（未分層）；個人條目：中華職棒味全龍隊二軍打擊教練（2023年01月～2023年08月）／中華職棒味全龍隊二軍兼任內野教練（2023年01月～2023年08月）／中華職棒味全龍隊打擊教練（2023年08月～2024年06月）",
+     "player_id": null
+    },
+    {
+     "name": "黃亦志",
+     "wiki_title": "黃亦志",
+     "aliases": [],
+     "level": "一軍",
+     "title": "牛棚教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "黃煚隆",
+     "wiki_title": "黃煚隆",
+     "aliases": [],
+     "level": "一軍",
+     "title": null,
+     "sources": [
+      "twbsball"
+     ],
+     "single_source": true,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    }
+   ]
+  },
+  {
+   "year": 2024,
+   "champion_team_code": "ACN011",
+   "team_name": "中信兄弟",
+   "status": "listed",
+   "league_year_check": "職棒35年",
+   "sources": [
+    {
+     "site": "twbsball",
+     "title": "中信兄弟隊/中信兄弟隊的職棒十一年",
+     "url": "https://twbsball.dils.tku.edu.tw/wiki/index.php/中信兄弟隊/中信兄弟隊的職棒十一年",
+     "revid": 1590152,
+     "timestamp": "2025-06-28T13:31:49Z"
+    },
+    {
+     "site": "zhwiki",
+     "title": "Template:中信兄弟2024年中華職棒總冠軍",
+     "url": "https://zh.wikipedia.org/wiki/Template:中信兄弟2024年中華職棒總冠軍",
+     "revid": 89710681,
+     "timestamp": "2025-10-28T04:44:34Z"
+    }
+   ],
+   "suspected_copy_of": null,
+   "staff": [
+    {
+     "name": "丹尼爾",
+     "wiki_title": "丹尼爾D.C",
+     "aliases": [],
+     "level": "一軍",
+     "title": "打擊教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "佛斯特",
+     "wiki_title": "佛斯特J.F",
+     "aliases": [],
+     "level": "二軍",
+     "title": null,
+     "sources": [
+      "twbsball"
+     ],
+     "single_source": true,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "周思齊",
+     "wiki_title": null,
+     "aliases": [],
+     "level": "未分層",
+     "title": "教練",
+     "sources": [
+      "zhwiki"
+     ],
+     "single_source": true,
+     "supplement_urls": [],
+     "note": "台灣棒球維基館同頁原文：…統一獅隊。時間來到9月底，同樣也是功勳老將的引退儀式，這次輪到的是外野手「周董」周思齊，當天吸引4萬人進場觀賽相當成功。同一時間，兄弟接連收下下半季冠軍以及年度第一的…／外野手：陳子豪、李聖裕、張志豪、周思齊、曾頌恩、詹子賢、林書逸、黃鈞麟、劉貴元、宋晟睿、岳政華、許庭綸",
+     "player_id": null
+    },
+    {
+     "name": "周磊",
+     "wiki_title": "周磊",
+     "aliases": [],
+     "level": "二軍",
+     "title": null,
+     "sources": [
+      "twbsball"
+     ],
+     "single_source": true,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "威爾森",
+     "wiki_title": "威爾森M.W",
+     "aliases": [],
+     "level": "二軍",
+     "title": null,
+     "sources": [
+      "twbsball"
+     ],
+     "single_source": true,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "張志強",
+     "wiki_title": "張志強(1989)",
+     "aliases": [],
+     "level": "二軍",
+     "title": null,
+     "sources": [
+      "twbsball"
+     ],
+     "single_source": true,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "彭政閔",
+     "wiki_title": "彭政閔",
+     "aliases": [],
+     "level": "二軍",
+     "title": null,
+     "sources": [
+      "twbsball"
+     ],
+     "single_source": true,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "李尚儒",
+     "wiki_title": "李尚儒",
+     "aliases": [],
+     "level": "一軍",
+     "title": "體能教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "林恩宇",
+     "wiki_title": "林恩宇(1981)",
+     "aliases": [],
+     "level": "二軍",
+     "title": null,
+     "sources": [
+      "twbsball"
+     ],
+     "single_source": true,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "林明憲",
+     "wiki_title": "林明憲",
+     "aliases": [],
+     "level": "二軍",
+     "title": null,
+     "sources": [
+      "twbsball"
+     ],
+     "single_source": true,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "王峻杰",
+     "wiki_title": "王峻杰",
+     "aliases": [],
+     "level": "一軍",
+     "title": "投捕教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "王建民",
+     "wiki_title": "王建民(1980)",
+     "aliases": [],
+     "level": "一軍",
+     "title": "投手教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "石志偉",
+     "wiki_title": "石志偉",
+     "aliases": [],
+     "level": "一軍",
+     "title": "內野教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "艾迪頓",
+     "wiki_title": "艾迪頓N.A",
+     "aliases": [],
+     "level": "一軍",
+     "title": "牛棚教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "許皓銘",
+     "wiki_title": "許皓銘",
+     "aliases": [],
+     "level": "二軍",
+     "title": null,
+     "sources": [
+      "twbsball"
+     ],
+     "single_source": true,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "郭峰駿",
+     "wiki_title": "郭峰駿",
+     "aliases": [],
+     "level": "二軍",
+     "title": null,
+     "sources": [
+      "twbsball"
+     ],
+     "single_source": true,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "鄭錡鴻",
+     "wiki_title": "鄭錡鴻",
+     "aliases": [],
+     "level": "二軍",
+     "title": null,
+     "sources": [
+      "twbsball"
+     ],
+     "single_source": true,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "陳偉漢",
+     "wiki_title": "陳偉漢",
+     "aliases": [],
+     "level": "二軍",
+     "title": null,
+     "sources": [
+      "twbsball"
+     ],
+     "single_source": true,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "陳品翰",
+     "wiki_title": "陳品翰(1986)",
+     "aliases": [],
+     "level": "二軍",
+     "title": null,
+     "sources": [
+      "twbsball"
+     ],
+     "single_source": true,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "陳弘桂",
+     "wiki_title": "陳弘桂",
+     "aliases": [],
+     "level": "一軍",
+     "title": "體能教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "陳智弘",
+     "wiki_title": "陳智弘(1978)",
+     "aliases": [],
+     "level": "二軍",
+     "title": null,
+     "sources": [
+      "twbsball"
+     ],
+     "single_source": true,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "陳江和",
+     "wiki_title": "陳江和",
+     "aliases": [],
+     "level": "一軍",
+     "title": "首席兼打擊教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "陳皓然",
+     "wiki_title": "陳皓然(1986)",
+     "aliases": [],
+     "level": "一軍",
+     "title": "外野守備兼跑壘教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "黃稚峰",
+     "wiki_title": "黃稚峰",
+     "aliases": [],
+     "level": "二軍",
+     "title": null,
+     "sources": [
+      "twbsball"
+     ],
+     "single_source": true,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    }
+   ]
+  },
+  {
+   "year": 2025,
+   "champion_team_code": "AJL011",
+   "team_name": "樂天桃猿",
+   "status": "listed",
+   "league_year_check": "職棒36年",
+   "sources": [
+    {
+     "site": "twbsball",
+     "title": "樂天桃猿隊/樂天桃猿隊的職棒六年",
+     "url": "https://twbsball.dils.tku.edu.tw/wiki/index.php/樂天桃猿隊/樂天桃猿隊的職棒六年",
+     "revid": 1619663,
+     "timestamp": "2025-10-30T16:13:40Z"
+    },
+    {
+     "site": "zhwiki",
+     "title": "Template:樂天桃猿2025年中華職棒總冠軍",
+     "url": "https://zh.wikipedia.org/wiki/Template:樂天桃猿2025年中華職棒總冠軍",
+     "revid": 92953564,
+     "timestamp": "2026-06-05T03:46:28Z"
+    }
+   ],
+   "suspected_copy_of": null,
+   "staff": [
+    {
+     "name": "劉品辰",
+     "wiki_title": "劉品辰(1981)",
+     "aliases": [],
+     "level": "一軍",
+     "title": "體能教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "吳桀睿",
+     "wiki_title": "吳桀睿",
+     "aliases": [],
+     "level": "二軍",
+     "title": null,
+     "sources": [
+      "twbsball"
+     ],
+     "single_source": true,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "川岸強",
+     "wiki_title": "川岸強",
+     "aliases": [],
+     "level": "一軍",
+     "title": "投手教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "広瀬大輔",
+     "wiki_title": "広瀬大輔",
+     "aliases": [],
+     "level": "巡迴",
+     "title": "運動表現教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "張煒謙",
+     "wiki_title": "張煒謙",
+     "aliases": [],
+     "level": "二軍",
+     "title": null,
+     "sources": [
+      "twbsball"
+     ],
+     "single_source": true,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "曾豪駒",
+     "wiki_title": "曾豪駒",
+     "aliases": [],
+     "level": "一軍",
+     "title": "首席兼打擊教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "李韋慶",
+     "wiki_title": "李韋慶",
+     "aliases": [],
+     "level": "二軍",
+     "title": null,
+     "sources": [
+      "twbsball"
+     ],
+     "single_source": true,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "林國裕",
+     "wiki_title": "林國裕",
+     "aliases": [],
+     "level": "二軍",
+     "title": null,
+     "sources": [
+      "twbsball"
+     ],
+     "single_source": true,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "林政億",
+     "wiki_title": "林政億",
+     "aliases": [],
+     "level": "一軍",
+     "title": "打擊教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "林知譽",
+     "wiki_title": "林知譽",
+     "aliases": [],
+     "level": "二軍",
+     "title": null,
+     "sources": [
+      "twbsball"
+     ],
+     "single_source": true,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "林英傑",
+     "wiki_title": "林英傑",
+     "aliases": [],
+     "level": "一軍",
+     "title": "牛棚教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "洪全億",
+     "wiki_title": "洪全億",
+     "aliases": [],
+     "level": "一軍",
+     "title": "體能教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "翁克堯",
+     "wiki_title": "翁克堯",
+     "aliases": [],
+     "level": "一軍",
+     "title": "守備教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "蔡成賢",
+     "wiki_title": "蔡成賢",
+     "aliases": [],
+     "level": "二軍",
+     "title": null,
+     "sources": [
+      "twbsball"
+     ],
+     "single_source": true,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "蔡明晋",
+     "wiki_title": "蔡明晋",
+     "aliases": [],
+     "level": "二軍",
+     "title": null,
+     "sources": [
+      "twbsball"
+     ],
+     "single_source": true,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "許禹壕",
+     "wiki_title": "許禹壕",
+     "aliases": [],
+     "level": "二軍",
+     "title": null,
+     "sources": [
+      "twbsball"
+     ],
+     "single_source": true,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "許躍騰",
+     "wiki_title": "許躍騰",
+     "aliases": [],
+     "level": "一軍",
+     "title": "捕手教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "鄭兆行",
+     "wiki_title": "鄭兆行",
+     "aliases": [],
+     "level": "一軍",
+     "title": "守備教練",
+     "sources": [
+      "twbsball",
+      "zhwiki"
+     ],
+     "single_source": false,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "陳彥夆",
+     "wiki_title": "陳彥夆",
+     "aliases": [],
+     "level": "二軍",
+     "title": null,
+     "sources": [
+      "twbsball"
+     ],
+     "single_source": true,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "陳瑞振",
+     "wiki_title": "陳瑞振",
+     "aliases": [],
+     "level": "巡迴",
+     "title": null,
+     "sources": [
+      "twbsball"
+     ],
+     "single_source": true,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    },
+    {
+     "name": "陸康其",
+     "wiki_title": "陸康其",
+     "aliases": [],
+     "level": "二軍",
+     "title": null,
+     "sources": [
+      "twbsball"
+     ],
+     "single_source": true,
+     "supplement_urls": [],
+     "note": null,
+     "player_id": null
+    }
+   ]
+  }
+ ]
+}

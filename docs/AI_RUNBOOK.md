@@ -245,6 +245,12 @@ v2在同一交易鎖兩隊後追加；任一隊失敗全rollback，同內容重�
 
 **每日刷新現況（最後驗證 2026-07-19）**：本機 launchd 10:10 已成功完成爬取與 production 同步（`sync_ok=true`）。仍必須每天以 `refresh_status.py check --scheduled` 檢查；成功同步不等於資料語意正確——目前 `BUG-HELD-GAME-FRESHNESS1` 已證實未完成保留賽會污染 `last_game_date`，修復前不得僅以 freshness gate 判定資料正確。
 
+### 冠軍隊年教練團資料（#470；一次性人工執行、不進每日鏈）
+
+- 球員頁／教練頁的「教練團奪冠」讀 repo 資料檔 `src/cpbl/resources/championship_staff.v1.json`，**不在 DB**；隨一般部署送到正式站，0 migration。
+- 新冠軍年要補時才人工重跑（不自動更新）：`uv run python scripts/build_championship_staff.py --cache <站外快取目錄>`，產出資料檔與 `docs/research/CHAMPIONSHIP_STAFF_470_REPORT.md`，再走 PR＋部署。新年份的台灣棒球維基館年表頁名要先加進腳本的 `TW_PAGES`。
+- 只 GET 兩個維基 API 與正式站公開 API（上限、間隔、停止條件在腳本 docstring）；不連 DB、不寫 DB。`--offline` 只讀快取重建。人工別名與歸戶例外明列在腳本內並附理由。
+
 ### jobs 單次賽果特徵建置（#393）
 
 既有每日入口的 `scripts/scrape-daily.sh --jobs-features` 在 Mac 控制操作前，直接執行

@@ -933,8 +933,10 @@ def test_counts_reconcile_across_three_surfaces() -> None:
         "scripts/pi_night_results.py", "scripts/pi_night_source.py",
     }
     assert {entry.ident for entry in scripts if entry.ident in pi_handoff} == pi_handoff
-    assert len(scripts) == 51 + len(pi_handoff), (
-        "#393 P1A：四個具名的日／夜／週跑 Pi 常設模組；舊腳本預算仍為 51。"
+    assert len(scripts) == 52 + len(pi_handoff), (
+        "#393 P1A：四個具名的日／夜／週跑 Pi 常設模組；舊腳本預算為 52"
+        "（51＋#470 WP2：build_championship_staff.py，冠軍隊年教練團資料檔的人工重跑產生器，"
+        "指令見 docs/AI_RUNBOOK.md §3）。"
 
         "49（基準 33c7c3f）＋ 1（DEV-SCRIPT-INVENTORY1 的 script_inventory.py）"
         "＋ 3（OPS-SCHEDULE-FAILURE-BLIND1／#132：schedule_watch.py、"
@@ -980,8 +982,8 @@ def test_counts_reconcile_across_three_surfaces() -> None:
         "入口同樣放在 cpbl.ingest 底下以受 --help 零副作用探針涵蓋）"
         "＋ 2（#357 WP2：cpbl-check-livelog 唯讀檢查、cpbl-replay-livelog-extra 預設 dry-run 的"
         "回補工具；同樣放在 cpbl.ingest 底下受 --help 探針涵蓋）")
-    assert len(scripts) + len(research) + len(cli) == 126 + len(pi_handoff), (
-        "#393 P1A：新增四個具名 Pi 常設模組；原三面合計維持 126 的核對基準。"
+    assert len(scripts) + len(research) + len(cli) == 127 + len(pi_handoff), (
+        "#393 P1A：新增四個具名 Pi 常設模組；原三面合計核對基準 127（126＋#470 的 build_championship_staff.py）。"
         "119＋1（#132 的量測工具）＋1（#100 的重測工具）＋1（#201 的收集工具）"
         "＋1（#268 的 postseason-evening.sh）＋1（#284 的 cpbl-roster CLI）"
         "＋1（#287 的 cpbl-build-team-comparison CLI）＋1（#353 的 prod_availability.py）"
@@ -989,7 +991,7 @@ def test_counts_reconcile_across_three_surfaces() -> None:
         "＋1（#383 的 replace_derived_tables.py）＋1（#400 的 r1_measure.py）"
         "−5（#405 移除的舊制工具鏈四支＋roadmap_lines.py，見 APPROVED_SCRIPT_DELETIONS）"
         "＋1（#393 WP4 的既有六工作 Linux jobs.py 適配入口）"
-        "−3（#416 需求方核准刪除的三支）＋1（#457 的 rebas_id_map.py）")
+        "−3（#416 需求方核准刪除的三支）＋1（#457 的 rebas_id_map.py）＋1（#470 的 build_championship_staff.py）")
 
 
 def test_invariant_proof_enumerates_every_entry(capsys: pytest.CaptureFixture) -> None:

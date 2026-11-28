@@ -11,6 +11,7 @@ import { detail, type PlayerProfile, type StatRow } from "@/lib/client";
 import { fmtIP } from "@/lib/format";
 import { ADV, type CareerStats, type Role, f3, fmtAdv, numOf } from "./lib";
 import { BestSeasonGrid } from "./parts";
+import { StaffChampionshipsSection } from "@/components/staff-championships";
 
 type AdvPair = { batting: StatRow | null; pitching: StatRow | null } | null;
 
@@ -181,6 +182,8 @@ export function CareerSummary({ careerStats, role }: { careerStats: CareerStats 
           />
         </section>
       )}
+      <StaffChampionshipsSection data={careerStats?.staff_championships}
+        heading={<h2 className="mb-2.5 text-base font-semibold text-ink">教練團奪冠</h2>} />
       {hasCoachHistory && (
         <section className="mb-6">
           <h2 className="mb-2.5 text-base font-semibold text-ink">生涯歷程</h2>
