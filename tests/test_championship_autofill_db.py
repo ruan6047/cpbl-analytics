@@ -1,6 +1,7 @@
 """#469：冠軍補列 SQL 在真 PostgreSQL（CI 資料基底 ``tests/ci_base.py``）上的契約。
 
-只在主 DSN 是已載入的 CI 基底時跑（``ci_base.active()``）；⛔ 本機正式庫或其他庫一律 skip。
+只在主 DSN 是已載入的 CI 基底時跑（``ci_base.active()``，或連線目標庫名為 ``cpbl_ci_base`` 或其 xdist 複本
+``cpbl_ci_base_gwN``——CI 首輪實測 ``active()`` 在本檔讀到 False，原因未查明，故以庫名補判）；⛔ 本機正式庫或其他庫一律 skip。
 全部在單一交易內做、結束 ROLLBACK，基底不留任何列。
 
 驗假 cursor 驗不到的事：
@@ -25,15 +26,27 @@ REAL_MAJOR_2026 = real391.major(real391.major_games())
 HISTORY_SQL = "SELECT * FROM cpbl.championships WHERE year BETWEEN 1990 AND 2025 ORDER BY year"
 
 
+def _on_ci_base() -> bool:
+    import re
+
+    from psycopg import conninfo
+
+    from cpbl.config import settings
+
+    dbname = conninfo.conninfo_to_dict(settings.database_url).get("dbname") or ""
+    return ci_base.active() or re.fullmatch(r"cpbl_ci_base(_gw\d+)?", dbname) is not None
+
+
 @pytest.fixture()
 def cur():
-    if not ci_base.active():
+    if not _on_ci_base():
         pytest.skip("主 DSN 不是 CI 資料基底：冠軍補列的寫入契約只在拋棄式基底上跑")
     import psycopg
 
     from cpbl.config import settings
 
-    with psycopg.connect(settings.database_url) as c:
+    with psycopg.connect(settings.database_url, connect_timeout=5) as c:
+        assert c.execute("SELECT current_database()").fetchone()[0].startswith("cpbl_ci_base")
         try:
             yield c.cursor()
         finally:
@@ -68,7 +81,7 @@ def test_autofill_sql_inserts_once_and_never_touches_history(cur):
 
 
 def test_read_major_closure_runs_on_real_schema():
-    if not ci_base.active():
+    if not _on_ci_base():
         pytest.skip("主 DSN 不是 CI 資料基底")
 
     closure = ch.read_major_closure()
