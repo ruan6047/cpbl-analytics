@@ -34,7 +34,8 @@ test("roster-drawer：body.style 只出現在帶 iOS 實測理由註解的 useBo
   assert.ok(start >= 0, "找不到 useBodyScrollLock");
   const end = c.indexOf("\nexport function RosterDrawer(");
   assert.ok(end > start);
-  assert.doesNotMatch(c.slice(0, start) + c.slice(end), /body\.style/);
+  // 鎖以外的範圍完全不得碰 body 或 .style（含 `const { style } = document.body`、`const { body } = document` 這類別名寫法）。
+  assert.doesNotMatch(c.slice(0, start) + c.slice(end), /document\.body|\bbody\b|\.style\b/);
   const doc = roster.slice(0, roster.indexOf("function useBodyScrollLock()"));
   assert.match(doc.slice(doc.lastIndexOf("/**")), /刻意保留[\s\S]*iOS[\s\S]*26\.5[\s\S]*27\.2/);
 });
