@@ -114,6 +114,27 @@ def test_not_decided_never_writes(status):
     assert cur.sql == []
 
 
+@pytest.mark.parametrize("status", ["undecided", "unknown"])
+def test_status_alone_gates_the_write(status):
+    """只改 status（冠軍與決勝場照留）也不得寫：status 守衛要能單獨擋下。"""
+    cur = _Cur()
+
+    out = ch.ensure_season_champion(cur, replace(REAL_MAJOR_2026, status=status), now=NOW, env={})
+
+    assert out["action"] == "not_decided"
+    assert cur.sql == []
+
+
+def test_league_alone_gates_the_write():
+    """只把軍別換成二軍（其餘照留一軍真實值）也不得寫：league 守衛要能單獨擋下。"""
+    cur = _Cur()
+
+    out = ch.ensure_season_champion(cur, replace(REAL_MAJOR_2026, league=sc.FARM), now=NOW, env={})
+
+    assert out["action"] == "not_decided"
+    assert cur.sql == []
+
+
 def test_kill_switch_writes_nothing_and_reads_nothing():
     cur = _Cur()
 
