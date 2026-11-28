@@ -463,12 +463,3 @@ export function pickAbility(d: RosterPlayerDetail): { label: string; card: Abili
   if (d.ability.career?.available && d.ability.career.axes) return { label: DRAWER_COPY.abilityCareer, card: d.ability.career };
   return null;
 }
-
-/** 焦點陷阱：Tab 在最後一個 ⇒ 回第一個；Shift+Tab 在第一個 ⇒ 到最後一個；其餘交瀏覽器（回 null）。 */
-export function trapFocus(index: number, count: number, shift: boolean): number | null {
-  if (count === 0) return null;
-  if (index < 0) return shift ? count - 1 : 0;
-  if (shift && index === 0) return count - 1;
-  if (!shift && index === count - 1) return 0;
-  return null;
-}
