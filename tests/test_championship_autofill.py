@@ -162,7 +162,12 @@ def test_farm_closure_is_never_written_as_major_champion():
     assert cur.sql == []
 
 
-@pytest.mark.parametrize("decisive", [None, ("AJL011", "ACN011")])
+@pytest.mark.parametrize("decisive", [
+    None, ("AJL011", "ACN011"),
+    # 審核第 1 輪 finding 4：games.home/away_team_code 可為 NULL（002_games.sql），冠軍在場但另一隊缺值
+    # ⇒ 亞軍判不出，⛔ 不得寫成 runner_up NULL 的 verified 列。
+    ("AAA011", None), (None, "AAA011"), ("AAA011", ""), ("", "AAA011"),
+])
 def test_decisive_game_missing_or_inconsistent_writes_nothing(decisive):
     cur = _Cur(decisive=decisive)
 
@@ -182,6 +187,34 @@ def test_manager_written_only_when_exactly_one_head_coach(coaches, state):
     assert out["action"] == "inserted" and out["manager"] == state
     assert len(cur.inserts("championships")) == 1
     assert cur.inserts("championship_managers") == []
+
+
+def test_summary_carries_the_written_verified_at_for_rollback():
+    """審核第 1 輪 finding 3：回復只刪「本次寫入」的列（plan-r2 §7：``verified_at``＝本次執行時刻）。
+    摘要（journal 的那行 JSON）必須帶本次寫入的 ``verified_at``，回復才有可照字面比對的值。"""
+    cur = _Cur()
+
+    out = ch.ensure_season_champion(cur, REAL_MAJOR_2026, now=NOW, env={})
+
+    assert out["verified_at"] == NOW.isoformat()
+    assert cur.inserts("championships")[0]["verified_at"] == NOW
+    assert cur.inserts("championship_managers")[0]["verified_at"] == NOW
+
+
+def test_summary_carries_verified_at_when_only_the_manager_is_written():
+    cur = _Cur(champion_row=("AAA011", "AAA011"), manager_present=False)
+
+    out = ch.ensure_season_champion(cur, REAL_MAJOR_2026, now=NOW, env={})
+
+    assert (out["action"], out["manager"], out["verified_at"]) == ("present", "inserted", NOW.isoformat())
+
+
+@pytest.mark.parametrize("cur_kwargs", [{"champion_row": ("AAA011", "AAA011"), "manager_present": True},
+                                        {"champion_row": ("ACN011", "ACN011")}, {"decisive": None}])
+def test_summary_has_no_verified_at_when_nothing_was_written(cur_kwargs):
+    out = ch.ensure_season_champion(_Cur(**cur_kwargs), REAL_MAJOR_2026, now=NOW, env={})
+
+    assert "verified_at" not in out
 
 
 def test_present_champion_with_missing_manager_backfills_manager_only():
@@ -259,19 +292,19 @@ def test_autofill_reads_major_closure_and_writes(monkeypatch):
     cur = _Cur()
     _fake_conn(monkeypatch, cur)
 
-    out = ch.autofill_champion(now=NOW, env={}, read_closure=lambda: REAL_MAJOR_2026)
+    code, out = ch.run_champion_autofill(now=NOW, env={}, read_closure=lambda: REAL_MAJOR_2026)
 
-    assert out["action"] == "inserted"
+    assert code == 0 and out["action"] == "inserted"
     assert len(cur.inserts("championships")) == 1
 
 
 def test_autofill_kill_switch_does_not_read_closure(monkeypatch):
     _fake_conn(monkeypatch, _Cur())
 
-    out = ch.autofill_champion(now=NOW, env={ch.AUTOFILL_ENV: "off"},
-                               read_closure=lambda: pytest.fail("read closure while disabled"))
+    code, out = ch.run_champion_autofill(now=NOW, env={ch.AUTOFILL_ENV: "off"},
+                                         read_closure=lambda: pytest.fail("read closure while disabled"))
 
-    assert out["action"] == "disabled"
+    assert code == 0 and out["action"] == "disabled"
 
 
 def test_build_runs_ensure_before_truncate(monkeypatch):

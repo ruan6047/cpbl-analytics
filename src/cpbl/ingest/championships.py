@@ -154,10 +154,14 @@ def ensure_season_champion(cur, closure, *, now: datetime | None = None,
             log.warning("championships %s 既有冠軍 %s ≠ 收官判定 %s：不覆蓋", year, existing[0], champion)
             return {"action": "present_conflict", "year": year, "manager": None}
         manager = _ensure_manager(cur, year, champion, existing[1], now)
-        return {"action": "present", "year": year, "manager": manager}
+        out = {"action": "present", "year": year, "manager": manager}
+        if manager == "inserted":
+            out["verified_at"] = now.isoformat()
+        return out
     cur.execute(_DECISIVE_SQL, decided_by)
     row = cur.fetchone()
-    if not row or champion not in row or row[0] == row[1]:
+    # 兩隊都要有值：games.home/away_team_code 可為 NULL，缺另一隊＝判不出亞軍（審核第 1 輪 finding 4）。
+    if not row or not all(row) or champion not in row or row[0] == row[1]:
         log.warning("決勝場 %s 找不到或與冠軍 %s 不符（%s）：不補列", decided_by, champion, row)
         return {"action": "no_decisive_game", "year": year, "manager": None}
     runner_up = row[1] if row[0] == champion else row[0]
@@ -170,53 +174,43 @@ def ensure_season_champion(cur, closure, *, now: datetime | None = None,
         return {"action": "present", "year": year, "manager": None}
     manager = _ensure_manager(cur, year, champion, franchise, now)
     log.info("championships 補上 %s：冠軍 %s、亞軍 %s、總教練 %s", year, champion, runner_up, manager)
+    # ``verified_at``＝本次寫入兩列的時刻：WP3 回復以它（＋總教練 ``note``）辨識「本次寫入」，⛔ 不以年份當刪除條件。
     return {"action": "inserted", "year": year, "manager": manager,
-            "champion_team_code": champion, "runner_up_team_code": runner_up}
-
-
-def autofill_champion(*, now: datetime | None = None, env: Mapping[str, str] | None = None,
-                      read_closure: Callable | None = None) -> dict:
-    """讀收官判定 → 單一交易補列。錯誤上浮（呼叫端記失敗，⛔ 不吞）。"""
-    if autofill_disabled(env):
-        return {"action": "disabled", "year": None, "manager": None}
-    closure = (read_closure or read_major_closure)()
-    with conn() as c:
-        return ensure_season_champion(c.cursor(), closure, now=now, env=env)
+            "champion_team_code": champion, "runner_up_team_code": runner_up,
+            "verified_at": now.isoformat()}
 
 
 def run_champion_autofill(*, now: datetime | None = None, env: Mapping[str, str] | None = None,
                           read_closure: Callable | None = None) -> tuple[int, dict]:
     """``cpbl-champion-autofill`` 的主體（VPS 每日 timer 在 ``prod_cpbl_api`` 內執行；#469 規劃修訂 r2）。
 
-    補列 → 只有 ``action == "inserted"`` 才重建 ``championship_members``。回傳 ``(退出碼, 摘要)``：
-    任何例外 ⇒ 1，摘要記 ``error``／``members``（⛔ 不吞成成功）。
+    補列 → 只有 ``action == "inserted"`` 才重建 ``championship_members``，**兩者在同一筆交易**（plan-r2 §7
+    「單交易」）：成員重建失敗 ⇒ 冠軍／總教練列一起回滾，隔日重試仍會 ``inserted``＋重建。⛔ 不要拆成兩筆
+    提交——拆開後冠軍列已提交、成員失敗，重試只看到 ``present`` 而永不重建（審核第 1 輪 finding 1）。
+    回傳 ``(退出碼, 摘要)``：任何例外 ⇒ 1，``action="error"``＋``stage``（``closure``／``autofill``／``members``），
+    該次寫入全數未提交（⛔ 不吞成成功）。
 
     ⛔ 刻意不呼叫 ``migrate()``：正式庫沒有 ``cpbl.schema_migrations``，``migrate()`` 會把全部 migration
     重跑（含 052／054 的 DO UPDATE 與 037／038 主鍵重建）。需要 migrate 的 ``cpbl-build-championships``
     因此不得用在正式庫。"""
     if autofill_disabled(env):
         return 0, {"action": "disabled", "year": None, "manager": None}
-    closures: list = []
-
-    def _read_once():  # 成員重建沿用同一份判定，不重讀
-        if not closures:
-            closures.append((read_closure or read_major_closure)())
-        return closures[0]
-
+    stage = "closure"
     try:
-        result = autofill_champion(now=now, env=env, read_closure=_read_once)
-    except Exception as exc:  # noqa: BLE001 — 交給退出碼與 JSON 摘要
-        log.exception("champion autofill failed")
-        return 1, {"action": "error", "error": type(exc).__name__, "manager": None}
-    if result.get("action") != "inserted":
-        return 0, result
-    try:
-        built = build_championships(now=now, env=env, read_closure=_read_once)
-    except Exception as exc:  # noqa: BLE001
-        log.exception("championship members rebuild failed")
-        return 1, {**result, "members": "error", "members_error": type(exc).__name__}
-    return 0, {**result, "members": "rebuilt", "player_rows": built.get("player_rows"),
-               "manager_rows": built.get("manager_rows")}
+        closure = (read_closure or read_major_closure)()  # 讀判定在借寫入連線之前（唯讀、各自交易）
+        stage = "autofill"
+        with conn() as c:
+            cur = c.cursor()
+            result = ensure_season_champion(cur, closure, now=now, env=env)
+            if result.get("action") != "inserted":
+                return 0, result
+            stage = "members"
+            built = _rebuild_members(cur, closure)
+    except Exception as exc:  # noqa: BLE001 — 交給退出碼與 JSON 摘要；conn() 已回滾整筆交易
+        log.exception("champion autofill failed at %s (rolled back)", stage)
+        return 1, {"action": "error", "stage": stage, "error": type(exc).__name__, "manager": None}
+    return 0, {**result, "members": "rebuilt", "player_rows": built["player_rows"],
+               "manager_rows": built["manager_rows"]}
 
 
 # 各年已驗證冠軍。team_code 形如 AAA011，前三碼對 season 表 team_id；
@@ -279,23 +273,27 @@ def build_championships(*, now: datetime | None = None, env: Mapping[str, str] |
         cur = c.cursor()
         if autofill is None:
             autofill = ensure_season_champion(cur, closure, now=now, env=env)
-        cur.execute(_CHAMP_SQL)
-        champs = cur.fetchall()
-        cur.execute("TRUNCATE cpbl.championship_members")
-        n_player = n_mgr = 0
-        for year, code, franchise_code, _verified_at in champs:
-            args = {"year": year, "code": code, "fcode": franchise_code, "tid": code[:3]}
-            cur.execute(_PLAYERS_SQL, args)
-            n_player += cur.rowcount
-            cur.execute(_MANAGER_SQL, args)
-            n_mgr += cur.rowcount
-        verified_at = max((row[3] for row in champs), default=None)
-        coverage = championship_coverage([row[0] for row in champs], as_of=verified_at,
-                                         through_year=coverage_through_year(closure))
-        out = {"champions": len(champs),
-               "years": [row[0] for row in champs],
-               "coverage": coverage,
-               "autofill": autofill,
-               "player_rows": n_player, "manager_rows": n_mgr}
+        out = {**_rebuild_members(cur, closure), "autofill": autofill}
     log.info("championship_members rebuilt: %s", out)
     return out
+
+
+def _rebuild_members(cur, closure) -> dict:
+    """在呼叫端交易內 TRUNCATE＋重建 ``championship_members``（⛔ 不 commit）。"""
+    cur.execute(_CHAMP_SQL)
+    champs = cur.fetchall()
+    cur.execute("TRUNCATE cpbl.championship_members")
+    n_player = n_mgr = 0
+    for year, code, franchise_code, _verified_at in champs:
+        args = {"year": year, "code": code, "fcode": franchise_code, "tid": code[:3]}
+        cur.execute(_PLAYERS_SQL, args)
+        n_player += cur.rowcount
+        cur.execute(_MANAGER_SQL, args)
+        n_mgr += cur.rowcount
+    verified_at = max((row[3] for row in champs), default=None)
+    coverage = championship_coverage([row[0] for row in champs], as_of=verified_at,
+                                     through_year=coverage_through_year(closure))
+    return {"champions": len(champs),
+            "years": [row[0] for row in champs],
+            "coverage": coverage,
+            "player_rows": n_player, "manager_rows": n_mgr}
