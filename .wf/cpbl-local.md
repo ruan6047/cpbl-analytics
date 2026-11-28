@@ -12,8 +12,8 @@
 ## 任務框架
 
 - CPBL 新任務採用 ai-workflow vNext 已安裝 `wfx` 套件隨附的規則（套件內 `wfx/rules/`）；`wfx` 只提供 `brief`／`facts`／`write`，開卡／關卡由 PM 以 `gh` 執行。`.wf/` 是本專案補充層，只補 CPBL 專有邊界，不取代框架核心規則。
-- 共同主 PM 由能直接與各卡 PM 通訊的對話擔任（同一對話兼任或同一工具互送；`wfx/rules/PM-coordination.md` §1）；#393 期間由需求方在兩個對話間手動轉貼核發與釋放，不再沿用。
-- 專案 PM（新案查重與指派、新任務拆分與開卡、專案方向提案；`wfx/rules/PM-project.md`）：擔任者＝「cpbl-analytics 的專案 PM」對話（Claude Code）；替補＝「cpbl 共同協調」對話兼任，接手依 `PM-project.md` §3 與 `PM-coordination.md` §3 的安全接手。已知限制：擔任者與替補都在 Claude 上，額度用完時兩者同時不可用；此時依 `PM-project.md` §3 只停新案、拆分與方向提案，已獨立卡內工作續行。來源：需求方 2026-11-25 [裁定](https://github.com/ruan6047/cpbl-analytics/issues/462#issuecomment-7151611415)與[需求階段確認](https://github.com/ruan6047/cpbl-analytics/issues/462#issuecomment-7151741133)。
+- 共同主 PM 由能直接與各卡 PM 通訊的對話擔任（同一對話兼任或同一工具互送；`wfx/rules/PM-coordination.md` §1）；擔任者＝「cpbl 的共同協調」對話（Claude Code），替補＝「cpbl 的專案 PM」對話（Claude Code），來源：需求方 2026-11-28 於 [#465](https://github.com/ruan6047/cpbl-analytics/issues/465) 裁定；#393 期間由需求方在兩個對話間手動轉貼核發與釋放，不再沿用。
+- 專案 PM（新案查重與指派、新任務拆分與開卡、專案方向提案；`wfx/rules/PM-project.md`）：擔任者＝「cpbl 的專案 PM」對話（Claude Code）；替補＝「cpbl 的共同協調」對話（Claude Code）兼任，接手依 `PM-project.md` §3 與 `PM-coordination.md` §3 的安全接手。已知限制：擔任者與替補都在 Claude 上，額度用完時兩者同時不可用；此時依 `PM-project.md` §3 只停新案、拆分與方向提案，已獨立卡內工作續行。來源：需求方 2026-11-25 [裁定](https://github.com/ruan6047/cpbl-analytics/issues/462#issuecomment-7151611415)與[需求階段確認](https://github.com/ruan6047/cpbl-analytics/issues/462#issuecomment-7151741133)。
 - 新卡一律開在 GitHub Issues＋user Project #10「cpbl-analytics vNext 任務看板」（`.wf/config.json`）。
 - Project #4 已於 ai-workflow#417 結案時關閉；未結案舊卡依 #417 Q6 改照 vNext 繼續（各卡已留通知）。舊流程（T 級、舊狀態值、claim／lease、Ledger、`wfcli`）⛔ 不帶入任何卡；`docs/AI_WORKFLOW.md`、`docs/CONTROL_PLANE_CONTRACT.md`、`docs/TASKS.md` 只作歷史查閱，⛔ 不當活卡狀態讀寫。
 
