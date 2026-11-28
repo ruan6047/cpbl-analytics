@@ -502,7 +502,8 @@ def _daily(run, args, *, pi_batch=None):
             today_file.unlink(missing_ok=True)  # 沿原失敗退 full，不沿舊賽程檔。
     run.detail.update(day_type=day_type, closed_leagues=closed)
     if day_type == "skip":
-        return _skip_day_champion(run)
+        run.skipped = True
+        return 0
     os.environ["DAILY_DAY_TYPE"], os.environ["DAILY_CLOSED_LEAGUES"] = day_type, closed
     delivery = {"on_handoff": pi_batch.daily_written} if pi_batch is not None else {}
     if getattr(args, "reuse_pi_a_schedule", False):
@@ -532,33 +533,6 @@ def _daily(run, args, *, pi_batch=None):
     if overall == 0:
         _invoke(daily_gate.main, ["mark-synced", "--sync-marker", str(marker)])
     return overall
-
-
-def _skip_day_champion(run):
-    """#469：休季 skip 日唯一的資料步驟＝冠軍補列（收官判定 decided 且冠軍表缺該年才寫；只新增）。
-
-    刻意掛在 skip 分支：封王後兩軍皆收官＝每天都是 skip 日，不掛這裡新球季冠軍永遠進不了表（#469 成因）。
-    實際補了列才重建成員；失敗 ⇒ 非零退出（jobs 狀態 failed），⛔ 不吞成「休季略過」。"""
-    from cpbl.ingest import championships
-
-    try:
-        result = championships.autofill_champion()
-    except Exception as exc:  # noqa: BLE001 — 交給退出碼與狀態檔
-        logging.getLogger("cpbl.jobs").exception("champion autofill failed")
-        run.detail.update(champion_autofill="error", champion_autofill_error=type(exc).__name__)
-        return 1
-    run.detail["champion_autofill"] = result.get("action")
-    if result.get("manager"):
-        run.detail["champion_manager"] = result["manager"]
-    if result.get("action") == "inserted":
-        try:
-            championships.build_championships()
-        except Exception as exc:  # noqa: BLE001
-            logging.getLogger("cpbl.jobs").exception("championship members rebuild failed")
-            run.detail.update(champion_members="error", champion_members_error=type(exc).__name__)
-            return 1
-    run.skipped = True
-    return 0
 
 
 def _closed():
