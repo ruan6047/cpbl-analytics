@@ -1,10 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { DRAWER_COPY, drawerState, pickAbility, playerHref, rosterPlayerPath, trapFocus,
+import { DRAWER_COPY, drawerState, openerHadVisibleFocus, pickAbility, playerHref, rosterPlayerPath,
   type RosterMember, type RosterPlayerDetail } from "./playoffs-roster.ts";
 
-// #286 S05 WP4：抽屜純邏輯（焦點陷阱、版本固定、能力卡取用、深讀連結）。DOM 行為另以實際瀏覽器驗。
+// #286 S05 WP4：抽屜純邏輯（版本固定、能力卡取用、深讀連結）。DOM 行為另以實際瀏覽器驗；
+// 焦點限制自 #467 起交給原生 <dialog>.showModal()，不再有自寫的焦點陷阱。
 
 const detail = (cv: string | null, season = true, career = true): RosterPlayerDetail => ({
   contract: "playoffs-roster-player/v1", context_version: cv, roster_version: "rv", series: "C", year: 2026,
@@ -13,17 +14,6 @@ const detail = (cv: string | null, season = true, career = true): RosterPlayerDe
   ability: { season: { available: season, role: "pitching", axes: season ? [] : undefined },
     career: { available: career, role: "pitching", axes: career ? [] : undefined } },
   trend: null,
-});
-
-test("焦點陷阱：Tab 在最後回第一、Shift+Tab 在第一到最後；中間交給瀏覽器；焦點在外 ⇒ 拉回", () => {
-  assert.equal(trapFocus(4, 5, false), 0);
-  assert.equal(trapFocus(0, 5, true), 4);
-  assert.equal(trapFocus(2, 5, false), null);
-  assert.equal(trapFocus(2, 5, true), null);
-  assert.equal(trapFocus(-1, 5, false), 0);
-  assert.equal(trapFocus(-1, 5, true), 4);
-  assert.equal(trapFocus(0, 0, false), null);
-  assert.equal(trapFocus(0, 1, false), 0);
 });
 
 test("版本固定：詳情 context_version ≠ 區資料 ⇒ stale「資料已更新，請重開」；失敗、載入中各自狀態", () => {
@@ -48,4 +38,13 @@ test("深讀連結帶相同角色與層級；詳情路徑", () => {
   assert.equal(playerHref(m("D", "batting")), "/players/0000000001?scope=season&view=overview&role=batting&level=D");
   assert.equal(rosterPlayerPath(2026, "C", "0000000001"),
     "/api/v1/playoffs/roster/player?season=2026&series=C&player_id=0000000001");
+});
+
+test("開啟抽屜的焦點來源（#467 R1）：開啟鈕當下符合 :focus-visible（鍵盤）⇒ true；滑鼠／觸控／無焦點／不支援選擇器 ⇒ false", () => {
+  const el = (visible: boolean) => ({ matches: (sel: string) => sel === ":focus-visible" && visible }) as unknown as Element;
+  assert.equal(openerHadVisibleFocus(el(true)), true);
+  assert.equal(openerHadVisibleFocus(el(false)), false);
+  assert.equal(openerHadVisibleFocus(null), false);
+  const throws = { matches: () => { throw new SyntaxError("unsupported"); } } as unknown as Element;
+  assert.equal(openerHadVisibleFocus(throws), false);
 });

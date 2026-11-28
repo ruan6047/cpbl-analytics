@@ -464,11 +464,16 @@ export function pickAbility(d: RosterPlayerDetail): { label: string; card: Abili
   return null;
 }
 
-/** 焦點陷阱：Tab 在最後一個 ⇒ 回第一個；Shift+Tab 在第一個 ⇒ 到最後一個；其餘交瀏覽器（回 null）。 */
-export function trapFocus(index: number, count: number, shift: boolean): number | null {
-  if (count === 0) return null;
-  if (index < 0) return shift ? count - 1 : 0;
-  if (shift && index === 0) return count - 1;
-  if (!shift && index === count - 1) return 0;
-  return null;
+/**
+ * 開啟抽屜的那顆按鈕當下是否顯示鍵盤焦點（`:focus-visible`）（#467 審核 R1）。
+ * 鍵盤開啟（Tab 到小卡再按 Enter）⇒ true：抽屜的初始焦點要照常顯示焦點環；滑鼠、觸控（iOS 點擊不聚焦按鈕）⇒ false：
+ * 不畫改前沒有的環。不支援 `:focus-visible` 的瀏覽器 matches 會丟錯，退回 false。
+ */
+export function openerHadVisibleFocus(el: Element | null): boolean {
+  if (!el) return false;
+  try {
+    return el.matches(":focus-visible");
+  } catch {
+    return false;
+  }
 }

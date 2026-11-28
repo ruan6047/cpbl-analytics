@@ -39,6 +39,17 @@ export function shouldCloseOnTouch(openAtTouchStart: boolean | null, visibleNow:
   return openAtTouchStart ?? visibleNow;
 }
 
+/**
+ * 提示要 portal 到哪裡（#467 Q1）：觸發元素在開啟中的 `<dialog>` 內 ⇒ 該 dialog；否則 body。
+ *
+ * `showModal()` 開的 dialog 在 top layer、其外的內容 inert：portal 到 body 的提示會被畫在 dialog 底下而且點不到。
+ * 放進 dialog 後仍是 `position: fixed`，dialog 不帶 transform／filter，containing block 仍是 viewport，
+ * 定位計算（getBoundingClientRect）不必改。
+ */
+export function tooltipPortalTarget(trigger: Element | null, body: HTMLElement): HTMLElement {
+  return (trigger?.closest("dialog[open]") as HTMLElement | null) ?? body;
+}
+
 export function Tooltip({
   content,
   children,
@@ -54,6 +65,7 @@ export function Tooltip({
   const [coords, setCoords] = useState({ top: 0, left: 0 });
   const [isCalculated, setIsCalculated] = useState(false);
   const [actualPlacement, setActualPlacement] = useState<"top" | "bottom">("top");
+  const [portalTarget, setPortalTarget] = useState<HTMLElement | null>(null); // 見 tooltipPortalTarget（顯示當下決定）
 
   const id = useId();
   const triggerRef = useRef<HTMLElement>(null);
@@ -164,6 +176,7 @@ export function Tooltip({
   const showTooltip = () => {
     if (timerRef.current) clearTimeout(timerRef.current);
     if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
+    setPortalTarget(tooltipPortalTarget(triggerRef.current, document.body));
 
     if (isExiting) {
       setIsExiting(false);
@@ -370,7 +383,7 @@ export function Tooltip({
           >
             {content}
           </div>,
-          document.body
+          portalTarget ?? document.body
         )}
     </>
   );
