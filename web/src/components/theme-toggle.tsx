@@ -2,10 +2,13 @@
 
 import { useEffect, useState } from "react";
 
+import { applyThemeColor } from "@/lib/theme-color";
+
 type Theme = "light" | "dark";
 
-// 深淺主題切換。初值由 layout 的 no-flash inline script 在首繪前寫入 <html data-theme>；
+// 深淺主題切換。初值由 layout 的 no-flash inline script 在首繪前寫入 <html data-theme>（與 theme-color 覆寫）；
 // 本元件掛載後才讀該屬性同步 UI，避免 SSR/CSR 標記不一致（hydration mismatch）。
+// 切換時同步更新行動瀏覽器頂欄 theme-color（#467），讓頂欄跟實際主題一致。
 export function ThemeToggle() {
   const [theme, setTheme] = useState<Theme | null>(null);
 
@@ -17,6 +20,7 @@ export function ThemeToggle() {
   const toggle = () => {
     const next: Theme = theme === "dark" ? "light" : "dark";
     document.documentElement.setAttribute("data-theme", next);
+    applyThemeColor(next);
     try {
       localStorage.setItem("theme", next);
     } catch {

@@ -4,6 +4,7 @@ import { NavLinks } from "@/components/nav-links";
 import PlayerSearch from "@/components/player-search";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { BrandMark } from "@/components/brand-mark";
+import { THEME_COLOR, THEME_COLOR_SCRIPT } from "@/lib/theme-color";
 import { Archivo, LXGW_WenKai_TC, Noto_Sans_TC } from "next/font/google";
 import "./globals.css";
 
@@ -26,24 +27,18 @@ const archivo = Archivo({ subsets: ["latin"], axes: ["wdth"], variable: "--font-
 const notoTC = Noto_Sans_TC({ subsets: ["latin"], variable: "--font-noto-tc", display: "swap", preload: false });
 const wenkaiTC = LXGW_WenKai_TC({ weight: "400", subsets: ["latin"], variable: "--font-wenkai-tc", display: "swap", preload: false });
 
-// 行動瀏覽器頂欄配色跟隨系統深淺（data-theme 覆寫時 UI 內底色仍由 CSS token 處理）；
-// 值＝頂欄卡面色（globals.css --color-surface 淺／深）。
+// 行動瀏覽器頂欄配色跟「頁面實際套用的主題」（#467），不跟系統偏好：這裡固定給淺色（＝預設主題，無 JS 也成立），
+// 深色由首繪 script 與 ThemeToggle 在 <head> 最前面插覆寫 meta（見 lib/theme-color.ts）。
 export const viewport: Viewport = {
-  themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#f7f5f0" },
-    { media: "(prefers-color-scheme: dark)", color: "#1a2229" },
-  ],
+  themeColor: THEME_COLOR.light,
 };
-
-// 首繪前（阻塞）決定主題：**預設淺色（一般模式）**，只有使用者曾手動切成深色才用深色。
-// 不跟隨系統偏好（避免深色系統使用者被迫進深色）。掛在 <head> 確保早於 <body> 繪製、無 FOUC。
-const NO_FLASH = `(function(){try{var t=localStorage.getItem('theme');document.documentElement.setAttribute('data-theme',t==='dark'?'dark':'light');}catch(e){}})();`;
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="zh-Hant" className={`${archivo.variable} ${notoTC.variable} ${wenkaiTC.variable}`} suppressHydrationWarning>
       <head>
-        <script dangerouslySetInnerHTML={{ __html: NO_FLASH }} />
+        {/* 首繪前（阻塞）決定主題與 theme-color 覆寫：預設淺色、不跟系統；掛在 <head> 確保早於 <body> 繪製、無 FOUC。 */}
+        <script dangerouslySetInnerHTML={{ __html: THEME_COLOR_SCRIPT }} />
       </head>
       <body className="flex min-h-screen flex-col antialiased">
         <a href="#main" className="skip-link">跳至主內容</a>

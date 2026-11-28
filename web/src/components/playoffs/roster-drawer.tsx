@@ -3,7 +3,6 @@
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import { createPortal } from "react-dom";
 
 import { Skeleton } from "@/components/ui";
 import { CLIENT_API } from "@/lib/client";
@@ -12,9 +11,9 @@ import {
   drawerState,
   drawerStatLine,
   drawerSubtitle,
+  openerHadVisibleFocus,
   playerHref,
   rosterPlayerPath,
-  trapFocus,
   type RosterMember,
   type RosterPlayerDetail,
   type RosterScope,
@@ -23,9 +22,9 @@ import { teamColor } from "@/lib/teams";
 
 // #286 S05 WP4：第 3 區能力／走勢抽屜（按需詳情；需求方 Q3、#285 掛點契約 §2.2、§2.3）。
 //
-// - `createPortal(document.body)`、`fixed inset-0 z-50`：375／390 全高度底部抽屜、右上角關閉；md 以上同元件改右側面板。
-// - `role="dialog"`、`aria-modal`、焦點陷阱、Escape／點背景關閉、關閉後焦點回原小卡按鈕（由呼叫端 `onClose` 歸還）、
-//   背景捲動鎖（iOS Safari 用 position:fixed 鎖，關閉時還原捲動位置）。
+// - #467：原生 `<dialog>`＋`showModal()`（top layer，不再 portal）：375／390 全高度底部抽屜、右上角關閉；md 以上同元件改右側面板。
+//   Escape（原生 cancel）與焦點限制（dialog 外 inert）交給瀏覽器；點背景（target＝dialog 本身）關閉；
+//   關閉後焦點回原小卡按鈕（由呼叫端 `onClose` 歸還）。背景捲動鎖見下方 useBodyScrollLock（iOS 實測理由）。
 // - 詳情以 `CLIENT_API`＋`no-store` 按需取，不隨 30 秒輪詢重取；區資料更新時抽屜不關、不搶焦點。
 //   詳情 `context_version` ≠ 目前區資料 ⇒「資料已更新，請重開」，⛔ 拼接不同版本。
 // - #350：主視圖只列人名，個人數值（本範圍 G、ERA·局數或 AVG·OPS、主守位出賽、DH 先發）放標頭第二行，取自摘要 member。
@@ -57,8 +56,15 @@ function RosterChartsSkeleton() {
   );
 }
 
-const FOCUSABLE = 'a[href], button:not([disabled]), select, input, textarea, [tabindex]:not([tabindex="-1"])';
-
+/**
+ * 背景捲動鎖（#467 WP5 採 L3：保留改前的 JS 鎖）。
+ *
+ * ⛔ 刻意保留、不是遺漏：showModal() 本身不擋背景捲動，純 CSS 的兩級在 iOS 模擬器實測都擋不住名單抽屜——
+ * L1（dialog／::backdrop 的 overscroll-behavior: contain）在 iOS 27.2 擋不住；L2（再加 html:has(dialog:modal)
+ * { overflow: hidden }）在 27.2 擋得住、在 26.5 擋不住。iOS 26.5 與 27.2 實測只有 body position:fixed 擋得住
+ * （證據：~/.wf-evidence/cpbl-analytics/467/evidence/ 的 WP5 紀錄）。需求方裁定「背景不可捲動」優先於「移除捲動鎖」，
+ * 驗收 3 放寬條款允許保留最小形式的鎖並註明理由。關閉時還原捲動位置。
+ */
 function useBodyScrollLock() {
   useLayoutEffect(() => {
     const { body } = document;
@@ -89,11 +95,40 @@ export function RosterDrawer({ member, scope = "background", year, series, secti
   sectionRosterVersion: string;
   onClose: () => void;
 }) {
-  const panelRef = useRef<HTMLDivElement>(null);
+  const dialogRef = useRef<HTMLDialogElement>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
+  // close 事件是非同步派送的：卸載時我們自己 close() 的那次，以及 StrictMode 開發模式「掛載→清理→再掛載」
+  // 清理時 close()、再掛載又 showModal() 之後才到的那次，都不得回呼 onClose（否則抽屜一開就關）。
+  // 只有 dialog 真的被瀏覽器關掉（仍掛載且已非 open）才回呼。
+  const unmounting = useRef(false);
   const [detail, setDetail] = useState<RosterPlayerDetail | null>(null);
   const [failed, setFailed] = useState(false);
   useBodyScrollLock();
+
+  // layout effect：在首次繪製前進 top layer（未 open 的 dialog 為 display:none，不會閃一格）。
+  // `!open` 防 StrictMode 重跑 effect 時重複 showModal（已 open 再呼叫會丟 InvalidStateError）。
+  useLayoutEffect(() => {
+    const dialog = dialogRef.current!;
+    unmounting.current = false;
+    // 開啟前先看開啟鈕是不是以鍵盤聚焦（showModal 之後焦點就移走了）。
+    const byKeyboard = openerHadVisibleFocus(document.activeElement);
+    if (!dialog.open) dialog.showModal();
+    // showModal() 已把焦點給第一個可聚焦元素（＝關閉鈕）。鍵盤開啟：保留，焦點環照常顯示。
+    // 滑鼠／觸控開啟：iOS Safari 會因 showModal 的聚焦畫出 :focus-visible 環（改前點擊開啟時沒有），
+    // 所以先 blur 再以 focusVisible:false 聚焦同一顆；之後鍵盤 Tab 移動仍照常顯示。
+    // TS 的 lib.dom 尚未收這個 FocusOptions 欄位，故轉型。
+    const close = closeRef.current;
+    if (!byKeyboard) {
+      close?.blur();
+      close?.focus({ focusVisible: false } as FocusOptions);
+    } else if (document.activeElement !== close) {
+      close?.focus();
+    }
+    return () => {
+      unmounting.current = true;
+      if (dialog.open) dialog.close();
+    };
+  }, []);
 
   // #415：抽屜一開就預載圖表 chunk，與下方詳情 fetch 平行（不等 ready 態才開始下載）。
   useEffect(() => { void loadRosterCharts(); }, []);
@@ -110,27 +145,17 @@ export function RosterDrawer({ member, scope = "background", year, series, secti
     return () => ctrl.abort();
   }, [year, series, member.player_id]);
 
-  useEffect(() => { closeRef.current?.focus(); }, []);
-
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") { e.preventDefault(); onClose(); return; }
-      if (e.key !== "Tab" || !panelRef.current) return;
-      const els = [...panelRef.current.querySelectorAll<HTMLElement>(FOCUSABLE)];
-      const next = trapFocus(els.indexOf(document.activeElement as HTMLElement), els.length, e.shiftKey);
-      if (next !== null) { e.preventDefault(); els[next]?.focus(); }
-    };
-    document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
-  }, [onClose]);
-
   const state = drawerState(detail, failed, sectionVersion, sectionRosterVersion);
   const headingId = `roster-drawer-${member.player_id}`;
-  return createPortal(
-    <div className="fixed inset-0 z-50 flex items-end md:items-stretch md:justify-end" data-roster-drawer={member.player_id}>
-      <div aria-hidden className="absolute inset-0 bg-ink/40" onClick={onClose} />
-      <div ref={panelRef} role="dialog" aria-modal="true" aria-labelledby={headingId}
-        className="relative flex h-full w-full flex-col overflow-hidden bg-paper shadow-xl md:w-[min(640px,100vw)]">
+  // dialog 鋪滿視窗、本身透明不留 padding：點到 dialog 本身（面板以外）＝點背景；遮罩色由 ::backdrop 提供。
+  // UA 預設的 margin／max-*／border／padding／底色全歸零，視覺與改前相同。`open:flex`：未 open 時維持 UA 的 display:none。
+  return (
+    <dialog ref={dialogRef} data-roster-drawer={member.player_id} aria-labelledby={headingId}
+      onCancel={(e) => { e.preventDefault(); onClose(); }}
+      onClose={() => { if (!unmounting.current && !dialogRef.current?.open) onClose(); }}
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+      className="fixed inset-0 m-0 h-full max-h-none w-full max-w-none items-end overflow-hidden border-0 bg-transparent p-0 text-ink backdrop:bg-ink/40 open:flex md:items-stretch md:justify-end">
+      <div className="relative flex h-full w-full flex-col overflow-hidden bg-paper shadow-xl md:w-[min(640px,100vw)]">
         <div className="flex items-start gap-3 border-b border-line px-4 py-3">
           <span aria-hidden className="mt-1 inline-block h-6 w-1 shrink-0 rounded-sm" style={{ background: teamColor(detail?.team_code) }} />
           <div className="min-w-0 flex-1">
@@ -153,8 +178,7 @@ export function RosterDrawer({ member, scope = "background", year, series, secti
           <DrawerBody state={state} member={member} />
         </div>
       </div>
-    </div>,
-    document.body,
+    </dialog>
   );
 }
 

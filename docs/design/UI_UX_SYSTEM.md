@@ -250,7 +250,7 @@
 |---|---|---|---|---|
 | **原生 Select** | `YearSelect`、`Leaderboard` 篩選 | 從**單一軸的多個離散值**選一（年份、隊別、分類篩選），選項 ~5–20 | `bg-surface-2` + `focus:border-ink`；**canonical 圓角＝`rounded-lg`（control）** | 原生 `<select>` + `aria-label` |
 | **溢出「更多」Menu** | `nav-links` `MORE_NAV` | 主入口收納次要項（blueprint §4.1 的 **5+1**），或工具列 overflow | 觸發鈕 chevron `rotate-180`；面板 `rounded-xl border-line bg-surface p-1 shadow-lg` | `aria-haspopup="menu"` + `aria-expanded` + `aria-controls`；`role=menu`/`menuitem`；Esc/點外部關、焦點歸還 |
-| **Modal 導覽** | `nav-links` 行動端 | 窄螢幕主導覽（375px 無頂欄空間） | `portal` 到 body、`backdrop-blur`、`animate-fade-in`、body scroll-lock | `role=dialog` + `aria-modal` + **focus trap** + Esc 關 |
+| **Modal 導覽** | `nav-links` 行動端 | 窄螢幕主導覽（375px 無頂欄空間） | `portal` 到 body、實底面板（`bg-paper`）、`animate-fade-in`、body scroll-lock | `role=dialog` + `aria-modal` + **focus trap** + Esc 關 |
 | **Combobox（搜尋選擇）** | `SearchCombobox`、`PlayerSearch` | 從**大集合**（球員/對手）搜尋挑選 | debounce 250ms + **競態守衛**（採最後一次）；選定→chip 可清除；inline loading/error/empty | `role=combobox` + `aria-expanded/controls/activedescendant/autocomplete`；listbox/option；↑↓ Enter Esc |
 
 > **⚠️ 現況不一致（→ hygiene）**：`YearSelect` 用 `rounded-full`、`Leaderboard` 篩選用 `rounded-lg`。**canonical 定為 `rounded-lg`（control 圓角，§2.5）**；`rounded-full` pill-select 僅工具列 chip 語境可留。收斂列入 [`UI_UX_CONFORMANCE.md`](UI_UX_CONFORMANCE.md) H8。
