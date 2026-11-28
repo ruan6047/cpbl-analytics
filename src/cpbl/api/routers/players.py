@@ -8,6 +8,7 @@ from typing import Any
 from fastapi import APIRouter, HTTPException, Query
 
 from cpbl import imports
+from cpbl.api import staff_championships
 from cpbl.api.helpers import DEFAULT_SEASON, _dicts, _real_ip, _round
 from cpbl.api.matchup_teams import (
     annotate_career_opponent_teams,
@@ -457,9 +458,12 @@ def player_career(player_id: str) -> dict:
                 if _pera is None or e < _pera["value"]:
                     _pera = {"year": y, "value": round(e, 2)}
             pbests = {"w": _pmax(2), "sv": _pmax(4), "so": _pmax(7), "era": _pera}
+        # 教練團奪冠（#470）：獨立欄位，不併入上面的 championships 次數
+        staff_champs = staff_championships.fetch_for_player(cur, player_id)
         _pit_extra = {"pitching": pcareer, "best_p": pbests,
                       "rank_p": {"w": prk[0], "sv": prk[1], "so": prk[2]} if prk else None,
                       "championships": championships,
+                      "staff_championships": staff_champs,
                       **_coach_extra}
         if not per:
             return {"player_id": player_id, "batting": None, "teams": teams,

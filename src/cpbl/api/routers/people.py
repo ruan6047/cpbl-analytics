@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Query
 
+from cpbl.api import staff_championships
 from cpbl.api.helpers import DEFAULT_SEASON, _dicts
 from cpbl.api.routers.umpires import _CALLED, HALF_W, Z_BOT, Z_TOP
 from cpbl.api.rows import _MANAGER_ERAS_SQL
@@ -48,6 +49,7 @@ def coach_profile(name: str) -> dict:
         # 同名守門：唯一對應才附 player_id（嚴禁腦補歸戶）
         cur.execute("SELECT id FROM cpbl.players WHERE name = %s", (name,))
         ids = [r[0] for r in cur.fetchall()]
+        staff_champs = staff_championships.fetch_for_coach(cur, name)
     return {
         "name": name,
         "roles": roles,
@@ -55,6 +57,8 @@ def coach_profile(name: str) -> dict:
         "history": history,
         "player_id": ids[0] if len(ids) == 1 else None,
         "player_ambiguous": len(ids) > 1,
+        # 教練團奪冠（#470）：與總教練戰績（manager_eras）分開
+        "staff_championships": staff_champs,
     }
 
 
