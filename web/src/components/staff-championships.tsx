@@ -77,12 +77,14 @@ export function StaffChampionshipsSection({ data, heading }: {
           )}
         </span>
       ),
+      nowrap: true,
       className: "font-sans text-xs",
     },
     {
       header: "附註",
       cell: (r) => r.note ? <span className="text-xs text-muted">{r.note}</span> : "—",
-      className: "font-sans",
+      className: "font-sans min-w-[14rem]",
+      headClassName: "whitespace-nowrap",
     },
   ];
   return (
