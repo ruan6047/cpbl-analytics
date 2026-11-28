@@ -174,12 +174,47 @@ def ensure_season_champion(cur, closure, *, now: datetime | None = None,
 
 def autofill_champion(*, now: datetime | None = None, env: Mapping[str, str] | None = None,
                       read_closure: Callable | None = None) -> dict:
-    """獨立入口（VPS 休季 skip 日用）：讀收官判定 → 單一交易補列。錯誤上浮（呼叫端記失敗，⛔ 不吞）。"""
+    """讀收官判定 → 單一交易補列。錯誤上浮（呼叫端記失敗，⛔ 不吞）。"""
     if autofill_disabled(env):
         return {"action": "disabled", "year": None, "manager": None}
     closure = (read_closure or read_major_closure)()
     with conn() as c:
         return ensure_season_champion(c.cursor(), closure, now=now, env=env)
+
+
+def run_champion_autofill(*, now: datetime | None = None, env: Mapping[str, str] | None = None,
+                          read_closure: Callable | None = None) -> tuple[int, dict]:
+    """``cpbl-champion-autofill`` 的主體（VPS 每日 timer 在 ``prod_cpbl_api`` 內執行；#469 規劃修訂 r2）。
+
+    補列 → 只有 ``action == "inserted"`` 才重建 ``championship_members``。回傳 ``(退出碼, 摘要)``：
+    任何例外 ⇒ 1，摘要記 ``error``／``members``（⛔ 不吞成成功）。
+
+    ⛔ 刻意不呼叫 ``migrate()``：正式庫沒有 ``cpbl.schema_migrations``，``migrate()`` 會把全部 migration
+    重跑（含 052／054 的 DO UPDATE 與 037／038 主鍵重建）。需要 migrate 的 ``cpbl-build-championships``
+    因此不得用在正式庫。"""
+    if autofill_disabled(env):
+        return 0, {"action": "disabled", "year": None, "manager": None}
+    closures: list = []
+
+    def _read_once():  # 成員重建沿用同一份判定，不重讀
+        if not closures:
+            closures.append((read_closure or read_major_closure)())
+        return closures[0]
+
+    try:
+        result = autofill_champion(now=now, env=env, read_closure=_read_once)
+    except Exception as exc:  # noqa: BLE001 — 交給退出碼與 JSON 摘要
+        log.exception("champion autofill failed")
+        return 1, {"action": "error", "error": type(exc).__name__, "manager": None}
+    if result.get("action") != "inserted":
+        return 0, result
+    try:
+        built = build_championships(now=now, env=env, read_closure=_read_once)
+    except Exception as exc:  # noqa: BLE001
+        log.exception("championship members rebuild failed")
+        return 1, {**result, "members": "error", "members_error": type(exc).__name__}
+    return 0, {**result, "members": "rebuilt", "player_rows": built.get("player_rows"),
+               "manager_rows": built.get("manager_rows")}
 
 
 # 各年已驗證冠軍。team_code 形如 AAA011，前三碼對 season 表 team_id；
