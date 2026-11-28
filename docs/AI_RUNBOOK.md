@@ -333,7 +333,7 @@ docker compose exec -T db psql -U cpbl -d cpbl -c \
   寫入一律 `ON CONFLICT (year) DO NOTHING`：⛔ 不覆蓋、不刪既有列；既有列冠軍與判定不符只記 warning（`present_conflict`）。實作：`src/cpbl/ingest/championships.py`。
 - **寫入者（新增）**：正式站 VPS 主機 timer `cpbl469-champion-autofill.timer`（每日 12:10 Asia/Taipei，`Persistent=true`）→
   `cpbl469-champion-autofill.service` → `docker exec prod_cpbl_api cpbl-champion-autofill`（unit 檔版本化在 `ops/vps/`）。
-  入口 ⛔ **不呼叫 `migrate()`**；補了列（`action=inserted`）才重建 `championship_members`；結果印一行 JSON 進 journal；任何錯誤退出碼 1。
+  入口 ⛔ **不呼叫 `migrate()`**；補了列（`action=inserted`）才重建 `championship_members`，補列與重建在**同一筆交易**（重建失敗就一起回滾、隔天重試）；結果印一行 JSON 進 journal；任何錯誤退出碼 1。
   程式隨主站一般部署重建 `prod_cpbl_api` 送到，timer 裝一次即可、不分年份；**不屬 #393 lane**（不動 `/var/lib/cpbl393-*`、`cpbl393-*` timer），
   也不登記在 `scripts/schedule-registry.json`（該表只描述 Mac launchd，由 `scripts/schedule_watch.py` 以 plist 對帳，表達不了 VPS systemd）。
   另：`cpbl-refresh-recent` 內呼叫的 `build_championships()` 同樣先補列，補列失敗不連坐成員重建（回傳 `autofill.action="error"`）。
@@ -343,19 +343,197 @@ docker compose exec -T db psql -U cpbl -d cpbl -c \
   收官判定讀不到 ⇒ `complete=false`＋`reason="closure_unavailable"`。`coverage.managers_missing_years`＝有冠軍列卻缺已驗證總教練的年份（只揭露）。
 - **時效**：決勝場入正式庫、收官判定 decided 後，下一次 timer（≤24 小時）即補；失敗隔天重試（例如撞上部署重建容器）；API／前端快取最多約 30 分鐘後全站可見。
   沒有告警通道：失敗只留在 `journalctl -u cpbl469-champion-autofill.service`，站上只有 `/records` 會 fail-closed。
-- **安裝（需求方授權；VPS 上 root，在含本 repo 檔案的目錄執行，例如主站 checkout 的 `apps/subprojects/cpbl-analytics/`）**：
-  ```bash
-  install -m 0644 ops/vps/cpbl469-champion-autofill.service ops/vps/cpbl469-champion-autofill.timer /etc/systemd/system/
-  systemctl daemon-reload
-  docker exec prod_cpbl_api sh -c 'command -v cpbl-champion-autofill'   # 入口存在（新映像已部署）才往下
-  systemctl start cpbl469-champion-autofill.service && journalctl -u cpbl469-champion-autofill.service -n 20 --no-pager
-  systemctl enable --now cpbl469-champion-autofill.timer && systemctl list-timers cpbl469-champion-autofill.timer
-  ```
-- **殺開關**：`systemctl disable --now cpbl469-champion-autofill.timer`（主要）；備用 `CPBL_CHAMPION_AUTOFILL=off`（入口不讀判定、不寫；要改正式 `.env` 並重建 API 容器）。
-- **回復**：① 停用 timer、刪 `/etc/systemd/system/cpbl469-champion-autofill.{service,timer}`、`systemctl daemon-reload`；
-  ② 單交易刪本次寫入的 `championship_managers`、`championships` 該年兩列；③ 單交易 `TRUNCATE cpbl.championship_members` 後由寫入前備份 COPY 回
-  （⛔ 不用 `cpbl-build-championships` 重建，理由見上）；④ 讀回三表列數＝備份、`list-timers` 已無此 timer。程式回復＝主站 submodule 指標部署回上一版。
+- **安裝與首次執行**：照下一小節〈首次安裝與回復程序〉逐步做；⛔ 不把各步合成一段貼上、⛔ 不跳步。
+- **殺開關**：`systemctl disable --now cpbl469-champion-autofill.timer`（主要；只擋後續觸發，⛔ 不會停掉已在跑的那一次——要停就照回復 R1）；備用 `CPBL_CHAMPION_AUTOFILL=off`（入口不讀判定、不寫；要改正式 `.env` 並重建 API 容器）。
+- **回復**：照下一小節 R1–R4。只刪「本次寫入」的列：以首次執行 JSON 的 `verified_at`（總教練再加 `note`）辨識，⛔ 不以年份當刪除條件；⛔ 不用 `cpbl-build-championships` 重建成員（理由見上）。程式回復＝主站 submodule 指標部署回上一版（需求方授權）。
 - **已知限制**：總教練是現役快照，季中／季後換帥年會錯（需人改）；Mac 救援整鏈同步以 `mirror_table` 覆蓋 `championship_members`，本機庫缺該年冠軍時會蓋掉正式站成員。
+
+#### 首次安裝與回復程序（#469 WP3；需求方授權後在 VPS 以 root 逐步執行）
+
+順序＝規劃 r2 §6 WP3：備份三表 → 確認入口存在 → 裝 unit 檔（不啟用）→ 執行 service 一次 → 讀回 → 啟用 timer。
+**每一步是一個獨立區塊，一次只貼一塊。** 每塊是 `set -euo pipefail` 的子 shell：第一行檢查上一步的通過標記（`$BK/<n>-*.ok`），
+最後才寫自己的標記；任何一行失敗，該塊就不寫標記，後面各塊第一行即失敗，**整段誤貼也走不到啟用 timer**。
+看到 `PASS <n>` 才貼下一塊；沒看到就停，照該步的「停止」處理。DB 連線：備份、讀回各 1 條（同一快照），寫入＝service 1 次（＋重試 1 次）。
+全程不改 `/var/lib/cpbl393-*`、不動 #393 timer、不改 `.env`、不重建容器。靜態與替身演練測試：`tests/test_champion_autofill_runbook.py`。
+
+0. 設定。每開一個新 shell 都要先貼這塊；續做時先 `BK=<上次印出的目錄>` 再貼。`REPO` 換成 VPS 上含本 repo `ops/vps/` 的目錄（WP3 執行者先確認實際位置）。
+   ```bash
+   # WP3-0
+   REPO=/opt/personal-website/apps/subprojects/cpbl-analytics
+   UNIT=cpbl469-champion-autofill
+   BK=${BK:-/root/cpbl469-wp3-$(date +%Y%m%d-%H%M%S)}; mkdir -p -m 700 "$BK"; echo "BK=$BK"
+   pg() { (cd /opt/personal-website && set -a && . ./.env && docker exec -i prod_pg psql -X -q -At -v ON_ERROR_STOP=1 -U "$DB_USER" -d "$DB_NAME" "$@"); }
+   snap() {  # 一條連線、同一快照：三表排序 COPY、列數、cpbl 表寫入計數、2026 兩列（比對 $2 的 verified_at）
+     mkdir -p "$1"
+     pg -v va="${2:-1970-01-01T00:00:00+00:00}" > "$1/all.txt" <<'SQL'
+   BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY;
+   \echo @@championships.copy
+   COPY (SELECT * FROM cpbl.championships ORDER BY year) TO STDOUT;
+   \echo @@championship_managers.copy
+   COPY (SELECT * FROM cpbl.championship_managers ORDER BY year) TO STDOUT;
+   \echo @@championship_members.copy
+   COPY (SELECT * FROM cpbl.championship_members ORDER BY player_id, year) TO STDOUT;
+   \echo @@counts.txt
+   SELECT 'championships', count(*) FROM cpbl.championships
+   UNION ALL SELECT 'championship_managers', count(*) FROM cpbl.championship_managers
+   UNION ALL SELECT 'championship_members', count(*) FROM cpbl.championship_members;
+   \echo @@tup.txt
+   SELECT relname, n_tup_ins + n_tup_upd + n_tup_del FROM pg_stat_user_tables WHERE schemaname = 'cpbl' ORDER BY relname;
+   \echo @@champion-2026.txt
+   SELECT concat_ws('|', champion_team_code, runner_up_team_code, franchise_code, source_url, verification_status,
+                    (verified_at = :'va')::int) FROM cpbl.championships WHERE year = 2026;
+   \echo @@manager-2026.txt
+   SELECT concat_ws('|', manager_name, franchise_code, source_url, verification_status, note,
+                    (verified_at = :'va')::int) FROM cpbl.championship_managers WHERE year = 2026;
+   \echo @@members-2026.txt
+   SELECT count(*) FROM cpbl.championship_members WHERE year = 2026;
+   COMMIT;
+   SQL
+     awk -v d="$1" '/^@@/ { f = d "/" substr($0, 3); printf "" > f; next } { print > f }' "$1/all.txt"
+     for t in championships championship_managers championship_members; do
+       test "$(wc -l < "$1/$t.copy" | tr -d ' ')" = "$(grep "^$t|" "$1/counts.txt" | cut -d'|' -f2)"
+     done
+     (cd "$1" && sha256sum championships.copy championship_managers.copy championship_members.copy > sha256.txt)
+   }
+   hist_sha() { awk -F'\t' '$1 != "2026"' "$1" | sha256sum; }  # 1990–2025 列（排除 2026）的 sha256
+   ```
+1. 備份三表。停止：任一指令失敗（含 COPY 列數≠count）⇒ 不寫，回報。
+   ```bash
+   # WP3-1
+   ( set -euo pipefail
+     snap "$BK/before"
+     cat "$BK/before/counts.txt" "$BK/before/sha256.txt"
+     touch "$BK/1-backup.ok"; echo "PASS 1" )
+   ```
+2. 確認入口存在（新映像已部署）。停止：失敗 ⇒ 停，回 WP2。
+   ```bash
+   # WP3-2
+   ( set -euo pipefail; test -f "$BK/1-backup.ok"
+     docker exec prod_cpbl_api sh -c 'command -v cpbl-champion-autofill'
+     touch "$BK/2-entry.ok"; echo "PASS 2" )
+   ```
+3. 裝 unit 檔，**不啟用 timer**。
+   ```bash
+   # WP3-3
+   ( set -euo pipefail; test -f "$BK/2-entry.ok"
+     install -m 0644 "$REPO/ops/vps/$UNIT.service" "$REPO/ops/vps/$UNIT.timer" /etc/systemd/system/
+     systemctl daemon-reload
+     test "$(systemctl is-enabled "$UNIT.timer" || true)" = disabled
+     touch "$BK/3-units.ok"; echo "PASS 3" )
+   ```
+4. 執行 service 一次（`systemctl start` 會等 oneshot 跑完，失敗回非零）。存下這次的 journal 與 JSON，並記下本次寫入的
+   `verified_at` 與預期刪除列數（R2 用；寫入失敗時整筆交易已回滾，`verified_at` 記成 `-`）。
+   停止：非零 ⇒ 可再貼本塊**一次**（第三次會被擋），仍失敗就停；輸出出現 `migrate` ⇒ 停並照 R1–R4 回復。
+   ```bash
+   # WP3-4
+   ( set -euo pipefail; test -f "$BK/3-units.ok"
+     n=$(cat "$BK/run.attempts" 2>/dev/null || echo 0); test "$n" -lt 2; n=$((n + 1)); echo "$n" > "$BK/run.attempts"
+     rc=0; systemctl start "$UNIT.service" || rc=$?
+     journalctl _SYSTEMD_INVOCATION_ID="$(systemctl show -p InvocationID --value "$UNIT.service")" -o cat --no-pager > "$BK/run-$n.log"
+     grep '^{' "$BK/run-$n.log" | tail -n 1 > "$BK/run.json"; cat "$BK/run.json"
+     docker exec -i prod_cpbl_api python -c 'import json, sys; d = json.load(sys.stdin); print(d.get("verified_at") or "-", int(d.get("action") == "inserted"), int(d.get("manager") == "inserted"))' < "$BK/run.json" > "$BK/written"
+     if grep -qi migrate "$BK/run-$n.log"; then echo "STOP: migrate in output"; exit 1; fi
+     test "$rc" -eq 0
+     touch "$BK/4-run.ok"; echo "PASS 4" )
+   ```
+5. 讀回：2026 兩列＝`plan.md` §10 種子值且 `verified_at` 是本次；1990–2025 兩表逐列＝備份；三表以外的 `cpbl` 表寫入計數不變。
+   停止：任一項不符 ⇒ 照 R1–R4 回復；第三項若疑似其他寫入者（例如撞上每日同步）造成，先停下回報，⛔ 不自行判定無害。
+   ```bash
+   # WP3-5
+   ( set -euo pipefail; test -f "$BK/4-run.ok"
+     read -r va exp_c exp_m < "$BK/written"; test "$exp_c" = 1; test "$exp_m" = 1
+     snap "$BK/after" "$va"
+     test "$(cat "$BK/after/champion-2026.txt")" = 'AAA011|ACN011|AAA011|https://www.cpbl.com.tw/box?year=2026&KindCode=C&gameSno=6|verified|1'
+     test "$(cat "$BK/after/manager-2026.txt")" = '葉君璋|AAA011|https://www.cpbl.com.tw/team/index?teamNo=AAA011|verified|自動補上（#469）：官網球隊頁現任一軍總教練（cpbl.coaches 快照）|1'
+     test "$(hist_sha "$BK/after/championships.copy")" = "$(hist_sha "$BK/before/championships.copy")"
+     test "$(hist_sha "$BK/after/championship_managers.copy")" = "$(hist_sha "$BK/before/championship_managers.copy")"
+     test -z "$(diff "$BK/before/tup.txt" "$BK/after/tup.txt" | grep '^[<>]' | grep -v -E '^[<>] (championships|championship_managers|championship_members)\|' || true)"
+     echo "members 2026: $(cat "$BK/after/members-2026.txt")"
+     touch "$BK/5-readback.ok"; echo "PASS 5" )
+   ```
+6. 啟用 timer（只有讀回通過才走得到）。之後照規劃等快取到期（≥30 分鐘）再驗 API。
+   ```bash
+   # WP3-6
+   ( set -euo pipefail; test -f "$BK/5-readback.ok"
+     systemctl enable --now "$UNIT.timer"
+     systemctl list-timers "$UNIT.timer" --no-pager
+     touch "$BK/6-timer.ok"; echo "PASS 6" )
+   ```
+
+**回復**（WP3 任一停止條件要求回復時；基準＝步驟 1 的 `$BK/before`。同樣一次貼一塊，看到 `PASS R<n>` 才貼下一塊；新 shell 先貼 WP3-0）：
+
+- R1 停止所有寫入並確認已停。停 timer 只擋後續觸發；`systemctl stop` 只結束主機上的 `docker exec`，容器內的入口程序可能還在跑，
+  所以要等到容器內已沒有 `cpbl-champion-autofill` 程序（每 5 秒查一次、最多 66 次）；仍在跑就停下回報，⛔ 不往下還原。
+  ```bash
+  # ROLLBACK-1
+  ( set -euo pipefail; test -f "$BK/1-backup.ok"
+    alive() { docker exec prod_cpbl_api python -c '
+  import os, pathlib, sys
+  me, hit = str(os.getpid()), []
+  for p in pathlib.Path("/proc").iterdir():
+      if p.name.isdigit() and p.name != me:
+          try:
+              if b"cpbl-champion-" + b"autofill" in (p / "cmdline").read_bytes():
+                  hit.append(p.name)
+          except OSError:
+              pass
+  print("running:", hit)
+  sys.exit(0 if hit else 1)'; }
+    systemctl disable --now "$UNIT.timer" 2>/dev/null || true
+    systemctl stop "$UNIT.service" 2>/dev/null || true
+    case "$(systemctl is-active "$UNIT.service" 2>/dev/null || true)" in inactive|failed|unknown|"") ;; *) echo "STOP: service still active"; exit 1 ;; esac
+    for _ in $(seq 1 66); do alive || break; sleep 5; done
+    if alive; then echo "STOP: entry still running in container"; exit 1; fi
+    rm -f "/etc/systemd/system/$UNIT.service" "/etc/systemd/system/$UNIT.timer"; systemctl daemon-reload
+    touch "$BK/r1-stopped.ok"; echo "PASS R1" )
+  ```
+- R2 單交易刪**本次寫入**的兩列：條件＝`year = 2026`、`verified_at`＝步驟 4 記下的值（總教練再加 `note`＝本卡標記）。
+  刪除列數必須等於步驟 4 記下的預期值，否則整筆 `ROLLBACK`、一列都不刪並以非零結束（那列不是本次寫入，停下回報）。
+  步驟 4 沒寫到東西（`verified_at` 記成 `-`）或沒跑到步驟 4 就略過刪除。
+  ```bash
+  # ROLLBACK-2
+  ( set -euo pipefail; test -f "$BK/r1-stopped.ok"
+    va=-; exp_c=0; exp_m=0; if [ -s "$BK/written" ]; then read -r va exp_c exp_m < "$BK/written" || true; fi
+    if [ "$va" != - ]; then
+      pg -v va="$va" -v exp_c="$exp_c" -v exp_m="$exp_m" -v note='自動補上（#469）：官網球隊頁現任一軍總教練（cpbl.coaches 快照）' <<'SQL'
+  BEGIN;
+  WITH d AS (DELETE FROM cpbl.championship_managers WHERE year = 2026 AND verified_at = :'va' AND note = :'note' RETURNING 1)
+  SELECT count(*) AS m FROM d \gset
+  WITH d AS (DELETE FROM cpbl.championships WHERE year = 2026 AND verified_at = :'va' RETURNING 1)
+  SELECT count(*) AS c FROM d \gset
+  SELECT (:m = :exp_m AND :c = :exp_c)::int AS ok \gset
+  \if :ok
+  COMMIT;
+  \echo deleted managers=:m championships=:c
+  \else
+  ROLLBACK;
+  \echo refused managers=:m championships=:c expected=:exp_m/:exp_c
+  DO $$ BEGIN RAISE EXCEPTION 'rows are not from this run; nothing deleted'; END $$;
+  \endif
+  SQL
+    else
+      echo "nothing written by this run; skip delete"
+    fi
+    touch "$BK/r2-deleted.ok"; echo "PASS R2" )
+  ```
+- R3 單交易把成員表還原成備份（`TRUNCATE` 後 COPY 回；任一句失敗即中止、不 COMMIT）。
+  ```bash
+  # ROLLBACK-3
+  ( set -euo pipefail; test -f "$BK/r2-deleted.ok"
+    { printf 'BEGIN;\nTRUNCATE cpbl.championship_members;\nCOPY cpbl.championship_members FROM STDIN;\n'
+      cat "$BK/before/championship_members.copy"; printf '\\.\nCOMMIT;\n'; } | pg
+    touch "$BK/r3-members.ok"; echo "PASS R3" )
+  ```
+- R4 讀回：三表排序後 COPY 的 sha256 與列數都等於備份；timer 與 unit 檔都不在了。
+  ```bash
+  # ROLLBACK-4
+  ( set -euo pipefail; test -f "$BK/r3-members.ok"
+    snap "$BK/final"
+    cmp "$BK/before/sha256.txt" "$BK/final/sha256.txt"; cmp "$BK/before/counts.txt" "$BK/final/counts.txt"
+    test -z "$(systemctl list-timers --all --no-legend "$UNIT.timer" 2>/dev/null || true)"
+    test ! -e "/etc/systemd/system/$UNIT.service"; test ! -e "/etc/systemd/system/$UNIT.timer"
+    touch "$BK/r4-verified.ok"; echo "PASS R4" )
+  ```
 
 ### 開季切回（#392）：需求方手動一條指令切回賽季中
 
